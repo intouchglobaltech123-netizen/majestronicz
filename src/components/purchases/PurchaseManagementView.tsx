@@ -1,0 +1,233 @@
+import React, { useState } from 'react';
+import {
+  ShoppingBag,
+  Building2,
+  Plus,
+  AlertTriangle,
+  PackageCheck,
+} from 'lucide-react';
+import { useErp } from '../../context/ErpContext';
+import { Vendor } from '../../types';
+import { PurchaseOrderList } from './PurchaseOrderList';
+import { VendorListView } from './VendorListView';
+import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
+import { VendorMasterModal } from './VendorMasterModal';
+import { formatCurrency } from '../../lib/utils';
+
+export const PurchaseManagementView: React.FC = () => {
+  const { purchaseOrders, vendors, canManagePurchases } = useErp();
+
+  const [activeTab, setActiveTab] = useState<'orders' | 'vendors'>('orders');
+  const [isPoFormOpen, setIsPoFormOpen] = useState(false);
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+  const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // KPI Calculations
+  const activeOrders = purchaseOrders.filter(
+    (p) => p.status === 'Ordered' || p.status === 'Partially Received'
+  );
+  const activeOrdersValue = activeOrders.reduce((sum, p) => sum + p.totalAmount, 0);
+
+  const overdueOrders = activeOrders.filter((p) => p.expectedDeliveryDate < todayStr);
+
+  const pendingUnitsInward = activeOrders.reduce((sum, p) => {
+    const totalOrdered = p.items.reduce((s, it) => s + it.quantityOrdered, 0);
+    const totalReceived = p.items.reduce((s, it) => s + (it.receivedQuantity || 0), 0);
+    return sum + Math.max(0, totalOrdered - totalReceived);
+  }, 0);
+
+  const handleStartPoWithVendor = (vendor: Vendor) => {
+    setSelectedVendorForPo(vendor);
+    setIsPoFormOpen(true);
+  };
+
+  const handleOpenGeneralPo = () => {
+    setSelectedVendorForPo(null);
+    setIsPoFormOpen(true);
+  };
+
+  return (
+    <div className="p-6 space-y-6 w-full">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">
+              Purchases
+            </h1>
+            <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              Inward Supply
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Issue Purchase Orders to suppliers, inward physical inventory into warehouses, and manage suppliers.
+          </p>
+        </div>
+
+        {/* Action CTAs */}
+        {canManagePurchases && (
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsVendorModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-2xs transition-colors"
+            >
+              <Building2 className="h-4 w-4 text-slate-500" />
+              <span>Add Supplier</span>
+            </button>
+            <button
+              onClick={handleOpenGeneralPo}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Issue Purchase Order</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* KPI Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Active POs */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60">
+            <ShoppingBag className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Open Purchase Orders
+            </p>
+            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+              {formatCurrency(activeOrdersValue)}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {activeOrders.length} active supplier order{activeOrders.length === 1 ? '' : 's'}
+            </p>
+          </div>
+        </div>
+
+        {/* Overdue Shipments */}
+        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${
+          overdueOrders.length > 0
+            ? 'bg-rose-50/60 border-rose-200'
+            : 'bg-white border-slate-200'
+        }`}>
+          <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${
+            overdueOrders.length > 0
+              ? 'bg-rose-100 text-rose-600 border-rose-300'
+              : 'bg-slate-50 text-slate-500 border-slate-200'
+          }`}>
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Overdue Shipments
+            </p>
+            <p className={`text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${
+              overdueOrders.length > 0 ? 'text-rose-700' : 'text-slate-900'
+            }`}>
+              {overdueOrders.length}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {overdueOrders.length > 0 ? 'Exceeded expected delivery' : 'All shipments on schedule'}
+            </p>
+          </div>
+        </div>
+
+        {/* Inward Units Pending */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+            <PackageCheck className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Units Inward Pending
+            </p>
+            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+              {pendingUnitsInward} units
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Awaiting physical delivery & check
+            </p>
+          </div>
+        </div>
+
+        {/* Registered Suppliers */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/60">
+            <Building2 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Suppliers
+            </p>
+            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+              {vendors.length} Suppliers
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Approved procurement partners
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Primary Sub-Navigation Tabs */}
+      <div className="border-b border-slate-200 flex items-center gap-6">
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'orders'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <ShoppingBag className="h-4 w-4" />
+          <span>Purchase Orders</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+            activeTab === 'orders' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {purchaseOrders.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('vendors')}
+          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'vendors'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Building2 className="h-4 w-4" />
+          <span>Suppliers</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+            activeTab === 'vendors' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {vendors.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'orders' ? (
+        <PurchaseOrderList onCreateNewPo={handleOpenGeneralPo} />
+      ) : (
+        <VendorListView onSelectVendorForPo={handleStartPoWithVendor} />
+      )}
+
+      {/* Create Purchase Order Modal */}
+      <PurchaseOrderFormModal
+        isOpen={isPoFormOpen}
+        onClose={() => setIsPoFormOpen(false)}
+        preSelectedVendor={selectedVendorForPo}
+      />
+
+      {/* Vendor Master Modal */}
+      <VendorMasterModal
+        isOpen={isVendorModalOpen}
+        onClose={() => setIsVendorModalOpen(false)}
+      />
+    </div>
+  );
+};
