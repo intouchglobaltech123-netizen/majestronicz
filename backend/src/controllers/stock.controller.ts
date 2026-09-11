@@ -1,0 +1,22 @@
+import { Request, Response } from 'express';
+import * as stock from '../services/stock.service.js';
+
+export const adjust = async (req: Request, res: Response) => {
+  const { itemId, branchId, quantityChange, reason, notes, actor } = req.body;
+  res.json(await stock.adjustStock(itemId, branchId, quantityChange, reason, notes, actor));
+};
+
+export const transfer = async (req: Request, res: Response) => {
+  const { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor } = req.body;
+  res.json(await stock.transferStock(itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan ?? true, actor));
+};
+
+export const updateStock = async (req: Request, res: Response) => {
+  const { itemId, branchId, quantity, minStockAlert, location } = req.body;
+  res.json(await stock.updateBranchStock(itemId, branchId, quantity, minStockAlert, location));
+};
+
+export const updateLocation = async (req: Request, res: Response) => {
+  const { itemId, branchId, location } = req.body;
+  res.json(await stock.updateBranchStockLocation(itemId, branchId, location));
+};

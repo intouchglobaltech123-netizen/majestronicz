@@ -16,7 +16,6 @@ import { HrmView } from './components/hrm/HrmView';
 import { InventoryView } from './components/inventory/InventoryView';
 import { ReportsView } from './components/reports/ReportsView';
 import { CustomersView } from './components/customers/CustomersView';
-import { PinAuthModal } from './components/auth/PinAuthModal';
 import { Toaster } from 'sonner';
 
 const AppContent: React.FC = () => {
@@ -65,9 +64,6 @@ const AppContent: React.FC = () => {
           )}
         </main>
       </div>
-
-      {/* Role Authentication PIN Keypad Modal */}
-      <PinAuthModal />
 
       {/* Sonner Toast Notifications */}
       <Toaster

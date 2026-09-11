@@ -1,23 +1,11 @@
-import {
-  Item,
-  BranchStock,
-  Invoice,
-  Enquiry,
-  PendingOrder,
-  FollowUpReminder,
-  DailyCashRegister,
-  Vendor,
-  PurchaseOrder,
-  Employee,
-  AttendanceRecord,
-  PayrollSettings,
-  PayrollRecord,
-  StockAdjustmentLog,
-  ComboItem,
-  RecurringExpenseTemplate,
-  Customer,
-  LoyaltySettings,
-} from '../types';
+// Backend-owned demo seed data. Types are loose (data is written to Postgres
+// via Prisma createMany which accepts the object shape), so this file has no
+// dependency on the frontend.
+type Item = any; type BranchStock = any; type Invoice = any; type Enquiry = any;
+type PendingOrder = any; type FollowUpReminder = any; type DailyCashRegister = any;
+type Vendor = any; type PurchaseOrder = any; type Employee = any; type AttendanceRecord = any;
+type PayrollSettings = any; type PayrollRecord = any; type StockAdjustmentLog = any;
+type ComboItem = any; type RecurringExpenseTemplate = any; type Customer = any; type LoyaltySettings = any;
 
 export const INITIAL_CATEGORIES: string[] = [
   'PLC & Controllers',

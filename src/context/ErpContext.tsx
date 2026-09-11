@@ -1,4 +1,23 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
+
+/**
+ * Persists a collection to the backend whenever it changes, so Postgres always
+ * mirrors the in-memory state after any mutation. Skips while bootstrapping and
+ * skips the first post-bootstrap value (the freshly-loaded data) to avoid a
+ * redundant write storm on page load.
+ */
+function useDbSync<T>(path: string, data: T, enabled: boolean) {
+  const skipFirst = useRef(true);
+  useEffect(() => {
+    if (!enabled) return;
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
+    apiPut(path, data).catch((e) => console.error(`DB sync failed for ${path}:`, e));
+  }, [data, enabled, path]);
+}
 import {
   Item,
   BranchStock,
@@ -9,7 +28,6 @@ import {
   Estimate,
   DeliveryChallan,
   Invoice,
-  SaleReturnLineItem,
   Enquiry,
   EnquiryStatus,
   PendingOrder,
@@ -37,9 +55,6 @@ import {
   PayrollRecord,
   StockAdjustmentLog,
   StockAdjustmentReason,
-  STANDARD_UNITS,
-  GST_RATES,
-  PAYMENT_TERMS_OPTIONS,
   ComboItem,
   ComboComponent,
   RecurringExpenseTemplate,
@@ -47,31 +62,8 @@ import {
   Customer,
   LoyaltySettings,
 } from '../types';
-import {
-  INITIAL_ITEMS,
-  INITIAL_BRANCH_STOCKS,
-  INITIAL_ESTIMATES,
-  INITIAL_CHALLANS,
-  INITIAL_INVOICES,
-  INITIAL_ENQUIRIES,
-  INITIAL_PENDING_ORDERS,
-  INITIAL_REMINDERS,
-  INITIAL_DAILY_CASH_REGISTERS,
-  INITIAL_VENDORS,
-  INITIAL_PURCHASE_ORDERS,
-  INITIAL_EMPLOYEES,
-  INITIAL_ATTENDANCE_RECORDS,
-  INITIAL_PAYROLL_SETTINGS,
-  INITIAL_PAYROLL_RECORDS,
-  INITIAL_STOCK_ADJUSTMENT_LOGS,
-  INITIAL_CATEGORIES,
-  INITIAL_SUBCATEGORIES,
-  INITIAL_COMBOS,
-  INITIAL_RECURRING_EXPENSE_TEMPLATES,
-  INITIAL_CUSTOMERS,
-  INITIAL_LOYALTY_SETTINGS,
-} from '../data/seedData';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
+import { LoginScreen } from '../components/auth/LoginScreen';
 import { toast } from 'sonner';
 
 export const STORAGE_KEY = 'majestronicz_erp_v1_demo';
@@ -139,8 +131,8 @@ interface ErpContextType {
 
   // Auth / Role State
   currentUser: UserSession;
-  loginWithPin: (pin: string, customBranch?: BranchId) => boolean;
-  switchRole: (role: Role, customBranch?: BranchId) => void;
+  isAuthenticated: boolean;
+  loginWithPin: (pin: string, customBranch?: BranchId) => Promise<boolean>;
   logout: () => void;
   isAuthModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
@@ -392,6 +384,7 @@ interface ErpContextType {
 
   // Reports
   canViewReports: boolean;
+  canAccessView: (view: ActiveNavView) => boolean;
   canViewPayrollReport: boolean;
 
   // Customer Master & Loyalty
@@ -459,7 +452,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load items from storage:', e);
     }
-    return INITIAL_ITEMS;
+    return [];
   });
 
   const [combos, setCombos] = useState<ComboItem[]>(() => {
@@ -474,7 +467,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load combos from storage:', e);
     }
-    return INITIAL_COMBOS;
+    return [];
   });
 
   const [branchStocks, setBranchStocks] = useState<BranchStock[]>(() => {
@@ -489,7 +482,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load branch stocks from storage:', e);
     }
-    return INITIAL_BRANCH_STOCKS;
+    return [];
   });
 
   const [stockAdjustmentLogs, setStockAdjustmentLogs] = useState<StockAdjustmentLog[]>(() => {
@@ -504,7 +497,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load stock adjustment logs from storage:', e);
     }
-    return INITIAL_STOCK_ADJUSTMENT_LOGS;
+    return [];
   });
 
   const [estimates, setEstimates] = useState<Estimate[]>(() => {
@@ -519,7 +512,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load estimates from storage:', e);
     }
-    return INITIAL_ESTIMATES;
+    return [];
   });
 
   const [challans, setChallans] = useState<DeliveryChallan[]>(() => {
@@ -534,7 +527,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load challans from storage:', e);
     }
-    return INITIAL_CHALLANS;
+    return [];
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
@@ -549,7 +542,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load invoices from storage:', e);
     }
-    return INITIAL_INVOICES;
+    return [];
   });
 
   const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
@@ -564,7 +557,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load enquiries from storage:', e);
     }
-    return INITIAL_ENQUIRIES;
+    return [];
   });
 
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>(() => {
@@ -579,7 +572,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load pendingOrders from storage:', e);
     }
-    return INITIAL_PENDING_ORDERS;
+    return [];
   });
 
   const [reminders, setReminders] = useState<FollowUpReminder[]>(() => {
@@ -594,7 +587,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load reminders from storage:', e);
     }
-    return INITIAL_REMINDERS;
+    return [];
   });
 
   const [selectedEnquiryForDetail, setSelectedEnquiryForDetail] = useState<Enquiry | null>(null);
@@ -614,7 +607,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load cashRegisters from storage:', e);
     }
-    return INITIAL_DAILY_CASH_REGISTERS;
+    return [];
   });
 
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpenseTemplate[]>(() => {
@@ -629,7 +622,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load recurringExpenses from storage:', e);
     }
-    return INITIAL_RECURRING_EXPENSE_TEMPLATES;
+    return [];
   });
 
   const [enquiryActiveTab, setEnquiryActiveTab] = useState<'all' | 'new-item-requests'>('all');
@@ -651,7 +644,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load vendors from storage:', e);
     }
-    return INITIAL_VENDORS;
+    return [];
   });
 
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
@@ -666,7 +659,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load purchase orders from storage:', e);
     }
-    return INITIAL_PURCHASE_ORDERS;
+    return [];
   });
 
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -681,7 +674,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load employees from storage:', e);
     }
-    return INITIAL_EMPLOYEES;
+    return [];
   });
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
@@ -696,7 +689,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load attendanceRecords from storage:', e);
     }
-    return INITIAL_ATTENDANCE_RECORDS;
+    return [];
   });
 
   const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>(() => {
@@ -711,7 +704,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load payrollSettings from storage:', e);
     }
-    return INITIAL_PAYROLL_SETTINGS;
+    return { standardHoursPerMonth: 208 };
   });
 
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>(() => {
@@ -726,7 +719,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load payrollRecords from storage:', e);
     }
-    return INITIAL_PAYROLL_RECORDS;
+    return [];
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -741,7 +734,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load customers from storage:', e);
     }
-    return INITIAL_CUSTOMERS;
+    return [];
   });
 
   const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>(() => {
@@ -756,7 +749,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load loyaltySettings from storage:', e);
     }
-    return INITIAL_LOYALTY_SETTINGS;
+    return { purchaseThreshold: 10, discountType: 'percentage', discountValue: 0, isActive: false, updatedAt: '', updatedBy: '' };
   });
 
   const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<Customer | null>(null);
@@ -794,7 +787,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load categories:', e);
     }
-    return INITIAL_CATEGORIES;
+    return [];
   });
 
   const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<Record<string, string[]>>(() => {
@@ -809,7 +802,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load subcategories:', e);
     }
-    return INITIAL_SUBCATEGORIES;
+    return {};
   });
 
   const [categoryPrefixMap, setCategoryPrefixMap] = useState<Record<string, string>>(() => {
@@ -854,7 +847,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load units list:', e);
     }
-    return STANDARD_UNITS;
+    return [];
   });
 
   const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>(() => {
@@ -869,7 +862,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load gst slabs:', e);
     }
-    return GST_RATES;
+    return [];
   });
 
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>(() => {
@@ -884,7 +877,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load payment terms:', e);
     }
-    return PAYMENT_TERMS_OPTIONS;
+    return [];
   });
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
@@ -907,51 +900,171 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
 
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      const stateToSave: StorageState = {
-        items,
-        branchStocks,
-        combos,
-        stockAdjustmentLogs,
-        estimates,
-        challans,
-        invoices,
-        enquiries,
-        pendingOrders,
-        reminders,
-        cashRegisters,
-        recurringExpenses,
-        vendors,
-        purchaseOrders,
-        employees,
-        attendanceRecords,
-        payrollSettings,
-        payrollRecords,
-        customers,
-        loyaltySettings,
-        categories,
-        subcategoriesByCategory,
-        categoryPrefixMap,
-        subcategoryPrefixMap,
-        unitsList,
-        gstSlabsList,
-        paymentTermsOptions,
-        currentBranch,
-        currentUser,
-        currentView,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    } catch (e) {
-      console.error('Failed to persist to localStorage:', e);
-    }
-  }, [items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices, enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses, vendors, purchaseOrders, employees, attendanceRecords, payrollSettings, payrollRecords, customers, loyaltySettings, categories, subcategoriesByCategory, categoryPrefixMap, subcategoryPrefixMap, unitsList, gstSlabsList, paymentTermsOptions, currentBranch, currentUser, currentView]);
+  // Bootstrap: load all persisted data from the backend (Postgres) on mount.
+  // This replaces localStorage as the source of truth for shared ERP data.
+  // Per-session UI state (currentUser / currentBranch / currentView) still
+  // comes from localStorage and is NOT overwritten here.
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  // Mandatory login: the app is usable only after a valid (unexpired) session.
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Handle role-specific view constraints
+  // Hydrate all collections + config singletons from a /api/bootstrap payload.
+  // Used for the initial load and for silent live refreshes (SSE).
+  const hydrateState = (data: any) => {
+    if (Array.isArray(data.items)) setItems(data.items);
+    if (Array.isArray(data.branchStocks)) setBranchStocks(data.branchStocks);
+    if (Array.isArray(data.combos)) setCombos(data.combos);
+    if (Array.isArray(data.stockAdjustmentLogs)) setStockAdjustmentLogs(data.stockAdjustmentLogs);
+    if (Array.isArray(data.estimates)) setEstimates(data.estimates);
+    if (Array.isArray(data.challans)) setChallans(data.challans);
+    if (Array.isArray(data.invoices)) setInvoices(data.invoices);
+    if (Array.isArray(data.enquiries)) setEnquiries(data.enquiries);
+    if (Array.isArray(data.pendingOrders)) setPendingOrders(data.pendingOrders);
+    if (Array.isArray(data.reminders)) setReminders(data.reminders);
+    if (Array.isArray(data.cashRegisters)) setCashRegisters(data.cashRegisters);
+    if (Array.isArray(data.recurringExpenses)) setRecurringExpenses(data.recurringExpenses);
+    if (Array.isArray(data.vendors)) setVendors(data.vendors);
+    if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
+    if (Array.isArray(data.employees)) setEmployees(data.employees);
+    if (Array.isArray(data.attendanceRecords)) setAttendanceRecords(data.attendanceRecords);
+    if (Array.isArray(data.payrollRecords)) setPayrollRecords(data.payrollRecords);
+    if (Array.isArray(data.customers)) setCustomers(data.customers);
+    if (Array.isArray(data.categories)) setCategories(data.categories);
+    if (data.subcategoriesByCategory) setSubcategoriesByCategory(data.subcategoriesByCategory);
+    if (data.categoryPrefixMap) setCategoryPrefixMap(data.categoryPrefixMap);
+    if (data.subcategoryPrefixMap) setSubcategoryPrefixMap(data.subcategoryPrefixMap);
+    if (Array.isArray(data.unitsList)) setUnitsList(data.unitsList);
+    if (Array.isArray(data.gstSlabsList)) setGstSlabsList(data.gstSlabsList);
+    if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
+    if (data.loyaltySettings) setLoyaltySettings(data.loyaltySettings);
+    if (data.payrollSettings) setPayrollSettings(data.payrollSettings);
+  };
+
+  // If any request is rejected with 401 (expired/invalid token), force re-login.
   useEffect(() => {
-    if (currentUser.role === 'Billing' && (currentView === 'dashboard' || currentView === 'purchases' || currentView === 'hrm' || currentView === 'reports')) {
-      setCurrentView('items');
+    setUnauthorizedHandler(() => {
+      setAuthToken(null);
+      setIsAuthenticated(false);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Restore a prior session from a still-valid token (survives refresh);
+        // otherwise the login gate is shown. No auto-login / default session.
+        const session = getTokenSession();
+        if (session) {
+          setCurrentUser({
+            role: session.role as Role,
+            name: session.name,
+            pin: '',
+            assignedBranchId: session.assignedBranchId as BranchId | undefined,
+          });
+          setIsAuthenticated(true);
+        } else {
+          setAuthToken(null);
+          setIsAuthenticated(false);
+        }
+
+        const data = await apiGet<any>('/api/bootstrap');
+        if (cancelled) return;
+        hydrateState(data);
+        setBootstrapError(null);
+      } catch (e: any) {
+        console.error('Bootstrap load failed:', e);
+        if (!cancelled) setBootstrapError(e?.message ?? 'Failed to reach backend');
+      } finally {
+        if (!cancelled) setIsBootstrapping(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live cross-session sync: subscribe to the backend SSE stream. When ANY
+  // role commits a change, silently refresh so it reflects here immediately.
+  // Debounced so bursts collapse into one refresh (smooth, no flicker/splash).
+  useEffect(() => {
+    if (isBootstrapping) return;
+    const es = new EventSource(`${API_BASE}/api/events`);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let refreshing = false;
+
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          const data = await apiGet<any>('/api/bootstrap');
+          hydrateState(data);
+        } catch (e) {
+          console.error('Live refresh failed:', e);
+        } finally {
+          refreshing = false;
+        }
+      }, 400);
+    };
+
+    es.onmessage = scheduleRefresh;
+    es.onerror = () => {
+      /* EventSource auto-reconnects; nothing to do */
+    };
+    return () => {
+      if (timer) clearTimeout(timer);
+      es.close();
+    };
+  }, [isBootstrapping]);
+
+  // Data collections persist via granular per-operation endpoints (see the
+  // mutation functions below) — concurrency-safe, no full-collection replace.
+  // Only app-config singletons (low-frequency, admin-only) still sync by key.
+  const dbReady = !isBootstrapping;
+  useDbSync('/api/config/categories', categories, dbReady);
+  useDbSync('/api/config/subcategoriesByCategory', subcategoriesByCategory, dbReady);
+  useDbSync('/api/config/categoryPrefixMap', categoryPrefixMap, dbReady);
+  useDbSync('/api/config/subcategoryPrefixMap', subcategoryPrefixMap, dbReady);
+  useDbSync('/api/config/unitsList', unitsList, dbReady);
+  useDbSync('/api/config/gstSlabsList', gstSlabsList, dbReady);
+  useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, dbReady);
+  useDbSync('/api/config/loyaltySettings', loyaltySettings, dbReady);
+  useDbSync('/api/config/payrollSettings', payrollSettings, dbReady);
+
+  // Persist ONLY per-session UI state to localStorage (which role is logged in,
+  // active branch, current view). All business data lives in Postgres — never
+  // mirrored to the browser.
+  useEffect(() => {
+    if (isBootstrapping) return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ currentBranch, currentUser, currentView })
+      );
+    } catch (e) {
+      console.error('Failed to persist session to localStorage:', e);
+    }
+  }, [isBootstrapping, currentBranch, currentUser, currentView]);
+
+  // Which sidebar views each role may access (UI gating; server enforces writes).
+  const ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
+    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+    Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+    Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
+    Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
+    Sales: ['items', 'enquiries'],
+  };
+  const canAccessView = (view: ActiveNavView) => (ROLE_VIEWS[currentUser.role] || []).includes(view);
+
+  // Handle role-specific view constraints — redirect if current view is not allowed.
+  useEffect(() => {
+    if (!(ROLE_VIEWS[currentUser.role] || []).includes(currentView)) {
+      setCurrentView(landingViewFor(currentUser.role));
     }
     if (currentUser.role === 'Manager') {
       const managerBranch = currentUser.assignedBranchId || 'coimbatore';
@@ -969,8 +1082,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ? BRANCHES.filter((b) => b.id === (currentUser.assignedBranchId || 'coimbatore'))
     : BRANCHES;
 
-  // Role Permissions
-  const isReadOnly = currentUser.role === 'Billing';
+  // Role Permissions — mirror the backend capability matrix (server is authoritative).
+  const isReadOnly = currentUser.role !== 'CEO' && currentUser.role !== 'Manager'; // Billing/Purchase/Sales: read-only Item Master
   const canViewDashboard = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canManageItems = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canEditActiveBranchStock =
@@ -980,7 +1093,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const canEditRestockDate = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canCloseDay = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canOverrideOpening = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canManagePurchases = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canManagePurchases = currentUser.role === 'CEO' || currentUser.role === 'Manager' || currentUser.role === 'Purchase';
   const canViewHrm = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canEditSalaries = currentUser.role === 'CEO';
   const canMarkPayrollPaid = currentUser.role === 'CEO';
@@ -1014,72 +1127,49 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const loginWithPin = (pin: string, customBranch?: BranchId): boolean => {
-    const matched = PRESET_ROLES.find((r) => r.pin === pin);
-    if (!matched) {
+  // Landing view per role after login.
+  const landingViewFor = (role: Role): ActiveNavView =>
+    role === 'CEO' || role === 'Manager' ? 'dashboard' : role === 'Purchase' ? 'purchases' : role === 'Sales' ? 'items' : 'items';
+
+  // Authenticate against the backend (server verifies the PIN and issues a
+  // signed token). The token is what actually authorizes writes server-side.
+  const applyLogin = async (pin: string, customBranch?: BranchId): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ token: string; user: { role: Role; name: string; assignedBranchId?: BranchId } }>(
+        '/api/auth/login',
+        { pin, branchId: customBranch }
+      );
+      setAuthToken(res.token);
+      const assigned = res.user.assignedBranchId;
+      setCurrentUser({ role: res.user.role, name: res.user.name, pin, assignedBranchId: assigned });
+      setCurrentBranch(res.user.role === 'CEO' ? 'all' : assigned || 'erode-hq');
+      setCurrentView(landingViewFor(res.user.role));
+      setIsAuthenticated(true);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const loginWithPin = async (pin: string, customBranch?: BranchId): Promise<boolean> => {
+    const ok = await applyLogin(pin, customBranch);
+    if (!ok) {
       toast.error('Invalid PIN code', {
-        description: 'Try 1111 (CEO), 2222 (Manager), or 3333 (Billing)',
+        description: 'Try 1111 (CEO), 2222 (Manager), 3333 (Billing), 4444 (Purchase), 5555 (Sales)',
       });
       return false;
     }
-
-    const assigned = matched.role === 'Manager' ? (customBranch || matched.defaultBranch || 'coimbatore') : undefined;
-    const newSession: UserSession = {
-      role: matched.role,
-      name: matched.defaultName,
-      pin: matched.pin,
-      assignedBranchId: assigned,
-    };
-    setCurrentUser(newSession);
-
-    if (matched.role === 'CEO') {
-      setCurrentBranch('all');
-      setCurrentView('dashboard');
-    } else if (matched.role === 'Manager') {
-      setCurrentBranch(assigned || 'coimbatore');
-      setCurrentView('dashboard');
-    } else {
-      setCurrentBranch(assigned || 'erode-hq');
-      setCurrentView('items'); // Billing lands on Item Master / Sales
-    }
-
-    toast.success(`Logged in as ${matched.role}`, {
-      description: assigned ? `Assigned to: ${BRANCHES.find(b => b.id === assigned)?.name}` : 'Full access granted',
+    const matched = PRESET_ROLES.find((r) => r.pin === pin);
+    toast.success(`Logged in as ${matched?.role}`, {
+      description: matched?.defaultBranch ? `Assigned to: ${BRANCHES.find((b) => b.id === (customBranch || matched.defaultBranch))?.name}` : 'Access granted',
     });
-    setAuthModalOpen(false);
     return true;
   };
 
-  const switchRole = (role: Role, customBranch?: BranchId) => {
-    const matched = PRESET_ROLES.find((r) => r.role === role);
-    if (!matched) return;
-    const assigned = role === 'Manager' ? (customBranch || matched.defaultBranch || 'coimbatore') : undefined;
-    const newSession: UserSession = {
-      role: matched.role,
-      name: matched.defaultName,
-      pin: matched.pin,
-      assignedBranchId: assigned,
-    };
-    setCurrentUser(newSession);
-
-    if (role === 'CEO') {
-      setCurrentBranch('all');
-      setCurrentView('dashboard');
-    } else if (role === 'Manager') {
-      setCurrentBranch(assigned || 'coimbatore');
-      setCurrentView('dashboard');
-    } else {
-      setCurrentBranch(assigned || 'erode-hq');
-      setCurrentView('items');
-    }
-
-    toast.success(`Role switched to ${role}`, {
-      description: assigned ? `Assigned to ${BRANCHES.find(b => b.id === assigned)?.name}` : undefined,
-    });
-  };
-
   const logout = () => {
-    setAuthModalOpen(true);
+    setAuthToken(null);
+    setIsAuthenticated(false);
+    toast.info('Logged out');
   };
 
   const getBranchStock = (itemId: string, branchId?: BranchScope): BranchStock | undefined => {
@@ -1224,6 +1314,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setItems((prev) => [newItem, ...prev]);
     setBranchStocks((prev) => [...prev, ...newStockRows]);
 
+    persist(apiPost('/api/catalog/item', { item: newItem, initialStocks, initialLocations }));
+
     toast.success(`Item "${newItem.itemName}" added to catalog`, {
       description: `Master price: ₹${newItem.salePrice.toLocaleString('en-IN')}`,
     });
@@ -1239,6 +1331,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, ...updates, updatedAt: now } : item))
     );
+    persist(apiPut(`/api/items/${itemId}`, { ...updates, updatedAt: now }));
     toast.success('Master catalog item updated');
   };
 
@@ -1274,6 +1367,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return [...prev, newRow];
       }
     });
+
+    persist(apiPost('/api/stock/update', { itemId, branchId, quantity, minStockAlert, location }));
 
     const targetBranch = BRANCHES.find((b) => b.id === branchId);
     toast.success(`Stock updated for ${targetBranch?.name || branchId}`, {
@@ -1311,6 +1406,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    persist(apiPost('/api/stock/location', { itemId, branchId, location }));
+
     const targetBranch = BRANCHES.find((b) => b.id === branchId);
     toast.success(`Shelf location updated to "${trimmed || 'Unassigned'}"`, {
       description: `Updated for ${targetBranch?.name || branchId}`,
@@ -1321,6 +1418,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setItems((prev) => prev.filter((i) => i.id !== itemId));
     setBranchStocks((prev) => prev.filter((s) => s.itemId !== itemId));
     setStockAdjustmentLogs((prev) => prev.filter((l) => l.itemId !== itemId));
+    persist(apiDelete(`/api/catalog/item/${itemId}`));
     toast.success('Item removed from catalog');
   };
 
@@ -1396,11 +1494,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...prev,
       ];
     });
+    persist(apiPost('/api/catalog/combo', combo));
     toast.success(`Combo bundle "${combo.comboName}" saved`);
   };
 
   const deleteCombo = (comboId: string) => {
     setCombos((prev) => prev.filter((c) => c.id !== comboId));
+    persist(apiDelete(`/api/catalog/combo/${comboId}`));
     toast.success('Combo bundle deleted');
   };
 
@@ -1487,6 +1587,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setStockAdjustmentLogs((prev) => [logEntry, ...prev]);
+
+    persist(apiPost('/api/stock/adjust', { itemId, branchId, quantityChange, reason, notes, actor: actorLabel() }));
 
     toast.success(`Stock adjusted for ${targetItem.itemName}`, {
       description: `${branchObj?.name || branchId}: ${prevQty} → ${newQty} (${quantityChange > 0 ? '+' : ''}${quantityChange}) • ${reason}`,
@@ -1663,6 +1765,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockAdjustmentLogs((prev) => [logFrom, logTo, ...prev]);
 
+    persist(apiPost('/api/stock/transfer', { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor: actorLabel() }));
+
     toast.success(`Inter-branch transfer completed`, {
       description: `${quantity} × ${targetItem.itemName} (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo} generated` : ''}`,
     });
@@ -1699,6 +1803,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [newEstimate, ...prev];
     });
+    persist(apiPost('/api/catalog/estimate', newEstimate));
     toast.success(`Estimate ${newEstimate.estimateNumber} saved`, {
       description: `For ${newEstimate.customerName} (₹${newEstimate.grandTotal.toLocaleString('en-IN')})`,
     });
@@ -1706,6 +1811,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteEstimate = (estimateId: string) => {
     setEstimates((prev) => prev.filter((e) => e.id !== estimateId));
+    persist(apiDelete(`/api/catalog/estimate/${estimateId}`));
     toast.success('Estimate removed');
   };
 
@@ -1733,6 +1839,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [newChallan, ...prev];
     });
+    persist(apiPost('/api/catalog/challan', newChallan));
     toast.success(`Delivery Challan ${newChallan.challanNumber} saved`, {
       description: `For ${newChallan.recipientName} (${newChallan.totalQuantity} items)`,
     });
@@ -1740,6 +1847,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteChallan = (challanId: string) => {
     setChallans((prev) => prev.filter((c) => c.id !== challanId));
+    persist(apiDelete(`/api/catalog/challan/${challanId}`));
     toast.success('Delivery Challan removed');
   };
 
@@ -1849,6 +1957,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    persist(apiPost('/api/cash/expense', { branchId, date, expense, actor: currentUser.name }));
     toast.success('Expense recorded successfully', {
       description: `${expense.reason} • Cash: ₹${expense.cashAmount} / GPay: ₹${expense.gpayAmount}`,
     });
@@ -1867,6 +1976,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
+    persist(apiPost('/api/cash/expense/delete', { branchId, date, expenseId }));
     toast.success('Expense entry deleted');
   };
 
@@ -1911,6 +2021,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    persist(apiPost('/api/cash/override', { branchId, date, amount, reason }));
     toast.success('Opening cash amount updated', {
       description: `New Opening: ₹${amount.toLocaleString('en-IN')} (Override recorded)`,
     });
@@ -1953,6 +2064,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    persist(apiPost('/api/cash/close', { branchId, date, notes, actor: currentUser.name }));
     toast.success(`Day Closed for ${date}`, {
       description: `Register locked by ${currentUser.name}. Opening balance will carry forward to next day.`,
     });
@@ -1971,6 +2083,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
+    persist(apiPost('/api/cash/reopen', { branchId, date }));
     toast.info(`Register reopened for ${date}`, {
       description: 'You can now modify expenses or add invoices.',
     });
@@ -1989,6 +2102,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setRecurringExpenses((prev) => [newTemplate, ...prev]);
+    persist(apiPost('/api/recurring-expenses', newTemplate));
     toast.success(`Recurring template "${template.name}" created`);
   };
 
@@ -2003,6 +2117,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRecurringExpenses((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
+    persist(apiPut(`/api/recurring-expenses/${id}`, updates));
     toast.success('Recurring expense template updated');
   };
 
@@ -2012,6 +2127,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setRecurringExpenses((prev) => prev.filter((t) => t.id !== id));
+    persist(apiDelete(`/api/recurring-expenses/${id}`));
     toast.success('Recurring expense template deleted');
   };
 
@@ -2094,6 +2210,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    persist(apiPost('/api/cash/approve-recurring', { templateId, branchId, date, amount, paymentMode, actor: currentUser.name }));
     toast.success(`Approved "${template.name}" (₹${amount.toLocaleString('en-IN')}) into ${branchId} register`, {
       description: `Added to ${date} register via ${paymentMode}. Total expenses and closing balance updated.`,
     });
@@ -2150,11 +2267,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCustomers((prev) => [savedCust, ...prev]);
       toast.success(`Customer "${savedCust.name}" added`);
     }
+    persist(apiPost('/api/catalog/customer', savedCust));
     return { success: true, customer: savedCust };
   };
 
   const deleteCustomer = (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+    persist(apiDelete(`/api/catalog/customer/${customerId}`));
     toast.success('Customer removed from records');
   };
 
@@ -2171,7 +2290,47 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success('Loyalty settings updated successfully');
   };
 
-  const saveInvoice = (newInvoice: Invoice) => {
+  // Apply the collections returned by a tier-1 transactional endpoint to local
+  // state so the UI reflects the server-committed result without a reload.
+  // Applies whatever collections a backend endpoint returns to local state so
+  // the UI reflects the server-committed, authoritative result.
+  const applySnapshot = (snap: any) => {
+    if (!snap || typeof snap !== 'object') return;
+    if (Array.isArray(snap.items)) setItems(snap.items);
+    if (Array.isArray(snap.combos)) setCombos(snap.combos);
+    if (Array.isArray(snap.branchStocks)) setBranchStocks(snap.branchStocks);
+    if (Array.isArray(snap.stockAdjustmentLogs)) setStockAdjustmentLogs(snap.stockAdjustmentLogs);
+    if (Array.isArray(snap.estimates)) setEstimates(snap.estimates);
+    if (Array.isArray(snap.challans)) setChallans(snap.challans);
+    if (Array.isArray(snap.invoices)) setInvoices(snap.invoices);
+    if (Array.isArray(snap.enquiries)) setEnquiries(snap.enquiries);
+    if (Array.isArray(snap.pendingOrders)) setPendingOrders(snap.pendingOrders);
+    if (Array.isArray(snap.reminders)) setReminders(snap.reminders);
+    if (Array.isArray(snap.cashRegisters)) setCashRegisters(snap.cashRegisters);
+    if (Array.isArray(snap.recurringExpenses)) setRecurringExpenses(snap.recurringExpenses);
+    if (Array.isArray(snap.vendors)) setVendors(snap.vendors);
+    if (Array.isArray(snap.purchaseOrders)) setPurchaseOrders(snap.purchaseOrders);
+    if (Array.isArray(snap.employees)) setEmployees(snap.employees);
+    if (Array.isArray(snap.attendanceRecords)) setAttendanceRecords(snap.attendanceRecords);
+    if (Array.isArray(snap.payrollRecords)) setPayrollRecords(snap.payrollRecords);
+    if (Array.isArray(snap.customers)) setCustomers(snap.customers);
+  };
+  const applySaleSnapshot = applySnapshot;
+
+  // Fire a granular persistence call to the backend and reconcile local state
+  // with the server-committed (authoritative) result. Optimistic local updates
+  // still run first for instant UI; this replaces them with server truth.
+  const persist = (p: Promise<any>) =>
+    p.then(applySnapshot).catch((e) => {
+      console.error('Backend persist failed:', e);
+      toast.error('Could not save to server', {
+        description: 'Your change is local only — check the backend connection.',
+      });
+    });
+
+  const actorLabel = () => `${currentUser.name} (${currentUser.role})`;
+
+  const saveInvoice = async (newInvoice: Invoice) => {
     // Prevent backdating into a closed register
     if (isDayClosed(newInvoice.branchId, newInvoice.date)) {
       toast.error('Cannot save invoice on a closed day', {
@@ -2180,215 +2339,34 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const isNewSale = !invoices.some((inv) => inv.id === newInvoice.id);
-    const invoicePhoneClean = (newInvoice.customerPhone || '').trim().replace(/\D/g, '');
-    const now = new Date().toISOString();
-
-    // Link / Update Customer Master
-    setCustomers((prevCustomers) => {
-      let custIdx = -1;
-      if (newInvoice.customerId) {
-        custIdx = prevCustomers.findIndex((c) => c.id === newInvoice.customerId);
-      }
-      if (custIdx === -1 && invoicePhoneClean) {
-        custIdx = prevCustomers.findIndex(
-          (c) => c.phone.trim().replace(/\D/g, '') === invoicePhoneClean
-        );
-      }
-      if (custIdx === -1 && newInvoice.customerName.trim()) {
-        custIdx = prevCustomers.findIndex(
-          (c) => c.name.trim().toLowerCase() === newInvoice.customerName.trim().toLowerCase()
-        );
-      }
-
-      const updatedCusts = [...prevCustomers];
-      if (custIdx >= 0) {
-        const existing = updatedCusts[custIdx];
-        newInvoice.customerId = existing.id;
-        const oldInvoice = invoices.find((inv) => inv.id === newInvoice.id);
-        const oldSpent = oldInvoice ? oldInvoice.grandTotal : 0;
-        const newCount = isNewSale ? (existing.purchaseCount || 0) + 1 : existing.purchaseCount;
-        const newSpent = Math.max(0, (existing.totalSpent || 0) - oldSpent + newInvoice.grandTotal);
-
-        updatedCusts[custIdx] = {
-          ...existing,
-          name: newInvoice.customerName || existing.name,
-          phone: newInvoice.customerPhone || existing.phone,
-          address: newInvoice.customerAddress || existing.address,
-          purchaseCount: newCount,
-          totalSpent: newSpent,
-          firstPurchaseDate: existing.firstPurchaseDate || newInvoice.date,
-          lastRewardRedeemedPurchaseCount: newInvoice.isLoyaltyRewardApplied
-            ? newCount
-            : existing.lastRewardRedeemedPurchaseCount,
-          updatedAt: now,
-        };
-      } else if (newInvoice.customerName.trim()) {
-        const newCustId = `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-        newInvoice.customerId = newCustId;
-        const newCust: Customer = {
-          id: newCustId,
-          name: newInvoice.customerName.trim(),
-          phone: newInvoice.customerPhone || '',
-          address: newInvoice.customerAddress || '',
-          firstPurchaseDate: newInvoice.date,
-          purchaseCount: 1,
-          totalSpent: newInvoice.grandTotal,
-          lastRewardRedeemedPurchaseCount: newInvoice.isLoyaltyRewardApplied ? 1 : undefined,
-          notes: 'Auto-created from Sale',
-          createdAt: now,
-          updatedAt: now,
-        };
-        updatedCusts.unshift(newCust);
-      }
-      return updatedCusts;
-    });
-
-    setInvoices((prevInvoices) => {
-      const existingIdx = prevInvoices.findIndex((inv) => inv.id === newInvoice.id);
-      const oldInvoice = existingIdx >= 0 ? prevInvoices[existingIdx] : null;
-
-      // Decrement BranchStock for the invoice's branch by the billed quantity
-      setBranchStocks((prevStocks) => {
-        const updatedStocks = [...prevStocks];
-
-        // If editing an existing invoice, restore previous quantities first
-        if (oldInvoice) {
-          oldInvoice.items.forEach((oldItem) => {
-            if (oldItem.isCombo && oldItem.comboComponents && oldItem.comboComponents.length > 0) {
-              // Restore each component of the old combo
-              oldItem.comboComponents.forEach((comp) => {
-                const compQtyToRestore = comp.quantity * (oldItem.quantity || 0);
-                const idx = updatedStocks.findIndex(
-                  (s) => s.itemId === comp.itemId && s.branchId === oldInvoice.branchId
-                );
-                if (idx >= 0) {
-                  updatedStocks[idx] = {
-                    ...updatedStocks[idx],
-                    quantity: updatedStocks[idx].quantity + compQtyToRestore,
-                    updatedAt: new Date().toISOString(),
-                  };
-                }
-              });
-            } else if (oldItem.itemId) {
-              const idx = updatedStocks.findIndex(
-                (s) => s.itemId === oldItem.itemId && s.branchId === oldInvoice.branchId
-              );
-              if (idx >= 0) {
-                updatedStocks[idx] = {
-                  ...updatedStocks[idx],
-                  quantity: updatedStocks[idx].quantity + (oldItem.quantity || 0),
-                  updatedAt: new Date().toISOString(),
-                };
-              }
-            }
-          });
-        }
-
-        // Decrement physical stock for current invoice items
-        newInvoice.items.forEach((newItem) => {
-          if (newItem.isCombo && newItem.comboComponents && newItem.comboComponents.length > 0) {
-            // Combo item: decrement EACH component's BranchStock by componentQty × comboQtySold
-            newItem.comboComponents.forEach((comp) => {
-              const compQtyToDeduct = comp.quantity * (newItem.quantity || 0);
-              const idx = updatedStocks.findIndex(
-                (s) => s.itemId === comp.itemId && s.branchId === newInvoice.branchId
-              );
-              if (idx >= 0) {
-                updatedStocks[idx] = {
-                  ...updatedStocks[idx],
-                  quantity: Math.max(0, updatedStocks[idx].quantity - compQtyToDeduct),
-                  updatedAt: new Date().toISOString(),
-                };
-              } else {
-                updatedStocks.push({
-                  itemId: comp.itemId,
-                  branchId: newInvoice.branchId,
-                  quantity: 0,
-                  updatedAt: new Date().toISOString(),
-                });
-              }
-            });
-          } else if (newItem.itemId) {
-            const idx = updatedStocks.findIndex(
-              (s) => s.itemId === newItem.itemId && s.branchId === newInvoice.branchId
-            );
-            if (idx >= 0) {
-              updatedStocks[idx] = {
-                ...updatedStocks[idx],
-                quantity: Math.max(0, updatedStocks[idx].quantity - (newItem.quantity || 0)),
-                updatedAt: new Date().toISOString(),
-              };
-            } else {
-              updatedStocks.push({
-                itemId: newItem.itemId,
-                branchId: newInvoice.branchId,
-                quantity: 0,
-                updatedAt: new Date().toISOString(),
-              });
-            }
-          }
-        });
-
-        return updatedStocks;
+    try {
+      const snap = await apiPost<any>('/api/tx/sale', newInvoice);
+      applySaleSnapshot(snap);
+      toast.success(`Invoice ${newInvoice.invoiceNumber} saved & stock decremented`, {
+        description: `${newInvoice.customerName} • ₹${newInvoice.grandTotal.toLocaleString('en-IN')} [${newInvoice.paymentMode}]`,
       });
-
-      if (existingIdx >= 0) {
-        const updated = [...prevInvoices];
-        updated[existingIdx] = newInvoice;
-        return updated;
-      }
-      return [newInvoice, ...prevInvoices];
-    });
-
-    toast.success(`Invoice ${newInvoice.invoiceNumber} saved & stock decremented`, {
-      description: `${newInvoice.customerName} • ₹${newInvoice.grandTotal.toLocaleString('en-IN')} [${newInvoice.paymentMode}]`,
-    });
-  };
-
-  const deleteInvoice = (invoiceId: string) => {
-    const inv = invoices.find((i) => i.id === invoiceId);
-    if (inv) {
-      // Restore physical stock when deleting an invoice
-      setBranchStocks((prevStocks) => {
-        const updatedStocks = [...prevStocks];
-        inv.items.forEach((item) => {
-          if (item.isCombo && item.comboComponents && item.comboComponents.length > 0) {
-            item.comboComponents.forEach((comp) => {
-              const compQtyToRestore = comp.quantity * (item.quantity || 0);
-              const idx = updatedStocks.findIndex(
-                (s) => s.itemId === comp.itemId && s.branchId === inv.branchId
-              );
-              if (idx >= 0) {
-                updatedStocks[idx] = {
-                  ...updatedStocks[idx],
-                  quantity: updatedStocks[idx].quantity + compQtyToRestore,
-                  updatedAt: new Date().toISOString(),
-                };
-              }
-            });
-          } else if (item.itemId) {
-            const idx = updatedStocks.findIndex(
-              (s) => s.itemId === item.itemId && s.branchId === inv.branchId
-            );
-            if (idx >= 0) {
-              updatedStocks[idx] = {
-                ...updatedStocks[idx],
-                quantity: updatedStocks[idx].quantity + (item.quantity || 0),
-                updatedAt: new Date().toISOString(),
-              };
-            }
-          }
+    } catch (e: any) {
+      if (String(e?.message || '').includes('DAY_CLOSED')) {
+        toast.error('Cannot save invoice on a closed day', {
+          description: `Daily cash register for ${newInvoice.date} at this branch is already closed. Please select an open date.`,
         });
-        return updatedStocks;
-      });
+      } else {
+        toast.error('Failed to save invoice', { description: e?.message ?? 'Backend error' });
+      }
     }
-
-    setInvoices((prev) => prev.filter((i) => i.id !== invoiceId));
-    toast.success('Invoice deleted & stock restored');
   };
 
-  const voidInvoice = (invoiceId: string, reason: string) => {
+  const deleteInvoice = async (invoiceId: string) => {
+    try {
+      const snap = await apiDelete<any>(`/api/tx/invoice/${invoiceId}`);
+      applySaleSnapshot(snap);
+      toast.success('Invoice deleted & stock restored');
+    } catch (e: any) {
+      toast.error('Failed to delete invoice', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
+  const voidInvoice = async (invoiceId: string, reason: string) => {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) {
       toast.error('Sale record not found.');
@@ -2398,162 +2376,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('This sale is already voided.');
       return;
     }
-
-    const timestamp = new Date().toISOString();
-    const newLogs: StockAdjustmentLog[] = [];
-
-    // 1. Calculate remaining items to restore (accounting for any partial returns already processed)
-    setBranchStocks((prevStocks) => {
-      const updatedStocks = [...prevStocks];
-
-      inv.items.forEach((item) => {
-        if (item.isCombo && item.comboComponents && item.comboComponents.length > 0) {
-          // Calculate already returned qty for this combo line
-          const alreadyReturnedQty = (inv.returns || [])
-            .filter((r) => r.id === item.id || (item.comboId && r.comboId === item.comboId))
-            .reduce((sum, r) => sum + (r.returnedQuantity || 0), 0);
-
-          const comboQtyToRestore = Math.max(0, item.quantity - alreadyReturnedQty);
-          if (comboQtyToRestore <= 0) return;
-
-          item.comboComponents.forEach((comp) => {
-            const qtyToRestore = comp.quantity * comboQtyToRestore;
-            if (qtyToRestore <= 0) return;
-
-            const idx = updatedStocks.findIndex(
-              (s) => s.itemId === comp.itemId && s.branchId === inv.branchId
-            );
-            const prevQty = idx >= 0 ? updatedStocks[idx].quantity : 0;
-            const newQty = prevQty + qtyToRestore;
-
-            if (idx >= 0) {
-              updatedStocks[idx] = {
-                ...updatedStocks[idx],
-                quantity: newQty,
-                updatedAt: timestamp,
-              };
-            } else {
-              updatedStocks.push({
-                itemId: comp.itemId,
-                branchId: inv.branchId,
-                quantity: newQty,
-                updatedAt: timestamp,
-              });
-            }
-
-            const compItem = items.find((i) => i.id === comp.itemId);
-
-            newLogs.push({
-              id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-              itemId: comp.itemId,
-              itemName: compItem?.itemName || 'Component Item',
-              itemCode: compItem?.itemCode || '',
-              branchId: inv.branchId,
-              previousQuantity: prevQty,
-              quantityChange: qtyToRestore,
-              newQuantity: newQty,
-              reason: 'Voided Sale',
-              notes: `Voided Sale #${inv.invoiceNumber} (Component of Combo: ${item.itemName}) - Reason: ${reason || 'Cancellation'}`,
-              adjustedBy: currentUser.name,
-              timestamp,
-            });
-          });
-        } else if (item.itemId) {
-          // Regular line item
-          const alreadyReturnedQty = (inv.returns || [])
-            .filter((r) => r.itemId === item.itemId)
-            .reduce((sum, r) => sum + (r.returnedQuantity || 0), 0);
-
-          const qtyToRestore = Math.max(0, item.quantity - alreadyReturnedQty);
-          if (qtyToRestore <= 0) return;
-
-          const idx = updatedStocks.findIndex(
-            (s) => s.itemId === item.itemId && s.branchId === inv.branchId
-          );
-          const prevQty = idx >= 0 ? updatedStocks[idx].quantity : 0;
-          const newQty = prevQty + qtyToRestore;
-
-          if (idx >= 0) {
-            updatedStocks[idx] = {
-              ...updatedStocks[idx],
-              quantity: newQty,
-              updatedAt: timestamp,
-            };
-          } else {
-            updatedStocks.push({
-              itemId: item.itemId,
-              branchId: inv.branchId,
-              quantity: newQty,
-              updatedAt: timestamp,
-            });
-          }
-
-          newLogs.push({
-            id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            itemId: item.itemId,
-            itemName: item.itemName,
-            itemCode: item.itemCode || '',
-            branchId: inv.branchId,
-            previousQuantity: prevQty,
-            quantityChange: qtyToRestore,
-            newQuantity: newQty,
-            reason: 'Voided Sale',
-            notes: `Voided Sale #${inv.invoiceNumber} - Reason: ${reason || 'Cancellation'}`,
-            adjustedBy: currentUser.name,
-            timestamp,
-          });
-        }
+    try {
+      const snap = await apiPost<any>('/api/tx/void-invoice', {
+        invoiceId,
+        reason,
+        actor: currentUser.name,
       });
-
-      return updatedStocks;
-    });
-
-    // 2. Add logs
-    if (newLogs.length > 0) {
-      setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
+      applySaleSnapshot(snap);
+      const branchObj = BRANCHES.find((b) => b.id === inv.branchId);
+      toast.success(`Sale #${inv.invoiceNumber} has been voided`, {
+        description: `Physical stock reversed to ${branchObj?.name || 'warehouse'}. Excluded from cash tallies & reports.`,
+      });
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (msg.includes('ALREADY_VOIDED')) toast.error('This sale is already voided.');
+      else if (msg.includes('NOT_FOUND')) toast.error('Sale record not found.');
+      else toast.error('Failed to void sale', { description: e?.message ?? 'Backend error' });
     }
-
-    // 3. Mark the sale record as voided (do NOT delete!)
-    setInvoices((prev) =>
-      prev.map((i) =>
-        i.id === invoiceId
-          ? {
-              ...i,
-              isVoided: true,
-              voidReason: reason || 'Cancelled / Voided',
-              voidedAt: timestamp,
-              voidedBy: currentUser.name,
-              updatedAt: timestamp,
-            }
-          : i
-      )
-    );
-
-    // 4. Decrement Customer purchase count & total spent
-    if (inv.customerId || inv.customerPhone) {
-      const phoneClean = (inv.customerPhone || '').trim().replace(/\D/g, '');
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === inv.customerId || (phoneClean && c.phone.trim().replace(/\D/g, '') === phoneClean)) {
-            return {
-              ...c,
-              purchaseCount: Math.max(0, (c.purchaseCount || 1) - 1),
-              totalSpent: Math.max(0, (c.totalSpent || 0) - inv.grandTotal),
-              updatedAt: timestamp,
-            };
-          }
-          return c;
-        })
-      );
-    }
-
-    const branchObj = BRANCHES.find((b) => b.id === inv.branchId);
-    toast.success(`Sale #${inv.invoiceNumber} has been voided`, {
-      description: `Physical stock reversed to ${branchObj?.name || 'warehouse'}. Excluded from cash tallies & reports.`,
-    });
   };
 
-  const processSaleReturn = (
+  const processSaleReturn = async (
     invoiceId: string,
     returnLines: {
       itemId: string;
@@ -2585,187 +2427,44 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    const newLogs: StockAdjustmentLog[] = [];
-    const returnRecords: SaleReturnLineItem[] = [];
-
-    // 1. Restore stock for returned lines
-    setBranchStocks((prevStocks) => {
-      const updatedStocks = [...prevStocks];
-
-      validLines.forEach((line) => {
-        if (line.isCombo && line.comboComponents && line.comboComponents.length > 0) {
-          // Restore EACH component proportionally by comp.quantity * line.returnQty
-          line.comboComponents.forEach((comp) => {
-            const compQtyToRestore = comp.quantity * line.returnQty;
-            const idx = updatedStocks.findIndex(
-              (s) => s.itemId === comp.itemId && s.branchId === inv.branchId
-            );
-            const prevQty = idx >= 0 ? updatedStocks[idx].quantity : 0;
-            const newQty = prevQty + compQtyToRestore;
-
-            if (idx >= 0) {
-              updatedStocks[idx] = {
-                ...updatedStocks[idx],
-                quantity: newQty,
-                updatedAt: timestamp,
-              };
-            } else {
-              updatedStocks.push({
-                itemId: comp.itemId,
-                branchId: inv.branchId,
-                quantity: newQty,
-                updatedAt: timestamp,
-              });
-            }
-
-            const compItem = items.find((i) => i.id === comp.itemId);
-
-            newLogs.push({
-              id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-              itemId: comp.itemId,
-              itemName: compItem?.itemName || 'Component Item',
-              itemCode: compItem?.itemCode || '',
-              branchId: inv.branchId,
-              previousQuantity: prevQty,
-              quantityChange: compQtyToRestore,
-              newQuantity: newQty,
-              reason: 'Sales Return',
-              notes: `Sales Return on #${inv.invoiceNumber} (Component of Combo: ${line.itemName}) - ${reason}${notes ? ` (${notes})` : ''}`,
-              adjustedBy: currentUser.name,
-              timestamp,
-            });
-          });
-
-          returnRecords.push({
-            id: `ret-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            itemId: line.itemId,
-            itemCode: line.itemCode,
-            itemName: line.itemName,
-            returnedQuantity: line.returnQty,
-            unitPrice: line.unitPrice,
-            taxRate: line.taxRate,
-            refundAmount: line.refundAmount,
-            returnedAt: timestamp,
-            reason,
-            notes,
-            processedBy: currentUser.name,
-            isCombo: true,
-            comboId: line.comboId,
-            comboComponents: line.comboComponents,
-          });
-        } else {
-          // Regular product line
-          const idx = updatedStocks.findIndex(
-            (s) => s.itemId === line.itemId && s.branchId === inv.branchId
-          );
-          const prevQty = idx >= 0 ? updatedStocks[idx].quantity : 0;
-          const newQty = prevQty + line.returnQty;
-
-          if (idx >= 0) {
-            updatedStocks[idx] = {
-              ...updatedStocks[idx],
-              quantity: newQty,
-              updatedAt: timestamp,
-            };
-          } else {
-            updatedStocks.push({
-              itemId: line.itemId,
-              branchId: inv.branchId,
-              quantity: newQty,
-              updatedAt: timestamp,
-            });
-          }
-
-          newLogs.push({
-            id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            itemId: line.itemId,
-            itemName: line.itemName,
-            itemCode: line.itemCode,
-            branchId: inv.branchId,
-            previousQuantity: prevQty,
-            quantityChange: line.returnQty,
-            newQuantity: newQty,
-            reason: 'Sales Return',
-            notes: `Sales Return on #${inv.invoiceNumber} - ${reason}${notes ? ` (${notes})` : ''}`,
-            adjustedBy: currentUser.name,
-            timestamp,
-          });
-
-          returnRecords.push({
-            id: `ret-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            itemId: line.itemId,
-            itemCode: line.itemCode,
-            itemName: line.itemName,
-            returnedQuantity: line.returnQty,
-            unitPrice: line.unitPrice,
-            taxRate: line.taxRate,
-            refundAmount: line.refundAmount,
-            returnedAt: timestamp,
-            reason,
-            notes,
-            processedBy: currentUser.name,
-          });
-        }
+    try {
+      const snap = await apiPost<any>('/api/tx/sale-return', {
+        invoiceId,
+        returnLines: validLines,
+        reason,
+        notes,
+        actor: currentUser.name,
       });
-
-      return updatedStocks;
-    });
-
-    // 2. Append adjustment logs
-    if (newLogs.length > 0) {
-      setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
+      applySaleSnapshot(snap);
+      const totalUnitsReturned = validLines.reduce((sum, l) => sum + l.returnQty, 0);
+      const totalRefund = validLines.reduce((sum, l) => sum + l.refundAmount, 0);
+      toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, {
+        description: `Refund value ₹${totalRefund.toLocaleString('en-IN')}. Stock incremented in ${inv.branchId}.`,
+      });
+    } catch (e: any) {
+      toast.error('Failed to process return', { description: e?.message ?? 'Backend error' });
     }
-
-    // 3. Update invoice with return details
-    const totalRefund = returnRecords.reduce((sum, r) => sum + r.refundAmount, 0);
-    const totalUnitsReturned = returnRecords.reduce((sum, r) => sum + r.returnedQuantity, 0);
-
-    setInvoices((prev) =>
-      prev.map((i) => {
-        if (i.id !== invoiceId) return i;
-        const existingReturns = i.returns || [];
-        const newTotalReturned = (i.totalReturnedAmount || 0) + totalRefund;
-        return {
-          ...i,
-          returns: [...existingReturns, ...returnRecords],
-          totalReturnedAmount: newTotalReturned,
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, {
-      description: `Refund value ₹${totalRefund.toLocaleString('en-IN')}. Stock incremented in ${inv.branchId}.`,
-    });
   };
 
-  // Restock Monitoring: Detect when branch stock increases to satisfy Waiting pending orders
+  // Restock Monitoring: when branch stock rises to satisfy a Waiting pending
+  // order, flip it to "Stock Arrived" — persisted server-side (authoritative)
+  // and notified once per order (ref-deduped) so it never re-fires on refresh.
+  const restockNotifiedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    setPendingOrders((prevOrders) => {
-      let hasUpdates = false;
-      const updated = prevOrders.map((order) => {
-        if (order.status !== 'Waiting') return order;
-        const stockRow = branchStocks.find(
-          (s) => s.itemId === order.itemId && s.branchId === order.branchId
-        );
-        const currentQty = stockRow?.quantity ?? 0;
-        if (currentQty >= order.quantityNeeded) {
-          hasUpdates = true;
-          toast.success(`Stock Arrived for Pending Order ${order.orderNumber}!`, {
-            description: `${order.itemName} now has ${currentQty} ${order.unit} at ${order.branchId}. Ready to convert for ${order.customerName}!`,
-          });
-          return {
-            ...order,
-            status: 'Stock Arrived' as const,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return order;
+    pendingOrders.forEach((order) => {
+      if (order.status !== 'Waiting') return;
+      if (restockNotifiedRef.current.has(order.id)) return;
+      const currentQty =
+        branchStocks.find((s) => s.itemId === order.itemId && s.branchId === order.branchId)?.quantity ?? 0;
+      if (currentQty < order.quantityNeeded) return;
+
+      restockNotifiedRef.current.add(order.id);
+      toast.success(`Stock Arrived for Pending Order ${order.orderNumber}!`, {
+        description: `${order.itemName} now has ${currentQty} ${order.unit} at ${order.branchId}. Ready to convert for ${order.customerName}!`,
       });
-      return hasUpdates ? updated : prevOrders;
+      persist(apiPost('/api/enquiry/pending/update', { orderId: order.id, updates: { status: 'Stock Arrived' } }));
     });
-  }, [branchStocks]);
+  }, [branchStocks, pendingOrders]);
 
   const getNextEnquiryNumber = (branchId: BranchId): string => {
     return getNextEnquirySequence(enquiries, branchId);
@@ -2887,6 +2586,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [updatedEnquiry, ...prev];
     });
 
+    persist(apiPost('/api/enquiry/save', { enquiry: newEnquiry, initialExpectedRestockDate, actor: currentUser.name }));
+
     if (updatedEnquiry.isNewItemRequest && !updatedEnquiry.itemId) {
       toast.success(`New Item Request ${updatedEnquiry.enquiryNumber} Logged`, {
         description: `Sent to Manager/CEO queue for catalog review and procurement.`,
@@ -2959,6 +2660,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setPendingOrders((prev) => [newPo, ...prev]);
 
+    persist(apiPost('/api/enquiry/link-item', { enquiryId, item: newItem, actor: currentUser.name }));
     toast.success(`Item "${newItem.itemName}" added to catalog & linked to Enquiry ${targetEnquiry.enquiryNumber}`);
     toast.warning(`Backlog Pending Order ${newPoNumber} automatically created for procurement.`);
   };
@@ -2974,6 +2676,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? { ...prev, ...updates, updatedAt: new Date().toISOString() }
         : prev
     );
+    persist(apiPost('/api/enquiry/pending/update', { orderId, updates }));
     toast.success('Pending order updated');
   };
 
@@ -3026,6 +2729,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    persist(apiPost('/api/enquiry/cancel', { enquiryId, reason, actor: currentUser.name }));
     toast.info('Enquiry marked as Cancelled', {
       description: `Reason: ${reason}`,
     });
@@ -3056,6 +2760,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
+    persist(apiPost('/api/enquiry/pending/cancel', { orderId, reason }));
     toast.info('Pending order cancelled', {
       description: `Reason: ${reason}`,
     });
@@ -3126,6 +2831,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
+    persist(apiPost('/api/enquiry/reminder', { enquiryId, dueDate, dueTime, notes, actor: currentUser.name }));
     toast.success(`Follow-up Reminder Set for ${enq.enquiryNumber}`, {
       description: `Scheduled for ${dueDate} at ${dueTime}. Notification bell will alert on due date.`,
     });
@@ -3139,11 +2845,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
+    persist(apiPost('/api/enquiry/reminder/complete', { reminderId }));
     toast.success('Reminder marked as completed');
   };
 
   const deleteFollowUpReminder = (reminderId: string) => {
     setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+    persist(apiPost('/api/enquiry/reminder/delete', { reminderId }));
     toast.info('Reminder removed');
   };
 
@@ -3181,6 +2889,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
+    persist(apiPost('/api/enquiry/notes', { enquiryId, notes, actor: currentUser.name }));
     toast.success('Enquiry notes updated');
   };
 
@@ -3193,6 +2902,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: reason || `Status set to ${status}`,
       actor: currentUser.name,
     };
+
+    persist(apiPost('/api/enquiry/status', { enquiryId, status, reason, actor: currentUser.name }));
 
     setEnquiries((prev) =>
       prev.map((e) =>
@@ -3349,6 +3060,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
+    persist(apiPost('/api/enquiry/convert', { enquiryId, targetType, docId: preFilledEstimate.id, docNumber: preFilledEstimate.estimateNumber, actor: currentUser.name }));
     toast.success(`Converting Enquiry ${enq.enquiryNumber} to ${targetType === 'estimate' ? 'Estimate' : 'Sales Invoice'}`, {
       description: `Customer & line items pre-filled. Review and save.`,
     });
@@ -3365,6 +3077,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setVendors((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      persist(apiPost('/api/vendors', updated));
       toast.success(`Vendor "${updated.vendorName}" updated`);
       return updated;
     } else {
@@ -3375,6 +3088,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setVendors((prev) => [newVendor, ...prev]);
+      persist(apiPost('/api/vendors', newVendor));
       toast.success(`Vendor "${newVendor.vendorName}" registered`);
       return newVendor;
     }
@@ -3388,6 +3102,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const ven = vendors.find((v) => v.id === vendorId);
     setVendors((prev) => prev.filter((v) => v.id !== vendorId));
+    persist(apiDelete(`/api/vendors/${vendorId}`));
     toast.success(`Vendor "${ven?.vendorName || vendorId}" deleted`);
   };
 
@@ -3422,6 +3137,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
       }
+      persist(apiPost('/api/purchase/save', { po: updated, actor: currentUser.name }));
       toast.success(`Purchase Order ${updated.poNumber} updated`);
       return updated;
     } else {
@@ -3459,6 +3175,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : prev
         );
       }
+      persist(apiPost('/api/purchase/save', { po: newPo, actor: currentUser.name }));
       toast.success(`Purchase Order ${newPo.poNumber} created (${newPo.items.length} items)`);
       return newPo;
     }
@@ -3471,6 +3188,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setPurchaseOrders((prev) => prev.filter((p) => p.id !== poId));
+    persist(apiDelete(`/api/purchase/${poId}`));
     toast.success(`Purchase Order ${po?.poNumber || poId} deleted`);
   };
 
@@ -3487,6 +3205,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return po;
       })
     );
+    persist(apiPost(`/api/purchase/${poId}/cancel`, {}));
     toast.info(`Purchase Order marked Cancelled`);
   };
 
@@ -3594,6 +3313,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextStocks;
     });
 
+    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, actor: currentUser.name }));
+
     const totalQty = validReceipts.reduce((sum, r) => sum + r.quantityReceived, 0);
     toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {
       description: `Physical stock updated. PO status is now ${newStatus}.`,
@@ -3631,6 +3352,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    persist(apiPost('/api/purchase/attachment', { poId, attachment: attachmentData, actor: currentUser.name }));
     toast.success(`Attached "${attachmentData.name}" to PO`);
   };
 
@@ -3655,6 +3377,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    persist(apiPost('/api/purchase/attachment/delete', { poId, attachmentId }));
     toast.info('Vendor bill attachment removed');
   };
 
@@ -3669,6 +3392,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      persist(apiPost('/api/employees', updated));
       toast.success(`Employee "${updated.name}" updated`);
       return updated;
     } else {
@@ -3679,6 +3403,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setEmployees((prev) => [newEmp, ...prev]);
+      persist(apiPost('/api/employees', newEmp));
       toast.success(`Employee "${newEmp.name}" enrolled`);
       return newEmp;
     }
@@ -3687,6 +3412,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteEmployee = (employeeId: string) => {
     const emp = employees.find((e) => e.id === employeeId);
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
+    persist(apiDelete(`/api/employees/${employeeId}`));
     toast.success(`Employee "${emp?.name || employeeId}" removed`);
   };
 
@@ -3733,6 +3459,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success(`Check-In Recorded: ${emp.name}`, {
       description: `Time: ${timeStr} • GPS Accuracy: ±${location.accuracy || 10}m`,
     });
+    persist(apiPost('/api/hrm/clock-in', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-in successful', record: newRecord };
   };
 
@@ -3793,6 +3520,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success(`Check-Out Recorded: ${emp.name}`, {
       description: `Total Shift: ${diffHours} hrs • Time: ${timeStr}`,
     });
+    persist(apiPost('/api/hrm/clock-out', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-out successful', record: updatedRecord };
   };
 
@@ -3852,6 +3580,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return [newRecord, ...prev];
       }
     });
+    persist(apiPost('/api/hrm/payroll-adjustment', { employeeId, month, adjustment, reason, standardHoursPerMonth: payrollSettings.standardHoursPerMonth }));
     toast.success(`Adjustment of ₹${adjustment > 0 ? '+' : ''}${adjustment} applied`);
   };
 
@@ -3875,49 +3604,55 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return p;
       })
     );
+    persist(apiPost('/api/hrm/payroll-paid', { payrollId, paymentMode, paymentReference }));
     toast.success('Payroll disbursement marked as Paid', {
       description: `Mode: ${paymentMode} ${paymentReference ? `(${paymentReference})` : ''}`,
     });
   };
 
-  const resetToDemoData = () => {
-    setItems(INITIAL_ITEMS);
-    setBranchStocks(INITIAL_BRANCH_STOCKS);
-    setEstimates(INITIAL_ESTIMATES);
-    setChallans(INITIAL_CHALLANS);
-    setInvoices(INITIAL_INVOICES);
-    setEnquiries(INITIAL_ENQUIRIES);
-    setPendingOrders(INITIAL_PENDING_ORDERS);
-    setCashRegisters(INITIAL_DAILY_CASH_REGISTERS);
-    setVendors(INITIAL_VENDORS);
-    setPurchaseOrders(INITIAL_PURCHASE_ORDERS);
-    setEmployees(INITIAL_EMPLOYEES);
-    setAttendanceRecords(INITIAL_ATTENDANCE_RECORDS);
-    setPayrollSettings(INITIAL_PAYROLL_SETTINGS);
-    setPayrollRecords(INITIAL_PAYROLL_RECORDS);
-    setStockAdjustmentLogs(INITIAL_STOCK_ADJUSTMENT_LOGS);
-    setReminders(INITIAL_REMINDERS);
-    setRecurringExpenses(INITIAL_RECURRING_EXPENSE_TEMPLATES);
-    setCategories(INITIAL_CATEGORIES);
-    setSubcategoriesByCategory(INITIAL_SUBCATEGORIES);
-    setCategoryPrefixMap({});
-    setSubcategoryPrefixMap({});
-    setUnitsList(STANDARD_UNITS);
-    setGstSlabsList(GST_RATES);
-    setPaymentTermsOptions(PAYMENT_TERMS_OPTIONS);
-    setCombos(INITIAL_COMBOS);
-    setCustomers(INITIAL_CUSTOMERS);
-    setLoyaltySettings(INITIAL_LOYALTY_SETTINGS);
-    setCurrentBranch('all');
-    setCurrentView('dashboard');
-    setCurrentUser({
-      role: 'CEO',
-      name: 'Sathish Kumar (CEO)',
-      pin: '1111',
-    });
-    localStorage.removeItem(STORAGE_KEY);
-    toast.success('Demo data restored to initial state');
+  const resetToDemoData = async () => {
+    try {
+      // The demo dataset lives on the backend; this rebuilds Postgres and
+      // rehydrates from the fresh data (all connected sessions also refresh
+      // via the live SSE broadcast).
+      const data = await apiPost<any>('/api/admin/reseed');
+      hydrateState(data);
+      setCurrentBranch('all');
+      setCurrentView('dashboard');
+      toast.success('Demo data restored to initial state');
+    } catch (e: any) {
+      toast.error('Failed to reset demo data', { description: e?.message ?? 'Backend error' });
+    }
   };
+
+  // While loading initial data from the backend, show a lightweight splash so
+  // components never render against empty/placeholder collections.
+  if (isBootstrapping) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+          <p className="text-sm font-semibold text-slate-600">Loading Majestronicz ERP…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootstrapError) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm font-bold text-rose-700">Cannot reach the backend</p>
+          <p className="mt-2 text-xs text-slate-600">{bootstrapError}</p>
+          <p className="mt-3 text-xs text-slate-500">
+            Make sure the backend is running on{' '}
+            <span className="font-mono">http://localhost:4000</span> (run{' '}
+            <span className="font-mono">npm run dev</span> in the <span className="font-mono">backend/</span> folder), then reload.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErpContext.Provider
@@ -3930,8 +3665,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchBranch,
         accessibleBranches,
         currentUser,
+        isAuthenticated,
         loginWithPin,
-        switchRole,
         logout,
         isAuthModalOpen,
         setAuthModalOpen,
@@ -4069,6 +3804,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canAdjustBranchStock,
         canInitiateTransferFrom,
         canViewReports,
+        canAccessView,
         canViewPayrollReport,
         customers,
         loyaltySettings,
@@ -4082,7 +3818,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetToDemoData,
       }}
     >
-      {children}
+      {isAuthenticated ? children : <LoginScreen />}
     </ErpContext.Provider>
   );
 };

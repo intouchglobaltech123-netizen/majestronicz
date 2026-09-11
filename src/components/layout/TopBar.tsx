@@ -27,7 +27,7 @@ export const TopBar: React.FC = () => {
     isAllBranches,
     switchBranch,
     currentUser,
-    setAuthModalOpen,
+    logout,
     reminders,
     pendingOrders,
     enquiries,
@@ -480,10 +480,11 @@ export const TopBar: React.FC = () => {
           )}
         </div>
 
-        {/* Active Role Quick Toggle Trigger */}
+        {/* Current user + logout */}
         <button
-          onClick={() => setAuthModalOpen(true)}
-          className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 rounded-xl transition-all shadow-xs group"
+          onClick={logout}
+          title="Logout"
+          className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-rose-50 text-slate-900 border border-slate-200 hover:border-rose-200 rounded-xl transition-all shadow-xs group"
         >
           <div className="h-7 w-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 group-hover:bg-blue-200 transition-colors">
             {currentUser.role === 'CEO' ? (
@@ -496,8 +497,8 @@ export const TopBar: React.FC = () => {
           </div>
           <div className="text-left">
             <span className="text-xs font-bold block leading-tight">{currentUser.role}</span>
-            <span className="text-[10px] text-slate-500 block leading-tight">
-              PIN {currentUser.pin}
+            <span className="text-[10px] text-slate-500 block leading-tight group-hover:text-rose-600">
+              Logout
             </span>
           </div>
         </button>

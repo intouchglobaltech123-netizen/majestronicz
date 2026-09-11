@@ -144,7 +144,6 @@ export const DailyCashRegisterView: React.FC = () => {
   // Quick Date Helpers
   const handleSetToday = () => setSelectedDate(todayStr);
   const handleSetYesterday = () => setSelectedDate(yesterdayStr);
-  const handleSetDemoDay = () => setSelectedDate('2026-09-07');
 
   return (
     <div className="p-6 space-y-6 w-full">
@@ -330,20 +329,6 @@ export const DailyCashRegisterView: React.FC = () => {
                 >
                   Today
                 </button>
-                {todayStr !== '2026-09-07' && yesterdayStr !== '2026-09-07' && (
-                  <button
-                    type="button"
-                    onClick={handleSetDemoDay}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
-                      selectedDate === '2026-09-07'
-                        ? 'bg-purple-50 text-purple-700 border-purple-200 font-bold'
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                    }`}
-                    title="View original sample seed cash sheet from 07-Sep-2026"
-                  >
-                    07-Sep (Sample Sheet)
-                  </button>
-                )}
               </div>
             </div>
 

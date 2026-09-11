@@ -1,0 +1,97 @@
+import { prisma } from '../db.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { nowIso, rid } from '../lib/stockLedger.js';
+
+const snap = async (tx: any) => ({
+  attendanceRecords: await tx.attendanceRecord.findMany(),
+  payrollRecords: await tx.payrollRecord.findMany(),
+});
+
+export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const emp = await tx.employee.findUnique({ where: { id: employeeId } });
+    if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
+    if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Employee profile is inactive', 409);
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const timeStr = customTime || now.toTimeString().split(' ')[0];
+
+    const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
+    if (existing && existing.checkInTime) {
+      throw new AppError('ALREADY_IN', `${emp.name} has already checked in today at ${existing.checkInTime}`, 409);
+    }
+
+    await tx.attendanceRecord.create({
+      data: {
+        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId, date: today,
+        checkInTime: timeStr, checkInPhoto: photoDataUrl, checkInLocation: location, status: 'Present',
+        createdAt: now.toISOString(), updatedAt: now.toISOString(),
+      },
+    });
+    return snap(tx);
+  });
+}
+
+export function clockOut(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const emp = await tx.employee.findUnique({ where: { id: employeeId } });
+    if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const timeStr = customTime || now.toTimeString().split(' ')[0];
+
+    const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
+    if (!existing) throw new AppError('NO_CHECKIN', `No check-in found for ${emp.name} today.`, 409);
+    if (existing.checkOutTime) throw new AppError('ALREADY_OUT', `${emp.name} has already checked out at ${existing.checkOutTime}`, 409);
+
+    const [inH, inM, inS] = existing.checkInTime.split(':').map(Number);
+    const [outH, outM, outS] = timeStr.split(':').map(Number);
+    const inMinutes = inH * 60 + inM + (inS || 0) / 60;
+    const outMinutes = outH * 60 + outM + (outS || 0) / 60;
+    const diffHours = Math.max(0, parseFloat(((outMinutes - inMinutes) / 60).toFixed(2)));
+
+    await tx.attendanceRecord.update({
+      where: { id: existing.id },
+      data: { checkOutTime: timeStr, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
+    });
+    return snap(tx);
+  });
+}
+
+export function updatePayrollAdjustment(employeeId: string, month: string, adjustment: number, reason: string | undefined, standardHoursPerMonth: number) {
+  return prisma.$transaction(async (tx: any) => {
+    const existing = await tx.payrollRecord.findFirst({ where: { employeeId, month } });
+    if (existing) {
+      const finalPayable = Math.max(0, Math.round(existing.computedPay + adjustment));
+      await tx.payrollRecord.update({
+        where: { id: existing.id },
+        data: { manualAdjustment: adjustment, adjustmentReason: reason ?? null, finalPayable, updatedAt: nowIso() },
+      });
+    } else {
+      const emp = await tx.employee.findUnique({ where: { id: employeeId } });
+      if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
+      const hourlyRate = parseFloat((emp.monthlySalary / standardHoursPerMonth).toFixed(2));
+      await tx.payrollRecord.create({
+        data: {
+          id: rid('pay'), employeeId: emp.id, employeeName: emp.name, designation: emp.designation, branchId: emp.branchId,
+          month, monthlySalary: emp.monthlySalary, standardHoursPerMonth, hourlyRate, totalDaysPresent: 0,
+          totalHoursWorked: 0, computedPay: 0, manualAdjustment: adjustment, adjustmentReason: reason ?? null,
+          finalPayable: Math.max(0, adjustment), status: 'Draft', updatedAt: nowIso(),
+        },
+      });
+    }
+    return snap(tx);
+  });
+}
+
+export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string) {
+  return prisma.$transaction(async (tx: any) => {
+    await tx.payrollRecord.updateMany({
+      where: { id: payrollId },
+      data: { status: 'Paid', paidAt: nowIso(), paymentMode, paymentReference: paymentReference ?? null, updatedAt: nowIso() },
+    });
+    return snap(tx);
+  });
+}

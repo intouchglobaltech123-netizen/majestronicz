@@ -10,7 +10,7 @@ export interface Branch {
   tagline: string;
 }
 
-export type Role = 'CEO' | 'Manager' | 'Billing';
+export type Role = 'CEO' | 'Manager' | 'Billing' | 'Purchase' | 'Sales';
 
 export interface UserSession {
   role: Role;
@@ -243,6 +243,8 @@ export const PRESET_ROLES: { role: Role; pin: string; defaultName: string; defau
   { role: 'CEO', pin: '1111', defaultName: 'Sathish Kumar (CEO)' },
   { role: 'Manager', pin: '2222', defaultName: 'Karthik Raja (Branch Manager)', defaultBranch: 'coimbatore' },
   { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)' },
+  { role: 'Purchase', pin: '4444', defaultName: 'Ganesh (Purchase Desk)' },
+  { role: 'Sales', pin: '5555', defaultName: 'Vetri (Sales Executive)' },
 ];
 
 /**

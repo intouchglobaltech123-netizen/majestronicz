@@ -34,47 +34,16 @@ export const BarcodeView: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Form State (Lifted so BarcodePreviewCard can reactively render live preview)
-  const [itemCode, setItemCode] = useState('MZ-LED-55');
-  const [itemName, setItemName] = useState('Samsung 55-inch 4K Crystal UHD TV');
+  const [itemCode, setItemCode] = useState('');
+  const [itemName, setItemName] = useState('');
   const [header, setHeader] = useState('MAJESTRONICZ');
-  const [line1, setLine1] = useState('MRP: ₹44,990.00 (Incl. Taxes)');
-  const [line2, setLine2] = useState('HSN: 8528 • Televisions');
-  const [line3, setLine3] = useState('Warranty: 1 Year Comprehensive');
-  const [line4, setLine4] = useState('PKD: 09/2026 • Erode HQ');
+  const [line1, setLine1] = useState('');
+  const [line2, setLine2] = useState('');
+  const [line3, setLine3] = useState('');
+  const [line4, setLine4] = useState('');
 
-  // Queue State - Initialized with demo queued records so screen is immediately interactive
-  const [queue, setQueue] = useState<QueuedBarcodeItem[]>([
-    {
-      id: 'demo-queue-1',
-      itemId: 'itm-001',
-      itemCode: 'MZ-LED-55',
-      itemName: 'Samsung 55-inch 4K Crystal UHD TV',
-      salePrice: 44990,
-      purchasePrice: 38500,
-      stock: 14,
-      noOfLabels: 15,
-      header: 'MAJESTRONICZ',
-      line1: 'MRP: ₹44,990.00',
-      line2: 'HSN: 8528 • Television',
-      line3: '1 Year Warranty',
-      line4: 'PKD: 09/2026',
-    },
-    {
-      id: 'demo-queue-2',
-      itemId: 'itm-004',
-      itemCode: 'MZ-WM-75',
-      itemName: 'LG 7.5kg Front Load Washing Machine',
-      salePrice: 34990,
-      purchasePrice: 29800,
-      stock: 6,
-      noOfLabels: 10,
-      header: 'MAJESTRONICZ',
-      line1: 'MRP: ₹34,990.00',
-      line2: 'HSN: 8450 • Appliances',
-      line3: '2 Year Motor Warranty',
-      line4: 'PKD: 09/2026',
-    },
-  ]);
+  // Print queue starts empty; staff add real catalog items via the search above.
+  const [queue, setQueue] = useState<QueuedBarcodeItem[]>([]);
 
   // Modals
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);

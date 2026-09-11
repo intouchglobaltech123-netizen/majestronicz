@@ -10,7 +10,6 @@ import {
   BarChart3,
   ShieldCheck,
   UserCheck,
-  RotateCcw,
   Building2,
   Lock,
   Truck,
@@ -19,6 +18,7 @@ import {
   WalletCards,
   Users,
   Clock,
+  LogOut,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { cn } from '../../lib/utils';
@@ -28,14 +28,10 @@ export const Sidebar: React.FC = () => {
     currentUser,
     currentView,
     setCurrentView,
-    setAuthModalOpen,
-    resetToDemoData,
+    logout,
     currentBranchData,
     isAllBranches,
-    canViewDashboard,
-    canManagePurchases,
-    canViewHrm,
-    canViewReports,
+    canAccessView,
   } = useErp();
 
   const navItems: {
@@ -44,20 +40,20 @@ export const Sidebar: React.FC = () => {
     icon: React.ComponentType<{ className?: string }>;
     visible: boolean;
   }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canViewDashboard },
-    { id: 'items', label: 'Items', icon: Boxes, visible: true },
-    { id: 'customers', label: 'Customers', icon: UserCheck, visible: true },
-    { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: true },
-    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: true },
-    { id: 'estimates', label: 'Quotes', icon: FileText, visible: true },
-    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: true },
-    { id: 'inventory', label: 'Inventory', icon: Layers, visible: true },
-    { id: 'invoices', label: 'Sales', icon: Receipt, visible: true },
-    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: true },
-    { id: 'cash-register', label: 'Cash Register', icon: WalletCards, visible: true },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canManagePurchases },
-    { id: 'hrm', label: 'Attendance', icon: Users, visible: canViewHrm },
-    { id: 'reports', label: 'Reports', icon: BarChart3, visible: canViewReports },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canAccessView('dashboard') },
+    { id: 'items', label: 'Items', icon: Boxes, visible: canAccessView('items') },
+    { id: 'customers', label: 'Customers', icon: UserCheck, visible: canAccessView('customers') },
+    { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: canAccessView('enquiries') },
+    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: canAccessView('pending-orders') },
+    { id: 'estimates', label: 'Quotes', icon: FileText, visible: canAccessView('estimates') },
+    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: canAccessView('challans') },
+    { id: 'inventory', label: 'Inventory', icon: Layers, visible: canAccessView('inventory') },
+    { id: 'invoices', label: 'Sales', icon: Receipt, visible: canAccessView('invoices') },
+    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: canAccessView('barcodes') },
+    { id: 'cash-register', label: 'Cash Register', icon: WalletCards, visible: canAccessView('cash-register') },
+    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canAccessView('purchases') },
+    { id: 'hrm', label: 'Attendance', icon: Users, visible: canAccessView('hrm') },
+    { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
   ];
 
   return (
@@ -129,6 +125,8 @@ export const Sidebar: React.FC = () => {
                 'text-[10px] font-bold px-2 py-0.5 rounded-full border',
                 currentUser.role === 'CEO' && 'bg-amber-50 text-amber-700 border-amber-200',
                 currentUser.role === 'Manager' && 'bg-blue-50 text-blue-700 border-blue-200',
+                currentUser.role === 'Purchase' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                currentUser.role === 'Sales' && 'bg-violet-50 text-violet-700 border-violet-200',
                 currentUser.role === 'Billing' && 'bg-slate-100 text-slate-700 border-slate-200'
               )}
             >
@@ -153,29 +151,23 @@ export const Sidebar: React.FC = () => {
                   ? 'CEO • All Branches'
                   : currentUser.role === 'Manager'
                   ? `Manager • ${currentUser.assignedBranchId || 'Coimbatore'}`
-                  : 'Billing Staff'}
+                  : currentUser.role === 'Billing'
+                  ? 'Billing Staff'
+                  : currentUser.role === 'Purchase'
+                  ? 'Purchase Desk'
+                  : 'Sales Executive'}
               </p>
             </div>
           </div>
 
           <button
-            onClick={() => setAuthModalOpen(true)}
-            className="mt-1 w-full py-1.5 px-2.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+            onClick={logout}
+            className="mt-1 w-full py-1.5 px-2.5 text-xs font-semibold text-slate-700 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 flex items-center justify-center gap-1.5 transition-colors"
           >
-            <UserCheck className="h-3.5 w-3.5 text-blue-600" />
-            <span>Switch Role / Enter PIN</span>
+            <LogOut className="h-3.5 w-3.5" />
+            <span>Logout</span>
           </button>
         </div>
-
-        {/* Demo Data Reset Button */}
-        <button
-          onClick={resetToDemoData}
-          title="Reset item catalog and branch stock to demo defaults"
-          className="w-full py-1.5 px-2 text-[11px] text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg border border-transparent hover:border-amber-200 flex items-center justify-center gap-1.5 transition-colors"
-        >
-          <RotateCcw className="h-3 w-3" />
-          <span>Reset Demo Data</span>
-        </button>
       </div>
     </aside>
   );

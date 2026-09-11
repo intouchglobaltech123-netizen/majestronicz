@@ -1,0 +1,161 @@
+import { prisma } from '../db.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { nowIso, rid } from '../lib/stockLedger.js';
+import { nextPoNumber } from '../lib/sequences.js';
+import { withRetry } from '../lib/retry.js';
+import { serializableTx } from '../lib/tx.js';
+
+const poSnapshot = async (tx: any) => ({
+  purchaseOrders: await tx.purchaseOrder.findMany(),
+  pendingOrders: await tx.pendingOrder.findMany(),
+  branchStocks: await tx.branchStock.findMany(),
+});
+
+/** Create (server-assigned PO number) or edit a purchase order; link pending order. */
+export function savePurchaseOrder(poData: any, _actor: string) {
+  return withRetry(() => prisma.$transaction(async (tx: any) => {
+    const ts = nowIso();
+    let saved: any;
+    if (poData.id && (await tx.purchaseOrder.findUnique({ where: { id: poData.id } }))) {
+      const { id, ...rest } = poData;
+      saved = await tx.purchaseOrder.update({ where: { id }, data: { ...rest, updatedAt: ts } });
+    } else {
+      const id = poData.id || `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const poNumber = await nextPoNumber(tx, poData.branchId); // authoritative, collision-free
+      saved = await tx.purchaseOrder.create({
+        data: { ...poData, id, poNumber, createdAt: ts, updatedAt: ts },
+      });
+    }
+
+    if (saved.pendingOrderId) {
+      await tx.pendingOrder.updateMany({
+        where: { id: saved.pendingOrderId },
+        data: {
+          linkedPurchaseOrderId: saved.id,
+          purchaseOrderId: saved.id,
+          purchaseOrderNumber: saved.poNumber,
+          updatedAt: ts,
+        },
+      });
+    }
+    return { ...(await poSnapshot(tx)), saved };
+  }));
+}
+
+export function deletePurchaseOrder(poId: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (po && (po.status === 'Received' || po.status === 'Partially Received')) {
+      throw new AppError('HAS_RECEIPTS', 'Cannot delete a PO that has received stock. Cancel it instead.', 409);
+    }
+    if (po) await tx.purchaseOrder.delete({ where: { id: poId } });
+    return poSnapshot(tx);
+  });
+}
+
+export function cancelPurchaseOrder(poId: string) {
+  return prisma.$transaction(async (tx: any) => {
+    await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: nowIso() } });
+    return poSnapshot(tx);
+  });
+}
+
+/** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
+export function receivePurchaseOrderStock(
+  poId: string,
+  receipts: { itemId: string; quantityReceived: number; location?: string }[],
+  notes: string | undefined,
+  actor: string
+) {
+  return serializableTx(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+
+    const valid = (receipts || []).filter((r) => r.quantityReceived > 0);
+    if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
+
+    const ts = nowIso();
+    const lines = po.items as any[];
+    const updatedLines = lines.map((line) => {
+      const rec = valid.find((r) => r.itemId === line.itemId);
+      return rec ? { ...line, receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived } : line;
+    });
+
+    const eventLines = valid.map((rec) => {
+      const line = lines.find((l) => l.itemId === rec.itemId);
+      const prevReceived = line?.receivedQuantity || 0;
+      return {
+        itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
+        quantityOrdered: line?.quantityOrdered || 0, quantityReceivedThisEvent: rec.quantityReceived,
+        totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
+      };
+    });
+    const receivingEvent = {
+      id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      date: ts.split('T')[0], timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
+    };
+
+    const allFull = updatedLines.every((l) => (l.receivedQuantity || 0) >= l.quantityOrdered);
+    const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0);
+    const status = allFull ? 'Received' : anyReceived ? 'Partially Received' : po.status;
+
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: {
+        items: updatedLines, status,
+        receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
+        updatedAt: ts,
+      },
+    });
+
+    // Increment physical stock at the PO's branch
+    for (const rec of valid) {
+      const existing = await tx.branchStock.findUnique({
+        where: { itemId_branchId: { itemId: rec.itemId, branchId: po.branchId } },
+      });
+      await tx.branchStock.upsert({
+        where: { itemId_branchId: { itemId: rec.itemId, branchId: po.branchId } },
+        create: {
+          itemId: rec.itemId, branchId: po.branchId, quantity: rec.quantityReceived,
+          location: rec.location?.trim() || '', minStockAlert: 5, updatedAt: ts,
+        },
+        update: {
+          quantity: (existing?.quantity ?? 0) + rec.quantityReceived,
+          ...(rec.location ? { location: rec.location.trim() } : {}),
+          updatedAt: ts,
+        },
+      });
+    }
+    return poSnapshot(tx);
+  });
+}
+
+export function addAttachment(poId: string, attachmentData: any, actor: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    const newAttachment = {
+      ...attachmentData, id: rid('po-att'), uploadedAt: nowIso(), uploadedBy: actor,
+    };
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: { attachments: [newAttachment, ...((po.attachments as any[]) || [])], updatedAt: nowIso() },
+    });
+    return poSnapshot(tx);
+  });
+}
+
+export function deleteAttachment(poId: string, attachmentId: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: {
+        attachments: ((po.attachments as any[]) || []).filter((a) => a.id !== attachmentId),
+        updatedAt: nowIso(),
+      },
+    });
+    return poSnapshot(tx);
+  });
+}

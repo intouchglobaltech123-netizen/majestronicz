@@ -363,7 +363,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Demo hint: PINs are {currentEmp?.pin || '1001'} for {currentEmp?.name || 'this staff'}
+                  Enter your 4-digit staff PIN to check in / out.
                 </p>
               </div>
 

@@ -1,0 +1,384 @@
+// Majestronicz ERP — PostgreSQL schema (Prisma)
+// Design: queryable scalar fields as columns; nested arrays/objects (line items,
+// timelines, attachments, geo, etc.) kept as Json so API responses stay
+// shape-compatible with the frontend TypeScript interfaces. IDs and dates are
+// strings to preserve the exact shapes the existing UI already expects.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id                  String   @id
+  itemName            String
+  itemHSN             String
+  category            String
+  subcategory         String?
+  itemCode            String   @unique
+  unit                String
+  salePrice           Float
+  salePriceTaxMode    String
+  wholesalePrice      Float
+  minWholesaleQty     Float
+  purchasePrice       Float
+  gstTaxSlab          Float
+  discountOnSalePrice Float?
+  discountType        String?
+  reorderThreshold    Float?
+  imageUrl            String?
+  createdAt           String
+  updatedAt           String
+}
+
+model BranchStock {
+  itemId       String
+  branchId     String
+  quantity     Float
+  location     String?
+  minStockAlert Float?
+  updatedAt    String
+
+  @@id([itemId, branchId])
+  @@index([itemId])
+  @@index([branchId])
+}
+
+model ComboItem {
+  id          String  @id
+  comboName   String
+  comboCode   String  @unique
+  comboPrice  Float
+  components  Json
+  description String?
+  imageUrl    String?
+  createdAt   String?
+  updatedAt   String?
+}
+
+model StockAdjustmentLog {
+  id                 String  @id
+  itemId             String
+  itemName           String
+  itemCode           String
+  branchId           String
+  previousQuantity   Float
+  quantityChange     Float
+  newQuantity        Float
+  reason             String
+  notes              String?
+  adjustedBy         String
+  timestamp          String
+  transferRef        String?
+  linkedChallanNumber String?
+
+  @@index([itemId])
+  @@index([branchId])
+}
+
+model Estimate {
+  id                  String  @id
+  estimateNumber      String  @unique
+  branchId            String
+  date                String
+  time                String
+  customerId          String?
+  customerName        String
+  customerContact     String?
+  customerAddress     String?
+  withGst             Boolean
+  items               Json
+  subtotal            Float
+  totalCgst           Float
+  totalSgst           Float
+  totalTax            Float
+  grandTotal          Float
+  amountInWords       String
+  termsAndConditions  String
+  sourceEnquiryId     String?
+  sourceEnquiryNumber String?
+  createdAt           String
+}
+
+model DeliveryChallan {
+  id                 String  @id
+  challanNumber      String  @unique
+  recipientName      String
+  location           String?
+  contactNo          String?
+  date               String
+  time               String
+  items              Json
+  totalQuantity      Float
+  termsAndConditions String
+  receivedBy         Json?
+  deliveredBy        Json?
+  createdAt          String
+}
+
+model Invoice {
+  id                        String   @id
+  invoiceNumber             String   @unique
+  branchId                  String
+  transactionType           String
+  customerId                String?
+  customerName              String
+  customerPhone             String?
+  customerAddress           String?
+  date                      String
+  time                      String
+  paymentTerms              String
+  dueDate                   String
+  stateOfSupply             String
+  withGst                   Boolean
+  items                     Json
+  subtotal                  Float
+  totalTax                  Float
+  totalCgst                 Float
+  totalSgst                 Float
+  overallDiscountType       String
+  overallDiscountValue      Float
+  overallDiscountAmount     Float
+  shippingCharges           Float
+  roundOff                  Float
+  roundOffEnabled           Boolean
+  grandTotal                Float
+  amountInWords             String
+  termsAndConditions        String
+  description               String?
+  attachments               Json?
+  paymentMode               String
+  isPartialPayment          Boolean?
+  partialAmount             Float?
+  balanceDue                Float?
+  sourceEstimateId          String?
+  sourceEstimateNumber      String?
+  sourceEnquiryId           String?
+  sourceEnquiryNumber       String?
+  createdById               String?
+  createdAt                 String
+  updatedAt                 String?
+  isVoided                  Boolean?
+  voidReason                String?
+  voidedAt                  String?
+  voidedBy                  String?
+  returns                   Json?
+  totalReturnedAmount       Float?
+  isLoyaltyRewardApplied    Boolean?
+  loyaltyRewardDiscountAmount Float?
+}
+
+model Enquiry {
+  id                String   @id
+  enquiryNumber     String   @unique
+  customerName      String
+  customerPhone     String?
+  itemId            String?
+  itemName          String
+  itemCode          String?
+  unit              String
+  quantity          Float
+  branchId          String
+  date              String
+  time              String
+  notes             String?
+  status            String
+  cancellationReason String?
+  convertedTo       Json?
+  hasPendingOrder   Boolean?
+  pendingOrderId    String?
+  reminderDate      String?
+  reminderTime      String?
+  reminderNotes     String?
+  timeline          Json?
+  createdAt         String
+  updatedAt         String
+  isNewItemRequest  Boolean?
+  itemImageUrl      String?
+}
+
+model PendingOrder {
+  id                    String  @id
+  orderNumber           String
+  enquiryId             String
+  enquiryNumber         String
+  itemId                String
+  itemName              String
+  itemCode              String?
+  unit                  String
+  branchId              String
+  customerName          String
+  customerPhone         String?
+  quantityNeeded        Float
+  expectedRestockDate   String?
+  status                String
+  cancellationReason    String?
+  fulfilledAt           String?
+  convertedTo           Json?
+  purchaseOrderId       String?
+  purchaseOrderNumber   String?
+  linkedPurchaseOrderId String?
+  notes                 String?
+  createdAt             String
+  updatedAt             String
+}
+
+model FollowUpReminder {
+  id            String  @id
+  enquiryId     String
+  enquiryNumber String
+  customerName  String
+  customerPhone String?
+  itemName      String
+  branchId      String
+  dueDate       String
+  dueTime       String
+  notes         String?
+  isCompleted   Boolean
+  completedAt   String?
+  createdAt     String
+}
+
+model DailyCashRegister {
+  id                  String  @id
+  branchId            String
+  date                String
+  openingAmount       Float
+  isOpeningOverridden Boolean?
+  overrideReason      String?
+  expenses            Json
+  isClosed            Boolean
+  closedAt            String?
+  closedBy            String?
+  closingNotes        String?
+}
+
+model RecurringExpenseTemplate {
+  id                String  @id
+  name              String
+  defaultAmount     Float
+  branchId          String
+  frequency         String
+  dueDay            Int
+  paymentMode       String
+  createdAt         String
+  lastApprovedMonth String?
+  approvalHistory   Json?
+}
+
+model Vendor {
+  id         String  @id
+  vendorName String
+  contactNo  String
+  address    String
+  gstin      String?
+  createdAt  String
+  updatedAt  String?
+}
+
+model PurchaseOrder {
+  id                  String  @id
+  poNumber            String  @unique
+  vendorId            String
+  vendorName          String
+  vendorContact       String?
+  vendorAddress       String?
+  vendorGstin         String?
+  branchId            String
+  date                String
+  expectedDeliveryDate String
+  status              String
+  items               Json
+  totalAmount         Float
+  notes               String?
+  pendingOrderId      String?
+  pendingOrderNumber  String?
+  attachments         Json?
+  receivingHistory    Json?
+  createdAt           String
+  updatedAt           String
+}
+
+model Employee {
+  id            String  @id
+  name          String
+  designation   String
+  branchId      String
+  monthlySalary Float
+  pin           String
+  status        String
+  phone         String?
+  email         String?
+  joinedDate    String
+  createdAt     String
+  updatedAt     String
+}
+
+model AttendanceRecord {
+  id              String  @id
+  employeeId      String
+  employeeName    String
+  branchId        String
+  date            String
+  checkInTime     String
+  checkInPhoto    String
+  checkInLocation Json
+  checkOutTime    String?
+  checkOutPhoto   String?
+  checkOutLocation Json?
+  hoursWorked     Float?
+  status          String
+  notes           String?
+  createdAt       String
+  updatedAt       String
+}
+
+model PayrollRecord {
+  id                   String  @id
+  employeeId           String
+  employeeName         String
+  designation          String
+  branchId             String
+  month                String
+  monthlySalary        Float
+  standardHoursPerMonth Float
+  hourlyRate           Float
+  totalDaysPresent     Float
+  totalHoursWorked     Float
+  computedPay          Float
+  manualAdjustment     Float
+  adjustmentReason     String?
+  finalPayable         Float
+  status               String
+  paidAt               String?
+  paymentMode          String?
+  paymentReference     String?
+  updatedAt            String
+}
+
+model Customer {
+  id                            String  @id
+  name                          String
+  phone                         String  @unique
+  address                       String
+  firstPurchaseDate             String
+  purchaseCount                 Int
+  totalSpent                    Float
+  notes                         String?
+  createdAt                     String
+  updatedAt                     String
+  lastRewardRedeemedPurchaseCount Int?
+}
+
+// Key/value store for app-level configuration singletons:
+// loyaltySettings, payrollSettings, categories, subcategoriesByCategory,
+// categoryPrefixMap, subcategoryPrefixMap, unitsList, gstSlabsList,
+// paymentTermsOptions. Value holds the JSON payload for each key.
+model AppConfig {
+  key   String @id
+  value Json
+}

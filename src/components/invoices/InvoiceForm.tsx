@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   Item,
@@ -38,6 +38,7 @@ import {
   Share2,
   Link,
   Sparkles,
+  ScanLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -70,6 +71,8 @@ export const InvoiceForm: React.FC<Props> = ({
     addPaymentTerm,
     customers,
     loyaltySettings,
+    items,
+    combos,
   } = useErp();
 
   // Branch Selection
@@ -462,6 +465,131 @@ export const InvoiceForm: React.FC<Props> = ({
       comboId: combo.id,
       comboComponents: combo.components,
     });
+  };
+
+  // Append a brand-new combo line item (mirrors addNewRow's math for a combo).
+  const appendComboRow = (combo: ComboItem) => {
+    const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const calculated = calculateLineTax(1, combo.comboPrice, 18, withGst);
+    const newRow: InvoiceLineItem = {
+      id: newId,
+      itemId: combo.id,
+      itemCode: combo.comboCode,
+      itemName: combo.comboName,
+      itemHSN: '85371000',
+      quantity: 1,
+      unit: 'SET',
+      unitPrice: combo.comboPrice,
+      discountType: '%',
+      discountValue: 0,
+      discountAmount: 0,
+      taxRate: 18,
+      taxableAmount: calculated.taxableAmount,
+      cgstAmount: calculated.cgstAmount,
+      sgstAmount: calculated.sgstAmount,
+      totalTax: calculated.totalTax,
+      totalAmount: calculated.totalAmount,
+      isCombo: true,
+      comboId: combo.id,
+      comboComponents: combo.components,
+    };
+    setLineItems((prev) => [...prev, newRow]);
+  };
+
+  // ---- Barcode Scan → Sales Entry (counter-speed billing) ----
+  const [scanValue, setScanValue] = useState('');
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
+  const branchName = BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch';
+
+  const handleScanSubmit = (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+    const normalized = code.toLowerCase();
+
+    // Match a master item by its item code first, otherwise a combo by combo code.
+    const matchedItem = items.find((it) => it.itemCode.toLowerCase() === normalized);
+    const matchedCombo = matchedItem
+      ? undefined
+      : combos.find((c) => c.comboCode.toLowerCase() === normalized);
+
+    if (!matchedItem && !matchedCombo) {
+      toast.error('No item found for scanned code', {
+        description: `"${code}" does not match any item or combo code.`,
+      });
+      setScanValue('');
+      return;
+    }
+
+    if (matchedItem) {
+      const stockRow = branchStocks.find(
+        (s) => s.itemId === matchedItem.id && s.branchId === selectedBranch
+      );
+      const availableQty = stockRow?.quantity ?? 0;
+      if (availableQty <= 0) {
+        toast.error('Out of stock at this branch', {
+          description: `"${matchedItem.itemName}" has 0 available stock at ${branchName}.`,
+        });
+        setScanValue('');
+        return;
+      }
+
+      const existing = lineItems.find((li) => li.itemId === matchedItem.id && !li.isCombo);
+      if (existing) {
+        if (existing.quantity + 1 > availableQty) {
+          toast.warning('Reached available stock limit', {
+            description: `Only ${availableQty} unit(s) of "${matchedItem.itemName}" in stock at ${branchName}.`,
+          });
+        } else {
+          updateLineItem(existing.id, { quantity: existing.quantity + 1 });
+          toast.success(`+1 ${matchedItem.itemName}`, {
+            description: `Qty now ${existing.quantity + 1} • ${matchedItem.itemCode}`,
+          });
+        }
+      } else {
+        const emptyRow = lineItems.find((li) => !li.itemName.trim() && !li.itemId);
+        if (emptyRow) {
+          selectMasterItemForRow(emptyRow.id, matchedItem);
+        } else {
+          addNewRow(matchedItem);
+        }
+        toast.success(`Added ${matchedItem.itemName}`, { description: matchedItem.itemCode });
+      }
+    } else if (matchedCombo) {
+      const availQty = getComboAvailability(matchedCombo, selectedBranch);
+      if (availQty <= 0) {
+        toast.error('Combo out of stock at this branch', {
+          description: `"${matchedCombo.comboName}" has 0 available kits at ${branchName}.`,
+        });
+        setScanValue('');
+        return;
+      }
+
+      const existing = lineItems.find((li) => li.comboId === matchedCombo.id && li.isCombo);
+      if (existing) {
+        if (existing.quantity + 1 > availQty) {
+          toast.warning('Reached available combo stock limit', {
+            description: `Only ${availQty} kit(s) of "${matchedCombo.comboName}" available at ${branchName}.`,
+          });
+        } else {
+          updateLineItem(existing.id, { quantity: existing.quantity + 1 });
+          toast.success(`+1 ${matchedCombo.comboName}`, {
+            description: `Qty now ${existing.quantity + 1} • ${matchedCombo.comboCode}`,
+          });
+        }
+      } else {
+        const emptyRow = lineItems.find((li) => !li.itemName.trim() && !li.itemId);
+        if (emptyRow) {
+          selectComboForRow(emptyRow.id, matchedCombo);
+        } else {
+          appendComboRow(matchedCombo);
+        }
+        toast.success(`Added ${matchedCombo.comboName}`, { description: matchedCombo.comboCode });
+      }
+    }
+
+    setScanValue('');
+    scanInputRef.current?.focus();
   };
 
   const removeLineItem = (id: string) => {
@@ -957,6 +1085,30 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
           <span className="text-[11px] text-blue-700 font-medium">
             💡 Price edits apply only to this invoice; catalog item prices are never modified.
+          </span>
+        </div>
+
+        {/* Barcode Scan Bar — scan an item/combo code to add it straight to the bill */}
+        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600" />
+            <input
+              ref={scanInputRef}
+              type="text"
+              value={scanValue}
+              onChange={(e) => setScanValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleScanSubmit(scanValue);
+                }
+              }}
+              placeholder="Scan barcode or type item code, then press Enter…"
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold font-mono text-slate-900 placeholder-slate-400 placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+            />
+          </div>
+          <span className="text-[11px] text-slate-500">
+            Adds directly to the bill; scanning the same code again increases quantity.
           </span>
         </div>
 
