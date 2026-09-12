@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, PaymentMode } from '../../types';
+import { BranchScope, BRANCHES, PaymentMode, getInvoicePaymentSplits } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
 import {
   Receipt,
@@ -84,11 +84,13 @@ export const SalesReportTab: React.FC<Props> = ({
         loyaltyDiscountGivenTotal += (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0);
       }
 
-      const mode = inv.paymentMode || 'Cash';
-      if (paymentModes[mode]) {
-        paymentModes[mode].count++;
-        paymentModes[mode].total += inv.grandTotal;
-      }
+      const splits = getInvoicePaymentSplits(inv);
+      splits.forEach((split) => {
+        if (paymentModes[split.mode]) {
+          paymentModes[split.mode].count++;
+          paymentModes[split.mode].total += split.amount;
+        }
+      });
 
       // Tally line items
       inv.items.forEach((line) => {

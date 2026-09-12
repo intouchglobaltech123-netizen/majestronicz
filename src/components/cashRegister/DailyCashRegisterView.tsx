@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth } from '../../types';
+import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits } from '../../types';
 import { getTodayDateString, getYesterdayDateString } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
@@ -98,21 +98,24 @@ export const DailyCashRegisterView: React.FC = () => {
     );
   }, [invoices, activeBranchId, selectedDate]);
 
-  // Sales Totals
+  // Sales Totals — Reconcile Per Split Entry
   const salesBreakdown = useMemo(() => {
     return dayInvoices.reduce(
       (acc, inv) => {
-        const rawAmount =
-          inv.isPartialPayment && inv.partialAmount ? inv.partialAmount : inv.grandTotal;
+        const splits = getInvoicePaymentSplits(inv);
         const returned = inv.totalReturnedAmount || 0;
-        const amount = Math.max(0, rawAmount - returned);
+        const netTotal = Math.max(0, inv.grandTotal - returned);
+        const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
 
-        if (inv.paymentMode === 'HDFC') acc.hdfc += amount;
-        else if (inv.paymentMode === 'Cash') acc.cash += amount;
-        else if (inv.paymentMode === 'GPay') acc.gpay += amount;
-        else if (inv.paymentMode === 'COD-Credit') acc.codCredit += amount;
+        splits.forEach((split) => {
+          const amt = split.amount * ratio;
+          if (split.mode === 'HDFC') acc.hdfc += amt;
+          else if (split.mode === 'Cash') acc.cash += amt;
+          else if (split.mode === 'GPay') acc.gpay += amt;
+          else if (split.mode === 'COD-Credit') acc.codCredit += amt;
+          acc.totalRevenue += amt;
+        });
 
-        acc.totalRevenue += amount;
         return acc;
       },
       { hdfc: 0, cash: 0, gpay: 0, codCredit: 0, totalRevenue: 0 }

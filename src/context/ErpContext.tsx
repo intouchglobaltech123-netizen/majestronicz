@@ -53,6 +53,7 @@ import {
   CustomerOutstandingInvoice,
   CustomerOutstandingSummary,
   getCustomerOutstandingSummary,
+  getInvoicePaymentSplits,
 } from '../types';
 import {
   INITIAL_ITEMS,
@@ -2051,13 +2052,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (pastClosed.length > 0) {
       const last = pastClosed[0];
       const dayInvoices = invoices.filter((i) => i.branchId === branchId && i.date === last.date && !i.isVoided);
-      const cashSales = dayInvoices
-        .filter((i) => i.paymentMode === 'Cash')
-        .reduce((sum, i) => {
-          const amount = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
-          const returned = i.totalReturnedAmount || 0;
-          return sum + Math.max(0, amount - returned);
-        }, 0);
+      const cashSales = dayInvoices.reduce((sum, i) => {
+        const splits = getInvoicePaymentSplits(i);
+        const cashSplit = splits.find((s) => s.mode === 'Cash');
+        if (!cashSplit || cashSplit.amount <= 0) return sum;
+        const returned = i.totalReturnedAmount || 0;
+        const netTotal = Math.max(0, i.grandTotal - returned);
+        const ratio = i.grandTotal > 0 ? netTotal / i.grandTotal : 1;
+        return sum + (cashSplit.amount * ratio);
+      }, 0);
       const cashExpenses = last.expenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
       return last.openingAmount + cashSales - cashExpenses;
     }

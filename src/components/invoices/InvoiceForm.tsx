@@ -17,6 +17,8 @@ import {
   ComboItem,
   isLoyaltyMilestoneEligible,
   cleanCustomerName,
+  PaymentSplit,
+  getInvoicePaymentSplits,
 } from '../../types';
 import {
   calculateLineTax,
@@ -42,6 +44,9 @@ import {
   Sparkles,
   Copy,
   Receipt,
+  Split,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -204,9 +209,12 @@ export const InvoiceForm: React.FC<Props> = ({
   // Line Items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
 
-  // Payment Mode (Connected to Daily Cash Register) - default to Cash
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>(() => {
-    return initialInvoice?.paymentMode || 'Cash';
+  // Payment Splits (Connected to Daily Cash Register)
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>(() => {
+    if (initialInvoice) {
+      return getInvoicePaymentSplits(initialInvoice);
+    }
+    return [{ mode: 'Cash', amount: 0 }];
   });
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState<number>(0);
@@ -297,7 +305,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setStateOfSupply(initialInvoice.stateOfSupply || '33-Tamil Nadu');
       setWithGst(initialInvoice.withGst);
       setLineItems(initialInvoice.items);
-      setPaymentMode(initialInvoice.paymentMode || 'Cash');
+      setPaymentSplits(getInvoicePaymentSplits(initialInvoice));
       setIsPartialPayment(!!initialInvoice.isPartialPayment);
       setPartialAmount(initialInvoice.partialAmount || 0);
       setOverallDiscountType(initialInvoice.overallDiscountType || '%');
@@ -487,7 +495,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setDueDate(getTodayDateString());
       setStateOfSupply(duplicateSourceInvoice.stateOfSupply || '33-Tamil Nadu');
       setWithGst(duplicateSourceInvoice.withGst);
-      setPaymentMode(duplicateSourceInvoice.paymentMode || 'Cash');
+      setPaymentSplits(getInvoicePaymentSplits(duplicateSourceInvoice));
       setIsPartialPayment(false);
       setPartialAmount(0);
       setOverallDiscountType(duplicateSourceInvoice.overallDiscountType || '%');
@@ -523,7 +531,7 @@ export const InvoiceForm: React.FC<Props> = ({
         const generated = getNextInvoiceNumber(selectedBranch, date);
         setInvoiceNumber(generated);
         setTransactionType('Cash');
-        setPaymentMode('Cash');
+        setPaymentSplits([{ mode: 'Cash', amount: totals.grandTotal }]);
       }
     }
   }, [selectedBranch, initialInvoice, initialEstimate, convertedFromEstimate, duplicateSourceInvoice, duplicateSourceEstimate, getNextInvoiceNumber, getNextEstimateNumber, date]);
@@ -839,6 +847,82 @@ export const InvoiceForm: React.FC<Props> = ({
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // Auto-sync single split mode amount with grandTotal
+  useEffect(() => {
+    setPaymentSplits((prev) => {
+      if (prev.length === 1 && prev[0].amount !== totals.grandTotal) {
+        return [{ mode: prev[0].mode, amount: totals.grandTotal }];
+      }
+      return prev;
+    });
+  }, [totals.grandTotal]);
+
+  // Total allocated across payment splits
+  const totalAllocated = useMemo(() => {
+    if (paymentSplits.length === 1) {
+      return totals.grandTotal;
+    }
+    return paymentSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  }, [paymentSplits, totals.grandTotal]);
+
+  // Live remaining amount (positive = under-allocated, negative = over-allocated)
+  const remainingBalance = useMemo(() => {
+    return Math.round((totals.grandTotal - totalAllocated) * 100) / 100;
+  }, [totals.grandTotal, totalAllocated]);
+
+  // Is payment reconciled exactly to 0 remaining?
+  const isPaymentReconciled = useMemo(() => {
+    if (documentType !== 'Invoice') return true;
+    if (paymentSplits.length <= 1) return true;
+    return Math.abs(remainingBalance) < 0.01;
+  }, [documentType, paymentSplits.length, remainingBalance]);
+
+  // Split management handlers
+  const handleAddSplit = () => {
+    setPaymentSplits((prev) => {
+      const usedModes = new Set(prev.map((s) => s.mode));
+      const allModes: PaymentMode[] = ['Cash', 'GPay', 'HDFC', 'COD-Credit'];
+      const nextMode = allModes.find((m) => !usedModes.has(m)) || 'GPay';
+
+      // Allocate remainder to the new split if available
+      const currentSum = prev.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      const remaining = Math.max(0, totals.grandTotal - currentSum);
+
+      return [...prev, { mode: nextMode, amount: remaining }];
+    });
+  };
+
+  const handleUpdateSplitMode = (index: number, mode: PaymentMode) => {
+    setPaymentSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], mode };
+      return next;
+    });
+  };
+
+  const handleUpdateSplitAmount = (index: number, amount: number) => {
+    setPaymentSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], amount: Math.max(0, amount) };
+      return next;
+    });
+  };
+
+  const handleRemoveSplit = (index: number) => {
+    setPaymentSplits((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 1) {
+        return [{ mode: next[0].mode, amount: totals.grandTotal }];
+      }
+      return next;
+    });
+  };
+
+  const handleResetToSingleMode = () => {
+    setPaymentSplits((prev) => [{ mode: prev[0]?.mode || 'Cash', amount: totals.grandTotal }]);
+  };
+
   // Build the complete invoice object
   const assembleInvoiceObject = (): Invoice | null => {
     if (!customerName.trim()) {
@@ -856,12 +940,48 @@ export const InvoiceForm: React.FC<Props> = ({
       return null;
     }
 
-    if (isPartialPayment && (partialAmount <= 0 || partialAmount > totals.grandTotal)) {
-      toast.error('Invalid partial payment amount', {
-        description: `Partial amount must be greater than 0 and not exceed total ₹${totals.grandTotal.toLocaleString('en-IN')}`,
+    // Validate split payment reconciliation
+    if (documentType === 'Invoice' && paymentSplits.length > 1 && !isPaymentReconciled) {
+      toast.error('Payment split not reconciled', {
+        description:
+          remainingBalance > 0
+            ? `Please allocate the remaining ₹${remainingBalance.toLocaleString('en-IN')} before saving.`
+            : `Split amounts exceed grand total by ₹${Math.abs(remainingBalance).toLocaleString('en-IN')}.`,
       });
       return null;
     }
+
+    // Determine final splits
+    const finalSplits: PaymentSplit[] =
+      paymentSplits.length > 1
+        ? paymentSplits
+        : [{ mode: paymentSplits[0]?.mode || 'Cash', amount: totals.grandTotal }];
+
+    // Handle COD-Credit portion & partial payment tracking
+    const codSplit = finalSplits.find((s) => s.mode === 'COD-Credit');
+    let invoiceBalanceDue: number | undefined = undefined;
+    let invoiceIsPartialPayment = false;
+    let invoicePartialAmount: number | undefined = undefined;
+
+    if (finalSplits.length > 1) {
+      if (codSplit && codSplit.amount > 0) {
+        invoiceBalanceDue = codSplit.amount;
+        invoiceIsPartialPayment = codSplit.amount < totals.grandTotal;
+        invoicePartialAmount = totals.grandTotal - codSplit.amount;
+      }
+    } else {
+      if (finalSplits[0].mode === 'COD-Credit') {
+        if (isPartialPayment) {
+          invoiceIsPartialPayment = true;
+          invoicePartialAmount = partialAmount;
+          invoiceBalanceDue = Math.max(0, totals.grandTotal - partialAmount);
+        } else {
+          invoiceBalanceDue = totals.grandTotal;
+        }
+      }
+    }
+
+    const primaryMode = finalSplits[0]?.mode || 'Cash';
 
     const newInvoice: Invoice = {
       id: initialInvoice ? initialInvoice.id : `inv-${Date.now()}`,
@@ -896,10 +1016,11 @@ export const InvoiceForm: React.FC<Props> = ({
       termsAndConditions: terms,
       description: description.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
-      paymentMode,
-      isPartialPayment,
-      partialAmount: isPartialPayment ? partialAmount : undefined,
-      balanceDue: isPartialPayment ? balanceDue : undefined,
+      paymentMode: primaryMode,
+      paymentSplits: finalSplits,
+      isPartialPayment: invoiceIsPartialPayment,
+      partialAmount: invoicePartialAmount,
+      balanceDue: invoiceBalanceDue,
       sourceEstimateId,
       sourceEstimateNumber,
       sourceEnquiryId,
@@ -1025,7 +1146,10 @@ export const InvoiceForm: React.FC<Props> = ({
     } else {
       const inv = assembleInvoiceObject();
       if (!inv) return;
-      const text = `*SALES INVOICE — MAJESTRONICZ*\nInvoice: ${inv.invoiceNumber}\nDate: ${inv.date}\nCustomer: ${inv.customerName}\nGrand Total: ₹${inv.grandTotal.toLocaleString('en-IN')}\nPayment: ${inv.paymentMode} (${inv.transactionType})\nThank you for doing business with Majestronicz!`;
+      const splits = inv.paymentSplits && inv.paymentSplits.length > 1
+        ? inv.paymentSplits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
+        : `${inv.paymentMode}`;
+      const text = `*SALES INVOICE — MAJESTRONICZ*\nInvoice: ${inv.invoiceNumber}\nDate: ${inv.date}\nCustomer: ${inv.customerName}\nGrand Total: ₹${inv.grandTotal.toLocaleString('en-IN')}\nPayment: ${splits} (${inv.transactionType})\nThank you for doing business with Majestronicz!`;
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
     }
   };
@@ -1196,12 +1320,20 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
+            disabled={documentType === 'Invoice' && !isPaymentReconciled}
             className={cn(
               "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-xs cursor-pointer",
-              documentType === 'Quotation'
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                : documentType === 'Quotation'
                 ? "bg-purple-600 hover:bg-purple-700"
                 : "bg-blue-600 hover:bg-blue-700"
             )}
+            title={
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+                : undefined
+            }
           >
             <Save className="h-3.5 w-3.5" />
             <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save & Decrement Stock'}</span>
@@ -1740,80 +1872,261 @@ export const InvoiceForm: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (Span 7): Payment Mode + Terms + Notes */}
         <div className="lg:col-span-7 space-y-5">
-          {/* PAYMENT MODE (Only applicable for Invoices; Quotations show informative note) */}
+          {/* PAYMENT MODE & SPLIT PAYMENT (Daily Cash Register Connected) */}
           {documentType === 'Invoice' ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                    Payment Mode (Daily Cash Register) <span className="text-rose-500">*</span>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <span>Payment Allocation (Daily Cash Register)</span>
+                    <span className="text-rose-500">*</span>
+                    {paymentSplits.length > 1 && (
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 flex items-center gap-1">
+                        <Split className="h-2.5 w-2.5" />
+                        <span>Split Payment ({paymentSplits.length} modes)</span>
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Select payment destination matching the Daily Cash sheet columns.
+                    Settlement modes automatically populate matching columns in the Daily Cash sheet.
                   </p>
                 </div>
-                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                  Auto-Reconciles
-                </span>
+                <div className="flex items-center gap-2">
+                  {paymentSplits.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleResetToSingleMode}
+                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    >
+                      Reset to Single Mode
+                    </button>
+                  )}
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    Auto-Reconciles
+                  </span>
+                </div>
               </div>
 
-              {/* Payment Mode Dropdown matching Daily Cash Register */}
-              <UniversalDropdown
-                options={[
-                  { value: 'Cash', label: 'Cash' },
-                  { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
-                  { value: 'GPay', label: 'GPay (UPI/QR)' },
-                  { value: 'COD-Credit', label: 'COD-Credit (Pay on Delivery)' },
-                ]}
-                value={paymentMode}
-                onChange={(val) => setPaymentMode(val as PaymentMode)}
-              />
-
-              {/* Partial Payment (PP) Toggle & Input for COD-Credit */}
-              {paymentMode === 'COD-Credit' && (
-                <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3 mt-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-amber-900">
-                        Partial Payment (PP) Received?
-                      </span>
-                      <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
-                        "PP" Register Column
+              {/* SINGLE MODE VIEW (Default / Common Case) */}
+              {paymentSplits.length <= 1 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <UniversalDropdown
+                        options={[
+                          { value: 'Cash', label: 'Cash' },
+                          { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
+                          { value: 'GPay', label: 'GPay (UPI/QR)' },
+                          { value: 'COD-Credit', label: 'COD-Credit (Pay on Delivery)' },
+                        ]}
+                        value={paymentSplits[0]?.mode || 'Cash'}
+                        onChange={(val) =>
+                          setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }])
+                        }
+                      />
+                    </div>
+                    <div className="w-36 text-right px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Amount</span>
+                      <span className="font-mono font-bold text-slate-800 text-xs">
+                        {formatCurrency(totals.grandTotal)}
                       </span>
                     </div>
-                    <input
-                      type="checkbox"
-                      id="partial-pay-toggle"
-                      checked={isPartialPayment}
-                      onChange={(e) => setIsPartialPayment(e.target.checked)}
-                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                    />
                   </div>
 
-                  {isPartialPayment && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200">
-                      <div>
-                        <label className="block text-[11px] font-bold text-amber-900 mb-1">
-                          Advance / Partial Amount Collected (₹)
-                        </label>
+                  {/* Partial Payment Toggle for COD-Credit */}
+                  {paymentSplits[0]?.mode === 'COD-Credit' && (
+                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3 mt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-900">
+                            Partial Payment (PP) Received?
+                          </span>
+                          <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
+                            "PP" Register Column
+                          </span>
+                        </div>
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="Enter collected partial amount..."
-                          value={partialAmount || ''}
-                          onChange={(e) => setPartialAmount(Number(e.target.value))}
-                          className="w-full px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                          type="checkbox"
+                          id="partial-pay-toggle"
+                          checked={isPartialPayment}
+                          onChange={(e) => setIsPartialPayment(e.target.checked)}
+                          className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-amber-900 mb-1">
-                          Remaining Balance Due
-                        </label>
-                        <div className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-rose-700">
-                          {formatCurrency(balanceDue)}
+
+                      {isPartialPayment && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200">
+                          <div>
+                            <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                              Advance / Partial Amount Collected (₹)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="Enter collected partial amount..."
+                              value={partialAmount || ''}
+                              onChange={(e) => setPartialAmount(Number(e.target.value))}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                              Remaining Balance Due
+                            </label>
+                            <div className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-rose-700">
+                              {formatCurrency(balanceDue)}
+                            </div>
+                          </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Button to add payment split */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddSplit}
+                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 px-3 py-2 rounded-xl border border-blue-200/80 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>+ Add Payment Split (e.g. Cash + GPay)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* MULTI-SPLIT PAYMENT VIEW */
+                <div className="space-y-3">
+                  <div className="space-y-2.5">
+                    {paymentSplits.map((split, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 sm:gap-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 transition-all"
+                      >
+                        <span className="text-[11px] font-bold text-slate-500 w-16 shrink-0">
+                          Split #{index + 1}
+                        </span>
+
+                        {/* Payment Mode Selector */}
+                        <div className="w-44 sm:w-56 shrink-0">
+                          <UniversalDropdown
+                            options={[
+                              { value: 'Cash', label: 'Cash' },
+                              { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
+                              { value: 'GPay', label: 'GPay (UPI/QR)' },
+                              { value: 'COD-Credit', label: 'COD-Credit' },
+                            ]}
+                            value={split.mode}
+                            onChange={(val) => handleUpdateSplitMode(index, val as PaymentMode)}
+                          />
+                        </div>
+
+                        {/* Split Amount Input */}
+                        <div className="flex-1 relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-slate-400 text-xs font-bold">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={split.amount === 0 ? '' : split.amount}
+                            onChange={(e) => handleUpdateSplitAmount(index, Number(e.target.value))}
+                            placeholder="0.00"
+                            className="w-full pl-6 pr-3 py-1.5 bg-white rounded-lg border border-slate-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                          />
+                        </div>
+
+                        {/* Quick fill button if remaining */}
+                        {remainingBalance > 0 && index === paymentSplits.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSplitAmount(index, split.amount + remainingBalance)}
+                            title={`Fill remaining ₹${remainingBalance}`}
+                            className="hidden sm:inline-flex text-[10px] font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200 px-2 py-1 rounded transition-colors whitespace-nowrap cursor-pointer"
+                          >
+                            + Fill Remainder
+                          </button>
+                        )}
+
+                        {/* Remove Split Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSplit(index)}
+                          title="Remove this payment split"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Add split row button */}
+                  <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddSplit}
+                      disabled={paymentSplits.length >= 4}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer",
+                        paymentSplits.length >= 4
+                          ? "text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed"
+                          : "text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 border-blue-200"
+                      )}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>+ Add Another Split</span>
+                    </button>
+
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Total Allocated: <span className="font-mono font-bold text-slate-800">{formatCurrency(totalAllocated)}</span> / <span className="font-mono">{formatCurrency(totals.grandTotal)}</span>
+                    </span>
+                  </div>
+
+                  {/* LIVE RECONCILIATION BALANCE STATUS */}
+                  <div className="pt-1">
+                    {Math.abs(remainingBalance) < 0.01 ? (
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span>Payment Fully Allocated & Reconciled (₹0 remaining)</span>
+                        </div>
+                        <span className="text-[11px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
+                          Ready to Save
+                        </span>
+                      </div>
+                    ) : remainingBalance > 0 ? (
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between text-xs text-amber-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>₹{remainingBalance.toLocaleString('en-IN')} remaining to allocate</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-amber-700">
+                          Must equal ₹{totals.grandTotal.toLocaleString('en-IN')} before saving
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 flex items-center justify-between text-xs text-rose-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                          <span>₹{Math.abs(remainingBalance).toLocaleString('en-IN')} over-allocated</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-rose-700">
+                          Exceeds grand total by ₹{Math.abs(remainingBalance).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COD-Credit split notice */}
+                  {paymentSplits.some((s) => s.mode === 'COD-Credit' && s.amount > 0) && (
+                    <div className="p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-900 space-y-0.5">
+                      <span className="font-bold block">Credit Portion Note:</span>
+                      <p className="text-[11px] text-indigo-700 leading-relaxed">
+                        ₹{paymentSplits.find((s) => s.mode === 'COD-Credit')?.amount.toLocaleString('en-IN')} allocated to COD-Credit will be logged as outstanding balance due for this customer. Paid portions will reconcile to their respective drawer/bank sheets immediately.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2145,12 +2458,20 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
+            disabled={documentType === 'Invoice' && !isPaymentReconciled}
             className={cn(
               "w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer",
-              documentType === 'Quotation'
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                : documentType === 'Quotation'
                 ? "bg-purple-600 hover:bg-purple-700"
                 : "bg-blue-600 hover:bg-blue-700"
             )}
+            title={
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+                : undefined
+            }
           >
             <Save className="h-4 w-4" />
             <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save Invoice & Update Inventory'}</span>

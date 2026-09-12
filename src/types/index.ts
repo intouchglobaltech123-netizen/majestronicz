@@ -68,6 +68,11 @@ export interface BranchStock {
 export type TransactionType = 'Credit' | 'Cash';
 export type PaymentMode = 'HDFC' | 'Cash' | 'GPay' | 'COD-Credit';
 
+export interface PaymentSplit {
+  mode: PaymentMode;
+  amount: number;
+}
+
 /**
  * Invoice Line Item Entity
  * CRITICAL RULE: When a bill/invoice line item's price is edited at billing time
@@ -173,7 +178,8 @@ export interface Invoice {
   termsAndConditions: string;
   description?: string;
   attachments?: InvoiceAttachment[];
-  paymentMode: PaymentMode; // HDFC | Cash | GPay | COD-Credit
+  paymentMode: PaymentMode; // HDFC | Cash | GPay | COD-Credit (Primary mode)
+  paymentSplits?: PaymentSplit[]; // Multi-mode payment splits (e.g. ₹100 Cash + ₹50 GPay)
   isPartialPayment?: boolean; // PP flag
   partialAmount?: number;
   balanceDue?: number;
@@ -884,6 +890,26 @@ export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean 
   return false;
 };
 
+/**
+ * Helper to get payment splits for an invoice, supporting backwards compatibility
+ * for legacy single-mode invoices.
+ */
+export const getInvoicePaymentSplits = (
+  inv: Pick<Invoice, 'paymentSplits' | 'paymentMode' | 'grandTotal' | 'isPartialPayment' | 'partialAmount' | 'balanceDue'>
+): PaymentSplit[] => {
+  if (inv.paymentSplits && inv.paymentSplits.length > 0) {
+    return inv.paymentSplits;
+  }
+  // Backwards compatibility migration for legacy single-mode invoices with partial payment
+  if (inv.isPartialPayment && inv.partialAmount && inv.balanceDue) {
+    return [
+      { mode: inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: inv.partialAmount },
+      { mode: 'COD-Credit', amount: inv.balanceDue },
+    ];
+  }
+  return [{ mode: inv.paymentMode || 'Cash', amount: inv.grandTotal || 0 }];
+};
+
 export const getCustomerOutstandingSummary = (
   customer: Customer,
   invoices: Invoice[]
@@ -897,7 +923,14 @@ export const getCustomerOutstandingSummary = (
     let paid = 0;
     let due = 0;
 
-    if (inv.isPartialPayment) {
+    const splits = getInvoicePaymentSplits(inv);
+    const hasCodCreditSplit = splits.some((s) => s.mode === 'COD-Credit');
+
+    if (splits.length > 1 && hasCodCreditSplit) {
+      // Split payment containing COD-Credit portion
+      due = splits.filter((s) => s.mode === 'COD-Credit').reduce((sum, s) => sum + s.amount, 0);
+      paid = Math.max(0, billed - due);
+    } else if (inv.isPartialPayment) {
       paid = inv.partialAmount || 0;
       due = inv.balanceDue !== undefined ? inv.balanceDue : Math.max(0, billed - paid);
     } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {

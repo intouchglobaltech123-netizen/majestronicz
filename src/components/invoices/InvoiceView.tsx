@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES } from '../../types';
+import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Copy,
   Trash2,
+  Split,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -134,8 +135,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       if (startDate && inv.date < startDate) return false;
       if (endDate && inv.date > endDate) return false;
 
-      // Payment mode filter
-      if (modeFilter !== 'ALL' && inv.paymentMode !== modeFilter) return false;
+      // Payment mode filter (matches if any split mode equals modeFilter)
+      if (modeFilter !== 'ALL') {
+        const splits = getInvoicePaymentSplits(inv);
+        if (!splits.some((s) => s.mode === modeFilter)) return false;
+      }
 
       // Status filter
       if (statusFilter !== 'ALL') {
@@ -869,11 +873,36 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
                           {/* Payment Mode */}
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                                {inv.paymentMode}
-                              </span>
-                            </div>
+                            {(() => {
+                              const splits = getInvoicePaymentSplits(inv);
+                              if (splits.length > 1) {
+                                return (
+                                  <div className="space-y-1">
+                                    <span
+                                      title={splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')}
+                                      className="inline-flex items-center gap-1 font-mono font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-[11px] cursor-help"
+                                    >
+                                      <Split className="h-2.5 w-2.5" />
+                                      <span>Split ({splits.length})</span>
+                                    </span>
+                                    <div className="text-[10px] text-slate-500 font-mono flex flex-wrap gap-1">
+                                      {splits.map((s, idx) => (
+                                        <span key={idx} className="bg-slate-50 px-1 py-0.2 rounded border border-slate-200">
+                                          {s.mode}: ₹{s.amount.toLocaleString('en-IN')}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                    {inv.paymentMode}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             {inv.isPartialPayment && (
                               <div className="text-[10px] font-bold text-amber-700 mt-0.5">
                                 Paid: ₹{inv.partialAmount?.toLocaleString('en-IN')} (Bal: ₹{inv.balanceDue?.toLocaleString('en-IN')})
