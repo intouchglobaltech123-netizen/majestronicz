@@ -1434,18 +1434,12 @@ export const InvoiceForm: React.FC<Props> = ({
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Billing Branch
             </label>
-            <select
+            <UniversalDropdown
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
+              onChange={(v) => setSelectedBranch(v as BranchId)}
               disabled={!isAllBranches && currentBranch !== 'all'}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 disabled:opacity-75"
-            >
-              {BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.shortCode})
-                </option>
-              ))}
-            </select>
+              options={BRANCHES.map((b) => ({ value: b.id, label: `${b.name} (${b.shortCode})` }))}
+            />
           </div>
 
           {/* Auto Invoice / Quotation Number */}
@@ -1513,17 +1507,11 @@ export const InvoiceForm: React.FC<Props> = ({
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               State of Supply
             </label>
-            <select
+            <UniversalDropdown
               value={stateOfSupply}
-              onChange={(e) => setStateOfSupply(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600"
-            >
-              {INDIAN_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setStateOfSupply(String(v))}
+              options={INDIAN_STATES.map((s) => ({ value: s, label: s }))}
+            />
           </div>
         </div>
 
@@ -2263,17 +2251,13 @@ export const InvoiceForm: React.FC<Props> = ({
               <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700">
                 Terms & Conditions Template
               </label>
-              <select
-                value={termsPresetId}
-                onChange={(e) => handleTermsPresetChange(e.target.value)}
-                className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
-              >
-                {INVOICE_TERMS_PRESETS.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </option>
-                ))}
-              </select>
+              <div className="w-52">
+                <UniversalDropdown
+                  value={termsPresetId}
+                  onChange={(v) => handleTermsPresetChange(String(v))}
+                  options={INVOICE_TERMS_PRESETS.map((preset) => ({ value: preset.id, label: preset.name }))}
+                />
+              </div>
             </div>
             <textarea
               rows={3}
