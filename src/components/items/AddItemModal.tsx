@@ -43,6 +43,7 @@ export const AddItemModal: React.FC<Props> = ({
     addItem,
     canManageItems,
     currentUser,
+    hasFlag,
     categories,
     subcategoriesByCategory,
     addCategory,
@@ -532,8 +533,8 @@ export const AddItemModal: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* Purchase Price */}
-                  {currentUser.role !== 'Sales' && (
+                  {/* Purchase Price — gated by view.purchaseCost flag */}
+                  {hasFlag('view.purchaseCost') && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span>Purchase Price (₹)</span>

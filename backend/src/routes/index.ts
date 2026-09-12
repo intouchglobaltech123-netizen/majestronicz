@@ -16,7 +16,7 @@ import * as system from '../services/system.service.js';
 import { sseHandler } from '../lib/events.js';
 import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
-import { ALL_VIEWS, ALL_CAPS, getLiveMatrix } from '../lib/auth.js';
+import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix } from '../lib/auth.js';
 
 const router = Router();
 
@@ -101,7 +101,7 @@ router.get('/events', sseHandler);
 
 // ---- Access control matrix (view/edit; edit is CEO/admin only) ----
 router.get('/access-matrix', asyncHandler(async (_req, res) =>
-  res.json({ matrix: getLiveMatrix(), allViews: ALL_VIEWS, allCaps: ALL_CAPS })
+  res.json({ matrix: getLiveMatrix(), allViews: ALL_VIEWS, allCaps: ALL_CAPS, allFlags: ALL_FLAGS })
 ));
 router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) =>
   res.json(await updateAccessMatrix(req.body))

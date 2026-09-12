@@ -1,7 +1,7 @@
 import { prisma } from '../db.js';
 import {
   AccessMatrix, buildDefaultMatrix, setLiveMatrix, getLiveMatrix,
-  ALL_VIEWS, ALL_CAPS, Role, Capability,
+  ALL_VIEWS, ALL_CAPS, ALL_FLAGS, Role, Capability,
 } from '../lib/auth.js';
 
 const CONFIG_KEY = 'accessMatrix';
@@ -36,10 +36,11 @@ export async function updateAccessMatrix(input: AccessMatrix): Promise<AccessMat
     // Whitelist against known views/caps to prevent junk.
     const views = (incoming.views || []).filter((v) => ALL_VIEWS.includes(v));
     const caps = (incoming.caps || []).filter((c) => ALL_CAPS.includes(c as Capability)) as Capability[];
-    clean[role] = { views, caps };
+    const flags = (incoming.flags || []).filter((f) => ALL_FLAGS.includes(f));
+    clean[role] = { views, caps, flags };
   }
   // CEO always retains everything (cannot be locked out).
-  clean.CEO = { views: [...ALL_VIEWS], caps: [...ALL_CAPS] };
+  clean.CEO = { views: [...ALL_VIEWS], caps: [...ALL_CAPS], flags: [...ALL_FLAGS] };
 
   await prisma.appConfig.upsert({
     where: { key: CONFIG_KEY },
@@ -50,4 +51,4 @@ export async function updateAccessMatrix(input: AccessMatrix): Promise<AccessMat
   return getLiveMatrix();
 }
 
-export const catalog = { ALL_VIEWS, ALL_CAPS };
+export const catalog = { ALL_VIEWS, ALL_CAPS, ALL_FLAGS };

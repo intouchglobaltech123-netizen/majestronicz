@@ -395,6 +395,7 @@ interface ErpContextType {
   canApproveCatalogRequests: boolean;
   accessMatrix: AccessMatrix | null;
   updateAccessMatrix: (matrix: AccessMatrix) => Promise<void>;
+  hasFlag: (flag: string) => boolean;
 
   // Multi-item transfers, dead-stock, outstanding balance, inventory config
   stockTransfers: StockTransfer[];
@@ -1115,6 +1116,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasCap = (cap: Capability): boolean => {
     if (currentUser.role === 'CEO') return true;
     return !!accessMatrix?.[currentUser.role]?.caps?.includes(cap);
+  };
+  // Field/data-visibility flag check. Before the matrix loads, default to true
+  // for CEO/Manager and false for others (safe, non-leaking default).
+  const hasFlag = (flag: string): boolean => {
+    if (currentUser.role === 'CEO') return true;
+    const roleFlags = accessMatrix?.[currentUser.role]?.flags;
+    if (roleFlags) return roleFlags.includes(flag);
+    return currentUser.role === 'Manager';
   };
   const canAccessView = (view: ActiveNavView) => roleViews().includes(view);
 
@@ -4015,6 +4024,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canApproveCatalogRequests,
         accessMatrix,
         updateAccessMatrix,
+        hasFlag,
         stockTransfers,
         transferStockBatch,
         inventorySettings,

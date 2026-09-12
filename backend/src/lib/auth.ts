@@ -66,11 +66,28 @@ export const DEFAULT_ROLE_VIEWS: Record<Role, string[]> = {
   Sales: ['items', 'enquiries'],
 };
 
-export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[] }>;
+// Fine-grained field/data-visibility flags (Vyapar-style). Enforced in the UI
+// to show/hide sensitive fields; caps remain the server-enforced action layer.
+export const ALL_FLAGS = [
+  'bill.editPrice',       // edit item price while billing
+  'bill.giveDiscount',    // apply line/overall discounts while billing
+  'view.purchaseCost',    // see purchase price / cost of items
+  'view.customerBalance', // see customer outstanding / credit due
+];
+
+const DEFAULT_ROLE_FLAGS: Record<Role, string[]> = {
+  CEO: [...ALL_FLAGS],
+  Manager: [...ALL_FLAGS],
+  Billing: ['bill.editPrice', 'bill.giveDiscount', 'view.customerBalance'],
+  Purchase: ['view.purchaseCost'],
+  Sales: [],
+};
+
+export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[]; flags: string[] }>;
 
 export function buildDefaultMatrix(): AccessMatrix {
   return (Object.keys(ROLE_CAPS) as Role[]).reduce((m, role) => {
-    m[role] = { views: [...DEFAULT_ROLE_VIEWS[role]], caps: [...ROLE_CAPS[role]] };
+    m[role] = { views: [...DEFAULT_ROLE_VIEWS[role]], caps: [...ROLE_CAPS[role]], flags: [...DEFAULT_ROLE_FLAGS[role]] };
     return m;
   }, {} as AccessMatrix);
 }
@@ -79,7 +96,7 @@ export function buildDefaultMatrix(): AccessMatrix {
 let liveMatrix: AccessMatrix = buildDefaultMatrix();
 export const setLiveMatrix = (m: AccessMatrix) => {
   // CEO is always locked to full access — can never be locked out.
-  liveMatrix = { ...m, CEO: { views: [...ALL_VIEWS], caps: [...ALL] } };
+  liveMatrix = { ...m, CEO: { views: [...ALL_VIEWS], caps: [...ALL], flags: [...ALL_FLAGS] } };
 };
 export const getLiveMatrix = (): AccessMatrix => liveMatrix;
 

@@ -93,6 +93,7 @@ export const InvoiceForm: React.FC<Props> = ({
     addPaymentTerm,
     customers,
     loyaltySettings,
+    hasFlag,
   } = useErp();
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
@@ -1773,8 +1774,9 @@ export const InvoiceForm: React.FC<Props> = ({
                         step="0.01"
                         value={item.unitPrice}
                         onChange={(e) => updateLineItem(item.id, { unitPrice: Number(e.target.value) })}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono"
-                        title="Override price for this invoice. Never mutates catalog."
+                        readOnly={!hasFlag('bill.editPrice')}
+                        className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
+                        title={hasFlag('bill.editPrice') ? 'Override price for this invoice. Never mutates catalog.' : 'Price editing is not permitted for your role.'}
                       />
                     </td>
 
@@ -1790,7 +1792,9 @@ export const InvoiceForm: React.FC<Props> = ({
                           onChange={(e) =>
                             updateLineItem(item.id, { discountValue: Number(e.target.value) })
                           }
-                          className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                          disabled={!hasFlag('bill.giveDiscount')}
+                          title={hasFlag('bill.giveDiscount') ? undefined : 'Discounts are not permitted for your role.'}
+                          className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600 ${hasFlag('bill.giveDiscount') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
                         />
                         <button
                           type="button"

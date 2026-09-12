@@ -43,6 +43,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     addUnit,
     gstSlabsList,
     addGstSlab,
+    hasFlag,
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'pricing' | 'stock' | 'history'>(
@@ -490,6 +491,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         />
                       </div>
 
+                      {hasFlag('view.purchaseCost') && (
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                           <span>Purchase Price (₹)</span>
@@ -510,6 +512,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           Default cost — used as starting point for Purchase Orders, editable per order
                         </p>
                       </div>
+                      )}
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">

@@ -48,7 +48,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   disabled = false,
   className = '',
 }) => {
-  const { customers, loyaltySettings, saveCustomer, invoices } = useErp();
+  const { customers, loyaltySettings, saveCustomer, invoices, hasFlag } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -296,8 +296,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   )
                 )}
 
-                {/* Outstanding Balance Indicator (Baseline implementation pending Vyapar reference) */}
-                {selectedCustomerOutstanding.totalOutstanding > 0 ? (
+                {/* Outstanding Balance Indicator — gated by view.customerBalance flag */}
+                {!hasFlag('view.customerBalance') ? null : selectedCustomerOutstanding.totalOutstanding > 0 ? (
                   <button
                     type="button"
                     onClick={() => setIsHistoryModalOpen(true)}

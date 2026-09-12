@@ -25,7 +25,19 @@ export type Capability =
   | 'hrm:write' | 'payroll:admin' | 'enquiry:write' | 'estimate:write' | 'challan:write'
   | 'config:write' | 'customer:write' | 'admin';
 
-export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[] }>;
+export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[]; flags: string[] }>;
+
+// Fine-grained field/data-visibility flags (keep in sync with backend ALL_FLAGS).
+export const ALL_FLAGS: string[] = [
+  'bill.editPrice', 'bill.giveDiscount', 'view.purchaseCost', 'view.customerBalance',
+];
+
+export const FLAG_LABELS: Record<string, string> = {
+  'bill.editPrice': 'Edit item price while billing',
+  'bill.giveDiscount': 'Give discounts while billing',
+  'view.purchaseCost': 'See purchase price / cost',
+  'view.customerBalance': 'See customer outstanding balance',
+};
 
 // Keep in sync with backend/src/lib/auth.ts (ALL_VIEWS / ALL_CAPS).
 export const ALL_VIEWS: string[] = [

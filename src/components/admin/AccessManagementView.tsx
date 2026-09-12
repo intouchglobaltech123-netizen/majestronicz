@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
-  Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, VIEW_LABELS, CAP_LABELS, PRESET_ROLES,
+  Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, ALL_FLAGS,
+  VIEW_LABELS, CAP_LABELS, FLAG_LABELS, PRESET_ROLES,
 } from '../../types';
 import { ShieldCheck, Save, RotateCcw, Lock, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,7 +29,7 @@ export const AccessManagementView: React.FC = () => {
   }
   if (!draft) return <div className="p-10 text-center text-sm text-slate-500">Loading access matrix…</div>;
 
-  const toggle = (role: Role, kind: 'views' | 'caps', key: string) => {
+  const toggle = (role: Role, kind: 'views' | 'caps' | 'flags', key: string) => {
     setDraft((prev) => {
       if (!prev) return prev;
       const cur = prev[role][kind] as string[];
@@ -99,7 +100,7 @@ export const AccessManagementView: React.FC = () => {
                   <span className="ml-2 text-[11px] text-slate-500">{roleName(role)}</span>
                 </div>
                 <span className="text-[10px] font-semibold text-slate-500">
-                  {cfg.views.length} modules · {cfg.caps.length} actions
+                  {cfg.views.length} modules · {cfg.caps.length} actions · {cfg.flags.length} data
                 </span>
               </div>
 
@@ -150,6 +151,30 @@ export const AccessManagementView: React.FC = () => {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+
+              {/* Field & data visibility (Vyapar-style fine permissions) */}
+              <div className="px-5 pb-5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Field & data visibility</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  {ALL_FLAGS.map((f) => {
+                    const on = cfg.flags.includes(f);
+                    return (
+                      <button
+                        key={f}
+                        onClick={() => toggle(role, 'flags', f)}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
+                          on ? 'bg-violet-50 text-violet-800 border border-violet-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-violet-600 text-white' : 'border border-slate-300'}`}>
+                          {on && <Check className="h-3 w-3" />}
+                        </span>
+                        {FLAG_LABELS[f] || f}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
