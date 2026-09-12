@@ -19,6 +19,50 @@ export interface UserSession {
   assignedBranchId?: BranchId; // Only applicable for Manager
 }
 
+// ---- Dynamic role-based access control (managed by CEO) ----
+export type Capability =
+  | 'items:write' | 'sales:write' | 'stock:write' | 'purchase:write' | 'cash:write'
+  | 'hrm:write' | 'payroll:admin' | 'enquiry:write' | 'estimate:write' | 'challan:write'
+  | 'config:write' | 'customer:write' | 'admin';
+
+export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[] }>;
+
+// Keep in sync with backend/src/lib/auth.ts (ALL_VIEWS / ALL_CAPS).
+export const ALL_VIEWS: string[] = [
+  'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
+  'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
+  'hrm', 'reports', 'access',
+];
+
+export const ALL_CAPABILITIES: Capability[] = [
+  'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
+  'hrm:write', 'payroll:admin', 'enquiry:write', 'estimate:write', 'challan:write',
+  'config:write', 'customer:write', 'admin',
+];
+
+export const VIEW_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard', items: 'Items Master', customers: 'Customers', enquiries: 'Enquiries',
+  'pending-orders': 'Pending Orders', estimates: 'Quotes', challans: 'Delivery Challan',
+  inventory: 'Inventory', invoices: 'Sales', barcodes: 'Barcode', 'cash-register': 'Cash Register',
+  purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', access: 'Access Control',
+};
+
+export const CAP_LABELS: Record<Capability, string> = {
+  'items:write': 'Add / edit / delete items & combos',
+  'sales:write': 'Create / void / return sales',
+  'stock:write': 'Adjust & transfer stock',
+  'purchase:write': 'Manage purchases & vendors',
+  'cash:write': 'Cash register & expenses',
+  'hrm:write': 'Attendance & employees',
+  'payroll:admin': 'Payroll adjustments & disbursement (sensitive)',
+  'enquiry:write': 'Manage enquiries & pending orders',
+  'estimate:write': 'Create / edit quotations',
+  'challan:write': 'Create / edit delivery challans',
+  'config:write': 'Edit catalog config & loyalty settings',
+  'customer:write': 'Add / edit customers',
+  admin: 'Reset demo data & manage access control (CEO)',
+};
+
 export type SalePriceTaxMode = 'with' | 'without';
 export type DiscountType = '%' | 'amount';
 

@@ -52,6 +52,7 @@ export const Sidebar: React.FC = () => {
     { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canAccessView('purchases') },
     { id: 'hrm', label: 'Attendance', icon: Users, visible: canAccessView('hrm') },
     { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
+    { id: 'access', label: 'Access Control', icon: ShieldCheck, visible: canAccessView('access') },
   ];
 
   return (

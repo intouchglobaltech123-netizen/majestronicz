@@ -16,6 +16,14 @@ app.use('/api', apiRoutes);
 app.use(errorHandler);
 
 const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Majestronicz backend listening on http://localhost:${port}`);
+  // Load the dynamic access-control matrix into the RBAC cache.
+  try {
+    const { ensureAccessMatrix } = await import('./services/access.service.js');
+    await ensureAccessMatrix();
+    console.log('Access-control matrix loaded.');
+  } catch (e) {
+    console.error('Failed to load access matrix (using defaults):', e);
+  }
 });

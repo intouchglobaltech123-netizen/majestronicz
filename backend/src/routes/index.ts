@@ -15,6 +15,8 @@ import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
 import { sseHandler } from '../lib/events.js';
 import { reseedDatabase } from '../services/reseed.service.js';
+import { updateAccessMatrix } from '../services/access.service.js';
+import { ALL_VIEWS, ALL_CAPS, getLiveMatrix } from '../lib/auth.js';
 
 const router = Router();
 
@@ -96,6 +98,14 @@ router.put('/config/:key', requireCapability('config:write'), asyncHandler(async
 
 // ---- Live updates (Server-Sent Events) ----
 router.get('/events', sseHandler);
+
+// ---- Access control matrix (view/edit; edit is CEO/admin only) ----
+router.get('/access-matrix', asyncHandler(async (_req, res) =>
+  res.json({ matrix: getLiveMatrix(), allViews: ALL_VIEWS, allCaps: ALL_CAPS })
+));
+router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) =>
+  res.json(await updateAccessMatrix(req.body))
+));
 
 // ---- Admin: reset to demo dataset (CEO only) ----
 router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (_req, res) => {

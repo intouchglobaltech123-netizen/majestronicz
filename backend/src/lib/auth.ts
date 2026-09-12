@@ -38,6 +38,8 @@ const ALL: Capability[] = [
   'config:write', 'customer:write', 'admin',
 ];
 
+export const ALL_CAPS = ALL;
+
 export const ROLE_CAPS: Record<Role, Capability[]> = {
   CEO: ALL,
   Manager: [
@@ -45,14 +47,46 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
     'hrm:write', 'enquiry:write', 'estimate:write', 'challan:write', 'config:write', 'customer:write',
   ],
   Billing: ['sales:write', 'cash:write', 'enquiry:write', 'estimate:write', 'challan:write', 'customer:write'],
-  // Purchase scope was "undecided" in the brief — sensible default: procurement
-  // + the pending-order → PO flow. Adjust ROLE_CAPS.Purchase to change it.
   Purchase: ['purchase:write', 'enquiry:write'],
-  // Sales — confirmed scope: Items (view) + Enquiries only.
   Sales: ['enquiry:write'],
 };
 
-export const roleCan = (role: Role, cap: Capability) => (ROLE_CAPS[role] || []).includes(cap);
+// Sidebar modules (views). Drives what each role can navigate to.
+export const ALL_VIEWS = [
+  'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
+  'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
+  'hrm', 'reports', 'access',
+];
+
+export const DEFAULT_ROLE_VIEWS: Record<Role, string[]> = {
+  CEO: [...ALL_VIEWS],
+  Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+  Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
+  Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
+  Sales: ['items', 'enquiries'],
+};
+
+export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[] }>;
+
+export function buildDefaultMatrix(): AccessMatrix {
+  return (Object.keys(ROLE_CAPS) as Role[]).reduce((m, role) => {
+    m[role] = { views: [...DEFAULT_ROLE_VIEWS[role]], caps: [...ROLE_CAPS[role]] };
+    return m;
+  }, {} as AccessMatrix);
+}
+
+// Live, DB-backed matrix. Loaded at startup, refreshed when the CEO edits it.
+let liveMatrix: AccessMatrix = buildDefaultMatrix();
+export const setLiveMatrix = (m: AccessMatrix) => {
+  // CEO is always locked to full access — can never be locked out.
+  liveMatrix = { ...m, CEO: { views: [...ALL_VIEWS], caps: [...ALL] } };
+};
+export const getLiveMatrix = (): AccessMatrix => liveMatrix;
+
+export const roleCan = (role: Role, cap: Capability) => {
+  if (role === 'CEO') return true;
+  return (liveMatrix[role]?.caps || ROLE_CAPS[role] || []).includes(cap);
+};
 
 // ---- Signed token (dependency-free HMAC) ----
 const SECRET = process.env.AUTH_SECRET || 'majestronicz-dev-secret-change-in-prod';

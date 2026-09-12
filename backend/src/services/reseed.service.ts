@@ -8,6 +8,7 @@ import {
   INITIAL_CUSTOMERS, INITIAL_LOYALTY_SETTINGS,
 } from '../data/seedData.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
+import { buildDefaultMatrix } from '../lib/auth.js';
 
 /**
  * Resets the database to the demo dataset. Shared by the CLI seed script and
@@ -56,6 +57,7 @@ export async function reseedDatabase() {
       { key: 'loyaltySettings', value: INITIAL_LOYALTY_SETTINGS as any },
       { key: 'payrollSettings', value: INITIAL_PAYROLL_SETTINGS as any },
       { key: 'inventorySettings', value: { deadStockThresholdDays: 90 } },
+      { key: 'accessMatrix', value: buildDefaultMatrix() as any },
     ],
   });
 }

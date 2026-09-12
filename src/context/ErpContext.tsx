@@ -64,6 +64,8 @@ import {
   InventorySettings,
   CustomerOutstandingInvoice,
   getCustomerOutstandingSummary,
+  AccessMatrix,
+  Capability,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { LoginScreen } from '../components/auth/LoginScreen';
@@ -85,7 +87,8 @@ export type ActiveNavView =
   | 'cash-register'
   | 'purchases'
   | 'hrm'
-  | 'reports';
+  | 'reports'
+  | 'access';
 
 interface StorageState {
   items: Item[];
@@ -390,6 +393,8 @@ interface ErpContextType {
   canAccessView: (view: ActiveNavView) => boolean;
   canConvertEnquiry: boolean;
   canApproveCatalogRequests: boolean;
+  accessMatrix: AccessMatrix | null;
+  updateAccessMatrix: (matrix: AccessMatrix) => Promise<void>;
 
   // Multi-item transfers, dead-stock, outstanding balance, inventory config
   stockTransfers: StockTransfer[];
@@ -789,6 +794,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Multi-item transfer history + inventory config (hydrated from backend).
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
   const [inventorySettings, setInventorySettings] = useState<InventorySettings>({ deadStockThresholdDays: 90 });
+  // Dynamic role-based access matrix (managed by CEO, hydrated from backend).
+  const [accessMatrix, setAccessMatrix] = useState<AccessMatrix | null>(null);
 
   const navigateToInventoryItem = (itemQuery: string) => {
     setInventoryFilterQuery(itemQuery);
@@ -968,6 +975,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.customers)) setCustomers(data.customers);
     if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
     if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
+    if (data.accessMatrix && typeof data.accessMatrix === 'object') setAccessMatrix(data.accessMatrix);
     if (Array.isArray(data.categories)) setCategories(data.categories);
     if (data.subcategoriesByCategory) setSubcategoriesByCategory(data.subcategoriesByCategory);
     if (data.categoryPrefixMap) setCategoryPrefixMap(data.categoryPrefixMap);
@@ -1089,19 +1097,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isBootstrapping, currentBranch, currentUser, currentView]);
 
-  // Which sidebar views each role may access (UI gating; server enforces writes).
-  const ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
-    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+  // Built-in fallback (used before the backend matrix loads / if absent).
+  const DEFAULT_ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
+    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'access'],
     Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
     Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
     Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
     Sales: ['items', 'enquiries'],
   };
-  const canAccessView = (view: ActiveNavView) => (ROLE_VIEWS[currentUser.role] || []).includes(view);
 
-  // Handle role-specific view constraints — redirect if current view is not allowed.
+  // Dynamic access checks driven by the CEO-managed matrix (falls back to
+  // built-in defaults). CEO always has everything and can never be locked out.
+  const roleViews = (): string[] =>
+    currentUser.role === 'CEO'
+      ? DEFAULT_ROLE_VIEWS.CEO
+      : accessMatrix?.[currentUser.role]?.views || DEFAULT_ROLE_VIEWS[currentUser.role] || [];
+  const hasCap = (cap: Capability): boolean => {
+    if (currentUser.role === 'CEO') return true;
+    return !!accessMatrix?.[currentUser.role]?.caps?.includes(cap);
+  };
+  const canAccessView = (view: ActiveNavView) => roleViews().includes(view);
+
+  // Redirect out of a view the current role may not access.
   useEffect(() => {
-    if (!(ROLE_VIEWS[currentUser.role] || []).includes(currentView)) {
+    if (!canAccessView(currentView)) {
       setCurrentView(landingViewFor(currentUser.role));
     }
     if (currentUser.role === 'Manager') {
@@ -1110,7 +1129,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentBranch(managerBranch);
       }
     }
-  }, [currentUser, currentView, currentBranch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, currentView, currentBranch, accessMatrix]);
 
   const isAllBranches = currentBranch === 'all';
   const currentBranchData = isAllBranches ? undefined : BRANCHES.find((b) => b.id === currentBranch);
@@ -1120,28 +1140,40 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ? BRANCHES.filter((b) => b.id === (currentUser.assignedBranchId || 'coimbatore'))
     : BRANCHES;
 
-  // Role Permissions — mirror the backend capability matrix (server is authoritative).
-  const isReadOnly = currentUser.role !== 'CEO' && currentUser.role !== 'Manager'; // Billing/Purchase/Sales: read-only Item Master
-  const canViewDashboard = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canManageItems = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  // Role permissions — derived from the dynamic capability matrix.
+  const canManageItems = hasCap('items:write');
+  const isReadOnly = !hasCap('items:write'); // read-only Item Master unless granted
+  const canViewDashboard = canAccessView('dashboard');
   const canEditActiveBranchStock =
-    currentUser.role === 'CEO' ||
-    (currentUser.role === 'Manager' && currentUser.assignedBranchId === currentBranch);
-  const canCancelEnquiry = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canEditRestockDate = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canCloseDay = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canOverrideOpening = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canManagePurchases = currentUser.role === 'CEO' || currentUser.role === 'Manager' || currentUser.role === 'Purchase';
-  const canViewHrm = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canEditSalaries = currentUser.role === 'CEO';
-  const canMarkPayrollPaid = currentUser.role === 'CEO';
-  const canAdjustPayroll = currentUser.role === 'CEO';
-  const canViewReports = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canViewPayrollReport = currentUser.role === 'CEO';
-  const canManageLoyalty = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canManageCustomers = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canApproveCatalogRequests = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const canConvertEnquiry = currentUser.role !== 'Sales';
+    hasCap('stock:write') &&
+    (currentUser.role === 'CEO' || currentUser.assignedBranchId === currentBranch || currentUser.role === 'Manager');
+  const canCancelEnquiry = hasCap('enquiry:write');
+  const canEditRestockDate = hasCap('enquiry:write');
+  const canCloseDay = hasCap('cash:write');
+  const canOverrideOpening = hasCap('cash:write');
+  const canManagePurchases = hasCap('purchase:write');
+  const canViewHrm = canAccessView('hrm');
+  const canEditSalaries = hasCap('payroll:admin');
+  const canMarkPayrollPaid = hasCap('payroll:admin');
+  const canAdjustPayroll = hasCap('payroll:admin');
+  const canViewReports = canAccessView('reports');
+  const canViewPayrollReport = hasCap('payroll:admin');
+  const canManageLoyalty = hasCap('config:write');
+  const canManageCustomers = hasCap('customer:write');
+  const canApproveCatalogRequests = hasCap('items:write');
+  const canConvertEnquiry = hasCap('sales:write') || hasCap('estimate:write');
+
+  // CEO-managed access matrix update (persists to backend; SSE refreshes all sessions).
+  const updateAccessMatrix = async (matrix: AccessMatrix) => {
+    setAccessMatrix(matrix); // optimistic
+    try {
+      const saved = await apiPut<AccessMatrix>('/api/access-matrix', matrix);
+      setAccessMatrix(saved);
+      toast.success('Access control updated', { description: 'Role permissions applied across all sessions.' });
+    } catch (e: any) {
+      toast.error('Could not update access control', { description: e?.message ?? 'Backend error' });
+    }
+  };
 
   const switchBranch = (branch: BranchScope) => {
     if (currentUser.role === 'Manager') {
@@ -3981,6 +4013,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canAccessView,
         canConvertEnquiry,
         canApproveCatalogRequests,
+        accessMatrix,
+        updateAccessMatrix,
         stockTransfers,
         transferStockBatch,
         inventorySettings,
