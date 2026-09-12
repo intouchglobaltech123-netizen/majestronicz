@@ -32,7 +32,7 @@ export function saveEstimate(data: any) {
       await tx.estimate.update({ where: { id }, data: rest });
     } else {
       const id = data.id || `est-${Date.now()}`;
-      const estimateNumber = await nextEstimateNumber(tx, data.branchId);
+      const estimateNumber = await nextEstimateNumber(tx, data.branchId, data.date);
       await tx.estimate.create({ data: { ...data, id, estimateNumber, createdAt: data.createdAt || nowIso() } });
     }
     return { estimates: await tx.estimate.findMany() };

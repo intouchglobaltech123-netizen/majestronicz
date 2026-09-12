@@ -70,6 +70,7 @@ const resources: Record<string, { delegate: any; cap: Capability }> = {
   'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write' },
   'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin' },
   customers: { delegate: prisma.customer, cap: 'customer:write' },
+  'stock-transfers': { delegate: prisma.stockTransfer, cap: 'stock:write' },
 };
 for (const [path, { delegate, cap }] of Object.entries(resources)) {
   router.use(`/${path}`, crudRouter(delegate, prisma, cap));

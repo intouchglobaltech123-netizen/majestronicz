@@ -22,7 +22,7 @@ export async function reseedDatabase() {
     prisma.followUpReminder.deleteMany(), prisma.dailyCashRegister.deleteMany(),
     prisma.recurringExpenseTemplate.deleteMany(), prisma.vendor.deleteMany(), prisma.purchaseOrder.deleteMany(),
     prisma.employee.deleteMany(), prisma.attendanceRecord.deleteMany(), prisma.payrollRecord.deleteMany(),
-    prisma.customer.deleteMany(), prisma.appConfig.deleteMany(),
+    prisma.customer.deleteMany(), prisma.stockTransfer.deleteMany(), prisma.appConfig.deleteMany(),
   ]);
 
   await prisma.item.createMany({ data: INITIAL_ITEMS as any });
@@ -55,6 +55,7 @@ export async function reseedDatabase() {
       { key: 'paymentTermsOptions', value: PAYMENT_TERMS_OPTIONS as any },
       { key: 'loyaltySettings', value: INITIAL_LOYALTY_SETTINGS as any },
       { key: 'payrollSettings', value: INITIAL_PAYROLL_SETTINGS as any },
+      { key: 'inventorySettings', value: { deadStockThresholdDays: 90 } },
     ],
   });
 }

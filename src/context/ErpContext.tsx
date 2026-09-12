@@ -34,7 +34,6 @@ import {
   FollowUpReminder,
   EnquiryTimelineEvent,
   BRANCHES,
-  PRESET_ROLES,
   getFinancialYear,
   getBranchCodeForEstimate,
   getBranchCodeForInvoice,
@@ -132,7 +131,7 @@ interface ErpContextType {
   // Auth / Role State
   currentUser: UserSession;
   isAuthenticated: boolean;
-  loginWithPin: (pin: string, customBranch?: BranchId) => Promise<boolean>;
+  loginWithPin: (pin: string) => Promise<boolean>;
   logout: () => void;
   isAuthModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
@@ -1133,11 +1132,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Authenticate against the backend (server verifies the PIN and issues a
   // signed token). The token is what actually authorizes writes server-side.
-  const applyLogin = async (pin: string, customBranch?: BranchId): Promise<boolean> => {
+  const loginWithPin = async (pin: string): Promise<boolean> => {
     try {
+      // Branch scope is assigned by the account server-side — not chosen here.
       const res = await apiPost<{ token: string; user: { role: Role; name: string; assignedBranchId?: BranchId } }>(
         '/api/auth/login',
-        { pin, branchId: customBranch }
+        { pin }
       );
       setAuthToken(res.token);
       const assigned = res.user.assignedBranchId;
@@ -1145,25 +1145,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentBranch(res.user.role === 'CEO' ? 'all' : assigned || 'erode-hq');
       setCurrentView(landingViewFor(res.user.role));
       setIsAuthenticated(true);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const loginWithPin = async (pin: string, customBranch?: BranchId): Promise<boolean> => {
-    const ok = await applyLogin(pin, customBranch);
-    if (!ok) {
-      toast.error('Invalid PIN code', {
-        description: 'Try 1111 (CEO), 2222 (Manager), 3333 (Billing), 4444 (Purchase), 5555 (Sales)',
+      toast.success(`Signed in as ${res.user.role}`, {
+        description: res.user.assignedBranchId
+          ? `Branch: ${BRANCHES.find((b) => b.id === res.user.assignedBranchId)?.name}`
+          : res.user.role === 'CEO'
+          ? 'All branches'
+          : 'Access granted',
       });
+      return true;
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (msg.includes('429') || msg.toLowerCase().includes('too many')) {
+        toast.error('Account temporarily locked', { description: 'Too many failed attempts. Please wait a minute and try again.' });
+      } else {
+        toast.error('Incorrect PIN', { description: 'Please check your PIN and try again.' });
+      }
       return false;
     }
-    const matched = PRESET_ROLES.find((r) => r.pin === pin);
-    toast.success(`Logged in as ${matched?.role}`, {
-      description: matched?.defaultBranch ? `Assigned to: ${BRANCHES.find((b) => b.id === (customBranch || matched.defaultBranch))?.name}` : 'Access granted',
-    });
-    return true;
   };
 
   const logout = () => {

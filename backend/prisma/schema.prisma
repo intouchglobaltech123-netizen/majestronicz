@@ -31,6 +31,7 @@ model Item {
   discountType        String?
   reorderThreshold    Float?
   imageUrl            String?
+  description         String?
   createdAt           String
   updatedAt           String
 }
@@ -52,6 +53,8 @@ model ComboItem {
   id          String  @id
   comboName   String
   comboCode   String  @unique
+  category    String?
+  subcategory String?
   comboPrice  Float
   components  Json
   description String?
@@ -152,6 +155,7 @@ model Invoice {
   description               String?
   attachments               Json?
   paymentMode               String
+  paymentSplits             Json?
   isPartialPayment          Boolean?
   partialAmount             Float?
   balanceDue                Float?
@@ -263,6 +267,7 @@ model RecurringExpenseTemplate {
   defaultAmount     Float
   branchId          String
   frequency         String
+  startMonth        Int?
   dueDay            Int
   paymentMode       String
   createdAt         String
@@ -365,6 +370,7 @@ model Customer {
   name                          String
   phone                         String  @unique
   address                       String
+  customerType                  String?
   firstPurchaseDate             String
   purchaseCount                 Int
   totalSpent                    Float
@@ -372,6 +378,23 @@ model Customer {
   createdAt                     String
   updatedAt                     String
   lastRewardRedeemedPurchaseCount Int?
+}
+
+// Multi-item inter-branch stock transfer record (batch).
+model StockTransfer {
+  id             String @id
+  transferNumber String
+  fromBranch     String
+  toBranch       String
+  items          Json
+  totalQuantity  Float
+  notes          String?
+  transferredBy  String
+  timestamp      String
+  challanNumber  String?
+
+  @@index([fromBranch])
+  @@index([toBranch])
 }
 
 // Key/value store for app-level configuration singletons:

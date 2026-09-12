@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
-import { Delete, LogIn, Building2 } from 'lucide-react';
+import { Delete, LogIn } from 'lucide-react';
 
 /**
  * Mandatory login gate. The app is not usable until a valid PIN is entered and
- * verified by the backend (which issues the session token). No default session,
- * no quick role switching.
+ * verified by the backend (which issues the session token). Branch scope is
+ * derived from the account server-side (CEO → all branches, Manager → their
+ * assigned branch) — it is never chosen at login.
  */
 export const LoginScreen: React.FC = () => {
   const { loginWithPin } = useErp();
   const [pin, setPin] = useState('');
-  const [branch, setBranch] = useState<BranchId>('coimbatore');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (finalPin: string) => {
     if (finalPin.length !== 4 || submitting) return;
     setSubmitting(true);
-    const ok = await loginWithPin(finalPin, branch);
+    const ok = await loginWithPin(finalPin);
     if (!ok) {
       setPin('');
       setSubmitting(false);
@@ -44,7 +43,7 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         {/* PIN dots */}
-        <div className="flex justify-center gap-3 mb-5">
+        <div className="flex justify-center gap-3 mb-6">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
@@ -53,24 +52,6 @@ export const LoginScreen: React.FC = () => {
               }`}
             />
           ))}
-        </div>
-
-        {/* Branch selector (applies for Manager sign-in) */}
-        <div className="mb-5">
-          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mb-1.5">
-            <Building2 className="h-3.5 w-3.5" /> Branch (for Manager login)
-          </label>
-          <select
-            value={branch}
-            onChange={(e) => setBranch(e.target.value as BranchId)}
-            className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:border-blue-600"
-          >
-            {BRANCHES.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
         </div>
 
         {/* Keypad */}

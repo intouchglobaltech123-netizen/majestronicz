@@ -4,7 +4,16 @@
  * this makes document numbers collision-free under concurrency.
  */
 
-export function financialYear(d = new Date()): string {
+// Indian financial year (Apr 1 – Mar 31). Accepts a Date or a YYYY-MM-DD string
+// so invoice numbers roll over based on the document's own date.
+export function financialYear(input: Date | string = new Date()): string {
+  let d: Date;
+  if (typeof input === 'string') {
+    const p = input.split('T')[0].split('-').map(Number);
+    d = p.length >= 3 && p.every((n) => !isNaN(n)) ? new Date(p[0], p[1] - 1, p[2]) : new Date(input);
+  } else {
+    d = input instanceof Date && !isNaN(input.getTime()) ? input : new Date();
+  }
   const m = d.getMonth(); // 0=Jan, 3=Apr
   const y = d.getFullYear();
   const start = m >= 3 ? y : y - 1;
@@ -24,8 +33,8 @@ const maxSeq = (numbers: string[], prefix: string, floor = 0) => {
   return max;
 };
 
-export async function nextInvoiceNumber(tx: any, branchId: string): Promise<string> {
-  const prefix = `MZ${invBranchCode(branchId)}${financialYear()}/`;
+export async function nextInvoiceNumber(tx: any, branchId: string, date?: string): Promise<string> {
+  const prefix = `MZ${invBranchCode(branchId)}${financialYear(date)}/`;
   const rows = await tx.invoice.findMany({
     where: { invoiceNumber: { startsWith: prefix } },
     select: { invoiceNumber: true },
@@ -34,8 +43,8 @@ export async function nextInvoiceNumber(tx: any, branchId: string): Promise<stri
   return `${prefix}${next}`;
 }
 
-export async function nextEstimateNumber(tx: any, branchId: string): Promise<string> {
-  const prefix = `MZ${invBranchCode(branchId)}${financialYear()}EST/`;
+export async function nextEstimateNumber(tx: any, branchId: string, date?: string): Promise<string> {
+  const prefix = `MZ${invBranchCode(branchId)}${financialYear(date)}EST/`;
   const rows = await tx.estimate.findMany({
     where: { estimateNumber: { startsWith: prefix } },
     select: { estimateNumber: true },

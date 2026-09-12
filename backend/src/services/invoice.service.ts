@@ -56,7 +56,7 @@ export function createSale(inv: any) {
     const existing = await tx.invoice.findUnique({ where: { id: inv.id } });
     const isNewSale = !existing;
     const oldInvoice = existing;
-    if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId);
+    if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
 

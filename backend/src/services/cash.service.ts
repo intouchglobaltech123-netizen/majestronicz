@@ -7,6 +7,20 @@ const snap = async (tx: any) => ({
   recurringExpenses: await tx.recurringExpenseTemplate.findMany(),
 });
 
+// Cash actually collected on an invoice — sum of Cash-mode payment splits when
+// present, otherwise the legacy single-mode logic. Net of returns.
+function invoiceCashCollected(i: any): number {
+  if (i.isVoided) return 0;
+  let cash = 0;
+  const splits = Array.isArray(i.paymentSplits) ? i.paymentSplits : null;
+  if (splits && splits.length > 0) {
+    cash = splits.filter((s: any) => s.mode === 'Cash').reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
+  } else if (i.paymentMode === 'Cash') {
+    cash = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
+  }
+  return Math.max(0, cash - (i.totalReturnedAmount || 0));
+}
+
 /** Carry-forward opening balance from the most recent closed day (else branch default). */
 async function previousDayClosingBalance(tx: any, branchId: string, date: string): Promise<number> {
   const pastClosed = await tx.dailyCashRegister.findMany({
@@ -17,12 +31,7 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
   if (pastClosed.length) {
     const last = pastClosed[0];
     const dayInvoices = await tx.invoice.findMany({ where: { branchId, date: last.date } });
-    const cashSales = dayInvoices
-      .filter((i: any) => !i.isVoided && i.paymentMode === 'Cash')
-      .reduce((sum: number, i: any) => {
-        const amount = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
-        return sum + Math.max(0, amount - (i.totalReturnedAmount || 0));
-      }, 0);
+    const cashSales = dayInvoices.reduce((sum: number, i: any) => sum + invoiceCashCollected(i), 0);
     const cashExpenses = (last.expenses as any[]).reduce((s, e) => s + (e.cashAmount || 0), 0);
     return last.openingAmount + cashSales - cashExpenses;
   }
