@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Customer } from '../../types';
+import { Customer, CustomerType, cleanCustomerName } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { X, User, Phone, MapPin, FileText } from 'lucide-react';
+import { X, User, Phone, MapPin, FileText, Building2 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onSaved,
 }) => {
   const { saveCustomer } = useErp();
+  const [customerType, setCustomerType] = useState<CustomerType | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -25,11 +27,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   useEffect(() => {
     if (customerToEdit) {
+      setCustomerType(customerToEdit.customerType || 'Retail');
       setName(customerToEdit.name);
       setPhone(customerToEdit.phone);
       setAddress(customerToEdit.address || '');
       setNotes(customerToEdit.notes || '');
     } else {
+      setCustomerType(null);
       setName('');
       setPhone('');
       setAddress('');
@@ -45,18 +49,25 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     setErrorMessage('');
 
     const cleanPhone = phone.trim().replace(/\D/g, '');
+    const cleanName = cleanCustomerName(name, notes);
+
+    if (!customerType) {
+      setErrorMessage('Please explicitly select Customer Type (Retail or Organization)');
+      return;
+    }
     if (!cleanPhone) {
       setErrorMessage('Phone number is required');
       return;
     }
-    if (!name.trim()) {
+    if (!cleanName) {
       setErrorMessage('Customer name is required');
       return;
     }
 
     const payload: Customer = {
       id: customerToEdit ? customerToEdit.id : `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: name.trim(),
+      name: cleanName,
+      customerType,
       phone: phone.trim(),
       address: address.trim(),
       notes: notes.trim() || undefined,
@@ -118,6 +129,73 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Customer Type Selector */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Customer Type <span className="text-rose-500">*</span>
+              {!customerType && <span className="text-amber-600 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setCustomerType('Retail')}
+                className={cn(
+                  'p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  customerType === 'Retail'
+                    ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-100 text-blue-950 shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                )}
+              >
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
+                    customerType === 'Retail' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                  )}
+                >
+                  <User className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold flex items-center gap-1.5">
+                    <span>Retail</span>
+                    {customerType === 'Retail' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Individual walk-in buyers, small purchases (loyalty rewards enabled)
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCustomerType('Organization')}
+                className={cn(
+                  'p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  customerType === 'Organization'
+                    ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-100 text-purple-950 shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                )}
+              >
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
+                    customerType === 'Organization' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'
+                  )}
+                >
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold flex items-center gap-1.5">
+                    <span>Organization</span>
+                    {customerType === 'Organization' && <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Institutional bulk buyers (colleges, schools, companies)
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
               Customer / Organization Name <span className="text-rose-500">*</span>

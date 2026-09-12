@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchScope } from '../../types';
+import { BRANCHES, BranchScope, isExpenseDueInMonth, isExpenseApprovedForMonth } from '../../types';
 import {
   Building,
   MapPin,
@@ -16,6 +16,7 @@ import {
   Sparkles,
   Check,
   User,
+  UserCheck,
   Wallet,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
@@ -86,17 +87,16 @@ export const TopBar: React.FC = () => {
     });
   }, [pendingOrders, isAllBranches, currentBranch]);
 
-  // Recurring Expenses due today or overdue for this month
+  // Scheduled Expenses due today or overdue for this month respecting frequency
   const activeRecurringAlerts = useMemo(() => {
     const monthKey = todayStr.substring(0, 7);
+    const monthNumber = parseInt(todayStr.split('-')[1], 10);
     const day = parseInt(todayStr.split('-')[2], 10);
 
     return recurringExpenses.filter((template) => {
       if (!isAllBranches && template.branchId !== currentBranch) return false;
-      const isApproved =
-        template.lastApprovedMonth === monthKey ||
-        template.approvalHistory?.some((a) => a.month === monthKey);
-      if (isApproved) return false;
+      if (!isExpenseDueInMonth(template, monthNumber)) return false;
+      if (isExpenseApprovedForMonth(template, monthKey)) return false;
       return day >= template.dueDay;
     });
   }, [recurringExpenses, isAllBranches, currentBranch, todayStr]);
@@ -157,11 +157,11 @@ export const TopBar: React.FC = () => {
             </button>
           )}
 
-          {/* Individual Branches: For CEO show all; For Manager show ONLY their assigned branch */}
+          {/* Individual Branches: For Manager show ONLY their assigned branch; others can switch branches */}
           {BRANCHES.filter((b) =>
-            currentUser.role === 'CEO'
-              ? true
-              : b.id === (currentUser.assignedBranchId || 'coimbatore')
+            currentUser.role === 'Manager'
+              ? b.id === (currentUser.assignedBranchId || 'coimbatore')
+              : true
           ).map((b) => {
             const isActive = !isAllBranches && currentBranch === b.id;
             return (
@@ -252,12 +252,12 @@ export const TopBar: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Section 0: Recurring Expenses Due Today / Overdue */}
+                    {/* Section 0: Scheduled Expenses Due Today / Overdue */}
                     {activeRecurringAlerts.length > 0 && (
                       <div className="p-2 bg-purple-50/50 border-b border-purple-100">
                         <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-purple-800 flex items-center gap-1">
                           <Wallet className="h-3 w-3 text-purple-600" />
-                          <span>Recurring Overhead Due ({activeRecurringAlerts.length})</span>
+                          <span>Scheduled Amounts Due ({activeRecurringAlerts.length})</span>
                         </div>
                         {activeRecurringAlerts.map((template) => {
                           const day = parseInt(todayStr.split('-')[2], 10);
@@ -485,11 +485,16 @@ export const TopBar: React.FC = () => {
           onClick={() => setAuthModalOpen(true)}
           className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 rounded-xl transition-all shadow-xs group"
         >
-          <div className="h-7 w-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 group-hover:bg-blue-200 transition-colors">
+          <div className={cn(
+            "h-7 w-7 rounded-lg flex items-center justify-center transition-colors",
+            currentUser.role === 'Sales' ? "bg-emerald-100 text-emerald-700 group-hover:bg-emerald-200" : "bg-blue-100 text-blue-700 group-hover:bg-blue-200"
+          )}>
             {currentUser.role === 'CEO' ? (
               <ShieldCheck className="h-4 w-4 text-amber-600" />
             ) : currentUser.role === 'Manager' ? (
               <Building2 className="h-4 w-4 text-blue-600" />
+            ) : currentUser.role === 'Sales' ? (
+              <UserCheck className="h-4 w-4 text-emerald-600" />
             ) : (
               <Lock className="h-4 w-4 text-slate-600" />
             )}

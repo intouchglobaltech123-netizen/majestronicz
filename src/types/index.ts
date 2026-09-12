@@ -10,7 +10,7 @@ export interface Branch {
   tagline: string;
 }
 
-export type Role = 'CEO' | 'Manager' | 'Billing';
+export type Role = 'CEO' | 'Manager' | 'Billing' | 'Sales';
 
 export interface UserSession {
   role: Role;
@@ -46,6 +46,7 @@ export interface Item {
   discountType?: DiscountType;
   reorderThreshold?: number; // Threshold for Low Stock alerts (default 10)
   imageUrl?: string; // Optional product image URL
+  description?: string; // Optional product description / specs / notes
 
   createdAt: string;
   updatedAt: string;
@@ -59,7 +60,7 @@ export interface BranchStock {
   itemId: string;
   branchId: BranchId;
   quantity: number;
-  location?: string; // Physical Rack/Row location (e.g. "R2") scoped to this branch
+  location?: string; // Rack / Bin location (e.g. "RACK-A1", "BIN-04")
   minStockAlert?: number;
   updatedAt: string;
 }
@@ -106,7 +107,9 @@ export interface ComboComponent {
 export interface ComboItem {
   id: string;
   comboName: string;
-  comboCode: string; // auto: "CB-" + 4-digit sequence (e.g. "CB-0001")
+  comboCode: string; // Standard format: [Category prefix]-[Subcategory prefix]-[sequence]
+  category?: string;
+  subcategory?: string;
   comboPrice: number; // static, global
   components: ComboComponent[];
   description?: string;
@@ -242,7 +245,8 @@ export const GST_RATES = [
 export const PRESET_ROLES: { role: Role; pin: string; defaultName: string; defaultBranch?: BranchId }[] = [
   { role: 'CEO', pin: '1111', defaultName: 'Sathish Kumar (CEO)' },
   { role: 'Manager', pin: '2222', defaultName: 'Karthik Raja (Branch Manager)', defaultBranch: 'coimbatore' },
-  { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)' },
+  { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)', defaultBranch: 'erode-hq' },
+  { role: 'Sales', pin: '4444', defaultName: 'Vignesh (Sales Executive)', defaultBranch: 'erode-hq' },
 ];
 
 /**
@@ -273,12 +277,17 @@ export const DEFAULT_TERMS_AND_CONDITIONS = `**NO WARRANTY**
 export interface EstimateLineItem {
   id: string;
   itemId?: string;
+  itemCode?: string;
   itemName: string;
   itemHSN: string;
   quantity: number;
   unit: string;
   unitPrice: number; // Pre-tax editable price override (never mutates Item.salePrice)
   gstRate: number; // e.g. 18 for 18%
+  taxRate?: number;
+  discount?: number;
+  discountType?: DiscountType;
+  discountValue?: number;
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -321,11 +330,24 @@ export interface Estimate {
 }
 
 /**
- * Calculate Financial Year from date (e.g., 2026-09-07 -> "26-27")
+ * Calculate Indian Financial Year from date (e.g., 2026-09-07 -> "26-27", 2027-04-01 -> "27-28")
+ * Indian FY runs April 1 (month index 3) through March 31 (month index 2).
  */
-export function getFinancialYear(date: Date = new Date()): string {
-  const month = date.getMonth(); // 0 is January, 3 is April
-  const fullYear = date.getFullYear();
+export function getFinancialYear(date: Date | string = new Date()): string {
+  let d: Date;
+  if (typeof date === 'string') {
+    const parts = date.split('T')[0].split('-').map(Number);
+    if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      d = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+      d = new Date(date);
+    }
+  } else {
+    d = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+  }
+
+  const month = d.getMonth(); // 0 is January, 2 is March, 3 is April
+  const fullYear = d.getFullYear();
   const startYear = month >= 3 ? fullYear : fullYear - 1;
   const endYear = startYear + 1;
   return `${String(startYear).slice(-2)}-${String(endYear).slice(-2)}`;
@@ -567,6 +589,7 @@ export function getNextPendingOrderSequence(pendingOrders: PendingOrder[]): stri
 
 export * from './cashRegister';
 export * from './customer';
+import { Customer } from './customer';
 
 /**
  * Vendor Master Entity
@@ -799,3 +822,109 @@ export interface StockAdjustmentLog {
   linkedChallanNumber?: string; // e.g. "DC-TRF-001"
 }
 
+/**
+ * Multi-Item Inter-Branch Stock Transfer Entity
+ */
+export interface StockTransferLineItem {
+  itemId: string;
+  itemName: string;
+  itemCode: string;
+  itemHSN?: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface StockTransfer {
+  id: string; // e.g. "trf-1726000000"
+  transferNumber: string; // e.g. "TRF-SEP-001"
+  fromBranch: BranchId;
+  toBranch: BranchId;
+  items: StockTransferLineItem[];
+  totalQuantity: number;
+  notes?: string;
+  transferredBy: string;
+  timestamp: string; // ISO string
+  challanNumber?: string;
+}
+
+/**
+ * Inventory Configuration & Dead-Stock Threshold Settings
+ */
+export interface InventorySettings {
+  deadStockThresholdDays: number; // default 90 days
+}
+
+/**
+ * Customer Outstanding Balance Tracking (Credit / Partial Sales)
+ */
+export interface CustomerOutstandingInvoice {
+  invoice: Invoice;
+  billedAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+}
+
+export interface CustomerOutstandingSummary {
+  totalOutstanding: number;
+  unpaidInvoices: CustomerOutstandingInvoice[];
+}
+
+export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {
+  if (inv.customerId && inv.customerId === customer.id) return true;
+  const cleanCustomerPhone = (customer.phone || '').trim().replace(/\D/g, '');
+  const cleanInvPhone = (inv.customerPhone || '').trim().replace(/\D/g, '');
+  if (cleanCustomerPhone && cleanInvPhone && cleanCustomerPhone === cleanInvPhone) return true;
+  if (
+    customer.name &&
+    inv.customerName &&
+    customer.name.trim().toLowerCase() === inv.customerName.trim().toLowerCase()
+  ) {
+    return true;
+  }
+  return false;
+};
+
+export const getCustomerOutstandingSummary = (
+  customer: Customer,
+  invoices: Invoice[]
+): CustomerOutstandingSummary => {
+  const customerInvoices = invoices.filter((inv) => !inv.isVoided && isInvoiceForCustomer(inv, customer));
+  const unpaidInvoices: CustomerOutstandingInvoice[] = [];
+  let totalOutstanding = 0;
+
+  customerInvoices.forEach((inv) => {
+    const billed = inv.grandTotal;
+    let paid = 0;
+    let due = 0;
+
+    if (inv.isPartialPayment) {
+      paid = inv.partialAmount || 0;
+      due = inv.balanceDue !== undefined ? inv.balanceDue : Math.max(0, billed - paid);
+    } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
+      paid = 0;
+      due = inv.balanceDue !== undefined ? inv.balanceDue : billed;
+    } else if (inv.balanceDue && inv.balanceDue > 0) {
+      due = inv.balanceDue;
+      paid = Math.max(0, billed - due);
+    }
+
+    if (inv.totalReturnedAmount) {
+      due = Math.max(0, due - inv.totalReturnedAmount);
+    }
+
+    if (due > 0) {
+      totalOutstanding += due;
+      unpaidInvoices.push({
+        invoice: inv,
+        billedAmount: billed,
+        paidAmount: paid,
+        balanceDue: due,
+      });
+    }
+  });
+
+  return {
+    totalOutstanding,
+    unpaidInvoices,
+  };
+};

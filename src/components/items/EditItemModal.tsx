@@ -12,6 +12,7 @@ import {
   Calculator,
   ArrowRight,
   History,
+  MapPin,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -32,6 +33,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     updateItem,
     getBranchStock,
     canManageItems,
+    currentUser,
     navigateToInventoryItem,
     categories,
     subcategoriesByCategory,
@@ -55,6 +57,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [itemCode, setItemCode] = useState('');
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
+  const [description, setDescription] = useState('');
 
   // Static Master Pricing fields
   const [salePrice, setSalePrice] = useState<number | ''>('');
@@ -79,6 +82,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setItemCode(item.itemCode);
       setUnit(item.unit);
       setImageUrl(item.imageUrl || '');
+      setDescription(item.description || '');
 
       setSalePrice(item.salePrice);
       setSalePriceTaxMode(item.salePriceTaxMode);
@@ -125,7 +129,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
   const handleSave = () => {
     if (!canManageItems) {
-      toast.error('Permission denied: Billing role cannot edit items');
+      toast.error('Permission denied: You do not have permission to edit items');
       return;
     }
 
@@ -143,6 +147,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       itemCode: itemCode.trim(),
       unit,
       imageUrl: imageUrl.trim() || undefined,
+      description: description.trim() || undefined,
       salePrice: Number(salePrice) || 0,
       salePriceTaxMode,
       wholesalePrice: Number(wholesalePrice) || 0,
@@ -223,6 +228,21 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                />
+              </div>
+
+              {/* Description / Technical Specs (Optional) */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Description / Technical Specs</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter detailed technical specifications, voltage/pinout ratings, variations, or internal staff notes..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors resize-y"
                 />
               </div>
 
@@ -307,6 +327,37 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   altText={itemName || 'Preview'}
                 />
               </div>
+
+              {/* Physical Shelf Locations per branch */}
+              {item && (
+                <div className="md:col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                    <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Physical Shelf Locations (Rack/Row):</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {BRANCHES.map((b) => {
+                      const bStock = getBranchStock(item.id, b.id);
+                      const loc = bStock?.location?.trim();
+                      return (
+                        <span
+                          key={b.id}
+                          className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono border',
+                            loc
+                              ? 'bg-amber-50 text-amber-900 border-amber-200 font-bold'
+                              : 'bg-white text-slate-400 border-slate-200'
+                          )}
+                          title={`${b.name}: ${loc || 'No rack assigned'}`}
+                        >
+                          <span className="font-sans font-semibold text-slate-500">{b.shortCode}:</span>
+                          <span>{loc || '—'}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -362,8 +413,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">
-                      Sale Price (₹)
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>Sale Price (₹)</span>
+                      <span className="text-[10px] text-slate-400">Price across all branches</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -389,8 +441,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">
-                      Standard Discount
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>Standard Discount</span>
+                      <span className="text-[10px] text-slate-400">Default discount scheme</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -417,55 +470,65 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">
-                      Wholesale Price (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      min="0"
-                      step="any"
-                      value={wholesalePrice}
-                      onChange={(e) =>
-                        setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
+                  {currentUser.role !== 'Sales' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Wholesale Price (₹)</span>
+                          <span className="text-[10px] text-slate-400">Bulk purchase tier</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          min="0"
+                          step="any"
+                          value={wholesalePrice}
+                          onChange={(e) =>
+                            setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                        />
+                      </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">
-                      Min Wholesale Quantity
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="1"
-                      min="1"
-                      value={minWholesaleQty}
-                      onChange={(e) =>
-                        setMinWholesaleQty(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Purchase Price (₹)</span>
+                          <span className="text-[10px] text-slate-400">Default purchase cost</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          min="0"
+                          step="any"
+                          value={purchasePrice}
+                          onChange={(e) =>
+                            setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Default cost — used as starting point for Purchase Orders, editable per order
+                        </p>
+                      </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">
-                      Purchase Cost (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      min="0"
-                      step="any"
-                      value={purchasePrice}
-                      onChange={(e) =>
-                        setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Min Wholesale Quantity</span>
+                          <span className="text-[10px] text-slate-400">Bulk threshold</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="1"
+                          min="1"
+                          value={minWholesaleQty}
+                          onChange={(e) =>
+                            setMinWholesaleQty(e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {/* GST Tax Slab with UniversalDropdown */}
                   <UniversalDropdown

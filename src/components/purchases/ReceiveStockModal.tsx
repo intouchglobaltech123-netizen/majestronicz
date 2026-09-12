@@ -138,7 +138,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
           <div className="flex items-center gap-2 text-xs text-blue-800">
             <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
             <span>
-              Inward stock updates physical warehouse counts immediately. Any waiting customer pending orders will automatically flip to{' '}
+              Inward stock updates physical warehouse counts immediately. Setting shelf/rack location assigns or updates the item's warehouse position for this branch. Waiting customer orders will flip to{' '}
               <strong className="font-semibold text-blue-950">"Stock Arrived"</strong>.
             </span>
           </div>
@@ -171,7 +171,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   <th className="py-2.5 px-3 text-center">Ordered</th>
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
-                  <th className="py-2.5 px-3 text-left">Shelve / Rack</th>
+                  <th className="py-2.5 px-3 text-left">
+                    <div className="flex items-center gap-1">
+                      <span>Shelve / Rack</span>
+                      <span className="text-[10px] font-normal lowercase text-slate-400">(optional)</span>
+                    </div>
+                  </th>
                   <th className="py-2.5 px-4 text-right w-44">Inward Now</th>
                 </tr>
               </thead>

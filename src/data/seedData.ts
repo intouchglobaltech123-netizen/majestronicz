@@ -17,6 +17,8 @@ import {
   RecurringExpenseTemplate,
   Customer,
   LoyaltySettings,
+  StockTransfer,
+  InventorySettings,
 } from '../types';
 
 export const INITIAL_CATEGORIES: string[] = [
@@ -644,6 +646,59 @@ export const INITIAL_INVOICES: Invoice[] = [
       },
     ],
     totalReturnedAmount: 4012,
+  },
+  {
+    id: 'inv-006',
+    invoiceNumber: 'MZERD26-27/7201',
+    branchId: 'erode-hq',
+    transactionType: 'Credit',
+    customerName: 'Thirumalai Automation Panels',
+    customerPhone: '9443277889',
+    customerAddress: 'Nasiyanur Road, Erode, TN 638107',
+    date: '2026-04-18', // ~147 days ago (Dead stock threshold demo)
+    time: '11:00',
+    paymentTerms: 'Net 30',
+    dueDate: '2026-05-18',
+    stateOfSupply: '33-Tamil Nadu',
+    withGst: true,
+    items: [
+      {
+        id: 'inv-li-6',
+        itemId: 'item-006',
+        itemCode: 'MJ-INS-606',
+        itemName: 'Autonics Digital Counter/Timer CT6S-1P4',
+        itemHSN: '90318000',
+        unit: 'NOS',
+        quantity: 1,
+        unitPrice: 4200,
+        discountType: '%',
+        discountValue: 0,
+        discountAmount: 0,
+        taxRate: 18,
+        taxableAmount: 4200,
+        cgstAmount: 378,
+        sgstAmount: 378,
+        totalTax: 756,
+        totalAmount: 4956,
+      },
+    ],
+    subtotal: 4200,
+    totalTax: 756,
+    totalCgst: 378,
+    totalSgst: 378,
+    overallDiscountType: '%',
+    overallDiscountValue: 0,
+    overallDiscountAmount: 0,
+    shippingCharges: 0,
+    roundOff: 0,
+    roundOffEnabled: true,
+    grandTotal: 4956,
+    amountInWords: 'Rupees Four Thousand Nine Hundred Fifty-Six only',
+    termsAndConditions: '**NO WARRANTY**\n**NO EXCHANGE**',
+    paymentMode: 'HDFC',
+    isPartialPayment: false,
+    createdById: 'usr-ceo',
+    createdAt: '2026-04-18T11:00:00Z',
   },
 ];
 
@@ -1704,6 +1759,8 @@ export const INITIAL_COMBOS: ComboItem[] = [
     id: 'combo-001',
     comboCode: 'CB-0001',
     comboName: 'PLC Automation Starter Kit',
+    category: 'Automation',
+    subcategory: 'PLCs',
     comboPrice: 12500,
     description: 'Comprehensive automation bundle: Delta Transistor PLC, Mean Well 24V SMPS, and 2x Omron Proximity Sensors.',
     imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=300&auto=format&fit=crop&q=80',
@@ -1719,8 +1776,11 @@ export const INITIAL_COMBOS: ComboItem[] = [
     id: 'combo-002',
     comboCode: 'CB-0002',
     comboName: 'Control Panel Relay & Contactor Pack',
+    category: 'Switchgear',
+    subcategory: 'Contactors',
     comboPrice: 6200,
     description: 'Industrial panel switching bundle: 2x Schneider 25A 3P Contactors and 2x Weidmuller Solid State Relays.',
+    imageUrl: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=300&auto=format&fit=crop&q=80',
     components: [
       { itemId: 'item-005', quantity: 2 },
       { itemId: 'item-008', quantity: 2 },
@@ -1781,12 +1841,35 @@ export const INITIAL_RECURRING_EXPENSE_TEMPLATES: RecurringExpenseTemplate[] = [
     paymentMode: 'GPay',
     createdAt: '2026-08-01T00:00:00Z',
   },
+  {
+    id: 'rec-006',
+    name: 'Quarterly HVAC & Equipment Maintenance',
+    defaultAmount: 6500,
+    branchId: 'erode-hq',
+    frequency: 'Quarterly',
+    startMonth: 3,
+    dueDay: 15,
+    paymentMode: 'GPay',
+    createdAt: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'rec-007',
+    name: 'Commercial Trade License & Permit',
+    defaultAmount: 12000,
+    branchId: 'erode-hq',
+    frequency: 'Yearly',
+    startMonth: 3,
+    dueDay: 20,
+    paymentMode: 'GPay',
+    createdAt: '2026-08-01T00:00:00Z',
+  },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-001',
     name: 'Sakthi Auto Components Pvt Ltd',
+    customerType: 'Organization',
     phone: '9842100007',
     address: 'Plot 42, SIDCO Industrial Estate, Kurichi, Coimbatore - 641021',
     firstPurchaseDate: '2026-06-12',
@@ -1800,6 +1883,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-002',
     name: 'Annur Spinning Mills',
+    customerType: 'Organization',
     phone: '9842100008',
     address: 'Sathy Main Road, Annur, Coimbatore - 641653',
     firstPurchaseDate: '2026-07-05',
@@ -1813,6 +1897,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-003',
     name: 'Kovai Automation Systems',
+    customerType: 'Organization',
     phone: '9842100001',
     address: '14, Cross Cut Road, Gandhipuram, Coimbatore - 641012',
     firstPurchaseDate: '2026-05-18',
@@ -1826,6 +1911,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-004',
     name: 'Sri Krishna Automation & Controls',
+    customerType: 'Organization',
     phone: '9842100002',
     address: '88, Brough Road, Erode - 638001',
     firstPurchaseDate: '2026-06-01',
@@ -1839,6 +1925,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-005',
     name: 'Lakshmi Tex Mills Pvt Ltd',
+    customerType: 'Organization',
     phone: '9842100003',
     address: 'Trichy Road, Singanallur, Coimbatore - 641005',
     firstPurchaseDate: '2026-07-10',
@@ -1852,6 +1939,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-006',
     name: 'PSG Tech Robotics Research Lab',
+    customerType: 'Organization',
     phone: '9842100009',
     address: 'Avinashi Road, Peelamedu, Coimbatore - 641004',
     firstPurchaseDate: '2026-08-01',
@@ -1865,6 +1953,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-007',
     name: 'TVS Sundaram Engineering Solutions',
+    customerType: 'Organization',
     phone: '9842100010',
     address: 'Ambattur Industrial Estate, Chennai - 600058',
     firstPurchaseDate: '2026-08-14',
@@ -1878,6 +1967,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust-008',
     name: 'Praveen Electronics & Electricals',
+    customerType: 'Retail',
     phone: '9842100004',
     address: 'Mount Road, Guindy, Chennai - 600032',
     firstPurchaseDate: '2026-08-20',
@@ -1886,6 +1976,34 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     notes: 'Retail electrical shop distributor.',
     createdAt: '2026-08-20T16:00:00Z',
     updatedAt: '2026-08-20T16:00:00Z',
+    lastRewardRedeemedPurchaseCount: 0,
+  },
+  {
+    id: 'cust-009',
+    name: 'Ramesh Kumar (Retail Walk-in)',
+    customerType: 'Retail',
+    phone: '9842100015',
+    address: 'Perundurai Road, Erode - 638011',
+    firstPurchaseDate: '2026-08-10',
+    purchaseCount: 9,
+    totalSpent: 42000,
+    notes: 'Individual walk-in buyer for panels and relays.',
+    createdAt: '2026-08-10T11:00:00Z',
+    updatedAt: '2026-09-01T15:00:00Z',
+    lastRewardRedeemedPurchaseCount: 0,
+  },
+  {
+    id: 'cust-010',
+    name: 'Karthik Power Controls',
+    customerType: 'Retail',
+    phone: '9842100016',
+    address: 'Cross Cut Road, Coimbatore - 641012',
+    firstPurchaseDate: '2026-08-25',
+    purchaseCount: 4,
+    totalSpent: 28500,
+    notes: 'Small electrical workshop buyer.',
+    createdAt: '2026-08-25T14:30:00Z',
+    updatedAt: '2026-09-03T10:20:00Z',
     lastRewardRedeemedPurchaseCount: 0,
   },
 ];
@@ -1898,5 +2016,34 @@ export const INITIAL_LOYALTY_SETTINGS: LoyaltySettings = {
   updatedAt: '2026-08-01T00:00:00Z',
   updatedBy: 'Sathish Kumar (CEO)',
 };
+
+export const INITIAL_STOCK_TRANSFERS: StockTransfer[] = [
+  {
+    id: 'trf-001',
+    transferNumber: 'TRF-SEP-001',
+    fromBranch: 'erode-hq',
+    toBranch: 'coimbatore',
+    items: [
+      {
+        itemId: 'item-004',
+        itemName: 'Omron Proximity Sensor E2E-X5ME1 3-Wire NPN',
+        itemCode: 'MJ-SEN-301',
+        itemHSN: '85365090',
+        quantity: 5,
+        unit: 'NOS',
+      },
+    ],
+    totalQuantity: 5,
+    notes: 'Urgent conveyor retrofit project parts dispatch',
+    transferredBy: 'Arunachalam (CEO)',
+    timestamp: '2026-09-06T14:30:00Z',
+    challanNumber: 'DC-TRF-001',
+  },
+];
+
+export const INITIAL_INVENTORY_SETTINGS: InventorySettings = {
+  deadStockThresholdDays: 90,
+};
+
 
 

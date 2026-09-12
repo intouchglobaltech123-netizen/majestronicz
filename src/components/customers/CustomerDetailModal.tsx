@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Customer, Invoice, BRANCHES } from '../../types';
+import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -17,6 +17,9 @@ import {
   Plus,
   Search,
   Building,
+  Building2,
+  User,
+  AlertCircle,
 } from 'lucide-react';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
 
@@ -35,45 +38,64 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onEditCustomer,
   onCreateSale,
 }) => {
-  const { invoices, loyaltySettings } = useErp();
+  const { invoices, loyaltySettings, customers } = useErp();
   const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
   const [selectedInvoiceForPdf, setSelectedInvoiceForPdf] = useState<Invoice | null>(null);
 
+  // Always resolve latest customer from master records to avoid stale display after edits
+  const currentCustomer = useMemo(() => {
+    if (!customer) return null;
+    return customers.find((c) => c.id === customer.id) || customer;
+  }, [customers, customer]);
+
   // Filter this customer's invoices
   const customerInvoices = useMemo(() => {
-    if (!customer) return [];
-    const cleanPhone = (customer.phone || '').trim().replace(/\D/g, '');
+    if (!currentCustomer) return [];
+    const cleanPhone = (currentCustomer.phone || '').trim().replace(/\D/g, '');
 
     return invoices.filter((inv) => {
-      if (inv.customerId && inv.customerId === customer.id) return true;
+      if (inv.customerId && inv.customerId === currentCustomer.id) return true;
       if (cleanPhone && inv.customerPhone) {
         if (inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
       }
-      if (customer.name && inv.customerName) {
-        if (inv.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase()) {
+      if (currentCustomer.name && inv.customerName) {
+        if (inv.customerName.trim().toLowerCase() === currentCustomer.name.trim().toLowerCase()) {
           return true;
         }
       }
       return false;
     });
-  }, [invoices, customer]);
+  }, [invoices, currentCustomer]);
 
-  // Filtered by search
+  // Outstanding Balance summary & breakdown
+  const outstandingSummary = useMemo(() => {
+    if (!currentCustomer) return { totalOutstanding: 0, unpaidInvoices: [] };
+    return getCustomerOutstandingSummary(currentCustomer, invoices);
+  }, [currentCustomer, invoices]);
+
+  const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'unpaid'>('all');
+
+  // Filtered by search & unpaid status
   const filteredInvoices = useMemo(() => {
-    if (!searchInvoiceQuery.trim()) return customerInvoices;
+    let list = customerInvoices;
+    if (invoiceFilter === 'unpaid') {
+      const unpaidIds = new Set(outstandingSummary.unpaidInvoices.map((u) => u.invoice.id));
+      list = list.filter((inv) => unpaidIds.has(inv.id));
+    }
+    if (!searchInvoiceQuery.trim()) return list;
     const q = searchInvoiceQuery.toLowerCase().trim();
-    return customerInvoices.filter(
+    return list.filter(
       (inv) =>
         inv.invoiceNumber.toLowerCase().includes(q) ||
         inv.paymentMode.toLowerCase().includes(q) ||
         inv.items.some((it) => it.itemName.toLowerCase().includes(q))
     );
-  }, [customerInvoices, searchInvoiceQuery]);
+  }, [customerInvoices, invoiceFilter, outstandingSummary, searchInvoiceQuery]);
 
-  if (!isOpen || !customer) return null;
+  if (!isOpen || !currentCustomer) return null;
 
-  const isEligible = isLoyaltyMilestoneEligible(customer, loyaltySettings);
-  const progress = getLoyaltyProgress(customer, loyaltySettings);
+  const isEligible = isLoyaltyMilestoneEligible(currentCustomer, loyaltySettings);
+  const progress = getLoyaltyProgress(currentCustomer, loyaltySettings);
   const nonVoidedInvoices = customerInvoices.filter((i) => !i.isVoided);
   const totalLifetimeSpent = nonVoidedInvoices.reduce((sum, i) => sum + i.grandTotal, 0);
   const avgOrderValue = nonVoidedInvoices.length > 0 ? Math.round(totalLifetimeSpent / nonVoidedInvoices.length) : 0;
@@ -85,41 +107,65 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           {/* Header */}
           <div className="p-6 border-b border-slate-100 bg-slate-50/60 flex items-start justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-lg shadow-sm">
-                {customer.name.charAt(0).toUpperCase()}
+              <div
+                className={cn(
+                  'w-12 h-12 rounded-2xl text-white flex items-center justify-center font-extrabold text-lg shadow-sm',
+                  (currentCustomer.customerType || 'Retail') === 'Organization'
+                    ? 'bg-gradient-to-br from-purple-600 to-indigo-700'
+                    : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+                )}
+              >
+                {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
+                  <Building2 className="h-6 w-6 text-white" />
+                ) : (
+                  cleanCustomerName(currentCustomer.name).charAt(0).toUpperCase()
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                    {customer.name}
+                    {cleanCustomerName(currentCustomer.name)}
                   </h2>
-                  {isEligible ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-xs font-bold text-amber-900 animate-pulse">
-                      <Sparkles className="h-3 w-3 text-amber-600" />
-                      Milestone Reward Ready!
+                  {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 border border-purple-200 text-xs font-bold text-purple-700">
+                      <Building2 className="h-3 w-3 text-purple-600" />
+                      Organization Account
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                      <Award className="h-3 w-3 text-blue-600" />
-                      {progress.label}
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700">
+                        <User className="h-3 w-3 text-blue-600" />
+                        Retail Customer
+                      </span>
+                      {isEligible ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-xs font-bold text-amber-900 animate-pulse">
+                          <Sparkles className="h-3 w-3 text-amber-600" />
+                          Milestone Reward Ready!
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                          <Award className="h-3 w-3 text-blue-600" />
+                          {progress.label}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
 
                 <div className="flex items-center gap-4 text-xs text-slate-500 mt-1 flex-wrap">
                   <span className="flex items-center gap-1 font-mono font-semibold text-slate-700">
                     <Phone className="h-3.5 w-3.5 text-slate-400" />
-                    {customer.phone}
+                    {currentCustomer.phone}
                   </span>
-                  {customer.address && (
+                  {currentCustomer.address && (
                     <span className="flex items-center gap-1 text-slate-600">
                       <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span>{customer.address}</span>
+                      <span>{currentCustomer.address}</span>
                     </span>
                   )}
                   <span className="flex items-center gap-1 text-slate-400">
                     <Calendar className="h-3.5 w-3.5" />
-                    Since {customer.firstPurchaseDate || 'N/A'}
+                    Since {currentCustomer.firstPurchaseDate || 'N/A'}
                   </span>
                 </div>
               </div>
@@ -129,7 +175,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               {onEditCustomer && (
                 <button
                   type="button"
-                  onClick={() => onEditCustomer(customer)}
+                  onClick={() => onEditCustomer(currentCustomer)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors shadow-2xs"
                 >
                   <Edit2 className="h-3.5 w-3.5 text-slate-500" />
@@ -139,7 +185,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               {onCreateSale && (
                 <button
                   type="button"
-                  onClick={() => onCreateSale(customer)}
+                  onClick={() => onCreateSale(currentCustomer)}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -161,10 +207,13 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             {/* Purchase Count */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                Total Purchases
+                {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'Total Orders' : 'Total Purchases'}
               </span>
               <div className="text-xl font-extrabold text-slate-900 mt-1">
-                {customer.purchaseCount} <span className="text-xs text-slate-500 font-semibold">bills</span>
+                {(currentCustomer.customerType || 'Retail') === 'Organization' ? nonVoidedInvoices.length : currentCustomer.purchaseCount}{' '}
+                <span className="text-xs text-slate-500 font-semibold">
+                  {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'orders' : 'bills'}
+                </span>
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
                 {nonVoidedInvoices.length} active invoices
@@ -184,55 +233,114 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </span>
             </div>
 
-            {/* Loyalty Milestone Status */}
-            <div className="md:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
+            {/* Outstanding Balance KPI Card */}
+            <div className={cn(
+              "p-4 rounded-2xl border transition-all",
+              outstandingSummary.totalOutstanding > 0
+                ? "bg-amber-50/80 border-amber-200 shadow-2xs"
+                : "bg-slate-50 border-slate-100"
+            )}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-amber-600" />
-                  <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
-                    Loyalty Reward Engine
-                  </span>
-                </div>
-                <span className="text-[11px] font-extrabold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">
-                  Every {loyaltySettings.purchaseThreshold} bills → {loyaltySettings.discountValue}
-                  {loyaltySettings.discountType === 'percentage' ? '%' : '₹'} off
+                <span className={cn(
+                  "text-[11px] font-bold uppercase tracking-wider block",
+                  outstandingSummary.totalOutstanding > 0 ? "text-amber-900" : "text-slate-500"
+                )}>
+                  Outstanding Balance
                 </span>
+                {outstandingSummary.totalOutstanding > 0 && (
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                )}
               </div>
+              <div className={cn(
+                "text-xl font-black mt-1 font-mono",
+                outstandingSummary.totalOutstanding > 0 ? "text-amber-950" : "text-emerald-700"
+              )}>
+                {formatCurrency(outstandingSummary.totalOutstanding)}
+              </div>
+              <span className={cn(
+                "text-[11px] mt-0.5 block font-medium",
+                outstandingSummary.totalOutstanding > 0 ? "text-amber-700 font-semibold" : "text-slate-400"
+              )}>
+                {outstandingSummary.totalOutstanding > 0
+                  ? `${outstandingSummary.unpaidInvoices.length} unpaid / partial bill(s)`
+                  : 'All bills settled'}
+              </span>
+            </div>
 
-              <div className="space-y-1.5 mt-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-amber-900">
-                  <span>Progress to Reward:</span>
-                  <span className="font-bold">
-                    {isEligible
-                      ? '🎉 Milestone Ready to Redeem!'
-                      : `${progress.currentCount} / ${progress.threshold} purchases (${progress.purchasesUntilNext} to next)`}
+            {/* Loyalty Milestone Status or Organization Info */}
+            {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-4 w-4 text-purple-600" />
+                    <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                      Institutional Account
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-purple-800 bg-purple-200/70 px-2 py-0.5 rounded-full">
+                    Bulk Relationship
                   </span>
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full h-2.5 bg-amber-200/70 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-all duration-300',
-                      isEligible ? 'bg-amber-500 w-full animate-pulse' : 'bg-amber-600'
-                    )}
-                    style={{
-                      width: isEligible
-                        ? '100%'
-                        : `${Math.min(100, (progress.currentCount / progress.threshold) * 100)}%`,
-                    }}
-                  />
+                <div className="space-y-1 mt-2 text-xs text-purple-900">
+                  <p className="font-semibold">
+                    Commercial & Institutional Client
+                  </p>
+                  <p className="text-[11px] text-purple-700 leading-relaxed">
+                    Retail loyalty reward milestone rules are disabled for this account. All transactions, billed items, and payment modes are tracked in the ledger below.
+                  </p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="md:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-amber-600" />
+                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                      Loyalty Reward Engine
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                    Every {loyaltySettings.purchaseThreshold} bills → {loyaltySettings.discountValue}
+                    {loyaltySettings.discountType === 'percentage' ? '%' : '₹'} off
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 mt-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-amber-900">
+                    <span>Progress to Reward:</span>
+                    <span className="font-bold">
+                      {isEligible
+                        ? '🎉 Milestone Ready to Redeem!'
+                        : `${progress.currentCount} / ${progress.threshold} purchases (${progress.purchasesUntilNext} to next)`}
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-2.5 bg-amber-200/70 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-300',
+                        isEligible ? 'bg-amber-500 w-full animate-pulse' : 'bg-amber-600'
+                      )}
+                      style={{
+                        width: isEligible
+                          ? '100%'
+                          : `${Math.min(100, (progress.currentCount / progress.threshold) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes Banner if present */}
-          {customer.notes && (
+          {currentCustomer.notes && (
             <div className="px-6 py-2.5 bg-amber-50/50 border-b border-amber-100 flex items-center gap-2 text-xs text-amber-900">
               <FileText className="h-4 w-4 text-amber-600 shrink-0" />
               <span className="font-semibold">Notes:</span>
-              <span>{customer.notes}</span>
+              <span>{currentCustomer.notes}</span>
             </div>
           )}
 
@@ -249,16 +357,44 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 </p>
               </div>
 
-              {/* Search Invoice Filter */}
-              <div className="relative w-full sm:w-64">
-                <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search invoice # or item..."
-                  value={searchInvoiceQuery}
-                  onChange={(e) => setSearchInvoiceQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
-                />
+              {/* Filter pills & Search input */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceFilter('all')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg transition-all',
+                      invoiceFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                    )}
+                  >
+                    All ({customerInvoices.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceFilter('unpaid')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg transition-all flex items-center gap-1',
+                      invoiceFilter === 'unpaid'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'hover:text-slate-900'
+                    )}
+                  >
+                    <span>Unpaid ({outstandingSummary.unpaidInvoices.length})</span>
+                  </button>
+                </div>
+
+                {/* Search Invoice Filter */}
+                <div className="relative w-full sm:w-56">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search invoice # or item..."
+                    value={searchInvoiceQuery}
+                    onChange={(e) => setSearchInvoiceQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
               </div>
             </div>
 
@@ -336,6 +472,20 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                             <span className="text-[10px] text-slate-400 block font-normal">
                               {inv.transactionType === 'Cash' ? 'Cash Sale' : 'Credit Bill'}
                             </span>
+                            {(() => {
+                              const unpaidMatch = outstandingSummary.unpaidInvoices.find(
+                                (u) => u.invoice.id === inv.id
+                              );
+                              if (unpaidMatch) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-1">
+                                    <AlertCircle className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                                    <span>Due: {formatCurrency(unpaidMatch.balanceDue)}</span>
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </td>
 
                           {/* Amount */}
@@ -382,7 +532,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 {onCreateSale && !searchInvoiceQuery && (
                   <button
                     type="button"
-                    onClick={() => onCreateSale(customer)}
+                    onClick={() => onCreateSale(currentCustomer)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs mt-1"
                   >
                     <Plus className="h-3.5 w-3.5" />

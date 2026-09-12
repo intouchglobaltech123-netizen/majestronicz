@@ -45,7 +45,14 @@ import {
   RecurringExpenseTemplate,
   RecurringExpenseApproval,
   Customer,
+  cleanCustomerName,
   LoyaltySettings,
+  StockTransfer,
+  StockTransferLineItem,
+  InventorySettings,
+  CustomerOutstandingInvoice,
+  CustomerOutstandingSummary,
+  getCustomerOutstandingSummary,
 } from '../types';
 import {
   INITIAL_ITEMS,
@@ -70,6 +77,8 @@ import {
   INITIAL_RECURRING_EXPENSE_TEMPLATES,
   INITIAL_CUSTOMERS,
   INITIAL_LOYALTY_SETTINGS,
+  INITIAL_STOCK_TRANSFERS,
+  INITIAL_INVENTORY_SETTINGS,
 } from '../data/seedData';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { toast } from 'sonner';
@@ -113,6 +122,8 @@ interface StorageState {
   payrollRecords?: PayrollRecord[];
   customers?: Customer[];
   loyaltySettings?: LoyaltySettings;
+  stockTransfers?: StockTransfer[];
+  inventorySettings?: InventorySettings;
   categories?: string[];
   subcategoriesByCategory?: Record<string, string[]>;
   categoryPrefixMap?: Record<string, string>;
@@ -147,6 +158,7 @@ interface ErpContextType {
 
   // Permissions
   canManageItems: boolean; // CEO & Manager can edit master item catalog & master pricing
+  canApproveCatalogRequests: boolean; // CEO & Manager can review and approve New Item Requests into master catalog
   canEditActiveBranchStock: boolean; // CEO can edit all branches, Manager can edit assigned branch stock
   isReadOnly: boolean; // Billing role
   canViewDashboard: boolean; // CEO & Manager can view Dashboard, Billing cannot
@@ -155,7 +167,7 @@ interface ErpContextType {
   estimates: Estimate[];
   saveEstimate: (estimate: Estimate) => void;
   deleteEstimate: (estimateId: string) => void;
-  getNextEstimateNumber: (branchId: BranchId) => string;
+  getNextEstimateNumber: (branchId: BranchId, forDate?: Date | string) => string;
 
   // Delivery Challans (Low-usage goods movement note)
   challans: DeliveryChallan[];
@@ -185,7 +197,7 @@ interface ErpContextType {
     reason: string,
     notes?: string
   ) => void;
-  getNextInvoiceNumber: (branchId: BranchId) => string;
+  getNextInvoiceNumber: (branchId: BranchId, forDate?: Date | string) => string;
   estimateToConvert: Estimate | null;
   setEstimateToConvert: (estimate: Estimate | null) => void;
   inventoryFilterQuery: string;
@@ -210,6 +222,7 @@ interface ErpContextType {
   getNextEnquiryNumber: (branchId: BranchId) => string;
   canCancelEnquiry: boolean;
   canEditRestockDate: boolean;
+  canConvertEnquiry: boolean;
 
   // Follow-up Reminders & Detail Previews
   reminders: FollowUpReminder[];
@@ -314,6 +327,7 @@ interface ErpContextType {
 
   // Inventory & Stock Adjustments / Transfers
   stockAdjustmentLogs: StockAdjustmentLog[];
+  stockTransfers: StockTransfer[];
   adjustStock: (
     itemId: string,
     branchId: BranchId,
@@ -329,6 +343,27 @@ interface ErpContextType {
     notes?: string,
     autoGenerateChallan?: boolean
   ) => { transferRef: string; challanNumber?: string };
+  transferStockBatch: (
+    items: { itemId: string; quantity: number }[],
+    fromBranch: BranchId,
+    toBranch: BranchId,
+    notes?: string,
+    autoGenerateChallan?: boolean
+  ) => { transferRef: string; challanNumber?: string };
+  inventorySettings: InventorySettings;
+  updateInventorySettings: (settings: Partial<InventorySettings>) => void;
+  getItemLastSaleInfo: (
+    itemId: string,
+    branchScope?: BranchScope
+  ) => {
+    lastSaleDate: string | null;
+    daysSinceLastSale: number | null;
+    hasSales: boolean;
+    isDeadStock: boolean;
+  };
+  inventoryMovementFilter: 'all' | 'not-moving' | 'active';
+  setInventoryMovementFilter: (filter: 'all' | 'not-moving' | 'active') => void;
+  navigateToInventoryWithMovementFilter: (filter: 'all' | 'not-moving' | 'active') => void;
   updateItemThreshold: (itemId: string, threshold: number) => void;
   canAdjustBranchStock: (branchId: BranchId) => boolean;
   canInitiateTransferFrom: (branchId: BranchId) => boolean;
@@ -404,6 +439,9 @@ interface ErpContextType {
   canManageCustomers: boolean;
   selectedCustomerForDetail: Customer | null;
   setSelectedCustomerForDetail: (customer: Customer | null) => void;
+  getCustomerOutstandingBalance: (customer: Customer) => number;
+  getCustomerUnpaidInvoices: (customer: Customer) => CustomerOutstandingInvoice[];
+  getCustomerOutstandingSummary: (customer: Customer) => CustomerOutstandingSummary;
 
   // Demo helper
   resetToDemoData: () => void;
@@ -438,13 +476,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (currentUser.role === 'Billing' && parsed.currentView === 'dashboard') {
             return 'items';
           }
+          if (currentUser.role === 'Sales' && parsed.currentView !== 'items' && parsed.currentView !== 'enquiries') {
+            return 'enquiries';
+          }
           return parsed.currentView;
         }
       }
     } catch (e) {
       console.error('Failed to load currentView from storage:', e);
     }
-    return currentUser.role === 'Billing' ? 'items' : 'dashboard';
+    return currentUser.role === 'Sales' ? 'enquiries' : currentUser.role === 'Billing' ? 'items' : 'dashboard';
   });
 
   const [items, setItems] = useState<Item[]>(() => {
@@ -623,7 +664,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed: StorageState = JSON.parse(saved);
         if (parsed.recurringExpenses && Array.isArray(parsed.recurringExpenses)) {
-          return parsed.recurringExpenses;
+          return parsed.recurringExpenses.map((t) => ({
+            ...t,
+            frequency: t.frequency || 'Monthly',
+          }));
         }
       }
     } catch (e) {
@@ -735,7 +779,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed: StorageState = JSON.parse(saved);
         if (parsed.customers && Array.isArray(parsed.customers) && parsed.customers.length > 0) {
-          return parsed.customers;
+          return parsed.customers.map((c: Customer) => {
+            const cleanName = cleanCustomerName(c.name, c.notes);
+            // If customerType is already explicitly defined as 'Retail' or 'Organization', honor it strictly
+            if (c.customerType === 'Retail' || c.customerType === 'Organization') {
+              return {
+                ...c,
+                name: cleanName,
+              };
+            }
+            // Fallback migration for legacy customer records missing customerType:
+            // Check known seed retail customer IDs first
+            const isKnownRetailSeed = c.id === 'cust-008' || c.id === 'cust-009' || c.id === 'cust-010';
+            const isOrg =
+              !isKnownRetailSeed &&
+              (cleanName.toLowerCase().includes('ltd') ||
+                cleanName.toLowerCase().includes('mill') ||
+                cleanName.toLowerCase().includes('systems') ||
+                cleanName.toLowerCase().includes('lab') ||
+                cleanName.toLowerCase().includes('solutions'));
+            return {
+              ...c,
+              name: cleanName,
+              customerType: isOrg ? 'Organization' : 'Retail',
+            };
+          });
         }
       }
     } catch (e) {
@@ -758,6 +826,43 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_LOYALTY_SETTINGS;
   });
+
+  const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: StorageState = JSON.parse(saved);
+        if (parsed.stockTransfers && Array.isArray(parsed.stockTransfers)) {
+          return parsed.stockTransfers;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load stockTransfers from storage:', e);
+    }
+    return INITIAL_STOCK_TRANSFERS;
+  });
+
+  const [inventorySettings, setInventorySettings] = useState<InventorySettings>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: StorageState = JSON.parse(saved);
+        if (parsed.inventorySettings && typeof parsed.inventorySettings.deadStockThresholdDays === 'number') {
+          return parsed.inventorySettings;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load inventorySettings from storage:', e);
+    }
+    return INITIAL_INVENTORY_SETTINGS;
+  });
+
+  const [inventoryMovementFilter, setInventoryMovementFilter] = useState<'all' | 'not-moving' | 'active'>('all');
+
+  const navigateToInventoryWithMovementFilter = (filter: 'all' | 'not-moving' | 'active') => {
+    setInventoryMovementFilter(filter);
+    setCurrentView('inventory');
+  };
 
   const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<Customer | null>(null);
 
@@ -931,6 +1036,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payrollRecords,
         customers,
         loyaltySettings,
+        stockTransfers,
+        inventorySettings,
         categories,
         subcategoriesByCategory,
         categoryPrefixMap,
@@ -946,12 +1053,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to persist to localStorage:', e);
     }
-  }, [items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices, enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses, vendors, purchaseOrders, employees, attendanceRecords, payrollSettings, payrollRecords, customers, loyaltySettings, categories, subcategoriesByCategory, categoryPrefixMap, subcategoryPrefixMap, unitsList, gstSlabsList, paymentTermsOptions, currentBranch, currentUser, currentView]);
+  }, [items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices, enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses, vendors, purchaseOrders, employees, attendanceRecords, payrollSettings, payrollRecords, customers, loyaltySettings, stockTransfers, inventorySettings, categories, subcategoriesByCategory, categoryPrefixMap, subcategoryPrefixMap, unitsList, gstSlabsList, paymentTermsOptions, currentBranch, currentUser, currentView]);
 
   // Handle role-specific view constraints
   useEffect(() => {
     if (currentUser.role === 'Billing' && (currentView === 'dashboard' || currentView === 'purchases' || currentView === 'hrm' || currentView === 'reports')) {
       setCurrentView('items');
+    }
+    if (currentUser.role === 'Sales' && currentView !== 'items' && currentView !== 'enquiries') {
+      setCurrentView('enquiries');
     }
     if (currentUser.role === 'Manager') {
       const managerBranch = currentUser.assignedBranchId || 'coimbatore';
@@ -973,11 +1083,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isReadOnly = currentUser.role === 'Billing';
   const canViewDashboard = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canManageItems = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canApproveCatalogRequests = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canEditActiveBranchStock =
     currentUser.role === 'CEO' ||
     (currentUser.role === 'Manager' && currentUser.assignedBranchId === currentBranch);
   const canCancelEnquiry = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canEditRestockDate = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canConvertEnquiry = currentUser.role !== 'Sales';
   const canCloseDay = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canOverrideOpening = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canManagePurchases = currentUser.role === 'CEO' || currentUser.role === 'Manager';
@@ -1014,21 +1126,34 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleSetCurrentView = (view: ActiveNavView) => {
+    if (currentUser.role === 'Sales' && view !== 'items' && view !== 'enquiries') {
+      toast.error('Access Restricted', {
+        description: 'The Sales role is restricted to Items and Enquiries only.',
+      });
+      setCurrentView('enquiries');
+      return;
+    }
+    setCurrentView(view);
+  };
+
   const loginWithPin = (pin: string, customBranch?: BranchId): boolean => {
     const matched = PRESET_ROLES.find((r) => r.pin === pin);
     if (!matched) {
       toast.error('Invalid PIN code', {
-        description: 'Try 1111 (CEO), 2222 (Manager), or 3333 (Billing)',
+        description: 'Try 1111 (CEO), 2222 (Manager), 3333 (Billing), or 4444 (Sales)',
       });
       return false;
     }
 
-    const assigned = matched.role === 'Manager' ? (customBranch || matched.defaultBranch || 'coimbatore') : undefined;
+    const assigned = matched.role === 'Manager'
+      ? (customBranch || matched.defaultBranch || 'coimbatore')
+      : (matched.defaultBranch || 'erode-hq');
     const newSession: UserSession = {
       role: matched.role,
       name: matched.defaultName,
       pin: matched.pin,
-      assignedBranchId: assigned,
+      assignedBranchId: matched.role === 'Manager' ? assigned : undefined,
     };
     setCurrentUser(newSession);
 
@@ -1038,6 +1163,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (matched.role === 'Manager') {
       setCurrentBranch(assigned || 'coimbatore');
       setCurrentView('dashboard');
+    } else if (matched.role === 'Sales') {
+      setCurrentBranch(assigned || 'erode-hq');
+      setCurrentView('enquiries');
     } else {
       setCurrentBranch(assigned || 'erode-hq');
       setCurrentView('items'); // Billing lands on Item Master / Sales
@@ -1053,12 +1181,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const switchRole = (role: Role, customBranch?: BranchId) => {
     const matched = PRESET_ROLES.find((r) => r.role === role);
     if (!matched) return;
-    const assigned = role === 'Manager' ? (customBranch || matched.defaultBranch || 'coimbatore') : undefined;
+    const assigned = role === 'Manager'
+      ? (customBranch || matched.defaultBranch || 'coimbatore')
+      : (matched.defaultBranch || 'erode-hq');
     const newSession: UserSession = {
       role: matched.role,
       name: matched.defaultName,
       pin: matched.pin,
-      assignedBranchId: assigned,
+      assignedBranchId: role === 'Manager' ? assigned : undefined,
     };
     setCurrentUser(newSession);
 
@@ -1068,6 +1198,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (role === 'Manager') {
       setCurrentBranch(assigned || 'coimbatore');
       setCurrentView('dashboard');
+    } else if (role === 'Sales') {
+      setCurrentBranch(assigned || 'erode-hq');
+      setCurrentView('enquiries');
     } else {
       setCurrentBranch(assigned || 'erode-hq');
       setCurrentView('items');
@@ -1139,7 +1272,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const generateItemCode = (category: string, subcategory: string): string => {
-    const existingCodes = items.map((i) => i.itemCode);
+    const existingCodes = [
+      ...items.map((i) => i.itemCode),
+      ...combos.map((c) => c.comboCode),
+    ];
     const result = generateFullItemCode(
       category,
       subcategory,
@@ -1199,8 +1335,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addItem = (
     itemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>,
-    initialStocks?: Partial<Record<BranchId, number>>,
-    initialLocations?: Partial<Record<BranchId, string>>
+    _initialStocks?: Partial<Record<BranchId, number>>,
+    _initialLocations?: Partial<Record<BranchId, string>>
   ): Item => {
     const now = new Date().toISOString();
     const newId = `item-${Date.now()}`;
@@ -1211,12 +1347,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
 
-    // Initialize physical stock rows for each branch including physical rack location
+    // Initialize physical stock rows for each branch starting at 0 stock (stock acquired only via PO receiving)
     const newStockRows: BranchStock[] = BRANCHES.map((b) => ({
       itemId: newId,
       branchId: b.id,
-      quantity: initialStocks?.[b.id] ?? 0,
-      location: initialLocations?.[b.id]?.trim() || '',
+      quantity: 0,
+      location: '',
       minStockAlert: 5,
       updatedAt: now,
     }));
@@ -1225,7 +1361,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchStocks((prev) => [...prev, ...newStockRows]);
 
     toast.success(`Item "${newItem.itemName}" added to catalog`, {
-      description: `Master price: ₹${newItem.salePrice.toLocaleString('en-IN')}`,
+      description: `Master price: ₹${newItem.salePrice.toLocaleString('en-IN')}. Stock starts at 0 until received via Purchase Order.`,
     });
 
     return newItem;
@@ -1318,6 +1454,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteItem = (itemId: string) => {
+    if (!canManageItems) {
+      toast.error('Permission denied: You do not have permission to delete items');
+      return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== itemId));
     setBranchStocks((prev) => prev.filter((s) => s.itemId !== itemId));
     setStockAdjustmentLogs((prev) => prev.filter((l) => l.itemId !== itemId));
@@ -1339,43 +1479,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getComboAvailability = (combo: ComboItem, branchId: BranchId | 'all'): number => {
     if (!combo.components || combo.components.length === 0) return 0;
     let minAvail = Infinity;
-
     for (const comp of combo.components) {
-      if (!comp.quantity || comp.quantity <= 0) continue;
-      let compStock = 0;
-      if (branchId === 'all') {
-        compStock = branchStocks
-          .filter((s) => s.itemId === comp.itemId)
-          .reduce((sum, s) => sum + s.quantity, 0);
-      } else {
-        const s = branchStocks.find(
-          (stock) => stock.itemId === comp.itemId && stock.branchId === branchId
-        );
-        compStock = s?.quantity ?? 0;
-      }
-
-      if (compStock <= 0) {
-        return 0; // Any component at 0 stock -> combo availability = 0
-      }
-
-      const possible = Math.floor(compStock / comp.quantity);
-      if (possible < minAvail) {
-        minAvail = possible;
-      }
+      const stock =
+        branchId === 'all'
+          ? getTotalStockAcrossBranches(comp.itemId)
+          : getBranchStock(comp.itemId, branchId)?.quantity || 0;
+      const canMake = Math.floor(stock / comp.quantity);
+      if (canMake < minAvail) minAvail = canMake;
     }
-
     return minAvail === Infinity ? 0 : minAvail;
   };
 
   const getComboBuyingSeparatelyPrice = (combo: ComboItem): number => {
-    if (!combo.components) return 0;
-    return combo.components.reduce((sum, comp) => {
-      const it = items.find((i) => i.id === comp.itemId);
-      return sum + (it ? it.salePrice * comp.quantity : 0);
+    if (!combo.components || combo.components.length === 0) return 0;
+    return combo.components.reduce((acc, comp) => {
+      const item = items.find((i) => i.id === comp.itemId);
+      return acc + (item ? item.salePrice * comp.quantity : 0);
     }, 0);
   };
 
   const saveCombo = (combo: ComboItem) => {
+    if (!canManageItems) {
+      toast.error('Permission denied: You do not have permission to manage combo bundles');
+      return;
+    }
     const now = new Date().toISOString();
     setCombos((prev) => {
       const existingIdx = prev.findIndex((c) => c.id === combo.id);
@@ -1400,6 +1527,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteCombo = (comboId: string) => {
+    if (!canManageItems) {
+      toast.error('Permission denied: You do not have permission to delete combo bundles');
+      return;
+    }
     setCombos((prev) => prev.filter((c) => c.id !== comboId));
     toast.success('Combo bundle deleted');
   };
@@ -1493,11 +1624,73 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const transferStock = (
+  const updateInventorySettings = (newSettings: Partial<InventorySettings>) => {
+    setInventorySettings((prev) => ({
+      ...prev,
+      ...newSettings,
+    }));
+    toast.success('Inventory settings updated');
+  };
+
+  const getItemLastSaleInfo = (
     itemId: string,
+    branchScope: BranchScope = currentBranch
+  ): {
+    lastSaleDate: string | null;
+    daysSinceLastSale: number | null;
+    hasSales: boolean;
+    isDeadStock: boolean;
+  } => {
+    const threshold = inventorySettings.deadStockThresholdDays || 90;
+
+    // Filter relevant non-voided invoices
+    const relevantInvoices = invoices.filter((inv) => {
+      if (inv.isVoided) return false;
+      if (branchScope !== 'all' && inv.branchId !== branchScope) return false;
+      return true;
+    });
+
+    const matchingDates: string[] = [];
+    relevantInvoices.forEach((inv) => {
+      const hasItem = inv.items.some((line) => {
+        if (line.itemId === itemId) return true;
+        if (line.isCombo && line.comboComponents?.some((c) => c.itemId === itemId)) return true;
+        return false;
+      });
+      if (hasItem && inv.date) {
+        matchingDates.push(inv.date);
+      }
+    });
+
+    if (matchingDates.length === 0) {
+      return {
+        lastSaleDate: null,
+        daysSinceLastSale: null,
+        hasSales: false,
+        isDeadStock: true, // ZERO sales ever recorded MUST flag as Not Moving
+      };
+    }
+
+    matchingDates.sort((a, b) => b.localeCompare(a));
+    const latestDate = matchingDates[0];
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayMs = new Date(todayStr).getTime();
+    const saleMs = new Date(latestDate).getTime();
+    const daysSinceLastSale = Math.max(0, Math.floor((todayMs - saleMs) / (1000 * 60 * 60 * 24)));
+
+    return {
+      lastSaleDate: latestDate,
+      daysSinceLastSale,
+      hasSales: true,
+      isDeadStock: daysSinceLastSale >= threshold,
+    };
+  };
+
+  const transferStockBatch = (
+    itemsToTransfer: { itemId: string; quantity: number }[],
     fromBranch: BranchId,
     toBranch: BranchId,
-    quantity: number,
     notes?: string,
     autoGenerateChallan: boolean = true
   ): { transferRef: string; challanNumber?: string } => {
@@ -1506,87 +1699,120 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Source and destination branches cannot be the same');
     }
 
-    if (quantity <= 0) {
-      toast.error('Transfer quantity must be greater than 0');
-      throw new Error('Transfer quantity must be greater than 0');
+    if (!itemsToTransfer || itemsToTransfer.length === 0) {
+      toast.error('At least one item must be included in the transfer');
+      throw new Error('At least one item must be included in the transfer');
     }
 
-    const targetItem = items.find((i) => i.id === itemId);
-    if (!targetItem) {
-      toast.error('Item not found');
-      throw new Error('Item not found');
-    }
+    const fromBranchName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
+    const toBranchName = BRANCHES.find((b) => b.id === toBranch)?.name || toBranch;
 
-    const fromStockRow = branchStocks.find((s) => s.itemId === itemId && s.branchId === fromBranch);
-    const fromPrevQty = fromStockRow?.quantity ?? 0;
+    // 1. Validate ALL lines upfront against available stock at From Branch
+    const validatedLines: {
+      targetItem: Item;
+      quantity: number;
+      fromPrevQty: number;
+      toPrevQty: number;
+    }[] = [];
 
-    if (fromPrevQty < quantity) {
-      const fromName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
-      toast.error(`Insufficient stock in ${fromName}`, {
-        description: `Available: ${fromPrevQty} units, Requested: ${quantity} units`,
+    for (let idx = 0; idx < itemsToTransfer.length; idx++) {
+      const row = itemsToTransfer[idx];
+      const rowNum = idx + 1;
+
+      if (!row.itemId) {
+        toast.error(`Row #${rowNum}: Please select an item to transfer`);
+        throw new Error(`Row #${rowNum}: Please select an item to transfer`);
+      }
+
+      if (row.quantity <= 0) {
+        toast.error(`Row #${rowNum}: Transfer quantity must be greater than 0`);
+        throw new Error(`Row #${rowNum}: Transfer quantity must be greater than 0`);
+      }
+
+      const targetItem = items.find((i) => i.id === row.itemId);
+      if (!targetItem) {
+        toast.error(`Row #${rowNum}: Item not found in catalog`);
+        throw new Error(`Row #${rowNum}: Item not found in catalog`);
+      }
+
+      const fromStockRow = branchStocks.find((s) => s.itemId === row.itemId && s.branchId === fromBranch);
+      const fromPrevQty = fromStockRow?.quantity ?? 0;
+
+      if (fromPrevQty < row.quantity) {
+        toast.error(`Row #${rowNum} Shortage: Insufficient stock at ${fromBranchName}`, {
+          description: `${targetItem.itemName}: Available ${fromPrevQty} ${targetItem.unit}, Requested ${row.quantity} ${targetItem.unit}`,
+        });
+        throw new Error(`Row #${rowNum} shortage: Insufficient stock for ${targetItem.itemName}`);
+      }
+
+      const toStockRow = branchStocks.find((s) => s.itemId === row.itemId && s.branchId === toBranch);
+      const toPrevQty = toStockRow?.quantity ?? 0;
+
+      validatedLines.push({
+        targetItem,
+        quantity: row.quantity,
+        fromPrevQty,
+        toPrevQty,
       });
-      throw new Error('Insufficient stock for transfer');
     }
 
-    const toStockRow = branchStocks.find((s) => s.itemId === itemId && s.branchId === toBranch);
-    const toPrevQty = toStockRow?.quantity ?? 0;
     const now = new Date().toISOString();
+    const todayStr = now.split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
 
-    // 1. Atomic branch stock update: decrement fromBranch and increment toBranch
+    // 2. Atomic branch stock update
     setBranchStocks((prev) => {
       let updated = [...prev];
 
-      // Decrement source
-      const fromIdx = updated.findIndex((s) => s.itemId === itemId && s.branchId === fromBranch);
-      if (fromIdx >= 0) {
-        updated[fromIdx] = {
-          ...updated[fromIdx],
-          quantity: Math.max(0, updated[fromIdx].quantity - quantity),
-          updatedAt: now,
-        };
-      } else {
-        updated.push({
-          itemId,
-          branchId: fromBranch,
-          quantity: 0,
-          minStockAlert: targetItem.reorderThreshold ?? 10,
-          updatedAt: now,
-        });
-      }
+      validatedLines.forEach(({ targetItem, quantity }) => {
+        // Decrement source
+        const fromIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === fromBranch);
+        if (fromIdx >= 0) {
+          updated[fromIdx] = {
+            ...updated[fromIdx],
+            quantity: Math.max(0, updated[fromIdx].quantity - quantity),
+            updatedAt: now,
+          };
+        } else {
+          updated.push({
+            itemId: targetItem.id,
+            branchId: fromBranch,
+            quantity: 0,
+            minStockAlert: targetItem.reorderThreshold ?? 10,
+            updatedAt: now,
+          });
+        }
 
-      // Increment destination
-      const toIdx = updated.findIndex((s) => s.itemId === itemId && s.branchId === toBranch);
-      if (toIdx >= 0) {
-        updated[toIdx] = {
-          ...updated[toIdx],
-          quantity: updated[toIdx].quantity + quantity,
-          updatedAt: now,
-        };
-      } else {
-        updated.push({
-          itemId,
-          branchId: toBranch,
-          quantity,
-          minStockAlert: targetItem.reorderThreshold ?? 10,
-          updatedAt: now,
-        });
-      }
+        // Increment destination
+        const toIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === toBranch);
+        if (toIdx >= 0) {
+          updated[toIdx] = {
+            ...updated[toIdx],
+            quantity: updated[toIdx].quantity + quantity,
+            updatedAt: now,
+          };
+        } else {
+          updated.push({
+            itemId: targetItem.id,
+            branchId: toBranch,
+            quantity,
+            minStockAlert: targetItem.reorderThreshold ?? 10,
+            updatedAt: now,
+          });
+        }
+      });
 
       return updated;
     });
 
-    const fromBranchName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
-    const toBranchName = BRANCHES.find((b) => b.id === toBranch)?.name || toBranch;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
+    // 3. Optional Auto-Generate Delivery Challan containing all items
     let generatedChallanNo: string | undefined = undefined;
-
-    // 2. Optional Auto-Generate Delivery Challan
     if (autoGenerateChallan) {
       const seq = (challans.length + 1).toString().padStart(3, '0');
       generatedChallanNo = `DC-TRF-${seq}`;
+
+      const totalQty = validatedLines.reduce((sum, l) => sum + l.quantity, 0);
 
       const newChallan: DeliveryChallan = {
         id: `dc-${Date.now()}`,
@@ -1596,17 +1822,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         contactNo: '94433-28955',
         date: todayStr,
         time: timeStr,
-        items: [
-          {
-            id: `dci-${Date.now()}-1`,
-            itemId: targetItem.id,
-            itemName: targetItem.itemName,
-            itemHSN: targetItem.itemHSN,
-            quantity,
-            unit: targetItem.unit,
-          },
-        ],
-        totalQuantity: quantity,
+        items: validatedLines.map((l, i) => ({
+          id: `dci-${Date.now()}-${i + 1}`,
+          itemId: l.targetItem.id,
+          itemName: l.targetItem.itemName,
+          itemHSN: l.targetItem.itemHSN,
+          quantity: l.quantity,
+          unit: l.targetItem.unit,
+        })),
+        totalQuantity: totalQty,
         termsAndConditions:
           'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
         deliveredBy: {
@@ -1625,54 +1849,101 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setChallans((prev) => [newChallan, ...prev]);
     }
 
-    // 3. Create Paired StockAdjustmentLog records with shared transferRef
+    // 4. Create single StockTransfer batch record
+    const transferItems: StockTransferLineItem[] = validatedLines.map((l) => ({
+      itemId: l.targetItem.id,
+      itemName: l.targetItem.itemName,
+      itemCode: l.targetItem.itemCode,
+      itemHSN: l.targetItem.itemHSN,
+      quantity: l.quantity,
+      unit: l.targetItem.unit,
+    }));
+
+    const totalTransferQty = validatedLines.reduce((sum, l) => sum + l.quantity, 0);
     const userLabel = `${currentUser.name} (${currentUser.role})`;
-    const logFrom: StockAdjustmentLog = {
-      id: `adj-${Date.now()}-out`,
-      itemId,
-      itemName: targetItem.itemName,
-      itemCode: targetItem.itemCode,
-      branchId: fromBranch,
-      previousQuantity: fromPrevQty,
-      quantityChange: -quantity,
-      newQuantity: fromPrevQty - quantity,
-      reason: 'Inter-branch Transfer',
-      notes: `Transferred to ${toBranchName}${notes ? ` • ${notes}` : ''}`,
-      adjustedBy: userLabel,
+
+    const newTransfer: StockTransfer = {
+      id: `trf-${Date.now()}`,
+      transferNumber: transferRef,
+      fromBranch,
+      toBranch,
+      items: transferItems,
+      totalQuantity: totalTransferQty,
+      notes: notes?.trim() || undefined,
+      transferredBy: userLabel,
       timestamp: now,
-      transferRef,
-      linkedChallanNumber: generatedChallanNo,
+      challanNumber: generatedChallanNo,
     };
 
-    const logTo: StockAdjustmentLog = {
-      id: `adj-${Date.now()}-in`,
-      itemId,
-      itemName: targetItem.itemName,
-      itemCode: targetItem.itemCode,
-      branchId: toBranch,
-      previousQuantity: toPrevQty,
-      quantityChange: quantity,
-      newQuantity: toPrevQty + quantity,
-      reason: 'Inter-branch Transfer',
-      notes: `Received from ${fromBranchName}${notes ? ` • ${notes}` : ''}`,
-      adjustedBy: userLabel,
-      timestamp: now,
-      transferRef,
-      linkedChallanNumber: generatedChallanNo,
-    };
+    setStockTransfers((prev) => [newTransfer, ...prev]);
 
-    setStockAdjustmentLogs((prev) => [logFrom, logTo, ...prev]);
+    // 5. Create Paired StockAdjustmentLog records per item for audit trail
+    const newLogs: StockAdjustmentLog[] = [];
+    validatedLines.forEach(({ targetItem, quantity, fromPrevQty, toPrevQty }, i) => {
+      newLogs.push({
+        id: `adj-${Date.now()}-${i}-out`,
+        itemId: targetItem.id,
+        itemName: targetItem.itemName,
+        itemCode: targetItem.itemCode,
+        branchId: fromBranch,
+        previousQuantity: fromPrevQty,
+        quantityChange: -quantity,
+        newQuantity: fromPrevQty - quantity,
+        reason: 'Inter-branch Transfer',
+        notes: `Transferred to ${toBranchName}${notes ? ` • ${notes}` : ''}`,
+        adjustedBy: userLabel,
+        timestamp: now,
+        transferRef,
+        linkedChallanNumber: generatedChallanNo,
+      });
 
-    toast.success(`Inter-branch transfer completed`, {
-      description: `${quantity} × ${targetItem.itemName} (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo} generated` : ''}`,
+      newLogs.push({
+        id: `adj-${Date.now()}-${i}-in`,
+        itemId: targetItem.id,
+        itemName: targetItem.itemName,
+        itemCode: targetItem.itemCode,
+        branchId: toBranch,
+        previousQuantity: toPrevQty,
+        quantityChange: quantity,
+        newQuantity: toPrevQty + quantity,
+        reason: 'Inter-branch Transfer',
+        notes: `Received from ${fromBranchName}${notes ? ` • ${notes}` : ''}`,
+        adjustedBy: userLabel,
+        timestamp: now,
+        transferRef,
+        linkedChallanNumber: generatedChallanNo,
+      });
+    });
+
+    setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
+
+    toast.success('Inter-branch transfer completed', {
+      description: `${validatedLines.length} item(s) • ${totalTransferQty} units (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
     });
 
     return { transferRef, challanNumber: generatedChallanNo };
   };
 
-  const getNextEstimateNumber = (branchId: BranchId): string => {
+  const transferStock = (
+    itemId: string,
+    fromBranch: BranchId,
+    toBranch: BranchId,
+    quantity: number,
+    notes?: string,
+    autoGenerateChallan: boolean = true
+  ): { transferRef: string; challanNumber?: string } => {
+    return transferStockBatch(
+      [{ itemId, quantity }],
+      fromBranch,
+      toBranch,
+      notes,
+      autoGenerateChallan
+    );
+  };
+
+  const getNextEstimateNumber = (branchId: BranchId, forDate?: Date | string): string => {
     const branchCode = getBranchCodeForEstimate(branchId);
-    const fy = getFinancialYear(new Date());
+    const fy = getFinancialYear(forDate || new Date());
     const prefix = `MZ${branchCode}${fy}EST/`;
 
     const branchEstimates = estimates.filter((e) => e.estimateNumber.startsWith(prefix));
@@ -1743,20 +2014,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success('Delivery Challan removed');
   };
 
-  const getNextInvoiceNumber = (branchId: BranchId): string => {
+  const getNextInvoiceNumber = (branchId: BranchId, forDate?: Date | string): string => {
     const branchCode = getBranchCodeForInvoice(branchId);
-    const fy = getFinancialYear(new Date());
+    const fy = getFinancialYear(forDate || new Date());
     const prefix = `MZ${branchCode}${fy}/`;
 
     const branchInvoices = invoices.filter((inv) => inv.invoiceNumber.startsWith(prefix));
-    let nextSeq = 7307; // Starting range seen in their Daily Cash sheet (7307-7325 style)
+    let nextSeq = 1;
+    if (fy === '26-27') {
+      nextSeq = 7307; // Starting range seen in their Daily Cash sheet (7307-7325 style)
+    }
     if (branchInvoices.length > 0) {
       const sequences = branchInvoices.map((inv) => {
         const seqPart = inv.invoiceNumber.replace(prefix, '');
         const num = parseInt(seqPart, 10);
         return isNaN(num) ? 0 : num;
       });
-      nextSeq = Math.max(...sequences, 7306) + 1;
+      const baseline = fy === '26-27' ? 7306 : 0;
+      nextSeq = Math.max(...sequences, baseline) + 1;
     }
 
     return `${prefix}${nextSeq}`;
@@ -1989,7 +2264,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setRecurringExpenses((prev) => [newTemplate, ...prev]);
-    toast.success(`Recurring template "${template.name}" created`);
+    toast.success(`Scheduled amount "${template.name}" created`);
   };
 
   const updateRecurringExpenseTemplate = (
@@ -1997,22 +2272,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updates: Partial<RecurringExpenseTemplate>
   ) => {
     if (!canManageItems) {
-      toast.error('Only CEO or Manager can edit recurring expense templates.');
+      toast.error('Only CEO or Manager can edit scheduled amounts.');
       return;
     }
     setRecurringExpenses((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
-    toast.success('Recurring expense template updated');
+    toast.success('Scheduled amount updated');
   };
 
   const deleteRecurringExpenseTemplate = (id: string) => {
     if (!canManageItems) {
-      toast.error('Only CEO or Manager can delete recurring expense templates.');
+      toast.error('Only CEO or Manager can delete scheduled amounts.');
       return;
     }
     setRecurringExpenses((prev) => prev.filter((t) => t.id !== id));
-    toast.success('Recurring expense template deleted');
+    toast.success('Scheduled amount deleted');
   };
 
   const approveRecurringExpense = (
@@ -2024,7 +2299,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const template = recurringExpenses.find((t) => t.id === templateId);
     if (!template) {
-      toast.error('Recurring template not found.');
+      toast.error('Scheduled amount not found.');
       return;
     }
 
@@ -2101,11 +2376,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const saveCustomer = (customerData: Customer): { success: boolean; error?: string; customer?: Customer } => {
     const cleanPhone = (customerData.phone || '').trim().replace(/\D/g, '');
+    const cleanName = cleanCustomerName(customerData.name, customerData.notes);
     if (!cleanPhone) {
       toast.error('Phone number is required');
       return { success: false, error: 'Phone number is required' };
     }
-    if (!customerData.name.trim()) {
+    if (!cleanName) {
       toast.error('Customer name is required');
       return { success: false, error: 'Customer name is required' };
     }
@@ -2130,6 +2406,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       savedCust = {
         ...customers[existingIdx],
         ...customerData,
+        name: cleanName,
+        customerType: customerData.customerType || customers[existingIdx].customerType || 'Retail',
         updatedAt: now,
       };
       setCustomers((prev) => {
@@ -2137,11 +2415,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         next[existingIdx] = savedCust;
         return next;
       });
+      setSelectedCustomerForDetail((prev) => (prev && prev.id === savedCust.id ? savedCust : prev));
       toast.success(`Customer "${savedCust.name}" updated`);
     } else {
       savedCust = {
         ...customerData,
         id: customerData.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: cleanName,
+        customerType: customerData.customerType || 'Retail',
         purchaseCount: customerData.purchaseCount ?? 0,
         totalSpent: customerData.totalSpent ?? 0,
         createdAt: now,
@@ -2180,6 +2461,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    // Cleanse customer name strictly to prevent contamination
+    newInvoice.customerName = cleanCustomerName(newInvoice.customerName);
+
     const isNewSale = !invoices.some((inv) => inv.id === newInvoice.id);
     const invoicePhoneClean = (newInvoice.customerPhone || '').trim().replace(/\D/g, '');
     const now = new Date().toISOString();
@@ -2207,18 +2491,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newInvoice.customerId = existing.id;
         const oldInvoice = invoices.find((inv) => inv.id === newInvoice.id);
         const oldSpent = oldInvoice ? oldInvoice.grandTotal : 0;
-        const newCount = isNewSale ? (existing.purchaseCount || 0) + 1 : existing.purchaseCount;
+
+        // Purchase Count increment applies ONLY to Retail customers
+        const isRetail = (existing.customerType || 'Retail') === 'Retail';
+        const newCount = isNewSale
+          ? (isRetail ? (existing.purchaseCount || 0) + 1 : (existing.purchaseCount || 0))
+          : existing.purchaseCount;
         const newSpent = Math.max(0, (existing.totalSpent || 0) - oldSpent + newInvoice.grandTotal);
 
         updatedCusts[custIdx] = {
           ...existing,
-          name: newInvoice.customerName || existing.name,
+          name: cleanCustomerName(newInvoice.customerName || existing.name, existing.notes),
           phone: newInvoice.customerPhone || existing.phone,
           address: newInvoice.customerAddress || existing.address,
           purchaseCount: newCount,
           totalSpent: newSpent,
           firstPurchaseDate: existing.firstPurchaseDate || newInvoice.date,
-          lastRewardRedeemedPurchaseCount: newInvoice.isLoyaltyRewardApplied
+          // Organization purchases never trigger or redeem loyalty rewards
+          lastRewardRedeemedPurchaseCount: isRetail && newInvoice.isLoyaltyRewardApplied
             ? newCount
             : existing.lastRewardRedeemedPurchaseCount,
           updatedAt: now,
@@ -2228,7 +2518,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newInvoice.customerId = newCustId;
         const newCust: Customer = {
           id: newCustId,
-          name: newInvoice.customerName.trim(),
+          name: cleanCustomerName(newInvoice.customerName.trim()),
+          customerType: 'Retail',
           phone: newInvoice.customerPhone || '',
           address: newInvoice.customerAddress || '',
           firstPurchaseDate: newInvoice.date,
@@ -3222,6 +3513,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const convertEnquiryToSale = (enquiryId: string, targetType: 'estimate' | 'invoice') => {
+    if (currentUser.role === 'Sales') {
+      toast.error('Permission restricted', {
+        description: 'The Sales role is not authorized to convert enquiries to quotations or invoices.',
+      });
+      return;
+    }
+
     const enq = enquiries.find((e) => e.id === enquiryId);
     if (!enq) return;
 
@@ -3272,6 +3570,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setEstimateToConvert(preFilledEstimate);
+    if (targetType === 'estimate') {
+      setEstimates((prev) => [preFilledEstimate, ...prev]);
+    }
+
     if (targetType === 'estimate') {
       setCurrentView('estimates');
     } else {
@@ -3880,6 +4182,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const getCustomerOutstandingBalance = (customer: Customer): number => {
+    return getCustomerOutstandingSummary(customer, invoices).totalOutstanding;
+  };
+
+  const getCustomerUnpaidInvoices = (customer: Customer): CustomerOutstandingInvoice[] => {
+    return getCustomerOutstandingSummary(customer, invoices).unpaidInvoices;
+  };
+
   const resetToDemoData = () => {
     setItems(INITIAL_ITEMS);
     setBranchStocks(INITIAL_BRANCH_STOCKS);
@@ -3908,6 +4218,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCombos(INITIAL_COMBOS);
     setCustomers(INITIAL_CUSTOMERS);
     setLoyaltySettings(INITIAL_LOYALTY_SETTINGS);
+    setStockTransfers(INITIAL_STOCK_TRANSFERS);
+    setInventorySettings(INITIAL_INVENTORY_SETTINGS);
+    setInventoryMovementFilter('all');
     setCurrentBranch('all');
     setCurrentView('dashboard');
     setCurrentUser({
@@ -3923,7 +4236,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <ErpContext.Provider
       value={{
         currentView,
-        setCurrentView,
+        setCurrentView: handleSetCurrentView,
         currentBranch,
         isAllBranches,
         currentBranchData,
@@ -3936,6 +4249,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthModalOpen,
         setAuthModalOpen,
         canManageItems,
+        canApproveCatalogRequests,
         canEditActiveBranchStock,
         isReadOnly,
         canViewDashboard,
@@ -3975,6 +4289,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getNextEnquiryNumber,
         canCancelEnquiry,
         canEditRestockDate,
+        canConvertEnquiry,
         reminders,
         addFollowUpReminder,
         completeFollowUpReminder,
@@ -4063,8 +4378,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentTermsOptions,
         addPaymentTerm,
         stockAdjustmentLogs,
+        stockTransfers,
         adjustStock,
         transferStock,
+        transferStockBatch,
+        inventorySettings,
+        updateInventorySettings,
+        getItemLastSaleInfo,
+        inventoryMovementFilter,
+        setInventoryMovementFilter,
+        navigateToInventoryWithMovementFilter,
         updateItemThreshold,
         canAdjustBranchStock,
         canInitiateTransferFrom,
@@ -4079,6 +4402,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canManageCustomers,
         selectedCustomerForDetail,
         setSelectedCustomerForDetail,
+        getCustomerOutstandingBalance,
+        getCustomerUnpaidInvoices,
+        getCustomerOutstandingSummary: (customer: Customer) => getCustomerOutstandingSummary(customer, invoices),
         resetToDemoData,
       }}
     >

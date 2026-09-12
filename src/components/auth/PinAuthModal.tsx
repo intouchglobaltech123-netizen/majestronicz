@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Building2,
   Lock,
+  UserCheck,
   X,
   KeyRound,
   CheckCircle2,
@@ -78,7 +79,7 @@ export const PinAuthModal: React.FC = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {PRESET_ROLES.map((preset) => {
                 const isCurrent = currentUser.role === preset.role;
                 return (
@@ -86,7 +87,7 @@ export const PinAuthModal: React.FC = () => {
                     key={preset.role}
                     onClick={() => handlePresetSelect(preset.pin, preset.defaultBranch)}
                     className={cn(
-                      'p-3 rounded-xl border flex flex-col items-start text-left transition-all relative overflow-hidden group',
+                      'p-2.5 rounded-xl border flex flex-col items-start text-left transition-all relative overflow-hidden group',
                       isCurrent
                         ? 'bg-blue-50 border-blue-400 shadow-xs'
                         : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
@@ -97,12 +98,13 @@ export const PinAuthModal: React.FC = () => {
                         <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
                       </div>
                     )}
-                    <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center mb-2 shadow-2xs">
+                    <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center mb-1.5 shadow-2xs">
                       {preset.role === 'CEO' && <ShieldCheck className="h-4 w-4 text-amber-600" />}
                       {preset.role === 'Manager' && <Building2 className="h-4 w-4 text-blue-600" />}
                       {preset.role === 'Billing' && <Lock className="h-4 w-4 text-slate-600" />}
+                      {preset.role === 'Sales' && <UserCheck className="h-4 w-4 text-emerald-600" />}
                     </div>
-                    <span className="text-xs font-bold text-slate-900 block">{preset.role}</span>
+                    <span className="text-xs font-bold text-slate-900 block truncate w-full">{preset.role}</span>
                     <span className="text-[10px] text-slate-500 block font-mono">PIN: {preset.pin}</span>
                   </button>
                 );
@@ -151,7 +153,7 @@ export const PinAuthModal: React.FC = () => {
               ))}
             </div>
             <p className="text-[11px] text-slate-500">
-              CEO (1111) • Manager (2222) • Billing (3333)
+              CEO (1111) • Manager (2222) • Billing (3333) • Sales (4444)
             </p>
           </div>
 

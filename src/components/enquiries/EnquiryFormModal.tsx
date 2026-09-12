@@ -38,6 +38,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
     getBranchStock,
     getNextEnquiryNumber,
     saveEnquiry,
+    canConvertEnquiry,
   } = useErp();
 
   // Branch
@@ -645,8 +646,8 @@ export const EnquiryFormModal: React.FC<Props> = ({
             </button>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-              {/* If in stock and existing item, surface prominent 1-click convert actions */}
-              {itemMode === 'existing' && isInStock && (
+              {/* If in stock and existing item, surface prominent 1-click convert actions (CEO, Manager, Billing only) */}
+              {canConvertEnquiry && itemMode === 'existing' && isInStock && (
                 <>
                   <button
                     type="button"

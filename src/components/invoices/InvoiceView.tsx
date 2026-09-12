@@ -8,6 +8,7 @@ import { ConvertEstimateModal } from './ConvertEstimateModal';
 import { SaleReturnModal } from './SaleReturnModal';
 import { ReturnsListView } from './ReturnsListView';
 import { SaleReturnDetailModal } from './SaleReturnDetailModal';
+import { EstimatePdfModal } from '../estimates/EstimatePdfModal';
 import {
   FileText,
   Plus,
@@ -21,15 +22,22 @@ import {
   RotateCcw,
   Ban,
   AlertTriangle,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type SaleStatusType = 'ALL' | 'Paid' | 'Partial' | 'Credit' | 'Voided';
 
-export const InvoiceView: React.FC = () => {
+interface Props {
+  initialTab?: 'ledger' | 'estimates' | 'returns';
+}
+
+export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const {
     invoices,
     estimates,
+    deleteEstimate,
     currentBranch,
     isAllBranches,
     currentBranchData,
@@ -38,14 +46,28 @@ export const InvoiceView: React.FC = () => {
     voidInvoice,
   } = useErp();
 
-  // DEFAULT LANDING VIEW: 'ledger' (Sales Ledger list)
-  const [activeTab, setActiveTab] = useState<'ledger' | 'returns' | 'new'>('ledger');
+  // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History), 'returns' (Returns), 'new' (Form)
+  const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new'>(initialTab);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
   const [convertedEstimate, setConvertedEstimate] = useState<Estimate | null>(null);
+  const [duplicateSourceInvoice, setDuplicateSourceInvoice] = useState<Invoice | null>(null);
+  const [duplicateSourceEstimate, setDuplicateSourceEstimate] = useState<Estimate | null>(null);
+  const [initialDocumentType, setInitialDocumentType] = useState<'Invoice' | 'Quotation'>('Invoice');
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
   const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<Invoice | null>(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [estimateSearchQuery, setEstimateSearchQuery] = useState('');
+  const [formInstanceId, setFormInstanceId] = useState(0);
+
+  // Sync with initialTab prop when changed by router
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Void confirmation modal state
   const [voidModalInvoice, setVoidModalInvoice] = useState<Invoice | null>(null);
@@ -56,6 +78,11 @@ export const InvoiceView: React.FC = () => {
     if (estimateToConvert) {
       setConvertedEstimate(estimateToConvert);
       setEditingInvoice(null);
+      setEditingEstimate(null);
+      setDuplicateSourceInvoice(null);
+      setDuplicateSourceEstimate(null);
+      setInitialDocumentType('Invoice');
+      setFormInstanceId((prev) => prev + 1);
       setActiveTab('new');
       setEstimateToConvert(null);
     }
@@ -149,16 +176,55 @@ export const InvoiceView: React.FC = () => {
     }
   };
 
+  // Filter estimates by search and branch scope
+  const filteredEstimates = useMemo(() => {
+    return estimates.filter((est) => {
+      const matchesBranch =
+        branchFilter === 'ALL'
+          ? isAllBranches || est.branchId === currentBranch
+          : est.branchId === branchFilter;
+
+      if (!matchesBranch) return false;
+
+      const q = estimateSearchQuery.trim().toLowerCase();
+      if (!q) return true;
+
+      return (
+        est.customerName.toLowerCase().includes(q) ||
+        est.estimateNumber.toLowerCase().includes(q) ||
+        (est.customerContact && est.customerContact.includes(q))
+      );
+    });
+  }, [estimates, branchFilter, isAllBranches, currentBranch, estimateSearchQuery]);
+
   const handleSaved = (savedInvoice: Invoice) => {
     setEditingInvoice(null);
+    setEditingEstimate(null);
     setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
     setActiveTab('ledger');
     setPreviewInvoice(savedInvoice);
   };
 
-  const handleStartBlank = () => {
+  const handleSavedEstimate = (savedEstimate: Estimate) => {
     setEditingInvoice(null);
+    setEditingEstimate(null);
     setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setActiveTab('estimates');
+    setPreviewEstimate(savedEstimate);
+  };
+
+  const handleStartBlank = (docType: 'Invoice' | 'Quotation' = 'Invoice') => {
+    setEditingInvoice(null);
+    setEditingEstimate(null);
+    setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setInitialDocumentType(docType);
+    setFormInstanceId((prev) => prev + 1);
     setActiveTab('new');
   };
 
@@ -168,14 +234,62 @@ export const InvoiceView: React.FC = () => {
       return;
     }
     setEditingInvoice(invoice);
+    setEditingEstimate(null);
     setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setInitialDocumentType('Invoice');
+    setFormInstanceId((prev) => prev + 1);
+    setActiveTab('new');
+  };
+
+  const handleEditEstimate = (estimate: Estimate) => {
+    setEditingEstimate(estimate);
+    setEditingInvoice(null);
+    setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setInitialDocumentType('Quotation');
+    setFormInstanceId((prev) => prev + 1);
+    setActiveTab('new');
+  };
+
+  const handleDuplicate = (invoice: Invoice) => {
+    if (invoice.isVoided) {
+      toast.error('Cannot duplicate a voided sale.');
+      return;
+    }
+    setDuplicateSourceInvoice(invoice);
+    setDuplicateSourceEstimate(null);
+    setEditingInvoice(null);
+    setEditingEstimate(null);
+    setConvertedEstimate(null);
+    setInitialDocumentType('Invoice');
+    setFormInstanceId((prev) => prev + 1);
+    setActiveTab('new');
+  };
+
+  const handleDuplicateEstimate = (estimate: Estimate) => {
+    setDuplicateSourceEstimate(estimate);
+    setDuplicateSourceInvoice(null);
+    setEditingInvoice(null);
+    setEditingEstimate(null);
+    setConvertedEstimate(null);
+    setInitialDocumentType('Quotation');
+    setFormInstanceId((prev) => prev + 1);
     setActiveTab('new');
   };
 
   const handleSelectEstimateToConvert = (est: Estimate) => {
     setEditingInvoice(null);
+    setEditingEstimate(null);
     setConvertedEstimate(est);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setInitialDocumentType('Invoice');
+    setFormInstanceId((prev) => prev + 1);
     setActiveTab('new');
+    setIsConvertModalOpen(false);
   };
 
   const handleConfirmVoid = () => {
@@ -217,61 +331,91 @@ export const InvoiceView: React.FC = () => {
         </div>
 
         {/* Action Buttons & Tab Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
             onClick={() => setIsConvertModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-2xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-2xs transition-colors cursor-pointer"
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
             <span>Convert from Quote</span>
           </button>
 
-            {/* Primary View Switcher */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-              <button
-                onClick={() => setActiveTab('ledger')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all',
-                  activeTab === 'ledger'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                <span>Sales Ledger ({invoices.length})</span>
-              </button>
+          {/* Primary View Switcher (Tabs Only) */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('ledger')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                activeTab === 'ledger'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span>Sales Ledger ({invoices.length})</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('returns')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all',
-                  activeTab === 'returns'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>Returns ({returnedInvoicesCount})</span>
-              </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('estimates')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                activeTab === 'estimates'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Quotation History ({estimates.length})</span>
+            </button>
 
-              <button
-                onClick={handleStartBlank}
-                className={cn(
-                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all',
-                  activeTab === 'new'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              <span>
-                {editingInvoice
-                  ? 'Edit Sale'
-                  : convertedEstimate
-                  ? 'Convert to Sale'
-                  : 'New Sale'}
-              </span>
+            <button
+              type="button"
+              onClick={() => setActiveTab('returns')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                activeTab === 'returns'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Returns ({returnedInvoicesCount})</span>
+            </button>
+          </div>
+
+          {/* Persistent Creation Buttons: ALWAYS visible from ALL tabs */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleStartBlank('Invoice')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                activeTab === 'new' && initialDocumentType === 'Invoice' && !editingInvoice && !convertedEstimate && !duplicateSourceInvoice
+                  ? 'bg-blue-700 ring-2 ring-blue-300 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              )}
+              title="Create a new Sales Invoice (Tax Invoice or Cash/Credit Bill)"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>+ New Sale</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleStartBlank('Quotation')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                activeTab === 'new' && initialDocumentType === 'Quotation' && !editingEstimate && !duplicateSourceEstimate
+                  ? 'bg-purple-700 ring-2 ring-purple-300 text-white'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              )}
+              title="Create a new Commercial Quotation / Proforma"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>+ New Quote</span>
             </button>
           </div>
         </div>
@@ -281,11 +425,28 @@ export const InvoiceView: React.FC = () => {
       {activeTab === 'new' ? (
         /* CREATION / EDITING FORM */
         <InvoiceForm
+          key={`invoice-form-${formInstanceId}-${initialDocumentType}`}
           initialInvoice={editingInvoice}
+          initialEstimate={editingEstimate}
           convertedFromEstimate={convertedEstimate}
+          duplicateSourceInvoice={duplicateSourceInvoice}
+          duplicateSourceEstimate={duplicateSourceEstimate}
+          initialDocumentType={initialDocumentType}
           onSaved={handleSaved}
+          onSavedEstimate={handleSavedEstimate}
           onPreviewPdf={(inv) => setPreviewInvoice(inv)}
-          onCancel={() => setActiveTab('ledger')}
+          onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
+          onCancel={() => {
+            setDuplicateSourceInvoice(null);
+            setDuplicateSourceEstimate(null);
+            setEditingInvoice(null);
+            setEditingEstimate(null);
+            if (initialDocumentType === 'Quotation' || editingEstimate || duplicateSourceEstimate) {
+              setActiveTab('estimates');
+            } else {
+              setActiveTab('ledger');
+            }
+          }}
         />
       ) : activeTab === 'returns' ? (
         /* DEDICATED RETURNS TAB VIEW */
@@ -293,6 +454,169 @@ export const InvoiceView: React.FC = () => {
           onSelectReturn={(inv) => setSelectedReturnInvoice(inv)}
           onViewOriginalSale={(inv) => setPreviewInvoice(inv)}
         />
+      ) : activeTab === 'estimates' ? (
+        /* QUOTATION HISTORY TAB VIEW */
+        <div className="space-y-4">
+          {/* Quick Filter Bar */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div className="relative flex-1 max-w-md w-full">
+              <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search quotation by Customer, Quote No, or Phone..."
+                value={estimateSearchQuery}
+                onChange={(e) => setEstimateSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Building className="h-4 w-4 text-blue-600" />
+                <span>
+                  Scope: <strong>{branchFilter === 'ALL' ? (isAllBranches ? 'All Branches' : currentBranchData?.name) : BRANCHES.find(b => b.id === branchFilter)?.name}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quotations Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-3.5 px-4">Quote No</th>
+                    <th className="py-3.5 px-4">Customer Details</th>
+                    <th className="py-3.5 px-4">Date & Time</th>
+                    <th className="py-3.5 px-4">Branch</th>
+                    <th className="py-3.5 px-4">Tax Mode</th>
+                    <th className="py-3.5 px-4 text-right">Grand Total</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-800">
+                  {filteredEstimates.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <FileText className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-bold text-sm text-slate-700">No quotations found</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Create a commercial quotation by clicking below.
+                        </p>
+                        <div className="mt-4">
+                          <button
+                            type="button"
+                            onClick={() => handleStartBlank('Quotation')}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                          >
+                            + Create First Quotation
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEstimates.map((est) => (
+                      <tr key={est.id} className="hover:bg-slate-50/70 transition-colors group">
+                        <td className="py-3.5 px-4 font-mono">
+                          <span className="font-bold text-purple-700 block">{est.estimateNumber}</span>
+                          {est.sourceEnquiryNumber && (
+                            <span
+                              className="text-[10px] text-blue-700 font-medium block truncate mt-0.5"
+                              title={`From Enquiry #${est.sourceEnquiryNumber}`}
+                            >
+                              From Enq: #{est.sourceEnquiryNumber}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{est.customerName}</div>
+                          {est.customerContact && (
+                            <div className="text-[11px] text-slate-500">{est.customerContact}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">
+                          <div className="flex items-center gap-1 font-medium">
+                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{est.date}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 pl-4">{est.time}</span>
+                        </td>
+                        <td className="py-3.5 px-4 uppercase font-mono text-[11px] text-slate-600">
+                          {BRANCHES.find((b) => b.id === est.branchId)?.shortCode || est.branchId}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {est.withGst ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              With GST
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              Without Tax
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-black text-sm text-slate-900">
+                          {formatCurrency(est.grandTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectEstimateToConvert(est)}
+                              title="Convert this quotation into a Sales Invoice"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                            >
+                              <ArrowRightLeft className="h-3 w-3" />
+                              <span>To Invoice</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewEstimate(est)}
+                              title="Print / Save PDF"
+                              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditEstimate(est)}
+                              title="Edit Quotation"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateEstimate(est)}
+                              title="Duplicate Quote (New quote with same items)"
+                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Delete quotation ${est.estimateNumber}?`)) {
+                                  deleteEstimate(est.id);
+                                  toast.success(`Quotation ${est.estimateNumber} deleted`);
+                                }
+                              }}
+                              title="Delete Quotation"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       ) : (
         /* DEFAULT VIEW: SALES LEDGER LIST */
         <div className="space-y-4">
@@ -468,8 +792,9 @@ export const InvoiceView: React.FC = () => {
                         </p>
                         <div className="mt-4 flex justify-center gap-2">
                           <button
-                            onClick={handleStartBlank}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs"
+                            type="button"
+                            onClick={() => handleStartBlank('Invoice')}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer"
                           >
                             + New Sale
                           </button>
@@ -650,6 +975,22 @@ export const InvoiceView: React.FC = () => {
                                 <Edit2 className="h-3.5 w-3.5" />
                               </button>
 
+                              {/* Duplicate Action */}
+                              <button
+                                type="button"
+                                onClick={() => handleDuplicate(inv)}
+                                disabled={isVoided}
+                                title={isVoided ? 'Cannot duplicate voided sale' : 'Duplicate Sale (New invoice with same items)'}
+                                className={cn(
+                                  'p-1.5 rounded-lg border transition-colors',
+                                  isVoided
+                                    ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
+                                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
+                                )}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+
                               {/* Void Action */}
                               <button
                                 type="button"
@@ -686,7 +1027,14 @@ export const InvoiceView: React.FC = () => {
         invoice={previewInvoice}
         isOpen={!!previewInvoice}
         onClose={() => setPreviewInvoice(null)}
-        onCreateNew={handleStartBlank}
+        onCreateNew={() => handleStartBlank('Invoice')}
+      />
+
+      {/* Quotation PDF Preview Modal */}
+      <EstimatePdfModal
+        estimate={previewEstimate}
+        isOpen={!!previewEstimate}
+        onClose={() => setPreviewEstimate(null)}
       />
 
       {/* Line-Item Return Modal */}

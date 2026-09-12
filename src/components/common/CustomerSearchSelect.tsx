@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types';
+import { Customer, CustomerType, cleanCustomerName, isLoyaltyMilestoneEligible, getLoyaltyProgress, getCustomerOutstandingSummary } from '../../types';
 import {
   Search,
   User,
@@ -12,8 +12,13 @@ import {
   Sparkles,
   Award,
   ChevronDown,
+  Building2,
+  History,
+  ReceiptText,
+  Calendar,
+  AlertCircle,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency } from '../../lib/utils';
 
 export interface CustomerSearchSelectProps {
   label?: React.ReactNode;
@@ -43,13 +48,15 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   disabled = false,
   className = '',
 }) => {
-  const { customers, loyaltySettings, saveCustomer } = useErp();
+  const { customers, loyaltySettings, saveCustomer, invoices } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Quick Add form state
   const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<CustomerType | null>(null);
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newNotes, setNewNotes] = useState('');
@@ -88,6 +95,39 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     return null;
   }, [customers, selectedCustomerId, customerPhone, customerName]);
 
+  // Customer Invoices & stats calculation for selected customer
+  const selectedCustomerInvoices = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const cleanPhone = (selectedCustomer.phone || '').trim().replace(/\D/g, '');
+    return invoices.filter((inv) => {
+      if (inv.customerId && inv.customerId === selectedCustomer.id) return true;
+      if (cleanPhone && inv.customerPhone) {
+        if (inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
+      }
+      if (selectedCustomer.name && inv.customerName) {
+        if (inv.customerName.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase()) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [invoices, selectedCustomer]);
+
+  const selectedCustomerTotalSpent = useMemo(() => {
+    if (!selectedCustomer) return 0;
+    const nonVoided = selectedCustomerInvoices.filter((i) => !i.isVoided);
+    if (nonVoided.length > 0) {
+      return nonVoided.reduce((sum, i) => sum + i.grandTotal, 0);
+    }
+    return selectedCustomer.totalSpent || 0;
+  }, [selectedCustomer, selectedCustomerInvoices]);
+
+  // Selected customer total outstanding balance across Credit/Partial sales
+  const selectedCustomerOutstanding = useMemo(() => {
+    if (!selectedCustomer) return { totalOutstanding: 0, unpaidInvoices: [] };
+    return getCustomerOutstandingSummary(selectedCustomer, invoices);
+  }, [selectedCustomer, invoices]);
+
   // Filtered customer options matching both Name and Phone
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -112,7 +152,11 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   };
 
   const handleSelect = (customer: Customer) => {
-    onSelectCustomer(customer);
+    const cleanName = cleanCustomerName(customer.name, customer.notes);
+    onSelectCustomer({
+      ...customer,
+      name: cleanName,
+    });
     setIsOpen(false);
     setSearchQuery('');
   };
@@ -122,6 +166,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     const isDigitsOnly = /^[0-9+\s()-]+$/.test(query);
 
     setNewName(isDigitsOnly ? '' : query);
+    setNewType(null);
     setNewPhone(isDigitsOnly ? query : '');
     setNewAddress('');
     setNewNotes('');
@@ -135,11 +180,16 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     setQuickAddError('');
 
     const cleanPhone = newPhone.trim().replace(/\D/g, '');
+    const cleanName = cleanCustomerName(newName, newNotes);
+    if (!newType) {
+      setQuickAddError('Please select Customer Type (Retail or Organization)');
+      return;
+    }
     if (!cleanPhone) {
       setQuickAddError('Phone number is required');
       return;
     }
-    if (!newName.trim()) {
+    if (!cleanName) {
       setQuickAddError('Customer name is required');
       return;
     }
@@ -147,7 +197,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     const now = new Date().toISOString();
     const res = saveCustomer({
       id: `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: newName.trim(),
+      name: cleanName,
+      customerType: newType,
       phone: newPhone.trim(),
       address: newAddress.trim(),
       notes: newNotes.trim() || undefined,
@@ -177,9 +228,16 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             {label} {required && <span className="text-rose-500">*</span>}
           </span>
           {selectedCustomer && (
-            <span className="text-[10px] font-semibold text-blue-600">
-              #{selectedCustomer.purchaseCount} purchases
-            </span>
+            (selectedCustomer.customerType || 'Retail') === 'Organization' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[10px] font-bold text-purple-700">
+                <Building2 className="h-3 w-3 text-purple-600" />
+                Organization Account
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-blue-600">
+                #{selectedCustomer.purchaseCount} purchases
+              </span>
+            )
           )}
         </label>
       )}
@@ -188,23 +246,71 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {selectedCustomer ? (
         <div className="flex items-center justify-between p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl transition-all">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 font-bold text-xs">
-              {selectedCustomer.name.charAt(0).toUpperCase()}
+            <div className={cn(
+              "w-8 h-8 rounded-lg text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-xs",
+              (selectedCustomer.customerType || 'Retail') === 'Organization' ? "bg-purple-600" : "bg-blue-600"
+            )}>
+              {(selectedCustomer.customerType || 'Retail') === 'Organization' ? (
+                <Building2 className="h-4 w-4" />
+              ) : (
+                selectedCustomer.name.charAt(0).toUpperCase()
+              )}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-900 truncate">
-                  {selectedCustomer.name}
+                  {cleanCustomerName(selectedCustomer.name)}
                 </span>
-                {isLoyaltyMilestoneEligible(selectedCustomer, loyaltySettings) ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-[10px] font-bold text-amber-800 animate-pulse">
-                    <Sparkles className="h-3 w-3 text-amber-600" />
-                    Milestone! ({loyaltySettings.discountValue}{loyaltySettings.discountType === 'percentage' ? '%' : '₹'} Off)
-                  </span>
+                {(selectedCustomer.customerType || 'Retail') === 'Organization' ? (
+                  /* Organization: DO NOT show loyalty badge/reward progress at all.
+                     Instead show a "Purchase History" link/summary (e.g. total orders, total value) */
+                  <div className="inline-flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-100/80 border border-purple-200 text-[10px] font-bold text-purple-800">
+                      <Building2 className="h-2.5 w-2.5 text-purple-600" />
+                      Organization
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsHistoryModalOpen(true)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white hover:bg-purple-50 border border-purple-200 text-[10px] font-bold text-purple-700 hover:text-purple-900 transition-colors shadow-2xs cursor-pointer"
+                      title="Click to view full purchase history orders & invoices"
+                    >
+                      <History className="h-3 w-3 text-purple-600" />
+                      <span>
+                        Purchase History ({selectedCustomerInvoices.length} orders • {formatCurrency(selectedCustomerTotalSpent)})
+                      </span>
+                    </button>
+                  </div>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium text-slate-600">
-                    <Award className="h-2.5 w-2.5 text-blue-600" />
-                    {getLoyaltyProgress(selectedCustomer, loyaltySettings).label}
+                  /* Retail: show existing loyalty elements — "#N purchases" and "X/10 to next reward" badge, exactly as currently built */
+                  isLoyaltyMilestoneEligible(selectedCustomer, loyaltySettings) ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-[10px] font-bold text-amber-800 animate-pulse">
+                      <Sparkles className="h-3 w-3 text-amber-600" />
+                      Milestone! ({loyaltySettings.discountValue}{loyaltySettings.discountType === 'percentage' ? '%' : '₹'} Off)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium text-slate-600">
+                      <Award className="h-2.5 w-2.5 text-blue-600" />
+                      {getLoyaltyProgress(selectedCustomer, loyaltySettings).label}
+                    </span>
+                  )
+                )}
+
+                {/* Outstanding Balance Indicator (Baseline implementation pending Vyapar reference) */}
+                {selectedCustomerOutstanding.totalOutstanding > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-300 text-[11px] font-extrabold text-amber-900 shadow-2xs transition-colors cursor-pointer"
+                    title={`Click to view breakdown of ${selectedCustomerOutstanding.unpaidInvoices.length} unpaid / partial bill(s)`}
+                  >
+                    <AlertCircle className="h-3 w-3 text-amber-600 shrink-0" />
+                    <span>Balance Due: {formatCurrency(selectedCustomerOutstanding.totalOutstanding)}</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                    <Check className="h-2.5 w-2.5 text-emerald-600" />
+                    <span>No Balance Due</span>
                   </span>
                 )}
               </div>
@@ -311,7 +417,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             {filteredCustomers.length > 0 ? (
               filteredCustomers.map((cust) => {
                 const isSelected = selectedCustomer?.id === cust.id;
-                const isEligible = isLoyaltyMilestoneEligible(cust, loyaltySettings);
+                const isOrg = (cust.customerType || 'Retail') === 'Organization';
+                const isEligible = !isOrg && isLoyaltyMilestoneEligible(cust, loyaltySettings);
                 const progress = getLoyaltyProgress(cust, loyaltySettings);
 
                 return (
@@ -327,9 +434,14 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {cust.name}
+                          {cleanCustomerName(cust.name, cust.notes)}
                         </span>
-                        {isEligible ? (
+                        {isOrg ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-bold">
+                            <Building2 className="h-2.5 w-2.5 text-purple-600" />
+                            Organization
+                          </span>
+                        ) : isEligible ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
                             <Sparkles className="h-2.5 w-2.5 text-amber-600" />
                             Reward Ready!
@@ -339,6 +451,19 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                             ({progress.label})
                           </span>
                         )}
+
+                        {(() => {
+                          const custBal = getCustomerOutstandingSummary(cust, invoices).totalOutstanding;
+                          if (custBal > 0) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold">
+                                <AlertCircle className="h-2.5 w-2.5 text-amber-600" />
+                                Due: {formatCurrency(custBal)}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
 
                       <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
@@ -353,7 +478,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                           </span>
                         )}
                         <span className="text-slate-400 ml-auto shrink-0 font-medium">
-                          {cust.purchaseCount} bills
+                          {isOrg ? `${cust.purchaseCount || 0} orders` : `${cust.purchaseCount} bills`}
                         </span>
                       </div>
                     </div>
@@ -412,6 +537,48 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 
             <form onSubmit={handleSaveQuickAdd} className="space-y-3.5">
               <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Customer Type <span className="text-rose-500">*</span>
+                  {!newType && <span className="text-amber-600 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewType('Retail')}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      newType === 'Retail'
+                        ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-100 text-blue-950 shadow-xs'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    )}
+                  >
+                    <User className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Retail' ? 'text-blue-600' : 'text-slate-400')} />
+                    <div>
+                      <div className="text-xs font-bold">Retail</div>
+                      <div className="text-[10px] text-slate-500 leading-tight">Walk-in buyers, loyalty enabled</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewType('Organization')}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      newType === 'Organization'
+                        ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-100 text-purple-950 shadow-xs'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    )}
+                  >
+                    <Building2 className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Organization' ? 'text-purple-600' : 'text-slate-400')} />
+                    <div>
+                      <div className="text-xs font-bold">Organization</div>
+                      <div className="text-[10px] text-slate-500 leading-tight">Colleges, companies, bulk buyer</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                   Customer / Company Name <span className="text-rose-500">*</span>
                 </label>
@@ -437,7 +604,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   onChange={(e) => setNewPhone(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Used to prevent duplicates & track loyalty purchases</p>
+                <p className="text-[10px] text-slate-400 mt-1">Used to prevent duplicates & track order history</p>
               </div>
 
               <div>
@@ -476,12 +643,146 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
                 >
                   Save & Select Customer
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Organization Purchase History Modal */}
+      {isHistoryModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-700">
+                  <Building2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-900">{cleanCustomerName(selectedCustomer.name)}</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 font-bold text-[10px]">
+                      Organization
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Institutional Relationship • Phone: {selectedCustomer.phone}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Quick summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Orders</span>
+                <span className="text-lg font-extrabold text-slate-900">{selectedCustomerInvoices.length}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Billed</span>
+                <span className="text-lg font-extrabold text-slate-900 font-mono">{formatCurrency(selectedCustomerTotalSpent)}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
+                <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Balance Due</span>
+                <span className={cn(
+                  "text-lg font-black font-mono block",
+                  selectedCustomerOutstanding.totalOutstanding > 0 ? "text-amber-900" : "text-emerald-700"
+                )}>
+                  {formatCurrency(selectedCustomerOutstanding.totalOutstanding)}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Account Type</span>
+                <span className="text-xs font-bold text-purple-700 mt-1 block truncate">
+                  {(selectedCustomer.customerType || 'Retail') === 'Organization' ? 'Organization' : 'Retail Customer'}
+                </span>
+              </div>
+            </div>
+
+            {/* Invoices List */}
+            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-100 rounded-2xl p-2 bg-slate-50/40">
+              {selectedCustomerInvoices.length > 0 ? (
+                selectedCustomerInvoices.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-blue-700">#{inv.invoiceNumber}</span>
+                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {inv.date}
+                        </span>
+                        {inv.isVoided && (
+                          <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
+                            Voided
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 truncate max-w-sm">
+                        {inv.items.map((it) => `${it.quantity}x ${it.itemName}`).join(', ')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-extrabold text-xs text-slate-900">
+                        {formatCurrency(inv.grandTotal)}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium block">{inv.paymentMode}</span>
+                      {(() => {
+                        let due = 0;
+                        let paid = inv.grandTotal;
+                        if (inv.isPartialPayment) {
+                          paid = inv.partialAmount || 0;
+                          due = inv.balanceDue !== undefined ? inv.balanceDue : Math.max(0, inv.grandTotal - paid);
+                        } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
+                          paid = 0;
+                          due = inv.balanceDue !== undefined ? inv.balanceDue : inv.grandTotal;
+                        } else if (inv.balanceDue && inv.balanceDue > 0) {
+                          due = inv.balanceDue;
+                          paid = Math.max(0, inv.grandTotal - due);
+                        }
+                        if (due > 0) {
+                          return (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-0.5">
+                              Due: {formatCurrency(due)}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-slate-400">
+                  <ReceiptText className="h-8 w-8 mx-auto text-slate-300 mb-1" />
+                  <p className="text-xs font-semibold text-slate-600">No prior sales invoices recorded yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Completing this sale will establish their order history</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

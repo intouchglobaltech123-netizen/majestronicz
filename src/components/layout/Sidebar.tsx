@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Boxes,
   Layers,
-  FileText,
   Barcode,
   ShoppingBag,
   BarChart3,
@@ -38,26 +37,27 @@ export const Sidebar: React.FC = () => {
     canViewReports,
   } = useErp();
 
+  const isSales = currentUser.role === 'Sales';
+
   const navItems: {
     id: ActiveNavView;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     visible: boolean;
   }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canViewDashboard },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: !isSales && canViewDashboard },
     { id: 'items', label: 'Items', icon: Boxes, visible: true },
-    { id: 'customers', label: 'Customers', icon: UserCheck, visible: true },
+    { id: 'customers', label: 'Customers', icon: UserCheck, visible: !isSales },
     { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: true },
-    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: true },
-    { id: 'estimates', label: 'Quotes', icon: FileText, visible: true },
-    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: true },
-    { id: 'inventory', label: 'Inventory', icon: Layers, visible: true },
-    { id: 'invoices', label: 'Sales', icon: Receipt, visible: true },
-    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: true },
-    { id: 'cash-register', label: 'Cash Register', icon: WalletCards, visible: true },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canManagePurchases },
-    { id: 'hrm', label: 'Attendance', icon: Users, visible: canViewHrm },
-    { id: 'reports', label: 'Reports', icon: BarChart3, visible: canViewReports },
+    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: !isSales },
+    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: !isSales },
+    { id: 'inventory', label: 'Inventory', icon: Layers, visible: !isSales },
+    { id: 'invoices', label: 'Sales', icon: Receipt, visible: !isSales },
+    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: !isSales },
+    { id: 'cash-register', label: 'Cash Register', icon: WalletCards, visible: !isSales },
+    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: !isSales && canManagePurchases },
+    { id: 'hrm', label: 'Attendance', icon: Users, visible: !isSales && canViewHrm },
+    { id: 'reports', label: 'Reports', icon: BarChart3, visible: !isSales && canViewReports },
   ];
 
   return (
@@ -129,7 +129,8 @@ export const Sidebar: React.FC = () => {
                 'text-[10px] font-bold px-2 py-0.5 rounded-full border',
                 currentUser.role === 'CEO' && 'bg-amber-50 text-amber-700 border-amber-200',
                 currentUser.role === 'Manager' && 'bg-blue-50 text-blue-700 border-blue-200',
-                currentUser.role === 'Billing' && 'bg-slate-100 text-slate-700 border-slate-200'
+                currentUser.role === 'Billing' && 'bg-slate-100 text-slate-700 border-slate-200',
+                currentUser.role === 'Sales' && 'bg-emerald-50 text-emerald-700 border-emerald-200'
               )}
             >
               {currentUser.role}
@@ -142,6 +143,8 @@ export const Sidebar: React.FC = () => {
                 <ShieldCheck className="h-4 w-4 text-amber-600" />
               ) : currentUser.role === 'Manager' ? (
                 <Building2 className="h-4 w-4 text-blue-600" />
+              ) : currentUser.role === 'Sales' ? (
+                <UserCheck className="h-4 w-4 text-emerald-600" />
               ) : (
                 <Lock className="h-4 w-4 text-slate-600" />
               )}
@@ -153,6 +156,8 @@ export const Sidebar: React.FC = () => {
                   ? 'CEO • All Branches'
                   : currentUser.role === 'Manager'
                   ? `Manager • ${currentUser.assignedBranchId || 'Coimbatore'}`
+                  : currentUser.role === 'Sales'
+                  ? 'Sales Executive'
                   : 'Billing Staff'}
               </p>
             </div>

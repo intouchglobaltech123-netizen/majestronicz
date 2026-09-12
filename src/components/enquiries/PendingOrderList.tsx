@@ -32,6 +32,7 @@ export const PendingOrderList: React.FC<Props> = ({
 }) => {
   const {
     canCancelEnquiry,
+    canConvertEnquiry,
     canEditRestockDate,
     updatePendingOrder,
     cancelPendingOrder,
@@ -282,7 +283,7 @@ export const PendingOrderList: React.FC<Props> = ({
                         })()}
 
                         {/* 1-Click Convert buttons */}
-                        {po.status !== 'Fulfilled' && po.status !== 'Cancelled' && (
+                        {canConvertEnquiry && po.status !== 'Fulfilled' && po.status !== 'Cancelled' && (
                           <>
                             <button
                               type="button"

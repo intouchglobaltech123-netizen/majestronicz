@@ -1,10 +1,13 @@
+export type CustomerType = 'Retail' | 'Organization';
+
 export interface Customer {
   id: string;
   name: string;
   phone: string; // unique key - used to prevent duplicate customer records
   address: string;
+  customerType?: CustomerType; // 'Retail' (walk-in/small buyer, loyalty enabled) or 'Organization' (bulk institutional buyer)
   firstPurchaseDate: string; // auto (YYYY-MM-DD)
-  purchaseCount: number; // auto-incremented on completed non-voided sale
+  purchaseCount: number; // auto-incremented on completed non-voided sale (Retail only)
   totalSpent: number; // auto-accumulated from completed sales
   notes?: string;
   createdAt: string;
@@ -22,15 +25,47 @@ export interface LoyaltySettings {
 }
 
 /**
+ * Sanitizes customer name ensuring ONLY clean name string is stored.
+ * Strips any accidentally appended notes, remarks, purchase counts, or reward status strings.
+ */
+export function cleanCustomerName(rawName: string, notes?: string): string {
+  if (!rawName) return '';
+  let cleaned = rawName.trim();
+
+  // If notes string is provided and was appended to name, remove it
+  if (notes && notes.trim() && cleaned.includes(notes.trim())) {
+    cleaned = cleaned.replace(notes.trim(), '').trim();
+  }
+
+  // Remove common accidental concatenations:
+  // e.g. " • Note: ...", " - Note: ...", " (Note: ...)", "\nNote: ..."
+  // e.g. " • 8 purchases", " - 8 purchases", "#8 purchases", "8/10 to next reward"
+  // e.g. " - Purchase History: ..."
+  cleaned = cleaned
+    .replace(/\s*[-•|]\s*(?:#?\d+\s*purchases?|\d+\/\d+\s*to\s*next\s*reward|Reward\s*Ready!?|Milestone!?).*/i, '')
+    .replace(/\s*[-•|]\s*Purchase History:?.*/i, '')
+    .replace(/\s*\(?(?:#?\d+\s*purchases?|\d+\/\d+\s*to\s*next\s*reward)\)?/gi, '')
+    .replace(/\s*[-•|]\s*(?:Notes?|Remarks?):?.*/i, '')
+    .trim();
+
+  // Remove any trailing dashes, bullets, colons, or orphaned opening/closing punctuation
+  cleaned = cleaned.replace(/[-•:,(\s]+$/, '').trim();
+
+  return cleaned;
+}
+
+/**
  * Checks whether a customer is currently eligible for an unredeemed loyalty reward
- * based on the active rule threshold. Supports checking either current purchase count
- * or anticipating the upcoming milestone sale.
+ * based on the active rule threshold.
+ * IMPORTANT: Loyalty milestones ONLY apply to Retail customers. Organization customers never trigger loyalty rewards.
  */
 export function isLoyaltyMilestoneEligible(
   customer: Customer,
   settings: LoyaltySettings,
   isCurrentSaleMilestoneCheck?: boolean
 ): boolean {
+  // Organizations get bulk relationships, not loyalty milestones
+  if (customer.customerType === 'Organization') return false;
   if (!settings.isActive || settings.purchaseThreshold <= 0) return false;
 
   const countToCheck = isCurrentSaleMilestoneCheck
@@ -61,6 +96,17 @@ export function getLoyaltyProgress(
   label: string;
 } {
   const threshold = Math.max(1, settings.purchaseThreshold || 10);
+
+  if (customer.customerType === 'Organization') {
+    return {
+      isMilestoneReached: false,
+      currentCount: 0,
+      threshold,
+      purchasesUntilNext: 0,
+      label: 'Bulk Account (Loyalty N/A)',
+    };
+  }
+
   const isEligible = isLoyaltyMilestoneEligible(customer, settings);
 
   const remainder = customer.purchaseCount % threshold;

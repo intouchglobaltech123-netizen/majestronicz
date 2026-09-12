@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useErp } from '../../context/ErpContext';
 import { Invoice, COMPANY_PROFILE, GstBreakdownRow } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { calculateTaxBreakdown } from '../../lib/taxCalculations';
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) => {
+  const { items } = useErp();
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
@@ -302,6 +304,14 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       {item.itemCode && (
                         <span className="text-[10px] text-slate-500 font-mono">Code: {item.itemCode}</span>
                       )}
+                      {(() => {
+                        const master = items.find((i) => i.id === item.itemId || i.itemCode === item.itemCode);
+                        return master?.description ? (
+                          <p className="text-[10px] text-slate-500 italic mt-0.5 line-clamp-2">
+                            {master.description}
+                          </p>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{item.itemHSN || '—'}</td>
                     <td className="py-2.5 px-3 text-right font-bold text-slate-900">{item.quantity}</td>
