@@ -60,6 +60,10 @@ import {
   RecurringExpenseApproval,
   Customer,
   LoyaltySettings,
+  StockTransfer,
+  InventorySettings,
+  CustomerOutstandingInvoice,
+  getCustomerOutstandingSummary,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { LoginScreen } from '../components/auth/LoginScreen';
@@ -146,7 +150,7 @@ interface ErpContextType {
   estimates: Estimate[];
   saveEstimate: (estimate: Estimate) => void;
   deleteEstimate: (estimateId: string) => void;
-  getNextEstimateNumber: (branchId: BranchId) => string;
+  getNextEstimateNumber: (branchId: BranchId, date?: string) => string;
 
   // Delivery Challans (Low-usage goods movement note)
   challans: DeliveryChallan[];
@@ -176,7 +180,7 @@ interface ErpContextType {
     reason: string,
     notes?: string
   ) => void;
-  getNextInvoiceNumber: (branchId: BranchId) => string;
+  getNextInvoiceNumber: (branchId: BranchId, date?: string) => string;
   estimateToConvert: Estimate | null;
   setEstimateToConvert: (estimate: Estimate | null) => void;
   inventoryFilterQuery: string;
@@ -384,6 +388,29 @@ interface ErpContextType {
   // Reports
   canViewReports: boolean;
   canAccessView: (view: ActiveNavView) => boolean;
+  canConvertEnquiry: boolean;
+  canApproveCatalogRequests: boolean;
+
+  // Multi-item transfers, dead-stock, outstanding balance, inventory config
+  stockTransfers: StockTransfer[];
+  transferStockBatch: (
+    items: { itemId: string; quantity: number }[],
+    fromBranch: BranchId,
+    toBranch: BranchId,
+    notes?: string,
+    autoGenerateChallan?: boolean
+  ) => { transferRef: string; challanNumber?: string };
+  inventorySettings: InventorySettings;
+  updateInventorySettings: (settings: Partial<InventorySettings>) => void;
+  getItemLastSaleInfo: (
+    itemId: string,
+    branchScope?: BranchScope
+  ) => { lastSaleDate: string | null; daysSinceLastSale: number | null; hasSales: boolean; isDeadStock: boolean };
+  getCustomerOutstandingBalance: (customer: Customer) => number;
+  getCustomerUnpaidInvoices: (customer: Customer) => CustomerOutstandingInvoice[];
+  inventoryMovementFilter: 'all' | 'not-moving' | 'active';
+  setInventoryMovementFilter: (f: 'all' | 'not-moving' | 'active') => void;
+  navigateToInventoryWithMovementFilter: (filter: 'all' | 'not-moving' | 'active') => void;
   canViewPayrollReport: boolean;
 
   // Customer Master & Loyalty
@@ -757,9 +784,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [inventoryFilterQuery, setInventoryFilterQuery] = useState<string>('');
   const [enquiryFilterQuery, setEnquiryFilterQuery] = useState<string>('');
   const [pendingOrderFilterQuery, setPendingOrderFilterQuery] = useState<string>('');
+  const [inventoryMovementFilter, setInventoryMovementFilter] = useState<'all' | 'not-moving' | 'active'>('all');
+
+  // Multi-item transfer history + inventory config (hydrated from backend).
+  const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
+  const [inventorySettings, setInventorySettings] = useState<InventorySettings>({ deadStockThresholdDays: 90 });
 
   const navigateToInventoryItem = (itemQuery: string) => {
     setInventoryFilterQuery(itemQuery);
+    setCurrentView('inventory');
+  };
+
+  const navigateToInventoryWithMovementFilter = (filter: 'all' | 'not-moving' | 'active') => {
+    setInventoryMovementFilter(filter);
     setCurrentView('inventory');
   };
 
@@ -929,6 +966,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.attendanceRecords)) setAttendanceRecords(data.attendanceRecords);
     if (Array.isArray(data.payrollRecords)) setPayrollRecords(data.payrollRecords);
     if (Array.isArray(data.customers)) setCustomers(data.customers);
+    if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
+    if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
     if (Array.isArray(data.categories)) setCategories(data.categories);
     if (data.subcategoriesByCategory) setSubcategoriesByCategory(data.subcategoriesByCategory);
     if (data.categoryPrefixMap) setCategoryPrefixMap(data.categoryPrefixMap);
@@ -1101,6 +1140,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const canViewPayrollReport = currentUser.role === 'CEO';
   const canManageLoyalty = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const canManageCustomers = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canApproveCatalogRequests = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canConvertEnquiry = currentUser.role !== 'Sales';
 
   const switchBranch = (branch: BranchScope) => {
     if (currentUser.role === 'Manager') {
@@ -1772,9 +1813,143 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { transferRef, challanNumber: generatedChallanNo };
   };
 
-  const getNextEstimateNumber = (branchId: BranchId): string => {
+  // Multi-item inter-branch transfer. Optimistic local update for instant UI +
+  // sync return, then persists to the backend which reconciles authoritatively.
+  const transferStockBatch = (
+    itemsToTransfer: { itemId: string; quantity: number }[],
+    fromBranch: BranchId,
+    toBranch: BranchId,
+    notes?: string,
+    autoGenerateChallan: boolean = true
+  ): { transferRef: string; challanNumber?: string } => {
+    if (fromBranch === toBranch) {
+      toast.error('Source and destination branches cannot be the same');
+      throw new Error('Source and destination branches cannot be the same');
+    }
+    if (!itemsToTransfer || itemsToTransfer.length === 0) {
+      toast.error('At least one item must be included in the transfer');
+      throw new Error('At least one item must be included in the transfer');
+    }
+
+    const fromBranchName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
+    const toBranchName = BRANCHES.find((b) => b.id === toBranch)?.name || toBranch;
+
+    const validatedLines: { targetItem: Item; quantity: number; fromPrevQty: number; toPrevQty: number }[] = [];
+    for (let idx = 0; idx < itemsToTransfer.length; idx++) {
+      const row = itemsToTransfer[idx];
+      const rowNum = idx + 1;
+      if (!row.itemId) { toast.error(`Row #${rowNum}: Please select an item`); throw new Error('missing item'); }
+      if (row.quantity <= 0) { toast.error(`Row #${rowNum}: Quantity must be > 0`); throw new Error('bad qty'); }
+      const targetItem = items.find((i) => i.id === row.itemId);
+      if (!targetItem) { toast.error(`Row #${rowNum}: Item not found`); throw new Error('item not found'); }
+      const fromPrevQty = branchStocks.find((s) => s.itemId === row.itemId && s.branchId === fromBranch)?.quantity ?? 0;
+      if (fromPrevQty < row.quantity) {
+        toast.error(`Row #${rowNum} shortage in ${fromBranchName}`, { description: `${targetItem.itemName}: have ${fromPrevQty}, need ${row.quantity}` });
+        throw new Error('insufficient stock');
+      }
+      const toPrevQty = branchStocks.find((s) => s.itemId === row.itemId && s.branchId === toBranch)?.quantity ?? 0;
+      validatedLines.push({ targetItem, quantity: row.quantity, fromPrevQty, toPrevQty });
+    }
+
+    const now = new Date().toISOString();
+    const todayStr = now.split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
+    const userLabel = `${currentUser.name} (${currentUser.role})`;
+
+    setBranchStocks((prev) => {
+      const updated = [...prev];
+      validatedLines.forEach(({ targetItem, quantity }) => {
+        const fromIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === fromBranch);
+        if (fromIdx >= 0) updated[fromIdx] = { ...updated[fromIdx], quantity: Math.max(0, updated[fromIdx].quantity - quantity), updatedAt: now };
+        else updated.push({ itemId: targetItem.id, branchId: fromBranch, quantity: 0, minStockAlert: targetItem.reorderThreshold ?? 10, updatedAt: now });
+        const toIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === toBranch);
+        if (toIdx >= 0) updated[toIdx] = { ...updated[toIdx], quantity: updated[toIdx].quantity + quantity, updatedAt: now };
+        else updated.push({ itemId: targetItem.id, branchId: toBranch, quantity, minStockAlert: targetItem.reorderThreshold ?? 10, updatedAt: now });
+      });
+      return updated;
+    });
+
+    let generatedChallanNo: string | undefined;
+    if (autoGenerateChallan) {
+      generatedChallanNo = `DC-TRF-${(challans.length + 1).toString().padStart(3, '0')}`;
+      const totalQty = validatedLines.reduce((s, l) => s + l.quantity, 0);
+      const newChallan: DeliveryChallan = {
+        id: `dc-${Date.now()}`, challanNumber: generatedChallanNo, recipientName: `Majestronicz ${toBranchName}`,
+        location: BRANCHES.find((b) => b.id === toBranch)?.location || toBranchName, contactNo: '94433-28955',
+        date: todayStr, time: timeStr,
+        items: validatedLines.map((l, i) => ({ id: `dci-${Date.now()}-${i + 1}`, itemId: l.targetItem.id, itemName: l.targetItem.itemName, itemHSN: l.targetItem.itemHSN, quantity: l.quantity, unit: l.targetItem.unit })),
+        totalQuantity: totalQty,
+        termsAndConditions: 'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
+        deliveredBy: { name: `${fromBranchName} Dispatch / ${currentUser.name}`, comment: `Stock transit dispatched by ${userLabel}`, date: todayStr },
+        receivedBy: { name: `${toBranchName} Inventory Store`, comment: 'Awaiting physical transit arrival and intake verification', date: todayStr },
+        createdAt: now,
+      };
+      setChallans((prev) => [newChallan, ...prev]);
+    }
+
+    const totalTransferQty = validatedLines.reduce((s, l) => s + l.quantity, 0);
+    const newTransfer: StockTransfer = {
+      id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
+      items: validatedLines.map((l) => ({ itemId: l.targetItem.id, itemName: l.targetItem.itemName, itemCode: l.targetItem.itemCode, itemHSN: l.targetItem.itemHSN, quantity: l.quantity, unit: l.targetItem.unit })),
+      totalQuantity: totalTransferQty, notes: notes?.trim() || undefined, transferredBy: userLabel, timestamp: now, challanNumber: generatedChallanNo,
+    };
+    setStockTransfers((prev) => [newTransfer, ...prev]);
+
+    const newLogs: StockAdjustmentLog[] = [];
+    validatedLines.forEach(({ targetItem, quantity, fromPrevQty, toPrevQty }, i) => {
+      newLogs.push({ id: `adj-${Date.now()}-${i}-out`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: fromBranch, previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity, reason: 'Inter-branch Transfer', notes: `Transferred to ${toBranchName}${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
+      newLogs.push({ id: `adj-${Date.now()}-${i}-in`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: toBranch, previousQuantity: toPrevQty, quantityChange: quantity, newQuantity: toPrevQty + quantity, reason: 'Inter-branch Transfer', notes: `Received from ${fromBranchName}${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
+    });
+    setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
+
+    // Persist to backend (authoritative) and reconcile.
+    persist(apiPost('/api/stock/transfer-batch', { items: itemsToTransfer, fromBranch, toBranch, notes, autoGenerateChallan, actor: userLabel }));
+
+    toast.success('Inter-branch transfer completed', {
+      description: `${validatedLines.length} item(s) • ${totalTransferQty} units (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
+    });
+    return { transferRef, challanNumber: generatedChallanNo };
+  };
+
+  // Dead-stock detection: last sale date for an item (client-side derivation).
+  const getItemLastSaleInfo = (
+    itemId: string,
+    branchScope: BranchScope = currentBranch
+  ): { lastSaleDate: string | null; daysSinceLastSale: number | null; hasSales: boolean; isDeadStock: boolean } => {
+    const threshold = inventorySettings.deadStockThresholdDays || 90;
+    const matchingDates: string[] = [];
+    invoices.forEach((inv) => {
+      if (inv.isVoided) return;
+      if (branchScope !== 'all' && inv.branchId !== branchScope) return;
+      const hasItem = inv.items.some((line) => line.itemId === itemId || (line.isCombo && line.comboComponents?.some((c) => c.itemId === itemId)));
+      if (hasItem && inv.date) matchingDates.push(inv.date);
+    });
+    if (matchingDates.length === 0) return { lastSaleDate: null, daysSinceLastSale: null, hasSales: false, isDeadStock: true };
+    matchingDates.sort((a, b) => b.localeCompare(a));
+    const latestDate = matchingDates[0];
+    const todayMs = new Date(new Date().toISOString().split('T')[0]).getTime();
+    const daysSinceLastSale = Math.max(0, Math.floor((todayMs - new Date(latestDate).getTime()) / 86400000));
+    return { lastSaleDate: latestDate, daysSinceLastSale, hasSales: true, isDeadStock: daysSinceLastSale >= threshold };
+  };
+
+  const updateInventorySettings = (newSettings: Partial<InventorySettings>) => {
+    setInventorySettings((prev) => {
+      const merged = { ...prev, ...newSettings };
+      persist(apiPut('/api/config/inventorySettings', merged));
+      return merged;
+    });
+    toast.success('Inventory settings updated');
+  };
+
+  const getCustomerOutstandingBalance = (customer: Customer): number =>
+    getCustomerOutstandingSummary(customer, invoices).totalOutstanding;
+  const getCustomerUnpaidInvoices = (customer: Customer): CustomerOutstandingInvoice[] =>
+    getCustomerOutstandingSummary(customer, invoices).unpaidInvoices;
+
+  const getNextEstimateNumber = (branchId: BranchId, date?: string): string => {
     const branchCode = getBranchCodeForEstimate(branchId);
-    const fy = getFinancialYear(new Date());
+    const fy = getFinancialYear(date || new Date());
     const prefix = `MZ${branchCode}${fy}EST/`;
 
     const branchEstimates = estimates.filter((e) => e.estimateNumber.startsWith(prefix));
@@ -1849,9 +2024,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success('Delivery Challan removed');
   };
 
-  const getNextInvoiceNumber = (branchId: BranchId): string => {
+  const getNextInvoiceNumber = (branchId: BranchId, date?: string): string => {
     const branchCode = getBranchCodeForInvoice(branchId);
-    const fy = getFinancialYear(new Date());
+    const fy = getFinancialYear(date || new Date());
     const prefix = `MZ${branchCode}${fy}/`;
 
     const branchInvoices = invoices.filter((inv) => inv.invoiceNumber.startsWith(prefix));
@@ -2312,6 +2487,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(snap.attendanceRecords)) setAttendanceRecords(snap.attendanceRecords);
     if (Array.isArray(snap.payrollRecords)) setPayrollRecords(snap.payrollRecords);
     if (Array.isArray(snap.customers)) setCustomers(snap.customers);
+    if (Array.isArray(snap.stockTransfers)) setStockTransfers(snap.stockTransfers);
   };
   const applySaleSnapshot = applySnapshot;
 
@@ -3803,6 +3979,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canInitiateTransferFrom,
         canViewReports,
         canAccessView,
+        canConvertEnquiry,
+        canApproveCatalogRequests,
+        stockTransfers,
+        transferStockBatch,
+        inventorySettings,
+        updateInventorySettings,
+        getItemLastSaleInfo,
+        getCustomerOutstandingBalance,
+        getCustomerUnpaidInvoices,
+        inventoryMovementFilter,
+        setInventoryMovementFilter,
+        navigateToInventoryWithMovementFilter,
         canViewPayrollReport,
         customers,
         loyaltySettings,

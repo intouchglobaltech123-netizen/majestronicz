@@ -14,13 +14,23 @@ import {
   Boxes,
   Edit3,
   MapPin,
+  AlertOctagon,
+  Settings,
+  Package,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency } from '../../lib/utils';
+import { ItemImage } from '../common/ItemImage';
 import { AdjustStockModal } from './AdjustStockModal';
 import { TransferStockModal } from './TransferStockModal';
 import { StockHistoryModal } from './StockHistoryModal';
 import { ThresholdEditModal } from './ThresholdEditModal';
 import { EditLocationModal } from './EditLocationModal';
+import { InventorySettingsModal } from './InventorySettingsModal';
+import { TransferHistoryModal } from './TransferHistoryModal';
 
 export const InventoryView: React.FC = () => {
   const {
@@ -32,12 +42,29 @@ export const InventoryView: React.FC = () => {
     currentUser,
     inventoryFilterQuery,
     setInventoryFilterQuery,
+    inventorySettings,
+    getItemLastSaleInfo,
+    inventoryMovementFilter,
+    setInventoryMovementFilter,
+    combos,
+    getComboAvailability,
+    getComboBuyingSeparatelyPrice,
+    getTotalStockAcrossBranches,
+    getBranchStock,
   } = useErp();
 
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
+  const [movementFilter, setMovementFilter] = useState<'all' | 'not-moving' | 'active'>(
+    inventoryMovementFilter || 'all'
+  );
+
+  // Combos Tab & Expand state
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'items' | 'combos'>('items');
+  const [expandedComboId, setExpandedComboId] = useState<string | null>(null);
+  const [comboSearchQuery, setComboSearchQuery] = useState('');
 
   // Sync search filter from navigation (e.g. from Items module "Manage Stock")
   useEffect(() => {
@@ -47,11 +74,20 @@ export const InventoryView: React.FC = () => {
     }
   }, [inventoryFilterQuery, setInventoryFilterQuery]);
 
+  // Sync movement filter from external navigation (e.g. from Dashboard KPI card)
+  useEffect(() => {
+    if (inventoryMovementFilter) {
+      setMovementFilter(inventoryMovementFilter);
+    }
+  }, [inventoryMovementFilter]);
+
   // Modals state
   const [adjustItem, setAdjustItem] = useState<{ item: Item; branchId?: BranchId } | null>(null);
   const [transferState, setTransferState] = useState<{ item?: Item; from?: BranchId; to?: BranchId } | null>(null);
   const [historyItem, setHistoryItem] = useState<Item | null>(null);
   const [isAllHistoryOpen, setAllHistoryOpen] = useState(false);
+  const [isTransferHistoryOpen, setIsTransferHistoryOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [thresholdItem, setThresholdItem] = useState<Item | null>(null);
   const [locationModalItem, setLocationModalItem] = useState<{ item: Item; branchId?: BranchId } | null>(null);
 
@@ -140,6 +176,8 @@ export const InventoryView: React.FC = () => {
     let lowStock = 0;
     let outOfStock = 0;
     let totalUnits = 0;
+    let notMovingCount = 0;
+    let activeMovingCount = 0;
 
     items.forEach((item) => {
       const data = getItemStockData(item);
@@ -151,6 +189,13 @@ export const InventoryView: React.FC = () => {
       } else {
         inStock++;
       }
+
+      const saleInfo = getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch);
+      if (saleInfo.isDeadStock) {
+        notMovingCount++;
+      } else {
+        activeMovingCount++;
+      }
     });
 
     return {
@@ -159,8 +204,10 @@ export const InventoryView: React.FC = () => {
       lowStock,
       outOfStock,
       totalUnits,
+      notMovingCount,
+      activeMovingCount,
     };
-  }, [items, branchStocks, isAllBranches, currentBranch]);
+  }, [items, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -190,9 +237,54 @@ export const InventoryView: React.FC = () => {
         }
       }
 
+      // 4. Movement Filter (Not Moving vs Active)
+      if (movementFilter !== 'all') {
+        const saleInfo = getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch);
+        if (movementFilter === 'not-moving' && !saleInfo.isDeadStock) {
+          return false;
+        }
+        if (movementFilter === 'active' && saleInfo.isDeadStock) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [items, searchQuery, selectedCategory, statusFilter, branchStocks, isAllBranches, currentBranch]);
+  }, [items, searchQuery, selectedCategory, statusFilter, movementFilter, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo]);
+
+  // Filtered combos for Combos Inventory Tab
+  const filteredCombos = useMemo(() => {
+    return combos.filter((combo) => {
+      if (!comboSearchQuery.trim()) return true;
+      const q = comboSearchQuery.toLowerCase().trim();
+      return (
+        combo.comboName.toLowerCase().includes(q) ||
+        combo.comboCode.toLowerCase().includes(q) ||
+        (combo.description && combo.description.toLowerCase().includes(q))
+      );
+    });
+  }, [combos, comboSearchQuery]);
+
+  // Metrics for Combos Inventory Tab
+  const comboMetrics = useMemo(() => {
+    let inStock = 0;
+    let outOfStock = 0;
+    let totalAvailableKits = 0;
+
+    combos.forEach((c) => {
+      const avail = getComboAvailability(c, currentBranch);
+      totalAvailableKits += avail;
+      if (avail > 0) inStock++;
+      else outOfStock++;
+    });
+
+    return {
+      totalCombos: combos.length,
+      inStock,
+      outOfStock,
+      totalAvailableKits,
+    };
+  }, [combos, currentBranch, getComboAvailability]);
 
   const formatDate = (iso: string) => {
     try {
@@ -202,6 +294,20 @@ export const InventoryView: React.FC = () => {
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  const formatDateShort = (iso: string | null) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
       });
     } catch {
       return iso;
@@ -245,24 +351,36 @@ export const InventoryView: React.FC = () => {
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
           <button
+            type="button"
             onClick={() => setAllHistoryOpen(true)}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <History className="h-4 w-4 text-slate-600" />
             <span>Audit Trail</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setIsTransferHistoryOpen(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Package className="h-4 w-4 text-blue-600" />
+            <span>Transfer History</span>
+          </button>
+
           {!isBillingUser && (
             <>
               <button
+                type="button"
                 onClick={() => setTransferState({})}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowRightLeft className="h-4 w-4 text-blue-600" />
                 <span>Transfer Stock</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   if (items.length > 0) {
                     setAdjustItem({
@@ -271,24 +389,88 @@ export const InventoryView: React.FC = () => {
                     });
                   }
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <ShieldAlert className="h-4 w-4" />
                 <span>Adjust Stock</span>
               </button>
             </>
           )}
+
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            title="Configure Dead Stock Threshold"
+            className="p-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Settings className="h-4 w-4 text-slate-600" />
+            <span className="hidden sm:inline text-[11px]">{inventorySettings.deadStockThresholdDays}d</span>
+          </button>
         </div>
       </div>
 
-      {/* KPI Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* View Switcher: Regular Items vs Combos */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveInventoryTab('items')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            activeInventoryTab === 'items'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          )}
+        >
+          <Boxes className="h-4 w-4" />
+          <span>Regular Items</span>
+          <span
+            className={cn(
+              'px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+              activeInventoryTab === 'items' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+            )}
+          >
+            {items.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveInventoryTab('combos')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            activeInventoryTab === 'combos'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          )}
+        >
+          <Sparkles className="h-4 w-4 text-purple-300" />
+          <span>Combos & Bundles</span>
+          <span
+            className={cn(
+              'px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+              activeInventoryTab === 'combos' ? 'bg-purple-700 text-white' : 'bg-slate-100 text-slate-600'
+            )}
+          >
+            {combos.length}
+          </span>
+        </button>
+      </div>
+
+      {activeInventoryTab === 'items' && (
+        <>
+          {/* KPI Metric Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Total Items */}
         <div
-          onClick={() => setStatusFilter('all')}
+          onClick={() => {
+            setStatusFilter('all');
+            setMovementFilter('all');
+          }}
           className={cn(
             'p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition-all hover:border-blue-400',
-            statusFilter === 'all' ? 'ring-2 ring-blue-500/20 border-blue-500 bg-blue-50/20' : 'border-slate-200'
+            statusFilter === 'all' && movementFilter === 'all'
+              ? 'ring-2 ring-blue-500/20 border-blue-500 bg-blue-50/20'
+              : 'border-slate-200'
           )}
         >
           <div className="flex items-center justify-between">
@@ -347,8 +529,28 @@ export const InventoryView: React.FC = () => {
           <span className="text-[10px] text-rose-600 mt-0.5 block">0 units on hand</span>
         </div>
 
+        {/* Not Moving / Dead Stock Card */}
+        <div
+          onClick={() => setMovementFilter(movementFilter === 'not-moving' ? 'all' : 'not-moving')}
+          className={cn(
+            'p-4 rounded-xl border bg-white shadow-2xs cursor-pointer transition-all hover:border-rose-400',
+            movementFilter === 'not-moving'
+              ? 'ring-2 ring-rose-500/20 border-rose-500 bg-rose-50/40'
+              : 'border-slate-200'
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">Dead Stock</span>
+            <AlertOctagon className="h-4 w-4 text-rose-600" />
+          </div>
+          <p className="text-3xl font-black text-rose-800 mt-1">{metrics.notMovingCount}</p>
+          <span className="text-[10px] text-rose-600 mt-0.5 block">
+            {inventorySettings.deadStockThresholdDays}+ days or never sold
+          </span>
+        </div>
+
         {/* Total Physical Units */}
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs col-span-2 sm:col-span-1">
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Units on Hand</span>
             <Building className="h-4 w-4 text-blue-600" />
@@ -376,7 +578,7 @@ export const InventoryView: React.FC = () => {
           />
         </div>
 
-        {/* Category & Status Filter Pills */}
+        {/* Category, Movement & Status Filter Controls */}
         <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
           {/* Category dropdown */}
           <select
@@ -392,6 +594,75 @@ export const InventoryView: React.FC = () => {
             ))}
           </select>
 
+          {/* Movement Filter Toggle (Not Moving / Active) */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setMovementFilter('all');
+                setInventoryMovementFilter('all');
+              }}
+              className={cn(
+                'px-2.5 py-1 rounded-lg transition-all',
+                movementFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              All Movement
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = movementFilter === 'not-moving' ? 'all' : 'not-moving';
+                setMovementFilter(next);
+                setInventoryMovementFilter(next);
+              }}
+              className={cn(
+                'px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5',
+                movementFilter === 'not-moving'
+                  ? 'bg-rose-600 text-white shadow-2xs'
+                  : 'text-rose-700 hover:bg-rose-50'
+              )}
+            >
+              <AlertOctagon className="h-3 w-3" />
+              <span>Not Moving</span>
+              <span
+                className={cn(
+                  'px-1.5 py-0.2 rounded-full text-[10px] font-extrabold',
+                  movementFilter === 'not-moving' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
+                )}
+              >
+                {metrics.notMovingCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = movementFilter === 'active' ? 'all' : 'active';
+                setMovementFilter(next);
+                setInventoryMovementFilter(next);
+              }}
+              className={cn(
+                'px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5',
+                movementFilter === 'active'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'text-emerald-700 hover:bg-emerald-50'
+              )}
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              <span>Active</span>
+              <span
+                className={cn(
+                  'px-1.5 py-0.2 rounded-full text-[10px] font-extrabold',
+                  movementFilter === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                )}
+              >
+                {metrics.activeMovingCount}
+              </span>
+            </button>
+          </div>
+
           {/* Status Pills */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
             <button
@@ -403,7 +674,7 @@ export const InventoryView: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               )}
             >
-              All
+              All Status
             </button>
             <button
               onClick={() => setStatusFilter('in-stock')}
@@ -467,6 +738,7 @@ export const InventoryView: React.FC = () => {
                 )}
                 <th className="py-3.5 px-3 text-center">Low Stock Threshold</th>
                 <th className="py-3.5 px-3 text-center">Computed Status</th>
+                <th className="py-3.5 px-3 text-center">Days Since Last Sale</th>
                 <th className="py-3.5 px-3 text-center">Last Updated</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
@@ -475,7 +747,7 @@ export const InventoryView: React.FC = () => {
               {filteredItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAllBranches ? 11 : 8}
+                    colSpan={isAllBranches ? 12 : 9}
                     className="py-12 text-center text-slate-400 font-medium"
                   >
                     No items match the active search or filter criteria.
@@ -678,6 +950,57 @@ export const InventoryView: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Days Since Last Sale / Dead Stock Indicator */}
+                      <td className="py-3.5 px-3 text-center">
+                        {(() => {
+                          const saleInfo = getItemLastSaleInfo(
+                            item.id,
+                            isAllBranches ? 'all' : currentBranch
+                          );
+
+                          if (!saleInfo.hasSales) {
+                            return (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <AlertOctagon className="h-3 w-3 text-rose-600 shrink-0" />
+                                  <span>Not Moving</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400 italic">Never Sold</span>
+                              </div>
+                            );
+                          }
+
+                          if (saleInfo.isDeadStock) {
+                            return (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <AlertOctagon className="h-3 w-3 text-rose-600 shrink-0" />
+                                  <span>Not Moving</span>
+                                </span>
+                                <span className="text-[10px] font-bold text-rose-700 font-mono">
+                                  {saleInfo.daysSinceLastSale}d ago
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-mono">
+                                  {formatDateShort(saleInfo.lastSaleDate)}
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                                <span>Active ({saleInfo.daysSinceLastSale === 0 ? 'Today' : `${saleInfo.daysSinceLastSale}d`})</span>
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                {formatDateShort(saleInfo.lastSaleDate)}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
                       {/* Last Updated */}
                       <td className="py-3.5 px-3 text-center text-slate-500 text-[11px]">
                         {formatDate(stockData.latestUpdated)}
@@ -752,6 +1075,371 @@ export const InventoryView: React.FC = () => {
           </span>
         </div>
       </div>
+        </>
+      )}
+
+      {/* COMBOS INVENTORY TAB VIEW */}
+      {activeInventoryTab === 'combos' && (
+        <div className="space-y-4">
+          {/* Read-only verification notice banner */}
+          <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-start gap-3 text-purple-900">
+            <Info className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-purple-950">
+                Read-Only Verification View: Live Computed Combo Availability
+              </p>
+              <p className="text-purple-700 leading-relaxed">
+                Combos are dynamic, bundled product offerings with zero independent stock. Available quantities are computed in real-time from the available branch stock of their individual components. Click any combo row to expand and inspect its component breakdown and bottleneck constraints. To replenish or adjust stock, adjust the component items under the <strong>Regular Items</strong> tab.
+              </p>
+            </div>
+          </div>
+
+          {/* Combos KPI Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>
+                <Sparkles className="h-4 w-4 text-purple-600" />
+              </div>
+              <p className="text-3xl font-black text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">In Stock Combos</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </div>
+              <p className="text-3xl font-black text-emerald-700 mt-1">{comboMetrics.inStock}</p>
+              <span className="text-[10px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Unavailable</span>
+                <XCircle className="h-4 w-4 text-rose-600" />
+              </div>
+              <p className="text-3xl font-black text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
+              <span className="text-[10px] text-rose-600 mt-0.5 block">Component shortage at branch</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Total Units Ready</span>
+                <Package className="h-4 w-4 text-purple-600" />
+              </div>
+              <p className="text-3xl font-black text-purple-700 mt-1">{comboMetrics.totalAvailableKits}</p>
+              <span className="text-[10px] text-purple-600 mt-0.5 block">Sum of assembleable kits</span>
+            </div>
+          </div>
+
+          {/* Action / Search Bar for Combos */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search combo by name or code (e.g. CB-0001)..."
+                value={comboSearchQuery}
+                onChange={(e) => setComboSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600"
+              />
+            </div>
+            <div className="text-xs text-slate-500 font-medium">
+              Live branch: <strong className="text-slate-800">{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
+            </div>
+          </div>
+
+          {/* Combos Inventory Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-3 w-10 text-center"></th>
+                    <th className="py-3 px-4 w-12 text-center">#</th>
+                    <th className="py-3 px-4 min-w-[220px]">Combo Name & Code</th>
+                    <th className="py-3 px-4">Components</th>
+                    <th className="py-3 px-4 text-right">Pricing (₹)</th>
+                    <th className="py-3 px-4 text-right">Available Qty ({isAllBranches ? 'All Branches' : currentBranchData?.name})</th>
+                    <th className="py-3 px-4 text-center">Stock Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCombos.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <Sparkles className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                        <p className="font-semibold text-slate-700">No combos found</p>
+                        <p className="text-[11px] mt-0.5">No combos matched your search.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCombos.map((combo, idx) => {
+                      const avail = getComboAvailability(combo, currentBranch);
+                      const isExpanded = expandedComboId === combo.id;
+                      const separatePrice = getComboBuyingSeparatelyPrice(combo);
+                      const isOutOfStock = avail <= 0;
+
+                      // Find limiting bottleneck component(s)
+                      let bottleneckItemName = '';
+                      let lowestSupported = Infinity;
+                      combo.components.forEach((comp) => {
+                        const compStock = isAllBranches
+                          ? getTotalStockAcrossBranches(comp.itemId)
+                          : getBranchStock(comp.itemId, currentBranch)?.quantity || 0;
+                        const canMake = comp.quantity > 0 ? Math.floor(compStock / comp.quantity) : 0;
+                        if (canMake < lowestSupported) {
+                          lowestSupported = canMake;
+                          const it = items.find((i) => i.id === comp.itemId);
+                          bottleneckItemName = it?.itemName || 'Component';
+                        }
+                      });
+
+                      return (
+                        <React.Fragment key={combo.id}>
+                          <tr
+                            onClick={() => setExpandedComboId(isExpanded ? null : combo.id)}
+                            className={cn(
+                              'cursor-pointer transition-colors select-none',
+                              isExpanded ? 'bg-purple-50/40' : 'hover:bg-slate-50/80'
+                            )}
+                          >
+                            <td className="py-3 px-3 text-center text-slate-400">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-purple-600 mx-auto" />
+                              ) : (
+                                <ChevronUp className="h-4 w-4 text-slate-400 rotate-90 mx-auto" />
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center font-mono font-bold text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <ItemImage
+                                  src={combo.imageUrl}
+                                  alt={combo.comboName}
+                                  isCombo={true}
+                                  className="h-10 w-10 rounded-xl shrink-0"
+                                  iconClassName="h-4 w-4"
+                                />
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                                    <span>{combo.comboName}</span>
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                                      Combo
+                                    </span>
+                                  </div>
+                                  <span className="font-mono text-[10px] text-purple-700 font-bold">
+                                    {combo.comboCode}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-xs font-medium text-slate-600">
+                                {combo.components.length} components
+                              </span>
+                              {isOutOfStock && bottleneckItemName && (
+                                <p className="text-[10px] text-rose-600 font-bold truncate max-w-xs mt-0.5">
+                                  Shortage: {bottleneckItemName}
+                                </p>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="font-mono font-bold text-slate-900">
+                                {formatCurrency(combo.comboPrice)}
+                              </span>
+                              {separatePrice > combo.comboPrice && (
+                                <span className="block text-[10px] text-slate-400">
+                                  vs {formatCurrency(separatePrice)} sep.
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-black text-sm">
+                              <span
+                                className={cn(
+                                  avail > 0 ? 'text-emerald-700' : 'text-rose-600'
+                                )}
+                              >
+                                {avail}
+                              </span>
+                              <span className="text-[10px] font-normal text-slate-400 ml-1">kits</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {avail > 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  <span>In Stock ({avail})</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <XCircle className="h-3 w-3 text-rose-600" />
+                                  <span>Unavailable (0)</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Expanded Component Breakdown Accordion */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/60">
+                              <td colSpan={7} className="p-4 pl-12 border-b border-purple-100">
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                                  <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Boxes className="h-4 w-4 text-purple-600" />
+                                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                        Component Stock Breakdown ({combo.comboName})
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-slate-500 font-medium">
+                                      Branch: <strong>{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
+                                    </span>
+                                  </div>
+
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                                          <th className="py-2.5 px-3 w-8 text-center">#</th>
+                                          <th className="py-2.5 px-3">Component Item</th>
+                                          <th className="py-2.5 px-3">SKU / Code</th>
+                                          <th className="py-2.5 px-3 text-right">Required / Unit</th>
+                                          <th className="py-2.5 px-3 text-right">Current Branch Stock</th>
+                                          <th className="py-2.5 px-3 text-right">Kits Supported</th>
+                                          <th className="py-2.5 px-3 text-center">Component Status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {combo.components.map((comp, cIdx) => {
+                                          const item = items.find((i) => i.id === comp.itemId);
+                                          const stock = isAllBranches
+                                            ? getTotalStockAcrossBranches(comp.itemId)
+                                            : getBranchStock(comp.itemId, currentBranch)?.quantity || 0;
+                                          const kitsSupported = comp.quantity > 0 ? Math.floor(stock / comp.quantity) : 0;
+                                          const isBottleneck = kitsSupported === lowestSupported;
+                                          const isDepleted = stock < comp.quantity;
+
+                                          return (
+                                            <tr
+                                              key={cIdx}
+                                              className={cn(
+                                                'transition-colors',
+                                                isDepleted
+                                                  ? 'bg-rose-50/40'
+                                                  : isBottleneck
+                                                  ? 'bg-amber-50/40'
+                                                  : 'hover:bg-slate-50/50'
+                                              )}
+                                            >
+                                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                                                {cIdx + 1}
+                                              </td>
+                                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                                <div className="flex items-center gap-2">
+                                                  <ItemImage
+                                                    src={item?.imageUrl}
+                                                    alt={item?.itemName || 'Item'}
+                                                    className="h-7 w-7 rounded-lg shrink-0"
+                                                    iconClassName="h-3.5 w-3.5"
+                                                  />
+                                                  <div>
+                                                    <div>{item?.itemName || comp.itemId}</div>
+                                                    {item?.category && (
+                                                      <span className="text-[10px] text-slate-400 font-normal">
+                                                        {item.category}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                              <td className="py-2.5 px-3 font-mono text-slate-600 text-[11px]">
+                                                {item?.itemCode || '-'}
+                                              </td>
+                                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-700">
+                                                {comp.quantity} {item?.unit || 'PCS'}
+                                              </td>
+                                              <td className="py-2.5 px-3 text-right font-mono font-bold">
+                                                <span
+                                                  className={cn(
+                                                    stock < comp.quantity ? 'text-rose-600' : 'text-slate-900'
+                                                  )}
+                                                >
+                                                  {stock} {item?.unit || 'PCS'}
+                                                </span>
+                                              </td>
+                                              <td className="py-2.5 px-3 text-right font-mono font-black">
+                                                <span
+                                                  className={cn(
+                                                    kitsSupported === 0
+                                                      ? 'text-rose-600'
+                                                      : isBottleneck
+                                                      ? 'text-amber-700'
+                                                      : 'text-emerald-700'
+                                                  )}
+                                                >
+                                                  {kitsSupported}
+                                                </span>
+                                              </td>
+                                              <td className="py-2.5 px-3 text-center">
+                                                {isDepleted ? (
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                                    <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                                    <span>Depleted (Shortage)</span>
+                                                  </span>
+                                                ) : isBottleneck ? (
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                    <AlertOctagon className="h-3 w-3 text-amber-600" />
+                                                    <span>Limiting Bottleneck</span>
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                                    <span>Sufficient Stock</span>
+                                                  </span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+
+                                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                                    <span>
+                                      💡 Max available combo kits ({avail}) is determined by the bottleneck component with the lowest supported count ({lowestSupported === Infinity ? 0 : lowestSupported}).
+                                    </span>
+                                    <span className="font-medium text-slate-400">
+                                      Read-only verification · Adjust stock under Regular Items
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Showing <strong className="text-slate-800 font-bold">{filteredCombos.length}</strong> of{' '}
+                <strong className="text-slate-800 font-bold">{combos.length}</strong> combo offerings
+              </span>
+              <span className="text-[11px] text-purple-700 font-medium">
+                Live availability derived from component inventory
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Wire up Modals */}
       {adjustItem && (
@@ -802,6 +1490,20 @@ export const InventoryView: React.FC = () => {
           onClose={() => setLocationModalItem(null)}
           item={locationModalItem.item}
           targetBranchId={locationModalItem.branchId}
+        />
+      )}
+
+      {isTransferHistoryOpen && (
+        <TransferHistoryModal
+          isOpen={isTransferHistoryOpen}
+          onClose={() => setIsTransferHistoryOpen(false)}
+        />
+      )}
+
+      {isSettingsOpen && (
+        <InventorySettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
         />
       )}
     </div>

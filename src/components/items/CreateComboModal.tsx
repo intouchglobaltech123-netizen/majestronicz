@@ -5,6 +5,7 @@ import { formatCurrency, cn } from '../../lib/utils';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { ItemImage } from '../common/ItemImage';
 import { ImageUploadField } from '../common/ImageUploadField';
+import { UniversalDropdown } from '../common/UniversalDropdown';
 import {
   X,
   Layers,
@@ -26,6 +27,7 @@ interface ComponentRowState {
   id: string; // Internal temporary row ID
   itemId: string;
   quantity: number;
+  searchQuery?: string;
 }
 
 export const CreateComboModal: React.FC<CreateComboModalProps> = ({
@@ -33,10 +35,22 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
   onClose,
   editingCombo,
 }) => {
-  const { items, saveCombo, getNextComboCode, currentBranch } = useErp();
+  const {
+    items,
+    saveCombo,
+    categories,
+    subcategoriesByCategory,
+    addCategory,
+    addSubcategory,
+    generateItemCode,
+    currentBranch,
+  } = useErp();
 
   const [comboName, setComboName] = useState('');
+  const [category, setCategory] = useState('');
+  const [subcategory, setSubcategory] = useState('');
   const [comboCode, setComboCode] = useState('');
+  const [isCodeOverridden, setIsCodeOverridden] = useState(false);
   const [comboPrice, setComboPrice] = useState<number | ''>('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -45,12 +59,22 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
     { id: 'comp-2', itemId: '', quantity: 1 },
   ]);
 
+  const availableSubcategories = useMemo(() => {
+    return subcategoriesByCategory[category] || ['General'];
+  }, [category, subcategoriesByCategory]);
+
   // Initialize or reset form
   useEffect(() => {
     if (isOpen) {
       if (editingCombo) {
         setComboName(editingCombo.comboName);
+        const cat = editingCombo.category || categories[0] || 'General';
+        const subList = subcategoriesByCategory[cat] || ['General'];
+        const sub = editingCombo.subcategory || subList[0] || 'General';
+        setCategory(cat);
+        setSubcategory(sub);
         setComboCode(editingCombo.comboCode);
+        setIsCodeOverridden(true);
         setComboPrice(editingCombo.comboPrice);
         setDescription(editingCombo.description || '');
         setImageUrl(editingCombo.imageUrl || '');
@@ -63,7 +87,14 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
         );
       } else {
         setComboName('');
-        setComboCode(getNextComboCode());
+        const defaultCat = categories[0] || 'General';
+        const subList = subcategoriesByCategory[defaultCat] || ['General'];
+        const defaultSub = subList[0] || 'General';
+        setCategory(defaultCat);
+        setSubcategory(defaultSub);
+        setIsCodeOverridden(false);
+        const autoCode = generateItemCode(defaultCat, defaultSub);
+        setComboCode(autoCode);
         setComboPrice('');
         setDescription('');
         setImageUrl('');
@@ -73,7 +104,47 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
         ]);
       }
     }
-  }, [isOpen, editingCombo]);
+  }, [isOpen, editingCombo, categories, subcategoriesByCategory]);
+
+  const handleCategoryChange = (newCat: string) => {
+    setCategory(newCat);
+    const subList = subcategoriesByCategory[newCat] || ['General'];
+    const newSub = subList.includes(subcategory) ? subcategory : (subList[0] || 'General');
+    setSubcategory(newSub);
+    if (!isCodeOverridden) {
+      const nextCode = generateItemCode(newCat, newSub);
+      setComboCode(nextCode);
+    }
+  };
+
+  const handleSubcategoryChange = (newSub: string) => {
+    setSubcategory(newSub);
+    if (!isCodeOverridden) {
+      const nextCode = generateItemCode(category, newSub);
+      setComboCode(nextCode);
+    }
+  };
+
+  const handleAddNewCategory = (newCat: string) => {
+    addCategory(newCat);
+    handleCategoryChange(newCat);
+  };
+
+  const handleAddNewSubcategory = (newSub: string) => {
+    addSubcategory(category, newSub);
+    handleSubcategoryChange(newSub);
+  };
+
+  const handleAutoGenerateCode = () => {
+    if (!category || !subcategory) {
+      toast.warning('Please select a category and subcategory first');
+      return;
+    }
+    const code = generateItemCode(category, subcategory);
+    setComboCode(code);
+    setIsCodeOverridden(false);
+    toast.info(`Assigned combo code: ${code}`);
+  };
 
   // Add new component slot
   const handleAddComponent = () => {
@@ -143,6 +214,18 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
       return;
     }
 
+    if (!category.trim()) {
+      toast.error('Category is required');
+      return;
+    }
+
+    if (!subcategory.trim()) {
+      toast.error('Subcategory is required');
+      return;
+    }
+
+    const finalCode = comboCode.trim() || generateItemCode(category, subcategory);
+
     if (!comboPrice || comboPrice <= 0) {
       toast.error('Please specify a valid combo price greater than ₹0');
       return;
@@ -175,8 +258,10 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
     const payload: ComboItem = {
       id: editingCombo ? editingCombo.id : `combo-${Date.now()}`,
-      comboCode: comboCode.trim() || getNextComboCode(),
+      comboCode: finalCode,
       comboName: trimmedName,
+      category,
+      subcategory,
       comboPrice: Number(comboPrice),
       description: description.trim() || undefined,
       imageUrl: imageUrl.trim() || undefined,
@@ -241,6 +326,32 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
           {/* Basic Details Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            {/* Category Dropdown */}
+            <div className="sm:col-span-6">
+              <UniversalDropdown
+                label="Category *"
+                value={category}
+                onChange={handleCategoryChange}
+                options={categories.map((c) => ({ value: c, label: c }))}
+                addNewLabel="+ Add New Category"
+                addNewPlaceholder="e.g. Industrial IoT"
+                onAddNew={handleAddNewCategory}
+              />
+            </div>
+
+            {/* Subcategory Dropdown */}
+            <div className="sm:col-span-6">
+              <UniversalDropdown
+                label="Subcategory *"
+                value={subcategory}
+                onChange={handleSubcategoryChange}
+                options={availableSubcategories.map((s) => ({ value: s, label: s }))}
+                addNewLabel="+ Add New Subcategory"
+                addNewPlaceholder="e.g. Modbus Gateways"
+                onAddNew={handleAddNewSubcategory}
+              />
+            </div>
+
             {/* Combo Name */}
             <div className="sm:col-span-8">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
@@ -256,19 +367,33 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               />
             </div>
 
-            {/* Auto Combo Code */}
+            {/* Combo Code (Auto-generated with sequence) */}
             <div className="sm:col-span-4">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Combo Code <span className="text-slate-400 font-normal">(Auto)</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  readOnly
-                  value={comboCode}
-                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-purple-700 cursor-not-allowed select-all"
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <span>Combo Code</span>
+                  <span className="text-[10px] text-purple-700 font-semibold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 uppercase font-mono">
+                    {isCodeOverridden ? 'Manual' : 'Auto'}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAutoGenerateCode}
+                  className="text-[10px] text-purple-600 hover:text-purple-700 font-bold cursor-pointer"
+                >
+                  + Auto Assign
+                </button>
               </div>
+              <input
+                type="text"
+                value={comboCode}
+                onChange={(e) => {
+                  setComboCode(e.target.value);
+                  setIsCodeOverridden(true);
+                }}
+                placeholder="e.g. AUT-PLC-0001"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-purple-700 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+              />
             </div>
 
             {/* Description (Optional) */}
@@ -276,12 +401,12 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                 Description / Bundle Inclusions <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={2}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Short summary of what this combo bundle offers to customers..."
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:border-purple-600 transition-all resize-y"
               />
             </div>
 
@@ -321,6 +446,16 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               </button>
             </div>
 
+            {/* Component Rows Header Strip */}
+            <div className="hidden sm:grid grid-cols-12 gap-3 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 rounded-lg">
+              <div className="col-span-1 text-center">#</div>
+              <div className="col-span-4">Component Product</div>
+              <div className="col-span-2 text-right">Catalog Price (Unit)</div>
+              <div className="col-span-2 text-right">Qty Needed</div>
+              <div className="col-span-2 text-right">Line Total</div>
+              <div className="col-span-1 text-center"></div>
+            </div>
+
             {/* Component Rows Table */}
             <div className="space-y-2.5">
               {componentRows.map((row, idx) => {
@@ -330,7 +465,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                 return (
                   <div
                     key={row.id}
-                    className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 grid grid-cols-12 gap-3 items-center"
+                    className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
                   >
                     {/* Index */}
                     <div className="col-span-1 text-center font-mono font-bold text-slate-400 text-xs">
@@ -338,31 +473,47 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                     </div>
 
                     {/* Catalog Item Search Dropdown */}
-                    <div className="col-span-6 relative">
+                    <div className="col-span-4 relative">
                       <ItemSearchDropdown
-                        value={item ? `${item.itemName} (${item.itemCode})` : ''}
-                        onChange={() => {}}
-                        onSelectItem={(selected) => handleUpdateComponent(row.id, { itemId: selected.id })}
+                        value={
+                          row.searchQuery !== undefined
+                            ? row.searchQuery
+                            : item
+                            ? `${item.itemName} (${item.itemCode})`
+                            : ''
+                        }
+                        onChange={(val) => handleUpdateComponent(row.id, { searchQuery: val })}
+                        onSelectItem={(selected) =>
+                          handleUpdateComponent(row.id, { itemId: selected.id, searchQuery: undefined })
+                        }
                         selectedBranchId={currentBranch}
                         lockOutOfStock={false}
                         placeholder="Search product from catalog..."
-                        dropdownWidth="w-[450px]"
+                        dropdownWidth="w-[440px]"
                         inputClassName="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600"
                       />
                       {item && (
-                        <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
+                        <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
                           <span className="font-mono text-purple-700 font-bold">{item.itemCode}</span>
-                          <span>•</span>
-                          <span>Catalog Price: {formatCurrency(item.salePrice)}</span>
-                          <span>•</span>
-                          <span>Unit: {item.unit}</span>
+                          <span className="text-slate-400">Unit: {item.unit}</span>
                         </div>
                       )}
                     </div>
 
+                    {/* Dedicated Catalog Sale Price Column (Read-Only Reference) */}
+                    <div className="col-span-2 text-right">
+                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5 sm:hidden">
+                        Catalog Price
+                      </label>
+                      <div className="font-mono font-bold text-xs text-slate-800">
+                        {item ? formatCurrency(item.salePrice) : '—'}
+                      </div>
+                      <span className="text-[9px] text-slate-400 hidden sm:block">Per {item?.unit || 'Unit'}</span>
+                    </div>
+
                     {/* Quantity per Combo */}
                     <div className="col-span-2">
-                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">
+                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5 sm:hidden">
                         Qty Needed
                       </label>
                       <input
@@ -382,16 +533,17 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
                     {/* Subtotal */}
                     <div className="col-span-2 text-right">
-                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">
+                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5 sm:hidden">
                         Subtotal
                       </label>
-                      <span className="font-mono font-bold text-xs text-slate-800">
+                      <span className="font-mono font-bold text-xs text-slate-900 block">
                         {formatCurrency(subtotal)}
                       </span>
+                      <span className="text-[9px] text-slate-400 hidden sm:block">Component Total</span>
                     </div>
 
                     {/* Delete Row Action */}
-                    <div className="col-span-1 text-right">
+                    <div className="col-span-1 text-center">
                       <button
                         type="button"
                         onClick={() => handleRemoveComponent(row.id)}

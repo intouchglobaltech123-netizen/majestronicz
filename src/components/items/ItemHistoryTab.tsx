@@ -14,6 +14,7 @@ import {
   Users,
   ArrowRight,
   ShieldAlert,
+  MapPin,
 } from 'lucide-react';
 import { PurchaseOrderPdfModal } from '../purchases/PurchaseOrderPdfModal';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
@@ -37,10 +38,13 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
     stockAdjustmentLogs,
     getBranchStock,
     setCurrentView,
+    currentUser,
   } = useErp();
 
+  const isSales = currentUser.role === 'Sales';
+
   // Subtab navigation
-  const [subTab, setSubTab] = useState<HistorySubTab>('purchases');
+  const [subTab, setSubTab] = useState<HistorySubTab>(() => (isSales ? 'sales' : 'purchases'));
 
   // Date filters
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
@@ -343,6 +347,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                 ({item.salePriceTaxMode === 'with' ? 'Incl. GST' : 'Excl. GST'} @ {item.gstTaxSlab}%)
               </span>
             </div>
+            {item.description && (
+              <p className="text-xs text-slate-600 mt-2 bg-white/80 p-2.5 rounded-xl border border-slate-200/80 leading-relaxed max-w-2xl whitespace-pre-line">
+                <span className="font-semibold text-slate-700">Description: </span>
+                {item.description}
+              </p>
+            )}
           </div>
         </div>
 
@@ -359,24 +369,96 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         )}
       </div>
 
-      {/* LIFETIME SUMMARY CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Total Purchased */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-blue-50/40 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">
-              Total Purchased
-            </span>
-            <ShoppingBag className="h-4 w-4 text-blue-600" />
+      {/* BRANCH PHYSICAL SHELF LOCATIONS & STOCK CARD */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-blue-600" />
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+              Branch Stock & Shelf Locations (Rack / Row)
+            </h4>
           </div>
-          <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-xl font-black text-blue-950 font-mono">
-              {summaryStats.totalPurchased}
-            </span>
-            <span className="text-[10px] font-bold text-blue-700">{item.unit}</span>
-          </div>
-          <span className="text-[10px] text-blue-700 mt-0.5 block">Lifetime procurement</span>
+          <span className="text-[11px] text-slate-500 font-medium">
+            Physical warehouse placement per branch
+          </span>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {BRANCHES.map((b) => {
+            const bStock = getBranchStock(item.id, b.id);
+            const qty = bStock?.quantity ?? 0;
+            const loc = bStock?.location?.trim();
+
+            return (
+              <div
+                key={b.id}
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Building className="h-3.5 w-3.5 text-slate-400" />
+                    {b.name}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                    {b.shortCode}
+                  </span>
+                </div>
+
+                <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Physical Location
+                    </span>
+                    {loc ? (
+                      <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                        <MapPin className="h-3 w-3 text-amber-600 shrink-0" />
+                        {loc}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic mt-0.5 block">
+                        No rack assigned
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Stock
+                    </span>
+                    <span className="text-sm font-black font-mono text-slate-900">
+                      {qty}{' '}
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {item.unit}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* LIFETIME SUMMARY CARDS */}
+      <div className={cn('grid gap-3', isSales ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 lg:grid-cols-5')}>
+        {/* Total Purchased */}
+        {!isSales && (
+          <div className="p-3.5 rounded-xl border border-slate-200 bg-blue-50/40 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">
+                Total Purchased
+              </span>
+              <ShoppingBag className="h-4 w-4 text-blue-600" />
+            </div>
+            <div className="mt-1.5 flex items-baseline gap-1">
+              <span className="text-xl font-black text-blue-950 font-mono">
+                {summaryStats.totalPurchased}
+              </span>
+              <span className="text-[10px] font-bold text-blue-700">{item.unit}</span>
+            </div>
+            <span className="text-[10px] text-blue-700 mt-0.5 block">Lifetime procurement</span>
+          </div>
+        )}
 
         {/* Total Sold */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-emerald-50/40 shadow-2xs">
@@ -429,18 +511,20 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         </div>
 
         {/* Most Frequent Vendor */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Top Vendor
-            </span>
-            <Users className="h-4 w-4 text-purple-600" />
+        {!isSales && (
+          <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Top Vendor
+              </span>
+              <Users className="h-4 w-4 text-purple-600" />
+            </div>
+            <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topVendor}>
+              {summaryStats.topVendor}
+            </div>
+            <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Most frequent supplier</span>
           </div>
-          <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topVendor}>
-            {summaryStats.topVendor}
-          </div>
-          <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Most frequent supplier</span>
-        </div>
+        )}
 
         {/* Most Frequent Customer */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -461,19 +545,21 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
         {/* Subtabs Switcher */}
         <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl w-full md:w-auto">
-          <button
-            type="button"
-            onClick={() => setSubTab('purchases')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 md:flex-initial justify-center',
-              subTab === 'purchases'
-                ? 'bg-white text-blue-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            )}
-          >
-            <ShoppingBag className="h-3.5 w-3.5" />
-            <span>Purchase History ({allItemPos.length})</span>
-          </button>
+          {!isSales && (
+            <button
+              type="button"
+              onClick={() => setSubTab('purchases')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 md:flex-initial justify-center',
+                subTab === 'purchases'
+                  ? 'bg-white text-blue-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>Purchase History ({allItemPos.length})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSubTab('sales')}
@@ -593,7 +679,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       </div>
 
       {/* 1. PURCHASE HISTORY SUBTAB */}
-      {subTab === 'purchases' && (
+      {subTab === 'purchases' && !isSales && (
         <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">

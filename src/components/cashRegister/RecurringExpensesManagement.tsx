@@ -1,5 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { RecurringExpenseTemplate, BranchId, BRANCHES } from '../../types';
+import {
+  RecurringExpenseTemplate,
+  BranchId,
+  BRANCHES,
+  ExpenseFrequency,
+  isExpenseDueInMonth,
+  isExpenseApprovedForMonth,
+  formatExpenseSchedule,
+  MONTH_NAMES,
+} from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 import {
@@ -48,12 +57,15 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
   const [formName, setFormName] = useState('');
   const [formAmount, setFormAmount] = useState<number>(0);
   const [formBranchId, setFormBranchId] = useState<BranchId>('erode-hq');
+  const [formFrequency, setFormFrequency] = useState<ExpenseFrequency>('Monthly');
+  const [formStartMonth, setFormStartMonth] = useState<number>(1); // 1 = Jan
   const [formDueDay, setFormDueDay] = useState<number>(5);
   const [formPaymentMode, setFormPaymentMode] = useState<'Cash' | 'GPay'>('Cash');
 
   // Today context for monthly status calculation
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const currentMonthKey = todayStr.substring(0, 7); // YYYY-MM
+  const currentMonthNumber = parseInt(todayStr.split('-')[1], 10); // 1 to 12
   const currentDay = parseInt(todayStr.split('-')[2], 10);
 
   const filteredTemplates = useMemo(() => {
@@ -63,7 +75,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     });
   }, [recurringExpenses, selectedBranchFilter]);
 
-  // Overall statistics
+  // Overall statistics (frequency aware)
   const stats = useMemo(() => {
     let monthlyCommitment = 0;
     let approvedCount = 0;
@@ -71,12 +83,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
     filteredTemplates.forEach((t) => {
       monthlyCommitment += t.defaultAmount;
-      const isApproved =
-        t.lastApprovedMonth === currentMonthKey ||
-        t.approvalHistory?.some((a) => a.month === currentMonthKey);
+      const isDueThisMonth = isExpenseDueInMonth(t, currentMonthNumber);
+      const isApproved = isExpenseApprovedForMonth(t, currentMonthKey);
+
       if (isApproved) {
         approvedCount++;
-      } else if (currentDay >= t.dueDay) {
+      } else if (isDueThisMonth && currentDay >= t.dueDay) {
         pendingActionCount++;
       }
     });
@@ -87,13 +99,15 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       approvedCount,
       pendingActionCount,
     };
-  }, [filteredTemplates, currentMonthKey, currentDay]);
+  }, [filteredTemplates, currentMonthKey, currentMonthNumber, currentDay]);
 
   const handleOpenAddModal = () => {
     setEditingTemplate(null);
     setFormName('');
     setFormAmount(0);
     setFormBranchId(selectedBranchFilter !== 'all' ? (selectedBranchFilter as BranchId) : 'erode-hq');
+    setFormFrequency('Monthly');
+    setFormStartMonth(1);
     setFormDueDay(5);
     setFormPaymentMode('Cash');
     setIsModalOpen(true);
@@ -104,13 +118,15 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     setFormName(template.name);
     setFormAmount(template.defaultAmount);
     setFormBranchId(template.branchId);
+    setFormFrequency(template.frequency || 'Monthly');
+    setFormStartMonth(template.startMonth || 1);
     setFormDueDay(template.dueDay);
     setFormPaymentMode(template.paymentMode);
     setIsModalOpen(true);
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete recurring template "${name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete scheduled amount "${name}"?`)) {
       deleteRecurringExpenseTemplate(id);
     }
   };
@@ -130,24 +146,20 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       return;
     }
 
+    const templatePayload = {
+      name: formName.trim(),
+      defaultAmount: formAmount,
+      branchId: formBranchId,
+      frequency: formFrequency,
+      startMonth: formFrequency !== 'Monthly' ? formStartMonth : undefined,
+      dueDay: formDueDay,
+      paymentMode: formPaymentMode,
+    };
+
     if (editingTemplate) {
-      updateRecurringExpenseTemplate(editingTemplate.id, {
-        name: formName.trim(),
-        defaultAmount: formAmount,
-        branchId: formBranchId,
-        frequency: 'Monthly',
-        dueDay: formDueDay,
-        paymentMode: formPaymentMode,
-      });
+      updateRecurringExpenseTemplate(editingTemplate.id, templatePayload);
     } else {
-      addRecurringExpenseTemplate({
-        name: formName.trim(),
-        defaultAmount: formAmount,
-        branchId: formBranchId,
-        frequency: 'Monthly',
-        dueDay: formDueDay,
-        paymentMode: formPaymentMode,
-      });
+      addRecurringExpenseTemplate(templatePayload);
     }
 
     setIsModalOpen(false);
@@ -159,7 +171,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-slate-500 block">Total Templates</span>
+            <span className="text-xs font-semibold text-slate-500 block">Total Scheduled Amounts</span>
             <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
               {stats.totalTemplates}
             </span>
@@ -244,7 +256,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Recurring Template</span>
+            <span>Add Scheduled Amount</span>
           </button>
         )}
       </div>
@@ -254,33 +266,33 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-sm font-extrabold text-slate-900">
-              Recurring Monthly Expense Templates
+              Scheduled Monthly Expenses
             </h3>
             <p className="text-xs text-slate-500">
               Scheduled overheads (Rent, Electricity, Telecom) with automated reminders and 1-click Cash Register approval.
             </p>
           </div>
           <span className="text-xs font-mono font-bold text-slate-500">
-            {filteredTemplates.length} Templates
+            {filteredTemplates.length} Scheduled
           </span>
         </div>
 
         {filteredTemplates.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
             <Wallet className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-bold text-sm text-slate-600">No recurring expense templates found</p>
-            <p className="text-xs mt-1">Click "Add Recurring Template" above to set up rent, utility bills, or subscriptions.</p>
+            <p className="font-bold text-sm text-slate-600">No scheduled amounts found</p>
+            <p className="text-xs mt-1">Click "Add Scheduled Amount" above to set up rent, utility bills, or subscriptions.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
-                  <th className="py-3 px-4">Template Name</th>
+                  <th className="py-3 px-4">Expense Name</th>
                   <th className="py-3 px-4">Branch Facility</th>
-                  <th className="py-3 px-4">Frequency & Due Day</th>
-                  <th className="py-3 px-4 text-right">Default Amount</th>
-                  <th className="py-3 px-4 text-center">Default Mode</th>
+                  <th className="py-3 px-4">Schedule & Due Day</th>
+                  <th className="py-3 px-4 text-right">Scheduled Amount</th>
+                  <th className="py-3 px-4 text-center">Payment Mode</th>
                   <th className="py-3 px-4">Status for {currentMonthKey}</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -288,11 +300,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
               <tbody className="divide-y divide-slate-100">
                 {filteredTemplates.map((template) => {
                   const branchObj = BRANCHES.find((b) => b.id === template.branchId);
-                  const isApproved =
-                    template.lastApprovedMonth === currentMonthKey ||
-                    template.approvalHistory?.some((a) => a.month === currentMonthKey);
-                  const isOverdue = !isApproved && currentDay > template.dueDay;
-                  const isDueToday = !isApproved && currentDay === template.dueDay;
+                  const isDueThisMonth = isExpenseDueInMonth(template, currentMonthNumber);
+                  const isApproved = isExpenseApprovedForMonth(template, currentMonthKey);
+                  const isOverdue = isDueThisMonth && !isApproved && currentDay > template.dueDay;
+                  const isDueToday = isDueThisMonth && !isApproved && currentDay === template.dueDay;
 
                   return (
                     <tr key={template.id} className="hover:bg-slate-50/80 transition-colors">
@@ -310,11 +321,11 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-medium text-slate-600">
+                      <td className="py-3.5 px-4 font-medium text-slate-700">
                         <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3 w-3 text-blue-600" />
-                          <span>
-                            Monthly, on the <strong>{template.dueDay}th</strong>
+                          <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span className="font-semibold text-slate-800">
+                            {formatExpenseSchedule(template)}
                           </span>
                         </div>
                       </td>
@@ -346,6 +357,11 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                             <span>Approved for {currentMonthKey}</span>
                           </span>
+                        ) : !isDueThisMonth ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                            <Clock className="h-3 w-3 text-slate-400" />
+                            <span>Not due this month</span>
+                          </span>
                         ) : isOverdue ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
                             <AlertTriangle className="h-3 w-3 text-rose-600" />
@@ -366,8 +382,8 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Approve Action if not yet approved */}
-                          {!isApproved && canManageItems && (
+                          {/* Approve Action if due this month and not yet approved */}
+                          {!isApproved && isDueThisMonth && canManageItems && (
                             <button
                               type="button"
                               onClick={() => onQuickApprove(template)}
@@ -378,6 +394,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                               <span>Approve</span>
                             </button>
                           )}
+
 
                           {/* Edit Template */}
                           {canManageItems && (
@@ -413,7 +430,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         )}
       </div>
 
-      {/* Add / Edit Recurring Template Modal */}
+      {/* Add / Edit Scheduled Amount Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
@@ -425,7 +442,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900">
-                    {editingTemplate ? 'Edit Recurring Template' : 'New Recurring Expense Template'}
+                    {editingTemplate ? 'Edit Scheduled Amount' : 'New Scheduled Amount'}
                   </h3>
                   <p className="text-[11px] text-slate-500">
                     Configure monthly scheduled overheads & reminder triggers
@@ -499,42 +516,92 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 </div>
               </div>
 
-              {/* Frequency & Due Day Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">
-                    Frequency
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    value="Monthly (Recurring)"
-                    className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-semibold cursor-not-allowed"
-                  />
-                </div>
+              {/* Frequency & Cycle Grid */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Frequency *
+                    </label>
+                    <select
+                      value={formFrequency}
+                      onChange={(e) => setFormFrequency(e.target.value as ExpenseFrequency)}
+                      className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                    >
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Half-Yearly">Half-Yearly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">
-                    Due Day of Month (1–31) *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      required
-                      value={formDueDay || ''}
-                      onChange={(e) =>
-                        setFormDueDay(Math.min(31, Math.max(1, Number(e.target.value))))
-                      }
-                      placeholder="e.g. 5 for 5th"
-                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
-                    />
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-xs">
-                      th of month
+                  {formFrequency !== 'Monthly' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">
+                        Starting Month *
+                      </label>
+                      <select
+                        value={formStartMonth}
+                        onChange={(e) => setFormStartMonth(Number(e.target.value))}
+                        className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                      >
+                        {MONTH_NAMES.map((name, idx) => (
+                          <option key={idx + 1} value={idx + 1}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={`space-y-1.5 ${formFrequency === 'Monthly' ? '' : 'sm:col-span-2'}`}>
+                    <label className="text-xs font-bold text-slate-700">
+                      Due Day of Month (1–31) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        required
+                        value={formDueDay || ''}
+                        onChange={(e) =>
+                          setFormDueDay(Math.min(31, Math.max(1, Number(e.target.value))))
+                        }
+                        placeholder="e.g. 5 for 5th"
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                      />
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-xs">
+                        th of month
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Explanatory cycle pill for non-monthly */}
+                {formFrequency !== 'Monthly' && (
+                  <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span>
+                      Cycle: Due on day {formDueDay} in{' '}
+                      <strong>
+                        {formFrequency === 'Quarterly'
+                          ? [
+                              MONTH_NAMES[formStartMonth - 1],
+                              MONTH_NAMES[(formStartMonth - 1 + 3) % 12],
+                              MONTH_NAMES[(formStartMonth - 1 + 6) % 12],
+                              MONTH_NAMES[(formStartMonth - 1 + 9) % 12],
+                            ].join(', ')
+                          : formFrequency === 'Half-Yearly'
+                          ? [
+                              MONTH_NAMES[formStartMonth - 1],
+                              MONTH_NAMES[(formStartMonth - 1 + 6) % 12],
+                            ].join(' & ')
+                          : MONTH_NAMES[formStartMonth - 1]}
+                      </strong>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Payment Mode Default */}
@@ -583,7 +650,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                   type="submit"
                   className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
                 >
-                  {editingTemplate ? 'Update Template' : 'Save Template'}
+                  {editingTemplate ? 'Update Scheduled Amount' : 'Save Scheduled Amount'}
                 </button>
               </div>
             </form>

@@ -53,7 +53,8 @@ export const EnquiryDetailModal: React.FC<Props> = ({
     setSelectedPendingOrderForDetail,
     setCurrentView,
     canCancelEnquiry,
-    canManageItems,
+    canConvertEnquiry,
+    canApproveCatalogRequests,
   } = useErp();
 
   const [notes, setNotes] = useState('');
@@ -292,13 +293,13 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     </h4>
                     <p className="text-xs text-purple-800 mt-0.5">
                       This item was requested by the customer but does not exist in the inventory catalog yet.
-                      {canManageItems
+                      {canApproveCatalogRequests
                         ? ' Click "Add to Catalog" to register the master product specifications and assign pricing.'
                         : ' Awaiting Manager/CEO review to add this item to the catalog.'}
                     </p>
                   </div>
                 </div>
-                {canManageItems && onAddToCatalog && enquiry.status !== 'Cancelled' && (
+                {canApproveCatalogRequests && onAddToCatalog && enquiry.status !== 'Cancelled' && (
                   <button
                     type="button"
                     onClick={() => {
@@ -630,7 +631,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             {/* Conversion / Catalog Actions */}
             {enquiry.status !== 'Converted' && enquiry.status !== 'Cancelled' && (
               <>
-                {canManageItems && !enquiry.itemId && onAddToCatalog && (
+                {canApproveCatalogRequests && !enquiry.itemId && onAddToCatalog && (
                   <button
                     type="button"
                     onClick={() => {
@@ -644,7 +645,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                   </button>
                 )}
 
-                {enquiry.itemId && (
+                {canConvertEnquiry && enquiry.itemId && (
                   <>
                     <button
                       type="button"

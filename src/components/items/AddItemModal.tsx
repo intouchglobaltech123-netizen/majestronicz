@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Item, SalePriceTaxMode, DiscountType, BRANCHES, BranchId } from '../../types';
+import { Item, SalePriceTaxMode, DiscountType } from '../../types';
 import {
   X,
   Plus,
   Search,
   Calculator,
-  Building,
+  PackageCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -42,9 +42,7 @@ export const AddItemModal: React.FC<Props> = ({
   const {
     addItem,
     canManageItems,
-    currentBranch,
-    isAllBranches,
-    currentBranchData,
+    currentUser,
     categories,
     subcategoriesByCategory,
     addCategory,
@@ -68,6 +66,7 @@ export const AddItemModal: React.FC<Props> = ({
   const [isCodeOverridden, setIsCodeOverridden] = useState(false);
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
+  const [description, setDescription] = useState('');
 
   // Static Master Pricing Fields
   const [salePrice, setSalePrice] = useState<number | ''>('');
@@ -78,20 +77,6 @@ export const AddItemModal: React.FC<Props> = ({
   const [minWholesaleQty, setMinWholesaleQty] = useState<number | ''>(5);
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
   const [gstTaxSlab, setGstTaxSlab] = useState<number>(18);
-
-  // Scoped Initial Stock and Rack Location for currently selected branch
-  const [initialStockQty, setInitialStockQty] = useState<number | ''>(0);
-  const [initialStockLocation, setInitialStockLocation] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState<BranchId>(() => {
-    if (!isAllBranches && currentBranch !== 'all') {
-      return currentBranch as BranchId;
-    }
-    return 'erode-hq';
-  });
-
-  const targetBranch = (!isAllBranches && currentBranch !== 'all')
-    ? (currentBranchData || BRANCHES.find((b) => b.id === currentBranch) || BRANCHES[0])
-    : (BRANCHES.find((b) => b.id === selectedBranchId) || BRANCHES[0]);
 
   // Low Stock Alert Threshold (per-item master)
   const [reorderThreshold, setReorderThreshold] = useState<number | ''>(10);
@@ -189,6 +174,7 @@ export const AddItemModal: React.FC<Props> = ({
     setItemCode(generateItemCode(defaultCat, defaultSub));
     setUnit('PCS');
     setImageUrl('');
+    setDescription('');
     setSalePrice('');
     setSalePriceTaxMode('without');
     setDiscountOnSalePrice(0);
@@ -197,15 +183,13 @@ export const AddItemModal: React.FC<Props> = ({
     setMinWholesaleQty(5);
     setPurchasePrice('');
     setGstTaxSlab(18);
-    setInitialStockQty(0);
-    setInitialStockLocation('');
     setReorderThreshold(10);
     setActiveTab('pricing');
   };
 
   const handleSave = (saveAndNew = false) => {
     if (!canManageItems) {
-      toast.error('Permission denied: Billing role cannot create items');
+      toast.error('Permission denied: You do not have permission to create items');
       return;
     }
 
@@ -216,36 +200,25 @@ export const AddItemModal: React.FC<Props> = ({
 
     const finalItemCode = itemCode.trim() || generateItemCode(category, subcategory);
 
-    const targetBranchId: BranchId = targetBranch.id;
-    const initialStocksMap: Partial<Record<BranchId, number>> = {
-      [targetBranchId]: Math.max(0, parseInt(String(initialStockQty), 10) || 0),
-    };
-    const initialLocationsMap: Partial<Record<BranchId, string>> = {
-      [targetBranchId]: initialStockLocation.trim(),
-    };
-
-    const savedItem = addItem(
-      {
-        itemName: itemName.trim(),
-        itemHSN: itemHSN.trim() || '85371000',
-        category,
-        subcategory: subcategory.trim() || undefined,
-        itemCode: finalItemCode,
-        unit,
-        imageUrl: imageUrl.trim() || undefined,
-        salePrice: Number(salePrice) || 0,
-        salePriceTaxMode,
-        wholesalePrice: Number(wholesalePrice) || 0,
-        minWholesaleQty: Number(minWholesaleQty) || 1,
-        purchasePrice: Number(purchasePrice) || 0,
-        gstTaxSlab,
-        discountOnSalePrice: Number(discountOnSalePrice) || 0,
-        discountType,
-        reorderThreshold: Number(reorderThreshold) || 10,
-      },
-      initialStocksMap,
-      initialLocationsMap
-    );
+    const savedItem = addItem({
+      itemName: itemName.trim(),
+      itemHSN: itemHSN.trim() || '85371000',
+      category,
+      subcategory: subcategory.trim() || undefined,
+      itemCode: finalItemCode,
+      unit,
+      imageUrl: imageUrl.trim() || undefined,
+      description: description.trim() || undefined,
+      salePrice: Number(salePrice) || 0,
+      salePriceTaxMode,
+      wholesalePrice: Number(wholesalePrice) || 0,
+      minWholesaleQty: Number(minWholesaleQty) || 1,
+      purchasePrice: Number(purchasePrice) || 0,
+      gstTaxSlab,
+      discountOnSalePrice: Number(discountOnSalePrice) || 0,
+      discountType,
+      reorderThreshold: Number(reorderThreshold) || 10,
+    });
 
     if (onItemAdded) {
       onItemAdded(savedItem);
@@ -301,10 +274,25 @@ export const AddItemModal: React.FC<Props> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Enter full product description..."
+                  placeholder="e.g. Delta PLC DVP-14SS211R"
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+                />
+              </div>
+
+              {/* Description / Technical Specs (Optional) */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Description / Technical Specs</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter detailed technical specifications, voltage/pinout ratings, variations, or internal staff notes..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors resize-y"
                 />
               </div>
 
@@ -454,14 +442,9 @@ export const AddItemModal: React.FC<Props> = ({
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 )}
               >
-                <span>Initial Stock</span>
-                <span
-                  className={cn(
-                    'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
-                    Number(initialStockQty) > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
-                  )}
-                >
-                  {Number(initialStockQty) || 0} {unit}
+                <span>Stock Policy & Alerts</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                  0 {unit} (New)
                 </span>
               </button>
             </div>
@@ -529,23 +512,69 @@ export const AddItemModal: React.FC<Props> = ({
                   </div>
 
                   {/* Wholesale Price */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                      <span>Wholesale Price (₹)</span>
-                      <span className="text-[10px] text-slate-400">Bulk purchase tier</span>
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      min="0"
-                      step="any"
-                      value={wholesalePrice}
-                      onChange={(e) =>
-                        setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
+                  {currentUser.role !== 'Sales' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <span>Wholesale Price (₹)</span>
+                        <span className="text-[10px] text-slate-400">Bulk purchase tier</span>
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="any"
+                        value={wholesalePrice}
+                        onChange={(e) =>
+                          setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                        className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  )}
+
+                  {/* Purchase Price */}
+                  {currentUser.role !== 'Sales' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <span>Purchase Price (₹)</span>
+                        <span className="text-[10px] text-slate-400">Default purchase cost</span>
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="any"
+                        value={purchasePrice}
+                        onChange={(e) =>
+                          setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                        className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Default cost — used as starting point for Purchase Orders, editable per order
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Min Wholesale Quantity */}
+                  {currentUser.role !== 'Sales' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <span>Min Wholesale Quantity</span>
+                        <span className="text-[10px] text-slate-400">Bulk threshold</span>
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="5"
+                        min="1"
+                        value={minWholesaleQty}
+                        onChange={(e) =>
+                          setMinWholesaleQty(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                        className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  )}
 
                   {/* GST Tax Slab with UniversalDropdown */}
                   <UniversalDropdown
@@ -586,123 +615,46 @@ export const AddItemModal: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Starting Stock Quick-View on Pricing Tab */}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Building className="h-4 w-4 text-blue-600" />
-                    <span className="text-slate-600 font-medium">
-                      Starting Stock ({targetBranch.name}):
-                    </span>
-                    <span className="font-bold text-slate-900 font-mono">
-                      {Number(initialStockQty) || 0} {unit}
-                    </span>
-                    {initialStockLocation.trim() && (
-                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded border border-slate-300">
-                        Rack: {initialStockLocation.trim()}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('stock')}
-                    className="text-blue-600 hover:text-blue-700 font-semibold hover:underline text-[11px]"
-                  >
-                    Adjust in Initial Stock tab →
-                  </button>
-                </div>
               </div>
             )}
 
-            {/* TAB CONTENT: BRANCH STOCK SETUP */}
+            {/* TAB CONTENT: STOCK POLICY & ALERTS */}
             {activeTab === 'stock' && (
               <div className="space-y-4">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-lg bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700">
-                        <Building className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-bold text-slate-900">
-                          Starting Stock — {targetBranch.name}
-                        </h3>
-                        <p className="text-[11px] text-slate-500">
-                          Physical stock available at this branch warehouse
-                        </p>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+                      <PackageCheck className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                      {targetBranch.location}
-                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Stock Inward Policy: Purchase Orders Only
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        New catalog items start with <strong>0 stock</strong> across all branches. Initial stock cannot be entered manually at item creation.
+                      </p>
+                    </div>
                   </div>
 
-                  {isAllBranches && (
-                    <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Select Branch to Assign Starting Stock:
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {BRANCHES.map((b) => (
-                          <button
-                            key={b.id}
-                            type="button"
-                            onClick={() => setSelectedBranchId(b.id)}
-                            className={cn(
-                              'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center',
-                              selectedBranchId === b.id
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                            )}
-                          >
-                            {b.name}
-                          </button>
-                        ))}
-                      </div>
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-600 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                      <p>
+                        <strong>Physical Stock Inward:</strong> Stock is gained exclusively by creating and receiving goods through <strong>Purchase Orders</strong>.
+                      </p>
                     </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                      <span>Starting Stock Quantity — {targetBranch.name}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">Default: 0</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        value={initialStockQty}
-                        onChange={(e) =>
-                          setInitialStockQty(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))
-                        }
-                        className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-bold text-sm focus:outline-none focus:border-blue-600"
-                      />
-                      <span className="text-xs font-bold text-slate-500 shrink-0 px-2">
-                        {unit}
-                      </span>
+                    <div className="flex items-start gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                      <p>
+                        <strong>Warehouse Shelf Location:</strong> Per-branch shelf / rack location (e.g. Rack R2) is assigned during the Purchase Order receiving step when goods arrive.
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      Creates the starting stock record exclusively for <strong>{targetBranch.name}</strong>. Other branch warehouses will start with 0 stock until replenished via Purchases or Inventory transfers.
-                    </p>
-                  </div>
-
-                  {/* Physical Rack / Row Location Input */}
-                  <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                      <span>Physical Rack / Row Location ({targetBranch.name})</span>
-                      <span className="text-[10px] text-slate-400 font-normal">e.g. R2, A-14, Bin 03</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. R2"
-                      value={initialStockLocation}
-                      onChange={(e) => setInitialStockLocation(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-sm focus:outline-none focus:border-blue-600"
-                    />
-                    <p className="text-[11px] text-slate-500">
-                      Per-branch location where goods are shelved at <strong>{targetBranch.name}</strong>. Physical racks differ per branch.
-                    </p>
+                    <div className="flex items-start gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                      <p>
+                        <strong>Corrections & Audits:</strong> Subsequent adjustments and rack updates can also be made anytime via the <em>Inventory</em> table.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

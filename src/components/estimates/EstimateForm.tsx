@@ -8,6 +8,7 @@ import {
   BranchId,
   GstBreakdownRow,
   ComboItem,
+  cleanCustomerName,
 } from '../../types';
 import { numberToWordsIndian } from '../../lib/numberToWords';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -22,6 +23,7 @@ import {
   Phone,
   MapPin,
   Link,
+  Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -32,9 +34,15 @@ interface Props {
   onSaved: (estimate: Estimate) => void;
   onPreviewPdf: (estimate: Estimate) => void;
   initialEstimate?: Estimate | null;
+  duplicateSourceEstimate?: Estimate | null;
 }
 
-export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEstimate }) => {
+export const EstimateForm: React.FC<Props> = ({
+  onSaved,
+  onPreviewPdf,
+  initialEstimate,
+  duplicateSourceEstimate,
+}) => {
   const {
     currentBranch,
     isAllBranches,
@@ -49,6 +57,7 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
   // Target branch for this estimate (if in 'all' scope, default to 'erode-hq' or permit picking)
   const [selectedBranch, setSelectedBranch] = useState<BranchId>(() => {
     if (initialEstimate) return initialEstimate.branchId;
+    if (duplicateSourceEstimate) return duplicateSourceEstimate.branchId;
     if (!isAllBranches && currentBranch !== 'all') return currentBranch as BranchId;
     return 'erode-hq';
   });
@@ -72,6 +81,10 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
 
   // GST Toggle: With GST vs Without GST
   const [withGst, setWithGst] = useState(true);
+
+  // Bulk Tax Apply Controls
+  const [isBulkTaxOpen, setIsBulkTaxOpen] = useState(false);
+  const [bulkGstRate, setBulkGstRate] = useState<number>(18);
 
   // Source Enquiry link tracking
   const [sourceEnquiryId, setSourceEnquiryId] = useState<string | undefined>(
@@ -103,18 +116,53 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
       setTerms(initialEstimate.termsAndConditions);
       setSourceEnquiryId(initialEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(initialEstimate.sourceEnquiryNumber);
+    } else if (duplicateSourceEstimate) {
+      // Duplicate quote: copy branch, withGst, terms, line items; CLEAR customer, fresh date/time & sequence
+      setSelectedBranch(duplicateSourceEstimate.branchId);
+      setDate(new Date().toISOString().split('T')[0]);
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      setCustomerId(undefined);
+      setCustomerName('');
+      setCustomerContact('');
+      setCustomerAddress('');
+      setWithGst(duplicateSourceEstimate.withGst);
+      setTerms(duplicateSourceEstimate.termsAndConditions);
+      setSourceEnquiryId(undefined);
+      setSourceEnquiryNumber(undefined);
+
+      // Clone line items with fresh unique IDs
+      const duplicatedItems: EstimateLineItem[] = duplicateSourceEstimate.items.map((item) => ({
+        ...item,
+        id: `li-dup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      }));
+      setLineItems(duplicatedItems);
+
+      const generated = getNextEstimateNumber(duplicateSourceEstimate.branchId);
+      setEstimateNumber(generated);
+      toast.info(`Duplicated from Quote #${duplicateSourceEstimate.estimateNumber}`, {
+        description: 'All line items and rates copied. Please search or enter a customer to proceed.',
+      });
     } else {
-      const generated = getNextEstimateNumber(selectedBranch);
+      const generated = getNextEstimateNumber(selectedBranch, date);
       setEstimateNumber(generated);
     }
-  }, [selectedBranch, initialEstimate, getNextEstimateNumber]);
+  }, [selectedBranch, initialEstimate, duplicateSourceEstimate, getNextEstimateNumber, date]);
+
+  // Keep estimate number in sync with financial year when date or branch changes
+  useEffect(() => {
+    if (!initialEstimate) {
+      const generated = getNextEstimateNumber(selectedBranch, date);
+      setEstimateNumber(generated);
+    }
+  }, [selectedBranch, date, initialEstimate, getNextEstimateNumber]);
 
   // If no line items on new form, initialize with one empty row
   useEffect(() => {
-    if (lineItems.length === 0 && !initialEstimate) {
+    if (lineItems.length === 0 && !initialEstimate && !duplicateSourceEstimate) {
       addNewRow();
     }
-  }, [lineItems.length, initialEstimate]);
+  }, [lineItems.length, initialEstimate, duplicateSourceEstimate]);
 
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -153,7 +201,7 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
         quantity: 1,
         unit: 'PCS',
         unitPrice: 0,
-        gstRate: 18,
+        gstRate: isBulkTaxOpen ? bulkGstRate : 18,
         taxableAmount: 0,
         cgstAmount: 0,
         sgstAmount: 0,
@@ -215,7 +263,7 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
       itemHSN: item.itemHSN,
       unit: item.unit,
       unitPrice: roundedPrice,
-      gstRate: item.gstTaxSlab,
+      gstRate: isBulkTaxOpen ? bulkGstRate : item.gstTaxSlab,
       isCombo: false,
       comboId: undefined,
       comboComponents: undefined,
@@ -237,7 +285,7 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
       itemHSN: '85371000',
       unit: 'SET',
       unitPrice: combo.comboPrice,
-      gstRate: 18,
+      gstRate: isBulkTaxOpen ? bulkGstRate : 18,
       isCombo: true,
       comboId: combo.id,
       comboComponents: combo.components,
@@ -250,6 +298,45 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
       return;
     }
     setLineItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  // Bulk-apply tax rate and/or mode to all current estimate line items
+  const handleApplyBulkTax = (rateToApply: number, modeWithGst: boolean = withGst) => {
+    if (lineItems.length === 0) {
+      toast.info('No line items to update');
+      return;
+    }
+
+    if (modeWithGst !== withGst) {
+      setWithGst(modeWithGst);
+    }
+
+    setLineItems((prev) =>
+      prev.map((item) => {
+        const calculated = calculateLineTax(
+          item.quantity,
+          item.unitPrice,
+          rateToApply,
+          modeWithGst
+        );
+
+        return {
+          ...item,
+          gstRate: rateToApply,
+          taxableAmount: calculated.taxableAmount,
+          cgstAmount: calculated.cgstAmount,
+          sgstAmount: calculated.sgstAmount,
+          totalTax: calculated.totalTax,
+          totalAmount: calculated.totalAmount,
+        };
+      })
+    );
+
+    toast.success(
+      modeWithGst
+        ? `Applied ${rateToApply}% GST to all ${lineItems.length} quotation lines`
+        : `Switched all ${lineItems.length} quotation lines to Without GST mode`
+    );
   };
 
   // Aggregated Totals Calculation
@@ -304,12 +391,12 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
 
     return {
       id: initialEstimate?.id || `est-${Date.now()}`,
-      estimateNumber: estimateNumber.trim() || getNextEstimateNumber(selectedBranch),
+      estimateNumber: estimateNumber.trim() || getNextEstimateNumber(selectedBranch, date),
       branchId: selectedBranch,
       date,
       time,
       customerId,
-      customerName: customerName.trim(),
+      customerName: cleanCustomerName(customerName),
       customerContact: customerContact.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       withGst,
@@ -347,16 +434,24 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
       {/* Header Bar */}
       <div className="p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-              {initialEstimate ? 'Edit Estimate' : 'New Quotation / Estimate'}
+              {initialEstimate ? 'Edit Estimate' : duplicateSourceEstimate ? 'Duplicate Estimate' : 'New Quotation / Estimate'}
             </h2>
             <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
               {estimateNumber}
             </span>
+            {duplicateSourceEstimate && (
+              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200 flex items-center gap-1">
+                <Copy className="h-3 w-3" />
+                <span>Duplicate of #{duplicateSourceEstimate.estimateNumber}</span>
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Auto-numbered financial estimate with editable unit price overrides & GST breakdown.
+            {duplicateSourceEstimate
+              ? `Duplicating items from Quote #${duplicateSourceEstimate.estimateNumber}. Customer fields have been cleared.`
+              : 'Auto-numbered financial estimate with editable unit price overrides & GST breakdown.'}
           </p>
         </div>
 
@@ -446,8 +541,9 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
                 customerPhone={customerContact}
                 customerAddress={customerAddress}
                 onSelectCustomer={(cust) => {
+                  const clean = cleanCustomerName(cust.name, cust.notes);
                   setCustomerId(cust.id);
-                  setCustomerName(cust.name);
+                  setCustomerName(clean);
                   setCustomerContact(cust.phone || '');
                   setCustomerAddress(cust.address || '');
                 }}
@@ -574,13 +670,95 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
 
         {/* Line Items Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
-              Quotation Line Items
-            </span>
-            <span className="text-[11px] text-slate-500">
-              *Price per line can be edited/discounted. Overrides never write back to master catalog.
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                Quotation Line Items ({lineItems.length})
+              </span>
+            </div>
+
+            {/* Bulk Tax Settings Shortcut Control */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isBulkTaxOpen}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsBulkTaxOpen(checked);
+                      if (checked) {
+                        handleApplyBulkTax(bulkGstRate, withGst);
+                      }
+                    }}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <span>Apply to all items</span>
+                </label>
+
+                {isBulkTaxOpen && (
+                  <div className="flex items-center gap-2 border-l border-slate-200 pl-2.5 ml-1">
+                    {/* Mode Selector */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyBulkTax(bulkGstRate, true)}
+                        className={cn(
+                          'px-2 py-0.5 rounded-md font-bold transition-all',
+                          withGst ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        )}
+                      >
+                        With GST
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyBulkTax(0, false)}
+                        className={cn(
+                          'px-2 py-0.5 rounded-md font-bold transition-all',
+                          !withGst ? 'bg-slate-700 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        )}
+                      >
+                        No GST
+                      </button>
+                    </div>
+
+                    {/* GST Rate Dropdown */}
+                    {withGst && (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={bulkGstRate}
+                          onChange={(e) => {
+                            const rate = Number(e.target.value);
+                            setBulkGstRate(rate);
+                            handleApplyBulkTax(rate, true);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
+                        >
+                          <option value="0">0% GST</option>
+                          <option value="5">5% GST</option>
+                          <option value="12">12% GST</option>
+                          <option value="18">18% GST</option>
+                          <option value="28">28% GST</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyBulkTax(bulkGstRate, true)}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                          title="Re-apply this tax rate to all quotation lines"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <span className="text-[11px] text-slate-500 hidden md:inline-block">
+                *Price per line can be edited/discounted. Overrides never write back to master catalog.
+              </span>
+            </div>
           </div>
 
           <div className="border border-slate-200 rounded-xl overflow-visible shadow-2xs">
@@ -589,7 +767,7 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3 min-w-[220px]">Item Description</th>
-                  <th className="py-2.5 px-3 w-28">HSN/SAC</th>
+                  <th className="py-2.5 px-3 w-28">Location</th>
                   <th className="py-2.5 px-3 w-20 text-right">Qty</th>
                   <th className="py-2.5 px-3 w-20">Unit</th>
                   <th className="py-2.5 px-3 w-28 text-right">Price/Unit (₹)</th>
@@ -633,14 +811,28 @@ export const EstimateForm: React.FC<Props> = ({ onSaved, onPreviewPdf, initialEs
                       )}
                     </td>
 
-                    {/* HSN */}
+                    {/* Location */}
                     <td className="py-2 px-3">
-                      <input
-                        type="text"
-                        value={row.itemHSN}
-                        onChange={(e) => updateLineItem(row.id, { itemHSN: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-mono text-xs focus:outline-none focus:border-blue-600"
-                      />
+                      {(() => {
+                        const stock = branchStocks.find(
+                          (s) => s.itemId === row.itemId && s.branchId === selectedBranch
+                        );
+                        const loc = stock?.location?.trim();
+                        return (
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border max-w-[130px] truncate',
+                              loc
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 font-mono'
+                                : 'bg-slate-50 text-slate-400 border-slate-200'
+                            )}
+                            title={loc ? `Shelf/Rack Location: ${loc}` : 'No rack assigned'}
+                          >
+                            <MapPin className="h-3 w-3 shrink-0 text-amber-600/70" />
+                            <span className="truncate">{loc || '—'}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Quantity */}

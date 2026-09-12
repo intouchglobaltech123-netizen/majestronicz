@@ -54,6 +54,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     setSelectedPurchaseOrderForDetail,
     updatePendingOrder,
     canCancelEnquiry,
+    canConvertEnquiry,
     canEditRestockDate,
   } = useErp();
 
@@ -534,7 +535,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               Close
             </button>
 
-            {pendingOrder.status !== 'Fulfilled' && pendingOrder.status !== 'Cancelled' && (
+            {canConvertEnquiry && pendingOrder.status !== 'Fulfilled' && pendingOrder.status !== 'Cancelled' && (
               <>
                 <button
                   type="button"

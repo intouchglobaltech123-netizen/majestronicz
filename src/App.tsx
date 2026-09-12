@@ -4,7 +4,6 @@ import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ItemMasterView } from './components/items/ItemMasterView';
-import { EstimateView } from './components/estimates/EstimateView';
 import { DeliveryChallanView } from './components/challans/DeliveryChallanView';
 import { InvoiceView } from './components/invoices/InvoiceView';
 import { EnquiryView } from './components/enquiries/EnquiryView';
@@ -44,7 +43,7 @@ const AppContent: React.FC = () => {
           ) : currentView === 'pending-orders' ? (
             <PendingOrdersView />
           ) : currentView === 'estimates' ? (
-            <EstimateView />
+            <InvoiceView initialTab="estimates" />
           ) : currentView === 'challans' ? (
             <DeliveryChallanView />
           ) : currentView === 'invoices' ? (

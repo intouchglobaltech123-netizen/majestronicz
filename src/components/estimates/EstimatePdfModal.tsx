@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useErp } from '../../context/ErpContext';
 import { Estimate, COMPANY_PROFILE, GstBreakdownRow } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { calculateTaxBreakdown } from '../../lib/taxCalculations';
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose }) => {
+  const { items } = useErp();
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
@@ -221,7 +223,17 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                 {estimate.items.map((item, idx) => (
                   <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                     <td className="py-2.5 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-900">{item.itemName}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="font-semibold text-slate-900">{item.itemName}</span>
+                      {(() => {
+                        const master = items.find((i) => i.id === item.itemId);
+                        return master?.description ? (
+                          <p className="text-[10px] text-slate-500 italic mt-0.5 line-clamp-2 font-normal">
+                            {master.description}
+                          </p>
+                        ) : null;
+                      })()}
+                    </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{item.itemHSN || '—'}</td>
                     <td className="py-2.5 px-3 text-right font-bold text-slate-900">{item.quantity}</td>
                     <td className="py-2.5 px-3 text-slate-600 uppercase font-mono">{item.unit}</td>

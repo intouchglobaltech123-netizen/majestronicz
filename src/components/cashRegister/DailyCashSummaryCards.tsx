@@ -9,6 +9,7 @@ import {
   Lock,
   Unlock,
   Building,
+  Smartphone,
 } from 'lucide-react';
 
 interface Props {
@@ -35,7 +36,6 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   cashExpenses,
   gpayExpenses,
   closingBalance,
-  totalDayRevenue,
   bankDigitalTotal,
   creditTotal,
   isClosed,
@@ -47,86 +47,74 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      {/* HERO CARD: Prominent Physical Drawer Closing Balance */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900 text-white shadow-lg relative overflow-hidden border border-blue-700/50">
-        {/* Subtle Background Graphic Rings */}
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute top-0 right-0 p-6 opacity-10">
-          <WalletCards className="w-32 h-32" />
-        </div>
-
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {/* HERO CARD: Clean Light-Themed Physical Drawer Closing Balance */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-blue-400/20 text-blue-200 border border-blue-400/30 flex items-center gap-1.5">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span
+                className={`text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                  isClosed
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}
+              >
                 {isClosed ? (
                   <>
-                    <Lock className="h-3 w-3 text-emerald-400" />
-                    <span>LOCKED CLOSING CASH</span>
+                    <Lock className="h-3 w-3 text-slate-600" />
+                    <span>Locked Closing Cash</span>
                   </>
                 ) : (
                   <>
-                    <Unlock className="h-3 w-3 text-amber-300 animate-pulse" />
-                    <span>LIVE PHYSICAL DRAWER COUNT</span>
+                    <Unlock className="h-3 w-3 text-blue-600 animate-pulse" />
+                    <span>Live Physical Drawer Count</span>
                   </>
                 )}
               </span>
-              <span className="text-xs text-blue-200/80 font-medium">
+              <span className="text-xs text-slate-500 font-medium">
                 • {branchName}
               </span>
             </div>
 
-            <h2 className="text-sm font-semibold text-blue-100">
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
               Drawer Physical Cash (Closing Balance)
             </h2>
-            <div className="text-4xl md:text-5xl font-black tracking-tight text-white mt-1">
+            <div className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-blue-600 mt-1">
               {formatCurrency(closingBalance)}
             </div>
 
-            {/* Clear Formula Breakdown Callout */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-mono text-blue-100/90 bg-blue-950/60 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-blue-500/30">
-              <span className="text-blue-300 font-semibold">Tally Formula:</span>
-              <span>₹{openingAmount.toLocaleString('en-IN')} (Opening)</span>
-              <span className="text-emerald-400 font-bold">+</span>
-              <span className="text-emerald-300 font-semibold">₹{cashSales.toLocaleString('en-IN')} (Cash Sales)</span>
-              <span className="text-rose-400 font-bold">-</span>
-              <span className="text-rose-300 font-semibold">₹{cashExpenses.toLocaleString('en-IN')} (Cash Exp)</span>
-              <span className="text-blue-300 font-bold">=</span>
-              <strong className="text-white font-black underline decoration-blue-400">
+            {/* Clear Formula Breakdown Callout (Light Theme) */}
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-mono bg-slate-50 border border-slate-200/80 px-3.5 py-2 rounded-xl text-slate-600">
+              <span className="font-bold text-slate-700">Tally Formula:</span>
+              <span className="font-semibold text-slate-800">
+                ₹{openingAmount.toLocaleString('en-IN')} (Opening)
+              </span>
+              <span className="text-emerald-600 font-bold">+</span>
+              <span className="font-semibold text-emerald-700">
+                ₹{cashSales.toLocaleString('en-IN')} (Cash Sales)
+              </span>
+              <span className="text-rose-600 font-bold">-</span>
+              <span className="font-semibold text-rose-700">
+                ₹{cashExpenses.toLocaleString('en-IN')} (Cash Exp)
+              </span>
+              <span className="text-slate-400 font-bold">=</span>
+              <span className="font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                 ₹{closingBalance.toLocaleString('en-IN')} In Drawer
-              </strong>
+              </span>
             </div>
-            <p className="text-[11px] text-blue-200/70 mt-1.5 italic">
-              * Excludes HDFC, GPay & Credit sales (they do not sit in the physical drawer).
+            <p className="text-[11px] text-slate-400 mt-1.5 italic">
+              * Excludes HDFC, GPay &amp; Credit sales (they do not sit in the physical drawer).
             </p>
           </div>
 
-          {/* Quick Metrics Pillar */}
-          <div className="grid grid-cols-2 gap-3 w-full md:w-auto shrink-0 bg-white/5 backdrop-blur-xs p-4 rounded-2xl border border-white/10">
-            <div>
-              <span className="text-[10px] text-blue-200 uppercase tracking-wider font-bold block">
-                Total Day Sales
-              </span>
-              <span className="text-lg font-bold text-white block">
-                {formatCurrency(totalDayRevenue)}
-              </span>
-              <span className="text-[10px] text-blue-300/80">All 4 payment modes</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-blue-200 uppercase tracking-wider font-bold block">
-                Digital / Bank Total
-              </span>
-              <span className="text-lg font-bold text-emerald-300 block">
-                {formatCurrency(bankDigitalTotal)}
-              </span>
-              <span className="text-[10px] text-blue-300/80">HDFC + GPay Invoices</span>
-            </div>
+          <div className="hidden lg:flex items-center justify-center p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-blue-600 shrink-0">
+            <WalletCards className="w-16 h-16 opacity-80" />
           </div>
         </div>
       </div>
 
-      {/* SECONDARY ROW OF AUDIT METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* CONSOLIDATED ROW OF 5 AUDIT STAT CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Opening Amount */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
@@ -139,7 +127,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             <div className="text-2xl font-black text-slate-900 tracking-tight">
               {formatCurrency(openingAmount)}
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               {isOpeningOverridden ? (
                 <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
                   Manually Overridden
@@ -164,7 +152,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Card 2: Cash Invoices (Physical Inflow) */}
+        {/* Card 2: Cash Sales (Physical Inflow) */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Cash Sales (Drawer Inflow)</span>
@@ -186,7 +174,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Card 3: Total Expenses (Cash & Digital Outflow) */}
+        {/* Card 3: Total Day Expenses */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Day Expenses</span>
@@ -208,7 +196,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Card 4: Non-Cash / Credit Outstanding */}
+        {/* Card 4: COD / Credit Sales */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">COD / Credit Sales</span>
@@ -221,12 +209,34 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
               {formatCurrency(creditTotal)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Accounts receivable / pending collection
+              Accounts receivable / pending
             </p>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
             <span>Collected:</span>
             <span className="font-semibold text-indigo-700">Due later</span>
+          </div>
+        </div>
+
+        {/* Card 5: Digital / Bank Total */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Digital / Bank Total</span>
+            <div className="h-8 w-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+              <Smartphone className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="text-2xl font-black text-purple-700 tracking-tight">
+              {formatCurrency(bankDigitalTotal)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              HDFC + GPay Invoices
+            </p>
+          </div>
+          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Payment route:</span>
+            <span className="font-semibold text-purple-700">Bank deposit</span>
           </div>
         </div>
       </div>

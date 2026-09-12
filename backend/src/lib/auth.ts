@@ -19,9 +19,9 @@ interface RoleDef {
 export const ROLE_DEFS: RoleDef[] = [
   { role: 'CEO', pin: '1111', defaultName: 'Sathish Kumar (CEO)' },
   { role: 'Manager', pin: '2222', defaultName: 'Karthik Raja (Branch Manager)', defaultBranch: 'coimbatore' },
-  { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)' },
-  { role: 'Purchase', pin: '4444', defaultName: 'Ganesh (Purchase Desk)' },
-  { role: 'Sales', pin: '5555', defaultName: 'Vetri (Sales Executive)' },
+  { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)', defaultBranch: 'erode-hq' },
+  { role: 'Sales', pin: '4444', defaultName: 'Vignesh (Sales Executive)', defaultBranch: 'erode-hq' },
+  { role: 'Purchase', pin: '5555', defaultName: 'Ganesh (Purchase Desk)', defaultBranch: 'erode-hq' },
 ];
 
 // Capabilities required by mutating endpoints. A role may perform an action

@@ -110,7 +110,13 @@ export function saveCustomer(data: any) {
     } else {
       const id = data.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       await tx.customer.create({
-        data: { ...data, id, purchaseCount: data.purchaseCount ?? 0, totalSpent: data.totalSpent ?? 0, createdAt: ts, updatedAt: ts },
+        data: {
+          ...data, id,
+          firstPurchaseDate: data.firstPurchaseDate || ts.split('T')[0],
+          purchaseCount: data.purchaseCount ?? 0,
+          totalSpent: data.totalSpent ?? 0,
+          createdAt: ts, updatedAt: ts,
+        },
       });
     }
     return { customers: await tx.customer.findMany() };

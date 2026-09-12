@@ -14,6 +14,9 @@ import {
   Edit2,
   Receipt,
   ArrowUpDown,
+  Building2,
+  User,
+  AlertCircle,
 } from 'lucide-react';
 import { CustomerDetailModal } from './CustomerDetailModal';
 import { CustomerFormModal } from './CustomerFormModal';
@@ -26,6 +29,7 @@ export const CustomersView: React.FC = () => {
     setCurrentView,
     selectedCustomerForDetail,
     setSelectedCustomerForDetail,
+    getCustomerOutstandingBalance,
   } = useErp();
 
   // Navigation tab: directory vs loyalty
@@ -33,6 +37,7 @@ export const CustomersView: React.FC = () => {
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'Retail' | 'Organization'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'milestone-ready' | 'in-progress'>('all');
   const [sortBy, setSortBy] = useState<'purchases' | 'spent' | 'name' | 'recent'>('purchases');
 
@@ -49,6 +54,14 @@ export const CustomersView: React.FC = () => {
   const totalSalesRevenue = useMemo(() => {
     return customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
   }, [customers]);
+
+  const totalOutstandingDues = useMemo(() => {
+    return customers.reduce((sum, c) => sum + getCustomerOutstandingBalance(c), 0);
+  }, [customers, getCustomerOutstandingBalance]);
+
+  const customersWithDueCount = useMemo(() => {
+    return customers.filter((c) => getCustomerOutstandingBalance(c) > 0).length;
+  }, [customers, getCustomerOutstandingBalance]);
 
   const avgPurchases = useMemo(() => {
     if (totalCustomers === 0) return 0;
@@ -70,6 +83,11 @@ export const CustomersView: React.FC = () => {
         const addressMatch = c.address.toLowerCase().includes(q);
         return nameMatch || phoneMatch || addressMatch;
       });
+    }
+
+    // Type Filter (Retail vs Organization)
+    if (typeFilter !== 'all') {
+      result = result.filter((c) => (c.customerType || 'Retail') === typeFilter);
     }
 
     // Status Filter
@@ -97,7 +115,7 @@ export const CustomersView: React.FC = () => {
     });
 
     return result;
-  }, [customers, searchQuery, statusFilter, sortBy, loyaltySettings]);
+  }, [customers, searchQuery, typeFilter, statusFilter, sortBy, loyaltySettings]);
 
   const handleStartSaleForCustomer = (_customer: Customer) => {
     setSelectedCustomerForDetail(null);
@@ -188,6 +206,22 @@ export const CustomersView: React.FC = () => {
               <span className="text-[11px] text-slate-400 mt-0.5 block">Unique verified phones</span>
             </div>
 
+            {/* Total Outstanding Dues */}
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
+                  Total Outstanding Dues
+                </span>
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="text-2xl font-black text-amber-950 mt-1 font-mono">
+                {formatCurrency(totalOutstandingDues)}
+              </div>
+              <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
+                {customersWithDueCount} customer{customersWithDueCount === 1 ? '' : 's'} with balance due
+              </span>
+            </div>
+
             {/* Milestone Ready */}
             <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between">
@@ -249,23 +283,63 @@ export const CustomersView: React.FC = () => {
 
             {/* Filters */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Type filter */}
+              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('all')}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg transition-all cursor-pointer',
+                    typeFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                  )}
+                >
+                  All Types
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('Retail')}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer',
+                    typeFilter === 'Retail'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'hover:text-slate-900'
+                  )}
+                >
+                  <User className="h-3 w-3" />
+                  <span>Retail ({customers.filter((c) => (c.customerType || 'Retail') === 'Retail').length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('Organization')}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer',
+                    typeFilter === 'Organization'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'hover:text-slate-900'
+                  )}
+                >
+                  <Building2 className="h-3 w-3" />
+                  <span>Organization ({customers.filter((c) => (c.customerType || 'Retail') === 'Organization').length})</span>
+                </button>
+              </div>
+
               {/* Status filter */}
               <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
                 <button
                   type="button"
                   onClick={() => setStatusFilter('all')}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg transition-all',
+                    'px-3 py-1.5 rounded-lg transition-all cursor-pointer',
                     statusFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
                   )}
                 >
-                  All ({customers.length})
+                  All Status
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('milestone-ready')}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1',
+                    'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer',
                     statusFilter === 'milestone-ready'
                       ? 'bg-amber-100 text-amber-900 shadow-2xs'
                       : 'hover:text-amber-900'
@@ -301,17 +375,20 @@ export const CustomersView: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <th className="p-4">Customer</th>
+                      <th className="p-4">Type</th>
                       <th className="p-4">Phone / Contact</th>
                       <th className="p-4">Address</th>
                       <th className="p-4 text-center">Purchases</th>
                       <th className="p-4 text-right">Lifetime Spent</th>
+                      <th className="p-4 text-right">Balance Due</th>
                       <th className="p-4">Loyalty Status</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                     {filteredCustomers.map((cust) => {
-                      const isEligible = isLoyaltyMilestoneEligible(cust, loyaltySettings);
+                      const isOrg = (cust.customerType || 'Retail') === 'Organization';
+                      const isEligible = !isOrg && isLoyaltyMilestoneEligible(cust, loyaltySettings);
                       const progress = getLoyaltyProgress(cust, loyaltySettings);
 
                       return (
@@ -325,8 +402,11 @@ export const CustomersView: React.FC = () => {
                           {/* Customer Name */}
                           <td className="p-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-700 font-extrabold flex items-center justify-center shrink-0">
-                                {cust.name.charAt(0).toUpperCase()}
+                              <div className={cn(
+                                "w-9 h-9 rounded-xl font-extrabold flex items-center justify-center shrink-0",
+                                isOrg ? "bg-purple-100 text-purple-700" : "bg-blue-600/10 text-blue-700"
+                              )}>
+                                {isOrg ? <Building2 className="h-4 w-4" /> : cust.name.charAt(0).toUpperCase()}
                               </div>
                               <div>
                                 <button
@@ -341,6 +421,21 @@ export const CustomersView: React.FC = () => {
                                 </span>
                               </div>
                             </div>
+                          </td>
+
+                          {/* Type */}
+                          <td className="p-4 whitespace-nowrap">
+                            {isOrg ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-700 font-bold text-[11px]">
+                                <Building2 className="h-3 w-3 text-purple-600" />
+                                Organization
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-bold text-[11px]">
+                                <User className="h-3 w-3 text-blue-600" />
+                                Retail
+                              </span>
+                            )}
                           </td>
 
                           {/* Phone */}
@@ -375,9 +470,38 @@ export const CustomersView: React.FC = () => {
                             {formatCurrency(cust.totalSpent || 0)}
                           </td>
 
+                          {/* Balance Due */}
+                          <td className="p-4 text-right">
+                            {(() => {
+                              const bal = getCustomerOutstandingBalance(cust);
+                              if (bal > 0) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedCustomerForDetail(cust)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-300 text-xs font-mono font-black text-amber-900 shadow-2xs transition-colors cursor-pointer"
+                                    title="Click to view breakdown of unpaid bills"
+                                  >
+                                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                                    <span>{formatCurrency(bal)}</span>
+                                  </button>
+                                );
+                              }
+                              return <span className="text-slate-400 font-mono text-xs">₹0</span>;
+                            })()}
+                          </td>
+
                           {/* Loyalty Status Badge */}
                           <td className="p-4">
-                            {isEligible ? (
+                            {isOrg ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium"
+                                title="Organizations receive bulk partner tracking without loyalty milestones"
+                              >
+                                <Building2 className="h-3 w-3 text-purple-600" />
+                                <span>Bulk Relationship (No Loyalty Rules)</span>
+                              </span>
+                            ) : isEligible ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] animate-pulse">
                                 <Sparkles className="h-3 w-3 text-amber-600" />
                                 <span>

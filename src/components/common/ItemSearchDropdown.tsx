@@ -85,10 +85,10 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
       if (!value || !value.trim()) return true;
       const q = value.toLowerCase().trim();
       return (
-        item.itemName.toLowerCase().includes(q) ||
-        item.itemCode.toLowerCase().includes(q) ||
-        item.itemHSN.includes(q) ||
-        item.category.toLowerCase().includes(q)
+        (item.itemName && item.itemName.toLowerCase().includes(q)) ||
+        (item.itemCode && item.itemCode.toLowerCase().includes(q)) ||
+        (item.itemHSN && String(item.itemHSN).includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q))
       );
     }).slice(0, 12);
   }, [masterItems, value]);

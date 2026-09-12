@@ -42,14 +42,16 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
 
     items.forEach((item) => {
       const threshold = item.reorderThreshold ?? 10;
+      const unitPurchase = item.purchasePrice || 0;
+      const unitSale = item.salePrice || 0;
 
       BRANCHES.forEach((b) => {
         const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id);
         const qty = stockRow?.quantity ?? 0;
 
         branchValuations[b.id].totalUnits += qty;
-        branchValuations[b.id].purchaseValue += qty * item.purchasePrice;
-        branchValuations[b.id].retailValue += qty * item.salePrice;
+        branchValuations[b.id].purchaseValue += qty * unitPurchase;
+        branchValuations[b.id].retailValue += qty * unitSale;
 
         if (qty === 0) {
           branchValuations[b.id].outOfStockCount++;
@@ -84,16 +86,18 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
         status = 'in-stock';
       }
 
-      const totalCost = qty * item.purchasePrice;
-      const totalRetail = qty * item.salePrice;
+      const unitCost = item.purchasePrice || 0;
+      const unitSale = item.salePrice || 0;
+      const totalCost = qty * unitCost;
+      const totalRetail = qty * unitSale;
 
       return {
         item,
         quantity: qty,
         threshold,
         status,
-        unitCost: item.purchasePrice,
-        unitSale: item.salePrice,
+        unitCost,
+        unitSale,
         totalCost,
         totalRetail,
         potentialProfit: totalRetail - totalCost,

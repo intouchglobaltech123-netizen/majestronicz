@@ -17,6 +17,7 @@ import {
   Package,
   ClipboardList,
   Sparkles,
+  AlertOctagon,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
@@ -33,6 +34,9 @@ export const DashboardView: React.FC = () => {
     enquiries,
     pendingOrders,
     navigateToNewItemRequestsQueue,
+    getItemLastSaleInfo,
+    inventorySettings,
+    navigateToInventoryWithMovementFilter,
   } = useErp();
 
   // 1. Calculate KPI Metrics based on current scope (All Branches vs Individual Branch)
@@ -40,17 +44,24 @@ export const DashboardView: React.FC = () => {
     let totalStockValue = 0;
     let lowStockCount = 0;
     let inStockSkuCount = 0;
+    let deadStockCount = 0;
     const lowStockItems: { item: typeof items[0]; quantity: number; threshold: number; branchName?: string }[] = [];
 
     items.forEach((item) => {
       const threshold = item.reorderThreshold ?? 10;
+
+      // Dead Stock calculation
+      const saleInfo = getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch);
+      if (saleInfo.isDeadStock) {
+        deadStockCount++;
+      }
 
       if (isAllBranches) {
         // Aggregate across all branches
         const itemStocks = branchStocks.filter((s) => s.itemId === item.id);
         const totalQty = itemStocks.reduce((sum, s) => sum + s.quantity, 0);
 
-        totalStockValue += totalQty * item.purchasePrice;
+        totalStockValue += totalQty * (item.purchasePrice || 0);
 
         if (totalQty > 0) {
           inStockSkuCount++;
@@ -67,7 +78,7 @@ export const DashboardView: React.FC = () => {
         );
         const branchQty = stockRow?.quantity ?? 0;
 
-        totalStockValue += branchQty * item.purchasePrice;
+        totalStockValue += branchQty * (item.purchasePrice || 0);
 
         if (branchQty > 0) {
           inStockSkuCount++;
@@ -91,8 +102,9 @@ export const DashboardView: React.FC = () => {
       inStockSkuCount,
       lowStockCount,
       lowStockItems,
+      deadStockCount,
     };
-  }, [items, branchStocks, isAllBranches, currentBranch, currentBranchData]);
+  }, [items, branchStocks, isAllBranches, currentBranch, currentBranchData, getItemLastSaleInfo, inventorySettings]);
 
   // Role visibility for management widgets: CEO & Manager only (hidden for Billing)
   const canViewNewItemRequests = currentUser.role === 'CEO' || currentUser.role === 'Manager';
@@ -122,7 +134,7 @@ export const DashboardView: React.FC = () => {
         );
         const qty = stockRow?.quantity ?? 0;
 
-        branchValue += qty * item.purchasePrice;
+        branchValue += qty * (item.purchasePrice || 0);
         if (qty > 0) skuWithStock++;
         if (qty <= threshold) branchLowStockCount++;
       });
@@ -198,7 +210,7 @@ export const DashboardView: React.FC = () => {
       {/* TOP ROW: KPI CARDS (Values update dynamically based on branch selection) */}
       <div className={cn(
         'grid grid-cols-1 sm:grid-cols-2 gap-4',
-        canViewNewItemRequests ? 'lg:grid-cols-5' : 'lg:grid-cols-4'
+        canViewNewItemRequests ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-3 xl:grid-cols-5'
       )}>
         {/* KPI 1: Total Stock Value */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-blue-300 transition-all">
@@ -282,6 +294,59 @@ export const DashboardView: React.FC = () => {
             <span>Reorder Trigger:</span>
             <span className="font-semibold text-slate-800">
               {isAllBranches ? 'Combined ≤ Threshold' : 'Branch ≤ Threshold'}
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 4: Dead Stock Items Alert Widget (Alongside Low Stock Alerts) */}
+        <div
+          onClick={() => navigateToInventoryWithMovementFilter('not-moving')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              navigateToInventoryWithMovementFilter('not-moving');
+            }
+          }}
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-rose-300 hover:shadow-md cursor-pointer transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Dead Stock Items</span>
+            <div
+              className={cn(
+                'h-9 w-9 rounded-xl border flex items-center justify-center transition-colors',
+                kpiData.deadStockCount > 0
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 group-hover:bg-rose-100'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              )}
+            >
+              {kpiData.deadStockCount > 0 ? (
+                <AlertOctagon className="h-4 w-4" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div
+              className={cn(
+                'text-3xl lg:text-4xl font-black tracking-tight font-mono',
+                kpiData.deadStockCount > 0 ? 'text-rose-700' : 'text-slate-900'
+              )}
+            >
+              {kpiData.deadStockCount} {kpiData.deadStockCount === 1 ? 'Item' : 'Items'}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              No sale in {inventorySettings.deadStockThresholdDays}+ days or never sold
+            </p>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Filter Inventory:</span>
+            <span className="font-semibold text-rose-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+              <span>View Not Moving</span>
+              <ArrowRight className="h-3 w-3" />
             </span>
           </div>
         </div>

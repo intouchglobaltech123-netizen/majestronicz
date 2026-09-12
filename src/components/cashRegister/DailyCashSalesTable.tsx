@@ -1,7 +1,7 @@
 import React from 'react';
-import { Invoice } from '../../types';
+import { Invoice, PaymentMode, getInvoicePaymentSplits } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { Receipt, AlertCircle, FileText } from 'lucide-react';
+import { Receipt, AlertCircle, FileText, Split } from 'lucide-react';
 
 interface Props {
   invoices: Invoice[];
@@ -10,20 +10,23 @@ interface Props {
 }
 
 export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchName }) => {
-  // Compute column totals
+  // Compute column totals per split entry
   const totals = invoices.reduce(
     (acc, inv) => {
-      // Amount collected for this invoice (if PP, use partialAmount collected)
-      const rawAmount = inv.isPartialPayment && inv.partialAmount ? inv.partialAmount : inv.grandTotal;
+      const splits = getInvoicePaymentSplits(inv);
       const returned = inv.totalReturnedAmount || 0;
-      const amount = Math.max(0, rawAmount - returned);
+      const netTotal = Math.max(0, inv.grandTotal - returned);
+      const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
 
-      if (inv.paymentMode === 'HDFC') acc.hdfc += amount;
-      else if (inv.paymentMode === 'Cash') acc.cash += amount;
-      else if (inv.paymentMode === 'GPay') acc.gpay += amount;
-      else if (inv.paymentMode === 'COD-Credit') acc.codCredit += amount;
+      splits.forEach((split) => {
+        const amt = split.amount * ratio;
+        if (split.mode === 'HDFC') acc.hdfc += amt;
+        else if (split.mode === 'Cash') acc.cash += amt;
+        else if (split.mode === 'GPay') acc.gpay += amt;
+        else if (split.mode === 'COD-Credit') acc.codCredit += amt;
+        acc.allTotal += amt;
+      });
 
-      acc.allTotal += amount;
       return acc;
     },
     { hdfc: 0, cash: 0, gpay: 0, codCredit: 0, allTotal: 0 }
@@ -89,19 +92,40 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
             </thead>
             <tbody className="divide-y divide-slate-100">
               {invoices.map((inv) => {
-                const rawAmount =
-                  inv.isPartialPayment && inv.partialAmount ? inv.partialAmount : inv.grandTotal;
+                const splits = getInvoicePaymentSplits(inv);
                 const returned = inv.totalReturnedAmount || 0;
-                const collectedAmount = Math.max(0, rawAmount - returned);
+                const netTotal = Math.max(0, inv.grandTotal - returned);
+                const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
+
+                const getSplitModeAmount = (mode: PaymentMode) => {
+                  const s = splits.find((item) => item.mode === mode);
+                  return s ? s.amount * ratio : 0;
+                };
+
+                const hdfcAmount = getSplitModeAmount('HDFC');
+                const cashAmount = getSplitModeAmount('Cash');
+                const gpayAmount = getSplitModeAmount('GPay');
+                const codAmount = getSplitModeAmount('COD-Credit');
 
                 return (
                   <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                    {/* Bill No. & Customer Details with PP badge */}
+                    {/* Bill No. & Customer Details with PP and Split badges */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-slate-900">
                           {inv.invoiceNumber}
                         </span>
+
+                        {/* Split Payment badge */}
+                        {splits.length > 1 && (
+                          <span
+                            title={`Split Payment: ${splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')}`}
+                            className="px-1.5 py-0.5 rounded font-bold font-mono text-[9px] bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs cursor-help flex items-center gap-0.5"
+                          >
+                            <Split className="h-2.5 w-2.5" />
+                            <span>Split</span>
+                          </span>
+                        )}
 
                         {/* Partial Payment (PP) badge */}
                         {inv.isPartialPayment && (
@@ -136,9 +160,9 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
 
                     {/* HDFC Bank Column */}
                     <td className="py-3 px-3 text-right font-mono">
-                      {inv.paymentMode === 'HDFC' ? (
+                      {hdfcAmount > 0 ? (
                         <span className="font-bold text-slate-900">
-                          {formatCurrency(collectedAmount)}
+                          {formatCurrency(hdfcAmount)}
                         </span>
                       ) : (
                         <span className="text-slate-300">-</span>
@@ -147,9 +171,9 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
 
                     {/* Cash (Drawer) Column */}
                     <td className="py-3 px-3 text-right font-mono bg-emerald-50/30 border-x border-emerald-100/50">
-                      {inv.paymentMode === 'Cash' ? (
+                      {cashAmount > 0 ? (
                         <span className="font-extrabold text-emerald-800">
-                          {formatCurrency(collectedAmount)}
+                          {formatCurrency(cashAmount)}
                         </span>
                       ) : (
                         <span className="text-slate-300">-</span>
@@ -158,9 +182,9 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
 
                     {/* GPay Digital Column */}
                     <td className="py-3 px-3 text-right font-mono">
-                      {inv.paymentMode === 'GPay' ? (
+                      {gpayAmount > 0 ? (
                         <span className="font-bold text-blue-700">
-                          {formatCurrency(collectedAmount)}
+                          {formatCurrency(gpayAmount)}
                         </span>
                       ) : (
                         <span className="text-slate-300">-</span>
@@ -169,10 +193,10 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
 
                     {/* COD / Credit Column */}
                     <td className="py-3 px-3 text-right font-mono">
-                      {inv.paymentMode === 'COD-Credit' ? (
+                      {codAmount > 0 ? (
                         <div className="flex flex-col items-end">
                           <span className="font-bold text-indigo-900">
-                            {formatCurrency(collectedAmount)}
+                            {formatCurrency(codAmount)}
                           </span>
                           {inv.isPartialPayment && (
                             <span className="text-[9px] text-indigo-500">

@@ -15,6 +15,7 @@ import {
   Building,
   ReceiptText,
   ArrowRightLeft,
+  Copy,
 } from 'lucide-react';
 
 export const EstimateView: React.FC = () => {
@@ -30,6 +31,7 @@ export const EstimateView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
+  const [duplicateSourceEstimate, setDuplicateSourceEstimate] = useState<Estimate | null>(null);
   const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -48,17 +50,26 @@ export const EstimateView: React.FC = () => {
 
   const handleSaved = (savedEstimate: Estimate) => {
     setEditingEstimate(null);
+    setDuplicateSourceEstimate(null);
     setActiveTab('history');
     setPreviewEstimate(savedEstimate);
   };
 
   const handleStartNew = () => {
     setEditingEstimate(null);
+    setDuplicateSourceEstimate(null);
     setActiveTab('new');
   };
 
   const handleEdit = (estimate: Estimate) => {
     setEditingEstimate(estimate);
+    setDuplicateSourceEstimate(null);
+    setActiveTab('new');
+  };
+
+  const handleDuplicate = (estimate: Estimate) => {
+    setDuplicateSourceEstimate(estimate);
+    setEditingEstimate(null);
     setActiveTab('new');
   };
 
@@ -86,7 +97,11 @@ export const EstimateView: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
-              onClick={() => setActiveTab('new')}
+              onClick={() => {
+                setDuplicateSourceEstimate(null);
+                setEditingEstimate(null);
+                setActiveTab('new');
+              }}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all',
                 activeTab === 'new'
@@ -95,7 +110,13 @@ export const EstimateView: React.FC = () => {
               )}
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>{editingEstimate ? 'Edit Quote' : 'New Quote'}</span>
+              <span>
+                {editingEstimate
+                  ? 'Edit Quote'
+                  : duplicateSourceEstimate
+                  ? 'Duplicate Quote'
+                  : 'New Quote'}
+              </span>
             </button>
 
             <button
@@ -128,6 +149,7 @@ export const EstimateView: React.FC = () => {
       {activeTab === 'new' ? (
         <EstimateForm
           initialEstimate={editingEstimate}
+          duplicateSourceEstimate={duplicateSourceEstimate}
           onSaved={handleSaved}
           onPreviewPdf={(est) => setPreviewEstimate(est)}
         />
@@ -257,6 +279,14 @@ export const EstimateView: React.FC = () => {
                               className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicate(est)}
+                              title="Duplicate Quote (New quote with same items)"
+                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => {

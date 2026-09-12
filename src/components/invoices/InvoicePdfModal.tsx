@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Invoice, COMPANY_PROFILE, GstBreakdownRow } from '../../types';
+import { useErp } from '../../context/ErpContext';
+import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { calculateTaxBreakdown } from '../../lib/taxCalculations';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) => {
+  const { items } = useErp();
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
@@ -61,13 +63,21 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   };
 
   const handleShareWhatsApp = () => {
-    const text = `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment Mode: ${invoice.paymentMode}${invoice.isPartialPayment ? ` (Partial Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with Majestronicz!`;
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const splits = getInvoicePaymentSplits(invoice);
+    const splitSummary = splits.length > 1
+      ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
+      : invoice.paymentMode;
+    const text = `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Partial Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with Majestronicz!`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleCopySummary = () => {
-    const summary = `${COMPANY_PROFILE.name} Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nTotal: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${invoice.paymentMode} (${invoice.transactionType})\nItems: ${invoice.items.length}`;
+    if (!invoice) return;
+    const splits = getInvoicePaymentSplits(invoice);
+    const splitSummary = splits.length > 1
+      ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
+      : invoice.paymentMode;
+    const summary = `${COMPANY_PROFILE.name} Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nTotal: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary} (${invoice.transactionType})\nItems: ${invoice.items.length}`;
     navigator.clipboard.writeText(summary);
     setCopied(true);
     toast.success('Invoice details copied to clipboard');
@@ -205,11 +215,23 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   <span className="text-slate-500 font-medium">State of Supply:</span>
                   <span className="font-semibold text-slate-800">{invoice.stateOfSupply}</span>
                 </div>
-                <div className="flex justify-between pt-0.5">
+                <div className="flex justify-between pt-0.5 items-center">
                   <span className="text-slate-500 font-medium">Payment Received As:</span>
-                  <span className="font-mono font-bold text-blue-700 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    {invoice.paymentMode}
-                  </span>
+                  {(() => {
+                    const splits = getInvoicePaymentSplits(invoice);
+                    if (splits.length > 1) {
+                      return (
+                        <span className="font-mono font-bold text-purple-800 text-[11px] uppercase bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-right">
+                          Split ({splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(', ')})
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="font-mono font-bold text-blue-700 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        {invoice.paymentMode}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {invoice.isPartialPayment && (
                   <div className="flex justify-between text-[11px] pt-1 text-amber-700 font-bold bg-amber-50 p-1.5 rounded border border-amber-200">
@@ -302,6 +324,14 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       {item.itemCode && (
                         <span className="text-[10px] text-slate-500 font-mono">Code: {item.itemCode}</span>
                       )}
+                      {(() => {
+                        const master = items.find((i) => i.id === item.itemId || i.itemCode === item.itemCode);
+                        return master?.description ? (
+                          <p className="text-[10px] text-slate-500 italic mt-0.5 line-clamp-2">
+                            {master.description}
+                          </p>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{item.itemHSN || '—'}</td>
                     <td className="py-2.5 px-3 text-right font-bold text-slate-900">{item.quantity}</td>
@@ -485,9 +515,21 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <div className="mt-3 pt-3 border-t border-slate-200 space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Settlement Mode:</span>
-                  <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded border border-slate-200">
-                    {invoice.paymentMode} ({invoice.transactionType})
-                  </span>
+                  {(() => {
+                    const splits = getInvoicePaymentSplits(invoice);
+                    if (splits.length > 1) {
+                      return (
+                        <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded border border-slate-200 text-right">
+                          {splits.map((s) => `${s.mode} ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')} ({invoice.transactionType})
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded border border-slate-200">
+                        {invoice.paymentMode} ({invoice.transactionType})
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 {invoice.isPartialPayment ? (

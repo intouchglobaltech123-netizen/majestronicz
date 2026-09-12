@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BRANCHES } from '../../types';
+import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits } from '../../types';
 import { getTodayDateString, getYesterdayDateString } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
@@ -73,16 +73,15 @@ export const DailyCashRegisterView: React.FC = () => {
   const [activeSubView, setActiveSubView] = useState<'register' | 'recurring'>('register');
   const [approvingTemplate, setApprovingTemplate] = useState<RecurringExpenseTemplate | null>(null);
 
-  // Pending recurring expenses count for badge
+  // Pending scheduled expenses count for badge (frequency aware)
   const pendingRecurringCount = useMemo(() => {
     const monthKey = selectedDate.substring(0, 7);
+    const monthNumber = parseInt(selectedDate.split('-')[1], 10);
     const day = parseInt(selectedDate.split('-')[2], 10);
     return recurringExpenses.filter((t) => {
       if (t.branchId !== activeBranchId) return false;
-      const isApproved =
-        t.lastApprovedMonth === monthKey ||
-        t.approvalHistory?.some((a) => a.month === monthKey);
-      if (isApproved) return false;
+      if (!isExpenseDueInMonth(t, monthNumber)) return false;
+      if (isExpenseApprovedForMonth(t, monthKey)) return false;
       return day >= t.dueDay;
     }).length;
   }, [recurringExpenses, activeBranchId, selectedDate]);
@@ -99,21 +98,24 @@ export const DailyCashRegisterView: React.FC = () => {
     );
   }, [invoices, activeBranchId, selectedDate]);
 
-  // Sales Totals
+  // Sales Totals — Reconcile Per Split Entry
   const salesBreakdown = useMemo(() => {
     return dayInvoices.reduce(
       (acc, inv) => {
-        const rawAmount =
-          inv.isPartialPayment && inv.partialAmount ? inv.partialAmount : inv.grandTotal;
+        const splits = getInvoicePaymentSplits(inv);
         const returned = inv.totalReturnedAmount || 0;
-        const amount = Math.max(0, rawAmount - returned);
+        const netTotal = Math.max(0, inv.grandTotal - returned);
+        const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
 
-        if (inv.paymentMode === 'HDFC') acc.hdfc += amount;
-        else if (inv.paymentMode === 'Cash') acc.cash += amount;
-        else if (inv.paymentMode === 'GPay') acc.gpay += amount;
-        else if (inv.paymentMode === 'COD-Credit') acc.codCredit += amount;
+        splits.forEach((split) => {
+          const amt = split.amount * ratio;
+          if (split.mode === 'HDFC') acc.hdfc += amt;
+          else if (split.mode === 'Cash') acc.cash += amt;
+          else if (split.mode === 'GPay') acc.gpay += amt;
+          else if (split.mode === 'COD-Credit') acc.codCredit += amt;
+          acc.totalRevenue += amt;
+        });
 
-        acc.totalRevenue += amount;
         return acc;
       },
       { hdfc: 0, cash: 0, gpay: 0, codCredit: 0, totalRevenue: 0 }
@@ -212,7 +214,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 }`}
               >
                 <Calendar className="h-3.5 w-3.5" />
-                <span>Recurring Templates</span>
+                <span>Scheduled Amounts</span>
                 {pendingRecurringCount > 0 && (
                   <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-black rounded-full bg-amber-500 text-white">
                     {pendingRecurringCount}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   Item,
@@ -12,9 +12,13 @@ import {
   INVOICE_TERMS_PRESETS,
   DiscountType,
   Estimate,
+  EstimateLineItem,
   GstBreakdownRow,
   ComboItem,
   isLoyaltyMilestoneEligible,
+  cleanCustomerName,
+  PaymentSplit,
+  getInvoicePaymentSplits,
 } from '../../types';
 import {
   calculateLineTax,
@@ -38,7 +42,11 @@ import {
   Share2,
   Link,
   Sparkles,
-  ScanLine,
+  Copy,
+  Receipt,
+  Split,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -50,6 +58,12 @@ interface Props {
   onPreviewPdf: (invoice: Invoice) => void;
   initialInvoice?: Invoice | null;
   convertedFromEstimate?: Estimate | null;
+  duplicateSourceInvoice?: Invoice | null;
+  initialEstimate?: Estimate | null;
+  duplicateSourceEstimate?: Estimate | null;
+  initialDocumentType?: 'Invoice' | 'Quotation';
+  onSavedEstimate?: (estimate: Estimate) => void;
+  onPreviewEstimatePdf?: (estimate: Estimate) => void;
   onCancel?: () => void;
 }
 
@@ -58,6 +72,12 @@ export const InvoiceForm: React.FC<Props> = ({
   onPreviewPdf,
   initialInvoice,
   convertedFromEstimate,
+  duplicateSourceInvoice,
+  initialEstimate,
+  duplicateSourceEstimate,
+  initialDocumentType,
+  onSavedEstimate,
+  onPreviewEstimatePdf,
   onCancel,
 }) => {
   const {
@@ -65,47 +85,72 @@ export const InvoiceForm: React.FC<Props> = ({
     isAllBranches,
     getNextInvoiceNumber,
     saveInvoice,
+    getNextEstimateNumber,
+    saveEstimate,
     branchStocks,
     getComboAvailability,
     paymentTermsOptions,
     addPaymentTerm,
     customers,
     loyaltySettings,
-    items,
-    combos,
   } = useErp();
+
+  // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
+  const [documentType, setDocumentType] = useState<'Invoice' | 'Quotation'>(() => {
+    if (initialEstimate || duplicateSourceEstimate) return 'Quotation';
+    if (initialDocumentType) return initialDocumentType;
+    return 'Invoice';
+  });
 
   // Branch Selection
   const [selectedBranch, setSelectedBranch] = useState<BranchId>(() => {
     if (initialInvoice) return initialInvoice.branchId;
+    if (initialEstimate) return initialEstimate.branchId;
+    if (duplicateSourceEstimate) return duplicateSourceEstimate.branchId;
     if (convertedFromEstimate) return convertedFromEstimate.branchId;
     if (!isAllBranches && currentBranch !== 'all') return currentBranch as BranchId;
     return 'erode-hq';
   });
 
-  // Bill Type dropdown (Cash Sale / Credit Bill) - default to Cash Sale
+  // Bill Type dropdown (Cash Sale / Credit Bill) - default to Cash Sale (for Invoices)
   const [transactionType, setTransactionType] = useState<TransactionType>(() => {
     return initialInvoice ? initialInvoice.transactionType : 'Cash';
   });
 
-  // Invoice Number
-  const [invoiceNumber, setInvoiceNumber] = useState('');
+  // Invoice / Quotation Number
+  const [invoiceNumber, setInvoiceNumber] = useState(() => {
+    if (initialInvoice) return initialInvoice.invoiceNumber;
+    if (initialEstimate) return initialEstimate.estimateNumber;
+    const branch = (!isAllBranches && currentBranch !== 'all') ? (currentBranch as BranchId) : 'erode-hq';
+    if (duplicateSourceEstimate) return getNextEstimateNumber(duplicateSourceEstimate.branchId, getTodayDateString());
+    if (duplicateSourceInvoice) return getNextInvoiceNumber(duplicateSourceInvoice.branchId, getTodayDateString());
+    if (convertedFromEstimate) return getNextInvoiceNumber(convertedFromEstimate.branchId, getTodayDateString());
+    if (initialDocumentType === 'Quotation') return getNextEstimateNumber(branch, getTodayDateString());
+    return getNextInvoiceNumber(branch, getTodayDateString());
+  });
 
   // Date & Time
-  const [date, setDate] = useState(() => initialInvoice?.date || getTodayDateString());
+  const [date, setDate] = useState(() => initialInvoice?.date || initialEstimate?.date || getTodayDateString());
   const [time, setTime] = useState(() => {
     if (initialInvoice?.time) return initialInvoice.time;
+    if (initialEstimate?.time) return initialEstimate.time;
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   });
 
   // Customer & Loyalty Details
   const [customerId, setCustomerId] = useState<string | undefined>(
-    initialInvoice?.customerId || convertedFromEstimate?.customerId
+    initialInvoice?.customerId || initialEstimate?.customerId || convertedFromEstimate?.customerId
   );
-  const [customerName, setCustomerName] = useState(() => initialInvoice?.customerName || convertedFromEstimate?.customerName || '');
-  const [customerPhone, setCustomerPhone] = useState(() => initialInvoice?.customerPhone || convertedFromEstimate?.customerContact || '');
-  const [customerAddress, setCustomerAddress] = useState(() => initialInvoice?.customerAddress || convertedFromEstimate?.customerAddress || '');
+  const [customerName, setCustomerName] = useState(
+    () => initialInvoice?.customerName || initialEstimate?.customerName || convertedFromEstimate?.customerName || ''
+  );
+  const [customerPhone, setCustomerPhone] = useState(
+    () => initialInvoice?.customerPhone || initialEstimate?.customerContact || convertedFromEstimate?.customerContact || ''
+  );
+  const [customerAddress, setCustomerAddress] = useState(
+    () => initialInvoice?.customerAddress || initialEstimate?.customerAddress || convertedFromEstimate?.customerAddress || ''
+  );
   const [isLoyaltyRewardApplied, setIsLoyaltyRewardApplied] = useState<boolean>(
     initialInvoice?.isLoyaltyRewardApplied || false
   );
@@ -127,6 +172,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
   const isEligibleForLoyalty = useMemo(() => {
     if (!selectedCustomerObj) return false;
+    if (selectedCustomerObj.customerType === 'Organization') return false;
     return isLoyaltyMilestoneEligible(selectedCustomerObj, loyaltySettings, true);
   }, [selectedCustomerObj, loyaltySettings]);
 
@@ -156,12 +202,19 @@ export const InvoiceForm: React.FC<Props> = ({
   // GST Toggle
   const [withGst, setWithGst] = useState(true);
 
+  // Bulk Tax Apply Controls
+  const [isBulkTaxOpen, setIsBulkTaxOpen] = useState(false);
+  const [bulkTaxRate, setBulkTaxRate] = useState<number>(18);
+
   // Line Items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
 
-  // Payment Mode (Connected to Daily Cash Register) - default to Cash
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>(() => {
-    return initialInvoice?.paymentMode || 'Cash';
+  // Payment Splits (Connected to Daily Cash Register)
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>(() => {
+    if (initialInvoice) {
+      return getInvoicePaymentSplits(initialInvoice);
+    }
+    return [{ mode: 'Cash', amount: 0 }];
   });
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState<number>(0);
@@ -229,6 +282,13 @@ export const InvoiceForm: React.FC<Props> = ({
     }
   }, [date, paymentTerms, paymentTermsOptions]);
 
+  // Sync document mode when initialDocumentType prop changes (if not editing an existing document)
+  useEffect(() => {
+    if (initialDocumentType && !initialInvoice && !initialEstimate && !duplicateSourceInvoice && !duplicateSourceEstimate && !convertedFromEstimate) {
+      setDocumentType(initialDocumentType);
+    }
+  }, [initialDocumentType, initialInvoice, initialEstimate, duplicateSourceInvoice, duplicateSourceEstimate, convertedFromEstimate]);
+
   // Initialize from props (editing existing invoice or converting from estimate)
   useEffect(() => {
     if (initialInvoice) {
@@ -245,7 +305,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setStateOfSupply(initialInvoice.stateOfSupply || '33-Tamil Nadu');
       setWithGst(initialInvoice.withGst);
       setLineItems(initialInvoice.items);
-      setPaymentMode(initialInvoice.paymentMode || 'Cash');
+      setPaymentSplits(getInvoicePaymentSplits(initialInvoice));
       setIsPartialPayment(!!initialInvoice.isPartialPayment);
       setPartialAmount(initialInvoice.partialAmount || 0);
       setOverallDiscountType(initialInvoice.overallDiscountType || '%');
@@ -310,21 +370,213 @@ export const InvoiceForm: React.FC<Props> = ({
       toast.info(`Pre-filled from Estimate ${convertedFromEstimate.estimateNumber}`, {
         description: 'All customer details, items, and pricing loaded. Review and save.',
       });
-    } else {
-      // Fresh new invoice
-      const generated = getNextInvoiceNumber(selectedBranch);
+    } else if (initialEstimate) {
+      // Pre-fill from existing Estimate (editing a quotation)
+      setDocumentType('Quotation');
+      setSelectedBranch(initialEstimate.branchId);
+      setInvoiceNumber(initialEstimate.estimateNumber);
+      setDate(initialEstimate.date);
+      setTime(initialEstimate.time);
+      setCustomerId(initialEstimate.customerId);
+      setCustomerName(initialEstimate.customerName);
+      setCustomerPhone(initialEstimate.customerContact || '');
+      setCustomerAddress(initialEstimate.customerAddress || '');
+      setWithGst(initialEstimate.withGst);
+      setTerms(initialEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+      setSourceEnquiryId(initialEstimate.sourceEnquiryId);
+      setSourceEnquiryNumber(initialEstimate.sourceEnquiryNumber);
+
+      const quoteItems: InvoiceLineItem[] = initialEstimate.items.map((estItem) => {
+        const discType = estItem.discountType || '%';
+        const discVal = estItem.discount || estItem.discountValue || 0;
+        const rate = estItem.gstRate ?? estItem.taxRate ?? 0;
+        const lineTax = calculateLineTax(
+          estItem.quantity,
+          estItem.unitPrice,
+          rate,
+          initialEstimate.withGst,
+          discType,
+          discVal
+        );
+        return {
+          id: estItem.id || `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          itemId: estItem.itemId,
+          itemName: estItem.itemName,
+          itemHSN: estItem.itemHSN,
+          itemCode: estItem.itemCode || '',
+          unit: estItem.unit,
+          quantity: estItem.quantity,
+          unitPrice: estItem.unitPrice,
+          discountType: discType,
+          discountValue: discVal,
+          discountAmount: (estItem.quantity * estItem.unitPrice) - lineTax.taxableAmount,
+          taxRate: rate,
+          taxableAmount: lineTax.taxableAmount,
+          cgstAmount: lineTax.cgstAmount,
+          sgstAmount: lineTax.sgstAmount,
+          totalTax: lineTax.totalTax,
+          totalAmount: lineTax.totalAmount,
+          isCombo: estItem.isCombo,
+          comboId: estItem.comboId,
+          comboComponents: estItem.comboComponents,
+        };
+      });
+      setLineItems(quoteItems);
+    } else if (duplicateSourceEstimate) {
+      // Duplicate an existing quotation: copy items, rates, terms, but clear customer and get fresh EST sequence
+      setDocumentType('Quotation');
+      setSelectedBranch(duplicateSourceEstimate.branchId);
+      setDate(getTodayDateString());
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+      setCustomerId(undefined);
+      setIsLoyaltyRewardApplied(false);
+      setWithGst(duplicateSourceEstimate.withGst);
+      setTerms(duplicateSourceEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+
+      const dupQuoteItems: InvoiceLineItem[] = duplicateSourceEstimate.items.map((estItem) => {
+        const discType = estItem.discountType || '%';
+        const discVal = estItem.discount || estItem.discountValue || 0;
+        const rate = estItem.gstRate ?? estItem.taxRate ?? 0;
+        const lineTax = calculateLineTax(
+          estItem.quantity,
+          estItem.unitPrice,
+          rate,
+          duplicateSourceEstimate.withGst,
+          discType,
+          discVal
+        );
+        return {
+          id: `li-dup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          itemId: estItem.itemId,
+          itemName: estItem.itemName,
+          itemHSN: estItem.itemHSN,
+          itemCode: estItem.itemCode || '',
+          unit: estItem.unit,
+          quantity: estItem.quantity,
+          unitPrice: estItem.unitPrice,
+          discountType: discType,
+          discountValue: discVal,
+          discountAmount: (estItem.quantity * estItem.unitPrice) - lineTax.taxableAmount,
+          taxRate: rate,
+          taxableAmount: lineTax.taxableAmount,
+          cgstAmount: lineTax.cgstAmount,
+          sgstAmount: lineTax.sgstAmount,
+          totalTax: lineTax.totalTax,
+          totalAmount: lineTax.totalAmount,
+          isCombo: estItem.isCombo,
+          comboId: estItem.comboId,
+          comboComponents: estItem.comboComponents,
+        };
+      });
+      setLineItems(dupQuoteItems);
+
+      const generated = getNextEstimateNumber(duplicateSourceEstimate.branchId, getTodayDateString());
       setInvoiceNumber(generated);
-      setTransactionType('Cash');
-      setPaymentMode('Cash');
+      toast.info(`Duplicated from Quotation #${duplicateSourceEstimate.estimateNumber}`, {
+        description: 'All items and pricing copied. Please search or enter a customer to proceed.',
+      });
+    } else if (duplicateSourceInvoice) {
+      // Duplicate an existing invoice: copy items, rates, taxes, terms, but CLEAR customer and get fresh invoice number
+      setSelectedBranch(duplicateSourceInvoice.branchId);
+      setTransactionType(duplicateSourceInvoice.transactionType || 'Cash');
+      setDate(getTodayDateString());
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+      setCustomerId(undefined);
+      setIsLoyaltyRewardApplied(false);
+      setPaymentTerms(duplicateSourceInvoice.paymentTerms || 'Due on Receipt');
+      setDueDate(getTodayDateString());
+      setStateOfSupply(duplicateSourceInvoice.stateOfSupply || '33-Tamil Nadu');
+      setWithGst(duplicateSourceInvoice.withGst);
+      setPaymentSplits(getInvoicePaymentSplits(duplicateSourceInvoice));
+      setIsPartialPayment(false);
+      setPartialAmount(0);
+      setOverallDiscountType(duplicateSourceInvoice.overallDiscountType || '%');
+      setOverallDiscountValue(duplicateSourceInvoice.overallDiscountValue || 0);
+      setShippingCharges(duplicateSourceInvoice.shippingCharges || 0);
+      setRoundOffEnabled(duplicateSourceInvoice.roundOffEnabled ?? true);
+      setTerms(duplicateSourceInvoice.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+      setDescription(duplicateSourceInvoice.description || '');
+      setAttachments(duplicateSourceInvoice.attachments ? [...duplicateSourceInvoice.attachments] : []);
+      setSourceEstimateId(undefined);
+      setSourceEstimateNumber(undefined);
+      setSourceEnquiryId(undefined);
+      setSourceEnquiryNumber(undefined);
+
+      // Clone line items with fresh unique IDs
+      const duplicatedItems: InvoiceLineItem[] = duplicateSourceInvoice.items.map((item) => ({
+        ...item,
+        id: `li-dup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      }));
+      setLineItems(duplicatedItems);
+
+      const generated = getNextInvoiceNumber(duplicateSourceInvoice.branchId);
+      setInvoiceNumber(generated);
+      toast.info(`Duplicated from Invoice #${duplicateSourceInvoice.invoiceNumber}`, {
+        description: 'All items and pricing copied. Please search or enter a customer to proceed.',
+      });
+    } else {
+      // Fresh new document
+      if (documentType === 'Quotation') {
+        const generated = getNextEstimateNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+      } else {
+        const generated = getNextInvoiceNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+        setTransactionType('Cash');
+        setPaymentSplits([{ mode: 'Cash', amount: totals.grandTotal }]);
+      }
     }
-  }, [selectedBranch, initialInvoice, convertedFromEstimate, getNextInvoiceNumber]);
+  }, [selectedBranch, initialInvoice, initialEstimate, convertedFromEstimate, duplicateSourceInvoice, duplicateSourceEstimate, getNextInvoiceNumber, getNextEstimateNumber, date]);
+
+  // Keep document number in sync with financial year and mode when date or branch changes
+  useEffect(() => {
+    if (!initialInvoice && !initialEstimate) {
+      if (documentType === 'Quotation') {
+        const generated = getNextEstimateNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+      } else {
+        const generated = getNextInvoiceNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+      }
+    }
+  }, [selectedBranch, date, documentType, initialInvoice, initialEstimate, getNextInvoiceNumber, getNextEstimateNumber]);
+
+  // Mode switcher handler
+  const handleSwitchDocumentType = (newType: 'Invoice' | 'Quotation') => {
+    if (newType === documentType) return;
+    setDocumentType(newType);
+    if (!initialInvoice && !initialEstimate) {
+      if (newType === 'Quotation') {
+        const generated = getNextEstimateNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+      } else {
+        const generated = getNextInvoiceNumber(selectedBranch, date);
+        setInvoiceNumber(generated);
+      }
+    }
+  };
 
   // Ensure at least one row exists
   useEffect(() => {
-    if (lineItems.length === 0 && !initialInvoice && !convertedFromEstimate) {
+    if (
+      lineItems.length === 0 &&
+      !initialInvoice &&
+      !initialEstimate &&
+      !convertedFromEstimate &&
+      !duplicateSourceInvoice &&
+      !duplicateSourceEstimate
+    ) {
       addNewRow();
     }
-  }, [lineItems.length, initialInvoice, convertedFromEstimate]);
+  }, [lineItems.length, initialInvoice, initialEstimate, convertedFromEstimate, duplicateSourceInvoice, duplicateSourceEstimate]);
 
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -369,7 +621,7 @@ export const InvoiceForm: React.FC<Props> = ({
         discountType: '%',
         discountValue: 0,
         discountAmount: 0,
-        taxRate: 18,
+        taxRate: isBulkTaxOpen ? bulkTaxRate : 18,
         taxableAmount: 0,
         cgstAmount: 0,
         sgstAmount: 0,
@@ -437,7 +689,7 @@ export const InvoiceForm: React.FC<Props> = ({
       itemHSN: item.itemHSN,
       unit: item.unit,
       unitPrice: roundedPrice,
-      taxRate: item.gstTaxSlab,
+      taxRate: isBulkTaxOpen ? bulkTaxRate : item.gstTaxSlab,
       isCombo: false,
       comboId: undefined,
       comboComponents: undefined,
@@ -460,136 +712,11 @@ export const InvoiceForm: React.FC<Props> = ({
       itemHSN: '85371000',
       unit: 'SET',
       unitPrice: combo.comboPrice,
-      taxRate: 18,
+      taxRate: isBulkTaxOpen ? bulkTaxRate : 18,
       isCombo: true,
       comboId: combo.id,
       comboComponents: combo.components,
     });
-  };
-
-  // Append a brand-new combo line item (mirrors addNewRow's math for a combo).
-  const appendComboRow = (combo: ComboItem) => {
-    const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const calculated = calculateLineTax(1, combo.comboPrice, 18, withGst);
-    const newRow: InvoiceLineItem = {
-      id: newId,
-      itemId: combo.id,
-      itemCode: combo.comboCode,
-      itemName: combo.comboName,
-      itemHSN: '85371000',
-      quantity: 1,
-      unit: 'SET',
-      unitPrice: combo.comboPrice,
-      discountType: '%',
-      discountValue: 0,
-      discountAmount: 0,
-      taxRate: 18,
-      taxableAmount: calculated.taxableAmount,
-      cgstAmount: calculated.cgstAmount,
-      sgstAmount: calculated.sgstAmount,
-      totalTax: calculated.totalTax,
-      totalAmount: calculated.totalAmount,
-      isCombo: true,
-      comboId: combo.id,
-      comboComponents: combo.components,
-    };
-    setLineItems((prev) => [...prev, newRow]);
-  };
-
-  // ---- Barcode Scan → Sales Entry (counter-speed billing) ----
-  const [scanValue, setScanValue] = useState('');
-  const scanInputRef = useRef<HTMLInputElement>(null);
-
-  const branchName = BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch';
-
-  const handleScanSubmit = (rawCode: string) => {
-    const code = rawCode.trim();
-    if (!code) return;
-    const normalized = code.toLowerCase();
-
-    // Match a master item by its item code first, otherwise a combo by combo code.
-    const matchedItem = items.find((it) => it.itemCode.toLowerCase() === normalized);
-    const matchedCombo = matchedItem
-      ? undefined
-      : combos.find((c) => c.comboCode.toLowerCase() === normalized);
-
-    if (!matchedItem && !matchedCombo) {
-      toast.error('No item found for scanned code', {
-        description: `"${code}" does not match any item or combo code.`,
-      });
-      setScanValue('');
-      return;
-    }
-
-    if (matchedItem) {
-      const stockRow = branchStocks.find(
-        (s) => s.itemId === matchedItem.id && s.branchId === selectedBranch
-      );
-      const availableQty = stockRow?.quantity ?? 0;
-      if (availableQty <= 0) {
-        toast.error('Out of stock at this branch', {
-          description: `"${matchedItem.itemName}" has 0 available stock at ${branchName}.`,
-        });
-        setScanValue('');
-        return;
-      }
-
-      const existing = lineItems.find((li) => li.itemId === matchedItem.id && !li.isCombo);
-      if (existing) {
-        if (existing.quantity + 1 > availableQty) {
-          toast.warning('Reached available stock limit', {
-            description: `Only ${availableQty} unit(s) of "${matchedItem.itemName}" in stock at ${branchName}.`,
-          });
-        } else {
-          updateLineItem(existing.id, { quantity: existing.quantity + 1 });
-          toast.success(`+1 ${matchedItem.itemName}`, {
-            description: `Qty now ${existing.quantity + 1} • ${matchedItem.itemCode}`,
-          });
-        }
-      } else {
-        const emptyRow = lineItems.find((li) => !li.itemName.trim() && !li.itemId);
-        if (emptyRow) {
-          selectMasterItemForRow(emptyRow.id, matchedItem);
-        } else {
-          addNewRow(matchedItem);
-        }
-        toast.success(`Added ${matchedItem.itemName}`, { description: matchedItem.itemCode });
-      }
-    } else if (matchedCombo) {
-      const availQty = getComboAvailability(matchedCombo, selectedBranch);
-      if (availQty <= 0) {
-        toast.error('Combo out of stock at this branch', {
-          description: `"${matchedCombo.comboName}" has 0 available kits at ${branchName}.`,
-        });
-        setScanValue('');
-        return;
-      }
-
-      const existing = lineItems.find((li) => li.comboId === matchedCombo.id && li.isCombo);
-      if (existing) {
-        if (existing.quantity + 1 > availQty) {
-          toast.warning('Reached available combo stock limit', {
-            description: `Only ${availQty} kit(s) of "${matchedCombo.comboName}" available at ${branchName}.`,
-          });
-        } else {
-          updateLineItem(existing.id, { quantity: existing.quantity + 1 });
-          toast.success(`+1 ${matchedCombo.comboName}`, {
-            description: `Qty now ${existing.quantity + 1} • ${matchedCombo.comboCode}`,
-          });
-        }
-      } else {
-        const emptyRow = lineItems.find((li) => !li.itemName.trim() && !li.itemId);
-        if (emptyRow) {
-          selectComboForRow(emptyRow.id, matchedCombo);
-        } else {
-          appendComboRow(matchedCombo);
-        }
-        toast.success(`Added ${matchedCombo.comboName}`, { description: matchedCombo.comboCode });
-      }
-    }
-
-    setScanValue('');
-    scanInputRef.current?.focus();
   };
 
   const removeLineItem = (id: string) => {
@@ -622,6 +749,47 @@ export const InvoiceForm: React.FC<Props> = ({
           totalAmount: calculated.totalAmount,
         };
       })
+    );
+  };
+
+  // Bulk-apply tax rate and/or mode to all current line items
+  const handleApplyBulkTax = (rateToApply: number, modeWithGst: boolean = withGst) => {
+    if (lineItems.length === 0) {
+      toast.info('No line items to update');
+      return;
+    }
+
+    if (modeWithGst !== withGst) {
+      setWithGst(modeWithGst);
+    }
+
+    setLineItems((prev) =>
+      prev.map((item) => {
+        const calculated = calculateLineTax(
+          item.quantity,
+          item.unitPrice,
+          rateToApply,
+          modeWithGst,
+          item.discountType,
+          item.discountValue
+        );
+
+        return {
+          ...item,
+          taxRate: rateToApply,
+          taxableAmount: calculated.taxableAmount,
+          cgstAmount: calculated.cgstAmount,
+          sgstAmount: calculated.sgstAmount,
+          totalTax: calculated.totalTax,
+          totalAmount: calculated.totalAmount,
+        };
+      })
+    );
+
+    toast.success(
+      modeWithGst
+        ? `Applied ${rateToApply}% GST to all ${lineItems.length} line items`
+        : `Switched all ${lineItems.length} line items to Without Tax mode`
     );
   };
 
@@ -679,6 +847,82 @@ export const InvoiceForm: React.FC<Props> = ({
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // Auto-sync single split mode amount with grandTotal
+  useEffect(() => {
+    setPaymentSplits((prev) => {
+      if (prev.length === 1 && prev[0].amount !== totals.grandTotal) {
+        return [{ mode: prev[0].mode, amount: totals.grandTotal }];
+      }
+      return prev;
+    });
+  }, [totals.grandTotal]);
+
+  // Total allocated across payment splits
+  const totalAllocated = useMemo(() => {
+    if (paymentSplits.length === 1) {
+      return totals.grandTotal;
+    }
+    return paymentSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  }, [paymentSplits, totals.grandTotal]);
+
+  // Live remaining amount (positive = under-allocated, negative = over-allocated)
+  const remainingBalance = useMemo(() => {
+    return Math.round((totals.grandTotal - totalAllocated) * 100) / 100;
+  }, [totals.grandTotal, totalAllocated]);
+
+  // Is payment reconciled exactly to 0 remaining?
+  const isPaymentReconciled = useMemo(() => {
+    if (documentType !== 'Invoice') return true;
+    if (paymentSplits.length <= 1) return true;
+    return Math.abs(remainingBalance) < 0.01;
+  }, [documentType, paymentSplits.length, remainingBalance]);
+
+  // Split management handlers
+  const handleAddSplit = () => {
+    setPaymentSplits((prev) => {
+      const usedModes = new Set(prev.map((s) => s.mode));
+      const allModes: PaymentMode[] = ['Cash', 'GPay', 'HDFC', 'COD-Credit'];
+      const nextMode = allModes.find((m) => !usedModes.has(m)) || 'GPay';
+
+      // Allocate remainder to the new split if available
+      const currentSum = prev.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      const remaining = Math.max(0, totals.grandTotal - currentSum);
+
+      return [...prev, { mode: nextMode, amount: remaining }];
+    });
+  };
+
+  const handleUpdateSplitMode = (index: number, mode: PaymentMode) => {
+    setPaymentSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], mode };
+      return next;
+    });
+  };
+
+  const handleUpdateSplitAmount = (index: number, amount: number) => {
+    setPaymentSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], amount: Math.max(0, amount) };
+      return next;
+    });
+  };
+
+  const handleRemoveSplit = (index: number) => {
+    setPaymentSplits((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 1) {
+        return [{ mode: next[0].mode, amount: totals.grandTotal }];
+      }
+      return next;
+    });
+  };
+
+  const handleResetToSingleMode = () => {
+    setPaymentSplits((prev) => [{ mode: prev[0]?.mode || 'Cash', amount: totals.grandTotal }]);
+  };
+
   // Build the complete invoice object
   const assembleInvoiceObject = (): Invoice | null => {
     if (!customerName.trim()) {
@@ -696,12 +940,48 @@ export const InvoiceForm: React.FC<Props> = ({
       return null;
     }
 
-    if (isPartialPayment && (partialAmount <= 0 || partialAmount > totals.grandTotal)) {
-      toast.error('Invalid partial payment amount', {
-        description: `Partial amount must be greater than 0 and not exceed total ₹${totals.grandTotal.toLocaleString('en-IN')}`,
+    // Validate split payment reconciliation
+    if (documentType === 'Invoice' && paymentSplits.length > 1 && !isPaymentReconciled) {
+      toast.error('Payment split not reconciled', {
+        description:
+          remainingBalance > 0
+            ? `Please allocate the remaining ₹${remainingBalance.toLocaleString('en-IN')} before saving.`
+            : `Split amounts exceed grand total by ₹${Math.abs(remainingBalance).toLocaleString('en-IN')}.`,
       });
       return null;
     }
+
+    // Determine final splits
+    const finalSplits: PaymentSplit[] =
+      paymentSplits.length > 1
+        ? paymentSplits
+        : [{ mode: paymentSplits[0]?.mode || 'Cash', amount: totals.grandTotal }];
+
+    // Handle COD-Credit portion & partial payment tracking
+    const codSplit = finalSplits.find((s) => s.mode === 'COD-Credit');
+    let invoiceBalanceDue: number | undefined = undefined;
+    let invoiceIsPartialPayment = false;
+    let invoicePartialAmount: number | undefined = undefined;
+
+    if (finalSplits.length > 1) {
+      if (codSplit && codSplit.amount > 0) {
+        invoiceBalanceDue = codSplit.amount;
+        invoiceIsPartialPayment = codSplit.amount < totals.grandTotal;
+        invoicePartialAmount = totals.grandTotal - codSplit.amount;
+      }
+    } else {
+      if (finalSplits[0].mode === 'COD-Credit') {
+        if (isPartialPayment) {
+          invoiceIsPartialPayment = true;
+          invoicePartialAmount = partialAmount;
+          invoiceBalanceDue = Math.max(0, totals.grandTotal - partialAmount);
+        } else {
+          invoiceBalanceDue = totals.grandTotal;
+        }
+      }
+    }
+
+    const primaryMode = finalSplits[0]?.mode || 'Cash';
 
     const newInvoice: Invoice = {
       id: initialInvoice ? initialInvoice.id : `inv-${Date.now()}`,
@@ -709,7 +989,7 @@ export const InvoiceForm: React.FC<Props> = ({
       branchId: selectedBranch,
       transactionType,
       customerId: customerId || selectedCustomerObj?.id,
-      customerName: customerName.trim(),
+      customerName: cleanCustomerName(customerName),
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       date,
@@ -736,10 +1016,11 @@ export const InvoiceForm: React.FC<Props> = ({
       termsAndConditions: terms,
       description: description.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
-      paymentMode,
-      isPartialPayment,
-      partialAmount: isPartialPayment ? partialAmount : undefined,
-      balanceDue: isPartialPayment ? balanceDue : undefined,
+      paymentMode: primaryMode,
+      paymentSplits: finalSplits,
+      isPartialPayment: invoiceIsPartialPayment,
+      partialAmount: invoicePartialAmount,
+      balanceDue: invoiceBalanceDue,
       sourceEstimateId,
       sourceEstimateNumber,
       sourceEnquiryId,
@@ -752,28 +1033,167 @@ export const InvoiceForm: React.FC<Props> = ({
     return newInvoice;
   };
 
+  // Build the complete quotation/estimate object
+  const assembleEstimateObject = (): Estimate | null => {
+    if (!customerName.trim()) {
+      toast.error('Customer name is required', {
+        description: 'Please specify the customer or organization for this quotation.',
+      });
+      return null;
+    }
+
+    const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
+    if (validItems.length === 0) {
+      toast.error('At least one valid item is required', {
+        description: 'Please enter a product description and quantity > 0.',
+      });
+      return null;
+    }
+
+    const estimateItems: EstimateLineItem[] = validItems.map((item) => ({
+      id: item.id,
+      itemId: item.itemId,
+      itemName: item.itemName,
+      itemHSN: item.itemHSN,
+      itemCode: item.itemCode || '',
+      quantity: item.quantity,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      gstRate: item.taxRate,
+      taxRate: item.taxRate,
+      discount: item.discountValue || 0,
+      discountValue: item.discountValue || 0,
+      discountType: item.discountType || '%',
+      taxableAmount: item.taxableAmount,
+      cgstAmount: item.cgstAmount,
+      sgstAmount: item.sgstAmount,
+      totalTax: item.totalTax,
+      totalAmount: item.totalAmount,
+      isCombo: item.isCombo,
+      comboId: item.comboId,
+      comboComponents: item.comboComponents,
+    }));
+
+    const finalEstimateNumber = invoiceNumber.trim() || getNextEstimateNumber(selectedBranch, date);
+
+    const newEstimate: Estimate = {
+      id: initialEstimate ? initialEstimate.id : `est-${Date.now()}`,
+      estimateNumber: finalEstimateNumber,
+      branchId: selectedBranch,
+      customerId: customerId || selectedCustomerObj?.id,
+      customerName: cleanCustomerName(customerName),
+      customerContact: customerPhone.trim() || undefined,
+      customerAddress: customerAddress.trim() || undefined,
+      date,
+      time,
+      withGst,
+      items: estimateItems,
+      subtotal: totals.subtotal,
+      totalCgst: totals.totalCgst,
+      totalSgst: totals.totalSgst,
+      totalTax: totals.totalTax,
+      grandTotal: totals.grandTotal,
+      amountInWords: totals.amountInWords,
+      termsAndConditions: terms,
+      sourceEnquiryId,
+      sourceEnquiryNumber,
+      createdAt: initialEstimate ? initialEstimate.createdAt : new Date().toISOString(),
+    };
+
+    return newEstimate;
+  };
+
   const handleSave = () => {
-    const inv = assembleInvoiceObject();
-    if (!inv) return;
-    saveInvoice(inv);
-    onSaved(inv);
+    if (documentType === 'Quotation') {
+      const est = assembleEstimateObject();
+      if (!est) return;
+      saveEstimate(est);
+      toast.success(`Quotation ${est.estimateNumber} saved successfully`);
+      if (onSavedEstimate) {
+        onSavedEstimate(est);
+      }
+    } else {
+      const inv = assembleInvoiceObject();
+      if (!inv) return;
+      saveInvoice(inv);
+      toast.success(`Invoice ${inv.invoiceNumber} saved successfully`);
+      onSaved(inv);
+    }
   };
 
   const handlePreview = () => {
-    const inv = assembleInvoiceObject();
-    if (!inv) return;
-    onPreviewPdf(inv);
+    if (documentType === 'Quotation') {
+      const est = assembleEstimateObject();
+      if (!est) return;
+      if (onPreviewEstimatePdf) {
+        onPreviewEstimatePdf(est);
+      } else {
+        toast.info(`Previewing Quotation #${est.estimateNumber}`);
+      }
+    } else {
+      const inv = assembleInvoiceObject();
+      if (!inv) return;
+      onPreviewPdf(inv);
+    }
   };
 
   const handleShare = () => {
-    const inv = assembleInvoiceObject();
-    if (!inv) return;
-    const text = `*SALES INVOICE — MAJESTRONICZ*\nInvoice: ${inv.invoiceNumber}\nDate: ${inv.date}\nCustomer: ${inv.customerName}\nGrand Total: ₹${inv.grandTotal.toLocaleString('en-IN')}\nPayment: ${inv.paymentMode} (${inv.transactionType})\nThank you for doing business with Majestronicz!`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    if (documentType === 'Quotation') {
+      const est = assembleEstimateObject();
+      if (!est) return;
+      const text = `*QUOTATION — MAJESTRONICZ*\nQuote: ${est.estimateNumber}\nDate: ${est.date}\nCustomer: ${est.customerName}\nGrand Total: ₹${est.grandTotal.toLocaleString('en-IN')}\nThank you for choosing Majestronicz!`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    } else {
+      const inv = assembleInvoiceObject();
+      if (!inv) return;
+      const splits = inv.paymentSplits && inv.paymentSplits.length > 1
+        ? inv.paymentSplits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
+        : `${inv.paymentMode}`;
+      const text = `*SALES INVOICE — MAJESTRONICZ*\nInvoice: ${inv.invoiceNumber}\nDate: ${inv.date}\nCustomer: ${inv.customerName}\nGrand Total: ₹${inv.grandTotal.toLocaleString('en-IN')}\nPayment: ${splits} (${inv.transactionType})\nThank you for doing business with Majestronicz!`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      {/* Duplicate Notice Banner */}
+      {duplicateSourceInvoice && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-950">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Copy className="h-4 w-4 text-indigo-600 shrink-0" />
+            <span className="font-bold">Duplicate Sale:</span>
+            <span className="bg-white px-2 py-0.5 rounded border border-indigo-200 font-mono font-bold text-indigo-700">
+              Copied from #{duplicateSourceInvoice.invoiceNumber}
+            </span>
+            <span className="text-slate-600">
+              (Customer cleared — select or enter customer before saving)
+            </span>
+          </div>
+          <span className="text-[11px] text-indigo-600 font-semibold">
+            Fresh sequence #{invoiceNumber}
+          </span>
+        </div>
+      )}
+
+      {/* Duplicate Quote Notice Banner */}
+      {duplicateSourceEstimate && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-purple-950">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Copy className="h-4 w-4 text-purple-600 shrink-0" />
+            <span className="font-bold">Duplicate Quote:</span>
+            <span className="bg-white px-2 py-0.5 rounded border border-purple-200 font-mono font-bold text-purple-700">
+              Copied from #{duplicateSourceEstimate.estimateNumber}
+            </span>
+            <span className="text-slate-600">
+              (Customer cleared — select or enter customer before saving)
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-600 font-semibold">
+            Fresh sequence #{invoiceNumber}
+          </span>
+        </div>
+      )}
+
       {/* Source Reference Banner */}
       {(sourceEstimateNumber || sourceEnquiryNumber) && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-blue-950">
@@ -797,25 +1217,72 @@ export const InvoiceForm: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Top Banner with Bill Type Dropdown & Action Buttons */}
+      {/* Top Banner with Document Mode Switcher & Action Buttons */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Left: Bill Type (Cash Sale / Credit Bill) Dropdown */}
-        <div className="flex items-center gap-3">
-          <div className="w-44 sm:w-48">
-            <UniversalDropdown
-              options={[
-                { value: 'Cash', label: 'Cash Sale' },
-                { value: 'Credit', label: 'Credit Bill' },
-              ]}
-              value={transactionType}
-              onChange={(val) => setTransactionType(val as TransactionType)}
-            />
+        {/* Left: Document Mode Toggle & Bill Type */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Document Type Toggle: Invoice vs Quotation */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSwitchDocumentType('Invoice')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                documentType === 'Invoice'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span>Tax Invoice</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSwitchDocumentType('Quotation')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                documentType === 'Quotation'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Quotation</span>
+            </button>
           </div>
+
+          {/* If Invoice: show Bill Type (Cash Sale / Credit Bill) */}
+          {documentType === 'Invoice' && (
+            <div className="w-40 sm:w-44">
+              <UniversalDropdown
+                options={[
+                  { value: 'Cash', label: 'Cash Sale' },
+                  { value: 'Credit', label: 'Credit Bill' },
+                ]}
+                value={transactionType}
+                onChange={(val) => setTransactionType(val as TransactionType)}
+              />
+            </div>
+          )}
 
           {sourceEstimateId && (
             <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" />
               <span>Converted from Estimate</span>
+            </span>
+          )}
+
+          {duplicateSourceInvoice && (
+            <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 flex items-center gap-1.5">
+              <Copy className="h-3.5 w-3.5" />
+              <span>Duplicate of #{duplicateSourceInvoice.invoiceNumber}</span>
+            </span>
+          )}
+
+          {duplicateSourceEstimate && (
+            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 flex items-center gap-1.5">
+              <Copy className="h-3.5 w-3.5" />
+              <span>Duplicate of #{duplicateSourceEstimate.estimateNumber}</span>
             </span>
           )}
         </div>
@@ -826,7 +1293,7 @@ export const InvoiceForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -835,16 +1302,16 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
           >
-            <Share2 className="h-3.5 w-3.5" />
+            <Share2 className="h-3.5 w-3.5 text-slate-500" />
             <span>Share</span>
           </button>
 
           <button
             type="button"
             onClick={handlePreview}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
           >
             <Printer className="h-3.5 w-3.5 text-slate-500" />
             <span>Preview PDF</span>
@@ -853,10 +1320,23 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+            disabled={documentType === 'Invoice' && !isPaymentReconciled}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-xs cursor-pointer",
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                : documentType === 'Quotation'
+                ? "bg-purple-600 hover:bg-purple-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            )}
+            title={
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+                : undefined
+            }
           >
             <Save className="h-3.5 w-3.5" />
-            <span>Save & Decrement Stock</span>
+            <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save & Decrement Stock'}</span>
           </button>
         </div>
       </div>
@@ -884,19 +1364,29 @@ export const InvoiceForm: React.FC<Props> = ({
             </select>
           </div>
 
-          {/* Auto Invoice Number */}
+          {/* Auto Invoice / Quotation Number */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Invoice Number
+              {documentType === 'Quotation' ? 'Quotation Number' : 'Invoice Number'}
             </label>
             <div className="relative">
               <input
                 type="text"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-blue-50/50 border border-blue-200 text-xs font-mono font-bold text-blue-800 focus:outline-none focus:border-blue-600"
+                className={cn(
+                  "w-full px-3 py-2 rounded-xl text-xs font-mono font-bold focus:outline-none",
+                  documentType === 'Quotation'
+                    ? "bg-purple-50/50 border border-purple-200 text-purple-800 focus:border-purple-600"
+                    : "bg-blue-50/50 border border-blue-200 text-blue-800 focus:border-blue-600"
+                )}
               />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-blue-600 uppercase bg-blue-100/70 px-1.5 py-0.5 rounded">
+              <span className={cn(
+                "absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded",
+                documentType === 'Quotation'
+                  ? "text-purple-600 bg-purple-100/70"
+                  : "text-blue-600 bg-blue-100/70"
+              )}>
                 Auto
               </span>
             </div>
@@ -905,7 +1395,7 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* Invoice Date */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Invoice Date
+              {documentType === 'Quotation' ? 'Quotation Date' : 'Invoice Date'}
             </label>
             <div className="relative">
               <input
@@ -965,8 +1455,9 @@ export const InvoiceForm: React.FC<Props> = ({
               customerPhone={customerPhone}
               customerAddress={customerAddress}
               onSelectCustomer={(cust) => {
+                const clean = cleanCustomerName(cust.name, cust.notes);
                 setCustomerId(cust.id);
-                setCustomerName(cust.name);
+                setCustomerName(clean);
                 setCustomerPhone(cust.phone || '');
                 setCustomerAddress(cust.address || '');
               }}
@@ -1074,7 +1565,7 @@ export const InvoiceForm: React.FC<Props> = ({
       {/* LINE ITEMS TABLE CARD */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         {/* Table Header Strip */}
-        <div className="px-6 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
               Invoice Line Items ({lineItems.length})
@@ -1083,33 +1574,89 @@ export const InvoiceForm: React.FC<Props> = ({
               Branch: {BRANCHES.find((b) => b.id === selectedBranch)?.shortCode}
             </span>
           </div>
-          <span className="text-[11px] text-blue-700 font-medium">
-            💡 Price edits apply only to this invoice; catalog item prices are never modified.
-          </span>
-        </div>
 
-        {/* Barcode Scan Bar — scan an item/combo code to add it straight to the bill */}
-        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600" />
-            <input
-              ref={scanInputRef}
-              type="text"
-              value={scanValue}
-              onChange={(e) => setScanValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleScanSubmit(scanValue);
-                }
-              }}
-              placeholder="Scan barcode or type item code, then press Enter…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold font-mono text-slate-900 placeholder-slate-400 placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-            />
+          {/* Bulk Tax Settings Shortcut Control */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isBulkTaxOpen}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsBulkTaxOpen(checked);
+                    if (checked) {
+                      handleApplyBulkTax(bulkTaxRate, withGst);
+                    }
+                  }}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <span>Apply to all items</span>
+              </label>
+
+              {isBulkTaxOpen && (
+                <div className="flex items-center gap-2 border-l border-slate-200 pl-2.5 ml-1">
+                  {/* Mode Selector */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBulkTax(bulkTaxRate, true)}
+                      className={cn(
+                        'px-2 py-0.5 rounded-md font-bold transition-all',
+                        withGst ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      )}
+                    >
+                      With GST
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBulkTax(0, false)}
+                      className={cn(
+                        'px-2 py-0.5 rounded-md font-bold transition-all',
+                        !withGst ? 'bg-slate-700 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      )}
+                    >
+                      No Tax
+                    </button>
+                  </div>
+
+                  {/* Tax Rate Dropdown */}
+                  {withGst && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={bulkTaxRate}
+                        onChange={(e) => {
+                          const rate = Number(e.target.value);
+                          setBulkTaxRate(rate);
+                          handleApplyBulkTax(rate, true);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
+                      >
+                        <option value="0">0% GST</option>
+                        <option value="5">5% GST</option>
+                        <option value="12">12% GST</option>
+                        <option value="18">18% GST</option>
+                        <option value="28">28% GST</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyBulkTax(bulkTaxRate, true)}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                        title="Re-apply this tax rate to all invoice lines"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <span className="text-[11px] text-blue-700 font-medium hidden xl:inline-block">
+              💡 Price edits apply only to this invoice; catalog item prices are never modified.
+            </span>
           </div>
-          <span className="text-[11px] text-slate-500">
-            Adds directly to the bill; scanning the same code again increases quantity.
-          </span>
         </div>
 
         {/* Line Items Table */}
@@ -1119,7 +1666,7 @@ export const InvoiceForm: React.FC<Props> = ({
               <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
                 <th className="py-3 px-3 w-10 text-center">#</th>
                 <th className="py-3 px-3 min-w-[240px]">Item Description / Search Catalog</th>
-                <th className="py-3 px-3 w-24">HSN/SAC</th>
+                <th className="py-3 px-3 w-28">Location</th>
                 <th className="py-3 px-3 w-20">Qty</th>
                 <th className="py-3 px-3 w-20">Unit</th>
                 <th className="py-3 px-3 w-28 text-right">Price/Unit (₹)</th>
@@ -1172,15 +1719,28 @@ export const InvoiceForm: React.FC<Props> = ({
                       )}
                     </td>
 
-                    {/* HSN Code */}
+                    {/* Branch Rack Location */}
                     <td className="py-2.5 px-3">
-                      <input
-                        type="text"
-                        placeholder="HSN"
-                        value={item.itemHSN}
-                        onChange={(e) => updateLineItem(item.id, { itemHSN: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:border-blue-600"
-                      />
+                      {(() => {
+                        const stock = branchStocks.find(
+                          (s) => s.itemId === item.itemId && s.branchId === selectedBranch
+                        );
+                        const loc = stock?.location?.trim();
+                        return (
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border max-w-[130px] truncate',
+                              loc
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 font-mono'
+                                : 'bg-slate-50 text-slate-400 border-slate-200'
+                            )}
+                            title={loc ? `Shelf/Rack Location: ${loc}` : 'No rack assigned'}
+                          >
+                            <MapPin className="h-3 w-3 shrink-0 text-amber-600/70" />
+                            <span className="truncate">{loc || '—'}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Quantity */}
@@ -1312,84 +1872,279 @@ export const InvoiceForm: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (Span 7): Payment Mode + Terms + Notes */}
         <div className="lg:col-span-7 space-y-5">
-          {/* PAYMENT MODE (Connected to Daily Cash Register) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                  Payment Mode (Daily Cash Register) <span className="text-rose-500">*</span>
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Select payment destination matching the Daily Cash sheet columns.
-                </p>
-              </div>
-              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                Auto-Reconciles
-              </span>
-            </div>
-
-            {/* Payment Mode Dropdown matching Daily Cash Register */}
-            <UniversalDropdown
-              options={[
-                { value: 'Cash', label: 'Cash' },
-                { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
-                { value: 'GPay', label: 'GPay (UPI/QR)' },
-                { value: 'COD-Credit', label: 'COD-Credit (Pay on Delivery)' },
-              ]}
-              value={paymentMode}
-              onChange={(val) => setPaymentMode(val as PaymentMode)}
-            />
-
-            {/* Partial Payment (PP) Toggle & Input for COD-Credit */}
-            {paymentMode === 'COD-Credit' && (
-              <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3 mt-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-amber-900">
-                      Partial Payment (PP) Received?
-                    </span>
-                    <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
-                      "PP" Register Column
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="partial-pay-toggle"
-                    checked={isPartialPayment}
-                    onChange={(e) => setIsPartialPayment(e.target.checked)}
-                    className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                  />
+          {/* PAYMENT MODE & SPLIT PAYMENT (Daily Cash Register Connected) */}
+          {documentType === 'Invoice' ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <span>Payment Allocation (Daily Cash Register)</span>
+                    <span className="text-rose-500">*</span>
+                    {paymentSplits.length > 1 && (
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 flex items-center gap-1">
+                        <Split className="h-2.5 w-2.5" />
+                        <span>Split Payment ({paymentSplits.length} modes)</span>
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Settlement modes automatically populate matching columns in the Daily Cash sheet.
+                  </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  {paymentSplits.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleResetToSingleMode}
+                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    >
+                      Reset to Single Mode
+                    </button>
+                  )}
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    Auto-Reconciles
+                  </span>
+                </div>
+              </div>
 
-                {isPartialPayment && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200">
-                    <div>
-                      <label className="block text-[11px] font-bold text-amber-900 mb-1">
-                        Advance / Partial Amount Collected (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="Enter collected partial amount..."
-                        value={partialAmount || ''}
-                        onChange={(e) => setPartialAmount(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+              {/* SINGLE MODE VIEW (Default / Common Case) */}
+              {paymentSplits.length <= 1 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <UniversalDropdown
+                        options={[
+                          { value: 'Cash', label: 'Cash' },
+                          { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
+                          { value: 'GPay', label: 'GPay (UPI/QR)' },
+                          { value: 'COD-Credit', label: 'COD-Credit (Pay on Delivery)' },
+                        ]}
+                        value={paymentSplits[0]?.mode || 'Cash'}
+                        onChange={(val) =>
+                          setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }])
+                        }
                       />
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-amber-900 mb-1">
-                        Remaining Balance Due
-                      </label>
-                      <div className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-rose-700">
-                        {formatCurrency(balanceDue)}
-                      </div>
+                    <div className="w-36 text-right px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Amount</span>
+                      <span className="font-mono font-bold text-slate-800 text-xs">
+                        {formatCurrency(totals.grandTotal)}
+                      </span>
                     </div>
                   </div>
-                )}
+
+                  {/* Partial Payment Toggle for COD-Credit */}
+                  {paymentSplits[0]?.mode === 'COD-Credit' && (
+                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3 mt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-900">
+                            Partial Payment (PP) Received?
+                          </span>
+                          <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
+                            "PP" Register Column
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="partial-pay-toggle"
+                          checked={isPartialPayment}
+                          onChange={(e) => setIsPartialPayment(e.target.checked)}
+                          className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                        />
+                      </div>
+
+                      {isPartialPayment && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200">
+                          <div>
+                            <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                              Advance / Partial Amount Collected (₹)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="Enter collected partial amount..."
+                              value={partialAmount || ''}
+                              onChange={(e) => setPartialAmount(Number(e.target.value))}
+                              className="w-full px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                              Remaining Balance Due
+                            </label>
+                            <div className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-mono font-bold text-rose-700">
+                              {formatCurrency(balanceDue)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Button to add payment split */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddSplit}
+                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 px-3 py-2 rounded-xl border border-blue-200/80 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>+ Add Payment Split (e.g. Cash + GPay)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* MULTI-SPLIT PAYMENT VIEW */
+                <div className="space-y-3">
+                  <div className="space-y-2.5">
+                    {paymentSplits.map((split, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 sm:gap-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 transition-all"
+                      >
+                        <span className="text-[11px] font-bold text-slate-500 w-16 shrink-0">
+                          Split #{index + 1}
+                        </span>
+
+                        {/* Payment Mode Selector */}
+                        <div className="w-44 sm:w-56 shrink-0">
+                          <UniversalDropdown
+                            options={[
+                              { value: 'Cash', label: 'Cash' },
+                              { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
+                              { value: 'GPay', label: 'GPay (UPI/QR)' },
+                              { value: 'COD-Credit', label: 'COD-Credit' },
+                            ]}
+                            value={split.mode}
+                            onChange={(val) => handleUpdateSplitMode(index, val as PaymentMode)}
+                          />
+                        </div>
+
+                        {/* Split Amount Input */}
+                        <div className="flex-1 relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-slate-400 text-xs font-bold">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={split.amount === 0 ? '' : split.amount}
+                            onChange={(e) => handleUpdateSplitAmount(index, Number(e.target.value))}
+                            placeholder="0.00"
+                            className="w-full pl-6 pr-3 py-1.5 bg-white rounded-lg border border-slate-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                          />
+                        </div>
+
+                        {/* Quick fill button if remaining */}
+                        {remainingBalance > 0 && index === paymentSplits.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSplitAmount(index, split.amount + remainingBalance)}
+                            title={`Fill remaining ₹${remainingBalance}`}
+                            className="hidden sm:inline-flex text-[10px] font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200 px-2 py-1 rounded transition-colors whitespace-nowrap cursor-pointer"
+                          >
+                            + Fill Remainder
+                          </button>
+                        )}
+
+                        {/* Remove Split Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSplit(index)}
+                          title="Remove this payment split"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add split row button */}
+                  <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddSplit}
+                      disabled={paymentSplits.length >= 4}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer",
+                        paymentSplits.length >= 4
+                          ? "text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed"
+                          : "text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 border-blue-200"
+                      )}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>+ Add Another Split</span>
+                    </button>
+
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Total Allocated: <span className="font-mono font-bold text-slate-800">{formatCurrency(totalAllocated)}</span> / <span className="font-mono">{formatCurrency(totals.grandTotal)}</span>
+                    </span>
+                  </div>
+
+                  {/* LIVE RECONCILIATION BALANCE STATUS */}
+                  <div className="pt-1">
+                    {Math.abs(remainingBalance) < 0.01 ? (
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span>Payment Fully Allocated & Reconciled (₹0 remaining)</span>
+                        </div>
+                        <span className="text-[11px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
+                          Ready to Save
+                        </span>
+                      </div>
+                    ) : remainingBalance > 0 ? (
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between text-xs text-amber-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>₹{remainingBalance.toLocaleString('en-IN')} remaining to allocate</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-amber-700">
+                          Must equal ₹{totals.grandTotal.toLocaleString('en-IN')} before saving
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 flex items-center justify-between text-xs text-rose-900 font-bold">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                          <span>₹{Math.abs(remainingBalance).toLocaleString('en-IN')} over-allocated</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-rose-700">
+                          Exceeds grand total by ₹{Math.abs(remainingBalance).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COD-Credit split notice */}
+                  {paymentSplits.some((s) => s.mode === 'COD-Credit' && s.amount > 0) && (
+                    <div className="p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-900 space-y-0.5">
+                      <span className="font-bold block">Credit Portion Note:</span>
+                      <p className="text-[11px] text-indigo-700 leading-relaxed">
+                        ₹{paymentSplits.find((s) => s.mode === 'COD-Credit')?.amount.toLocaleString('en-IN')} allocated to COD-Credit will be logged as outstanding balance due for this customer. Paid portions will reconcile to their respective drawer/bank sheets immediately.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-purple-600 shrink-0" />
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-purple-950">
+                  Quotation Terms & Workflow Notice
+                </h3>
               </div>
-            )}
-          </div>
+              <p className="text-xs text-purple-800 leading-relaxed">
+                This document is a commercial price quotation. Physical inventory is not decremented and no cash ledger entry is made until converted into a finalized Sales Invoice.
+              </p>
+            </div>
+          )}
 
           {/* Terms and Conditions Preset Selector */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
@@ -1666,17 +2421,26 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
 
           {/* Grand Total Box */}
-          <div className="p-4 rounded-xl bg-blue-600 text-white shadow-xs space-y-1">
+          <div className={cn(
+            "p-4 rounded-xl text-white shadow-xs space-y-1",
+            documentType === 'Quotation' ? "bg-purple-600" : "bg-blue-600"
+          )}>
             <div className="flex justify-between items-baseline">
-              <span className="text-xs uppercase font-bold tracking-wider text-blue-100">
+              <span className={cn(
+                "text-xs uppercase font-bold tracking-wider",
+                documentType === 'Quotation' ? "text-purple-100" : "text-blue-100"
+              )}>
                 Grand Total
               </span>
               <span className="text-2xl font-black font-mono">
                 {formatCurrency(totals.grandTotal)}
               </span>
             </div>
-            <p className="text-[10px] text-blue-200">
-              {withGst ? 'All GST taxes included' : 'Net invoice total (non-tax)'}
+            <p className={cn(
+              "text-[10px]",
+              documentType === 'Quotation' ? "text-purple-200" : "text-blue-200"
+            )}>
+              {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
             </p>
           </div>
 
@@ -1694,10 +2458,23 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2"
+            disabled={documentType === 'Invoice' && !isPaymentReconciled}
+            className={cn(
+              "w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer",
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                : documentType === 'Quotation'
+                ? "bg-purple-600 hover:bg-purple-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            )}
+            title={
+              documentType === 'Invoice' && !isPaymentReconciled
+                ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+                : undefined
+            }
           >
             <Save className="h-4 w-4" />
-            <span>Save Invoice & Update Inventory</span>
+            <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save Invoice & Update Inventory'}</span>
           </button>
         </div>
       </div>

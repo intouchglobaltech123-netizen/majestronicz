@@ -156,7 +156,7 @@ export const ItemMasterView: React.FC = () => {
 
   const handleDelete = (item: Item) => {
     if (!canManageItems) {
-      toast.error('Permission denied: Billing role cannot delete items');
+      toast.error('Permission denied: You do not have permission to delete items');
       return;
     }
     if (
@@ -170,7 +170,7 @@ export const ItemMasterView: React.FC = () => {
 
   const handleDeleteCombo = (combo: ComboItem) => {
     if (!canManageItems) {
-      toast.error('Permission denied: Billing role cannot delete combo items');
+      toast.error('Permission denied: You do not have permission to delete combo items');
       return;
     }
     if (
@@ -408,25 +408,27 @@ export const ItemMasterView: React.FC = () => {
                 </div>
 
                 {/* Add Item Button */}
-                <button
-                  onClick={() => setAddModalOpen(true)}
-                  disabled={!canManageItems}
-                  title={
-                    !canManageItems
-                      ? 'Billing role cannot add new items (Read-Only Mode)'
-                      : 'Add new master item'
-                  }
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                    canManageItems
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                  )}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Item</span>
-                  {!canManageItems && <Lock className="h-3 w-3 ml-1 text-slate-400" />}
-                </button>
+                {currentUser.role !== 'Sales' && (
+                  <button
+                    onClick={() => setAddModalOpen(true)}
+                    disabled={!canManageItems}
+                    title={
+                      !canManageItems
+                        ? 'Billing role cannot add new items (Read-Only Mode)'
+                        : 'Add new master item'
+                    }
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                      canManageItems
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    )}
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Item</span>
+                    {!canManageItems && <Lock className="h-3 w-3 ml-1 text-slate-400" />}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -467,7 +469,7 @@ export const ItemMasterView: React.FC = () => {
                         <span>Sale Price</span>
                       </div>
                     </th>
-                    <th className="py-3.5 px-4">Wholesale Tier</th>
+                    {currentUser.role !== 'Sales' && <th className="py-3.5 px-4">Wholesale Tier</th>}
                     <th className="py-3.5 px-4 bg-blue-50/60 border-x border-blue-200 text-blue-900">
                       <div className="flex items-center gap-1.5">
                         <Building className="h-3.5 w-3.5 text-blue-600" />
@@ -476,13 +478,15 @@ export const ItemMasterView: React.FC = () => {
                         </span>
                       </div>
                     </th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
+                    {currentUser.role !== 'Sales' && (
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-800">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                      <td colSpan={currentUser.role === 'Sales' ? 5 : 7} className="py-12 text-center text-slate-500">
                         <Boxes className="h-8 w-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-bold text-sm text-slate-700">No items found</p>
                         <p className="text-xs text-slate-400 mt-0.5">
@@ -590,28 +594,31 @@ export const ItemMasterView: React.FC = () => {
                           </td>
 
                           {/* Wholesale Tier */}
-                          <td className="py-3.5 px-4">
-                            {item.wholesalePrice > 0 ? (
-                              <div>
-                                <span className="font-semibold text-slate-800">
-                                  {formatCurrency(item.wholesalePrice)}
-                                </span>
-                                <span className="text-[10px] text-slate-500 block">
-                                  Min. {item.minWholesaleQty} {item.unit}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
+                          {currentUser.role !== 'Sales' && (
+                            <td className="py-3.5 px-4">
+                              {item.wholesalePrice > 0 ? (
+                                <div>
+                                  <span className="font-semibold text-slate-800">
+                                    {formatCurrency(item.wholesalePrice)}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">
+                                    Min. {item.minWholesaleQty} {item.unit}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                          )}
 
                           {/* BRANCH SCOPED STOCK COLUMN */}
                           <td className="py-3.5 px-4 bg-blue-50/40 border-x border-blue-100">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-black text-sm text-slate-900">
                                   {qty} {item.unit}
                                 </span>
+                                <span className="text-slate-300 text-xs font-normal">·</span>
                                 {qty > (item.reorderThreshold ?? 10) ? (
                                   <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                                     In Stock
@@ -626,70 +633,83 @@ export const ItemMasterView: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              {rackLoc && (
-                                <span className="text-[9px] font-mono text-slate-600">
-                                  Rack: <strong>{rackLoc}</strong>
-                                </span>
+                              {!isAllBranches && (
+                                <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                  {rackLoc ? (
+                                    <span className="font-mono text-slate-700">
+                                      {rackLoc.toLowerCase().startsWith('rack') ||
+                                      rackLoc.toLowerCase().startsWith('row') ||
+                                      rackLoc.toLowerCase().startsWith('shelf') ||
+                                      rackLoc.toLowerCase().startsWith('bin')
+                                        ? rackLoc
+                                        : `Rack ${rackLoc}`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-mono">—</span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>
 
                           {/* Actions */}
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Multi-Branch Stock Overview Button */}
-                              <button
-                                onClick={() => setStockModalItem(item)}
-                                title="View stock levels across all branches"
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
-                              >
-                                <Layers className="h-3.5 w-3.5" />
-                              </button>
+                          {currentUser.role !== 'Sales' && (
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Multi-Branch Stock Overview Button */}
+                                <button
+                                  onClick={() => setStockModalItem(item)}
+                                  title="View stock levels across all branches"
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                                >
+                                  <Layers className="h-3.5 w-3.5" />
+                                </button>
 
-                              {/* Item History Button */}
-                              <button
-                                onClick={() => {
-                                  setEditingItem(item);
-                                  setItemModalTab('history');
-                                }}
-                                title="View Item History (Purchases, Sales & Stock Logs)"
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
-                              >
-                                <History className="h-3.5 w-3.5" />
-                              </button>
+                                {/* Item History Button */}
+                                <button
+                                  onClick={() => {
+                                    setEditingItem(item);
+                                    setItemModalTab('history');
+                                  }}
+                                  title="View Item History (Purchases, Sales & Stock Logs)"
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                </button>
 
-                              {/* Edit Item Button */}
-                              <button
-                                onClick={() => {
-                                  setEditingItem(item);
-                                  setItemModalTab('pricing');
-                                }}
-                                title={
-                                  !canManageItems
-                                    ? 'View item details'
-                                    : 'Edit master item & stock'
-                                }
-                                className="p-1.5 rounded-lg border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 cursor-pointer"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
+                                {/* Edit Item Button */}
+                                <button
+                                  onClick={() => {
+                                    setEditingItem(item);
+                                    setItemModalTab('pricing');
+                                  }}
+                                  title={
+                                    !canManageItems
+                                      ? 'View item details'
+                                      : 'Edit master item & stock'
+                                  }
+                                  className="p-1.5 rounded-lg border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 cursor-pointer"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
 
-                              {/* Delete Item Button */}
-                              <button
-                                onClick={() => handleDelete(item)}
-                                title="Delete item"
-                                disabled={!canManageItems}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  canManageItems
-                                    ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
-                                    : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
-                                )}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
+                                {/* Delete Item Button */}
+                                <button
+                                  onClick={() => handleDelete(item)}
+                                  title="Delete item"
+                                  disabled={!canManageItems}
+                                  className={cn(
+                                    'p-1.5 rounded-lg border transition-colors',
+                                    canManageItems
+                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
+                                      : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                  )}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -738,29 +758,31 @@ export const ItemMasterView: React.FC = () => {
                   Live availability for <strong>{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingCombo(null);
-                    setCreateComboModalOpen(true);
-                  }}
-                  disabled={!canManageItems}
-                  title={
-                    !canManageItems
-                      ? 'Billing role cannot create combos (Read-Only Mode)'
-                      : 'Create new bundled offer'
-                  }
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                    canManageItems
-                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                  )}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Create Combo</span>
-                  {!canManageItems && <Lock className="h-3 w-3 ml-1 text-slate-400" />}
-                </button>
+                {currentUser.role !== 'Sales' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCombo(null);
+                      setCreateComboModalOpen(true);
+                    }}
+                    disabled={!canManageItems}
+                    title={
+                      !canManageItems
+                        ? 'Billing role cannot create combos (Read-Only Mode)'
+                        : 'Create new bundled offer'
+                    }
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                      canManageItems
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    )}
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Combo</span>
+                    {!canManageItems && <Lock className="h-3 w-3 ml-1 text-slate-400" />}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -778,13 +800,15 @@ export const ItemMasterView: React.FC = () => {
                     <th className="py-3 px-4 text-right">
                       Live Available ({isAllBranches ? 'All Branches' : currentBranchData?.name})
                     </th>
-                    <th className="py-3 px-4 text-center">Actions</th>
+                    {currentUser.role !== 'Sales' && (
+                      <th className="py-3 px-4 text-center">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredCombos.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={currentUser.role === 'Sales' ? 5 : 6} className="py-12 text-center text-slate-400">
                         <Layers className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                         <p className="font-semibold">No combo items found</p>
                         <p className="text-[11px] mt-0.5">
@@ -956,36 +980,38 @@ export const ItemMasterView: React.FC = () => {
                           </td>
 
                           {/* Actions */}
-                          <td className="py-3.5 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingCombo(combo);
-                                  setCreateComboModalOpen(true);
-                                }}
-                                title={canManageItems ? 'Edit Combo Definition' : 'View Combo Details (Read-Only)'}
-                                className="p-1.5 rounded-lg border bg-slate-100 hover:bg-purple-50 hover:text-purple-600 text-slate-600 border-slate-200 transition-colors cursor-pointer"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
+                          {currentUser.role !== 'Sales' && (
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCombo(combo);
+                                    setCreateComboModalOpen(true);
+                                  }}
+                                  title={canManageItems ? 'Edit Combo Definition' : 'View Combo Details (Read-Only)'}
+                                  className="p-1.5 rounded-lg border bg-slate-100 hover:bg-purple-50 hover:text-purple-600 text-slate-600 border-slate-200 transition-colors cursor-pointer"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCombo(combo)}
-                                disabled={!canManageItems}
-                                title={canManageItems ? 'Delete Combo Bundle' : 'Billing cannot delete combos'}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  canManageItems
-                                    ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
-                                    : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
-                                )}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCombo(combo)}
+                                  disabled={!canManageItems}
+                                  title={canManageItems ? 'Delete Combo Bundle' : 'Billing cannot delete combos'}
+                                  className={cn(
+                                    'p-1.5 rounded-lg border transition-colors',
+                                    canManageItems
+                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
+                                      : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                  )}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })

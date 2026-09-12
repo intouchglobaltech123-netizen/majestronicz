@@ -35,7 +35,9 @@ export const EnquiryView: React.FC = () => {
     isAllBranches,
     currentBranchData,
     canCancelEnquiry,
-    canManageItems,
+    canConvertEnquiry,
+    canApproveCatalogRequests,
+    currentUser,
     linkItemToEnquiry,
     cancelEnquiry,
     convertEnquiryToSale,
@@ -152,7 +154,7 @@ export const EnquiryView: React.FC = () => {
         {/* Action Buttons & View Tabs */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Manager / CEO Only: View Switcher */}
-          {canManageItems && (
+          {canApproveCatalogRequests && (
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
               <button
                 type="button"
@@ -195,15 +197,17 @@ export const EnquiryView: React.FC = () => {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setCurrentView('pending-orders')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-colors shadow-2xs"
-          >
-            <Clock className="h-3.5 w-3.5 text-purple-600" />
-            <span>Pending Orders ({pendingOrders.length})</span>
-            <ArrowRight className="h-3 w-3 text-slate-400" />
-          </button>
+          {currentUser.role !== 'Sales' && (
+            <button
+              type="button"
+              onClick={() => setCurrentView('pending-orders')}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-colors shadow-2xs"
+            >
+              <Clock className="h-3.5 w-3.5 text-purple-600" />
+              <span>Pending Orders ({pendingOrders.length})</span>
+              <ArrowRight className="h-3 w-3 text-slate-400" />
+            </button>
+          )}
 
           <button
             type="button"
@@ -298,7 +302,7 @@ export const EnquiryView: React.FC = () => {
         )}
 
       {/* TAB CONTENT: NEW ITEM REQUESTS QUEUE vs REGULAR ENQUIRIES */}
-      {activeTab === 'new-item-requests' && canManageItems ? (
+      {activeTab === 'new-item-requests' && canApproveCatalogRequests ? (
         /* ================= NEW ITEM REQUESTS QUEUE ================= */
         <div className="space-y-4">
           <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -643,7 +647,7 @@ export const EnquiryView: React.FC = () => {
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                             {/* If New Item Request and not in catalog yet, show Add to Catalog button for Manager/CEO */}
-                            {enq.isNewItemRequest && !enq.itemId && canManageItems && (
+                            {enq.isNewItemRequest && !enq.itemId && canApproveCatalogRequests && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -658,8 +662,8 @@ export const EnquiryView: React.FC = () => {
                               </button>
                             )}
 
-                            {/* 1-Click Convert Buttons if not already converted/cancelled and item exists */}
-                            {enq.itemId && enq.status !== 'Converted' && enq.status !== 'Cancelled' && (
+                            {/* 1-Click Convert Buttons if not already converted/cancelled and item exists (CEO, Manager, Billing only) */}
+                            {canConvertEnquiry && enq.itemId && enq.status !== 'Converted' && enq.status !== 'Cancelled' && (
                               <>
                                 <button
                                   type="button"

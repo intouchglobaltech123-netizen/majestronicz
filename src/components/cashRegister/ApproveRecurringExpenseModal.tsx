@@ -65,7 +65,7 @@ export const ApproveRecurringExpenseModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-slate-900">
-                Approve Recurring Expense
+                Approve Scheduled Expense
               </h3>
               <p className="text-[11px] text-slate-500">
                 Post to Daily Cash Register expenses
