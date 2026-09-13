@@ -1,49 +1,58 @@
-# Deploying Majestronicz to Railway
+# Deploying Majestronicz (UI on Vercel, Backend + DB on Railway)
 
-This app deploys as **one Railway web service** (the Express backend serves both the
-API and the built React frontend) plus a **Railway PostgreSQL** database.
+Two hosts, three logical pieces:
 
-The repo already contains everything Railway needs:
-- `Dockerfile` — builds the frontend + backend into one image.
-- `railway.json` — tells Railway to build with the Dockerfile.
-- Backend serves the frontend and runs `prisma db push` on boot.
-- On the very first boot with an empty database, a starter dataset is seeded
-  automatically (categories, units, tax slabs, settings, the 5 login accounts,
-  and demo records) so the app works immediately.
+```
+   Vercel                         Railway
+┌───────────────┐   HTTPS   ┌──────────────────┐     ┌──────────────┐
+│  UI (Vite)     │ ────────▶ │  Backend API      │────▶│  PostgreSQL   │
+│  static build  │  API      │  (Docker service) │     │  (Railway DB) │
+└───────────────┘           └──────────────────┘     └──────────────┘
+```
 
-## Steps
+Deploy the **backend first** (so you have its URL), then the **UI**.
 
-1. **Push the code to GitHub** (this branch or `main`).
+---
 
-2. **Create the project on Railway**
-   - railway.app → **New Project** → **Deploy from GitHub repo** → pick this repo.
-   - Railway detects `railway.json` and builds using the `Dockerfile`.
+## Part A — Backend + Postgres on Railway
 
-3. **Add PostgreSQL**
-   - In the project: **New** → **Database** → **PostgreSQL**.
+1. **New Project → Deploy from GitHub repo →** pick `majestronicz`.
+2. Open the created service → **Settings**:
+   - **Source → Branch** = `arul_backend` (or `main` after merging).
+   - **Root Directory** = `backend`  ← important: builds only the backend.
+   - It then uses `backend/railway.json` → `backend/Dockerfile` automatically.
+3. **New → Database → PostgreSQL** (in the same project).
+4. Backend service → **Variables**:
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | type `${{` → pick **Postgres.DATABASE_URL** |
+   | `AUTH_SECRET` | a long random string |
+   - Do **not** set `PORT` (Railway injects it).
+5. Deploy. In logs look for `Fresh database seeded…`, then `listening on…`.
+6. **Settings → Networking → Generate Domain**. Copy this URL, e.g.
+   `https://majestronicz-backend.up.railway.app` — you need it for Vercel.
+7. Test it: open `<that URL>/api/health` → should return `{"status":"ok"}`.
 
-4. **Set the service variables** (app service → **Variables**):
-   - `DATABASE_URL` = reference the database: `${{Postgres.DATABASE_URL}}`
-     (type `${{` and Railway will autocomplete the Postgres service).
-   - `AUTH_SECRET` = a long random string (used to sign login tokens).
-   - *(optional, AI)* leave unset to keep Beta AI in "not connected" mode, or set
-     `AI_PROVIDER`, `OLLAMA_URL`/`OLLAMA_MODEL`, or `GROQ_API_KEY`.
-   - **Do not** set `PORT` — Railway injects it automatically.
-   - `VITE_API_URL` is **not** needed — the frontend calls the API on the same origin.
+## Part B — UI on Vercel
 
-5. **Deploy** — Railway builds and starts the service. Watch the deploy logs for:
-   - `Fresh database seeded with starter dataset.` (first deploy only)
-   - `Serving frontend from …`
-   - `Majestronicz backend listening on …`
+1. Vercel → **Add New → Project** → import `majestronicz`.
+2. **Root Directory** = leave as repo root (`.`). Framework auto-detects **Vite**
+   (config is in `vercel.json`).
+3. **Environment Variables** → add:
+   | Name | Value |
+   |---|---|
+   | `VITE_API_URL` | the Railway backend URL from A-6 (no trailing slash) |
+4. **Deploy**. Open the Vercel URL and log in with CEO PIN **1111**.
 
-6. **Get your URL** — service → **Settings** → **Networking** → **Generate Domain**.
-   Open it and log in with the CEO PIN **1111** (then create staff accounts and
-   change PINs from **Access Control**).
+---
 
 ## Notes
-- **Schema changes**: `prisma db push` runs on every boot and syncs the schema
-  automatically. No manual migration step needed.
-- **Starting empty instead of demo data**: set `SEED_ON_EMPTY=false` in Variables
-  before the first deploy. You'll then need to add your own categories/units, etc.
-- **Backups**: enable backups on the Railway Postgres plugin for production data.
-- **Health check**: `GET /api/health` returns `{ "status": "ok" }`.
+- **CORS**: the backend allows all origins, so the Vercel UI can call it out of the
+  box. (Auth uses Bearer tokens, not cookies, so this is safe.)
+- **`VITE_API_URL` is baked at build time** — if you change the backend URL later,
+  redeploy the Vercel project so the new value is compiled in.
+- **Schema**: `prisma db push` runs on every backend boot; no manual migrations.
+- **First boot** seeds a starter dataset (lists, settings, the 5 logins, demo data).
+  Set `SEED_ON_EMPTY=false` on the backend to start blank instead.
+- **Beta AI** shows "not connected" unless you set an AI engine env var on the backend.
+- Enable **backups** on the Railway Postgres for production data.
