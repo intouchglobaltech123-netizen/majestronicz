@@ -27,7 +27,8 @@ const PROVIDER = (process.env.AI_PROVIDER || 'groq').toLowerCase();
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+// Groq's current production model (free). Override with GROQ_MODEL if desired.
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const MAX_RATELIMIT_WAIT_MS = 60_000; // groq only: respect Retry-After up to ~1 min
 
 export type AiStatus = {

@@ -76,25 +76,33 @@ export const Sidebar: React.FC = () => {
         collapsed ? 'w-20' : 'w-68'
       )}
     >
-      {/* Floating collapse/expand toggle on the right border (always aligned) */}
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="absolute -right-3 top-6 z-30 h-7 w-7 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-300 shadow-sm flex items-center justify-center transition-colors"
-      >
-        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
-      </button>
-
-      {/* Brand Header */}
+      {/* Brand Header + collapse toggle (kept inside the sidebar, always aligned) */}
       <div className={cn('border-b border-slate-200', collapsed ? 'p-3' : 'p-5')}>
-        <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-start')}>
-          {collapsed ? (
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm">M</div>
-          ) : (
+            <button
+              onClick={() => setCollapsed(false)}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-colors"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
             <MajestroniczLogo />
-          )}
-        </div>
+            <button
+              onClick={() => setCollapsed(true)}
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+              className="h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-colors shrink-0"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Current branch indicator (hidden when collapsed) */}
         {!collapsed && (
