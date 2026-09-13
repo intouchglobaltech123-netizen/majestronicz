@@ -4039,9 +4039,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           <p className="text-sm font-bold text-rose-700">Cannot reach the backend</p>
           <p className="mt-2 text-xs text-slate-600">{bootstrapError}</p>
           <p className="mt-3 text-xs text-slate-500">
-            Make sure the backend is running on{' '}
-            <span className="font-mono">http://localhost:4000</span> (run{' '}
-            <span className="font-mono">npm run dev</span> in the <span className="font-mono">backend/</span> folder), then reload.
+            Trying to reach API at:
+          </p>
+          <p className="mt-1 text-xs font-mono break-all text-slate-800 bg-slate-100 rounded-lg px-2 py-1.5">
+            {API_BASE || '(same origin)'}/api/bootstrap
+          </p>
+          <p className="mt-3 text-[11px] text-slate-500">
+            {API_BASE.includes('localhost')
+              ? 'This build has no VITE_API_URL set — it is pointing at localhost. Set VITE_API_URL to your backend URL and redeploy.'
+              : 'Open that URL in a new tab: if it does not return JSON, the backend is down or the URL is wrong.'}
           </p>
         </div>
       </div>
