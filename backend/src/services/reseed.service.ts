@@ -61,3 +61,22 @@ export async function reseedDatabase() {
     ],
   });
 }
+
+/**
+ * First-boot seeding for a fresh deploy: if the database is completely empty
+ * (no items and no config), load the starter dataset so dropdowns, settings and
+ * the access matrix exist and the app is usable immediately. Idempotent — does
+ * nothing once any data exists. Disable with SEED_ON_EMPTY=false.
+ */
+export async function ensureSeedData(): Promise<boolean> {
+  if (process.env.SEED_ON_EMPTY === 'false') return false;
+  const [itemCount, configCount] = await Promise.all([
+    prisma.item.count(),
+    prisma.appConfig.count(),
+  ]);
+  if (itemCount === 0 && configCount === 0) {
+    await reseedDatabase();
+    return true;
+  }
+  return false;
+}

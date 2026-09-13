@@ -16,7 +16,7 @@ import {
   Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportElementToPdf } from '../../utils/pdfExport';
+import { exportElementToPdf, exportElementToPdfFile } from '../../utils/pdfExport';
 
 interface Props {
   invoice: Invoice | null;
@@ -62,13 +62,64 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     }
   };
 
-  const handleShareWhatsApp = () => {
+  // Normalise an Indian mobile number for wa.me (expects country code, no +/spaces).
+  const waNumber = (phone?: string | null): string => {
+    const digits = (phone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 10) return `91${digits}`;
+    if (digits.length === 12 && digits.startsWith('91')) return digits;
+    if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
+    return digits;
+  };
+
+  const buildShareMessage = (): string => {
     const splits = getInvoicePaymentSplits(invoice);
     const splitSummary = splits.length > 1
       ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
       : invoice.paymentMode;
-    const text = `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Partial Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with Majestronicz!`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    const ratingLine = COMPANY_PROFILE.ratingLink
+      ? `\n\n⭐ Loved our service? Please rate us here:\n${COMPANY_PROFILE.ratingLink}`
+      : '';
+    return `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with ${COMPANY_PROFILE.name}!${ratingLine}`;
+  };
+
+  const openWhatsAppText = () => {
+    const num = waNumber(invoice.customerPhone);
+    const text = encodeURIComponent(buildShareMessage());
+    const url = num
+      ? `https://wa.me/${num}?text=${text}`
+      : `https://api.whatsapp.com/send?text=${text}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareWhatsApp = async () => {
+    // On supported devices (mobile), attach the actual PDF via the Web Share API.
+    const canShareFiles = typeof navigator !== 'undefined' && !!navigator.canShare;
+    if (canShareFiles) {
+      try {
+        setIsDownloadingPdf(true);
+        toast.loading('Preparing invoice PDF to share…', { id: 'invoice-share' });
+        const file = await exportElementToPdfFile('printable-invoice-doc', `${invoice.invoiceNumber}.pdf`);
+        toast.dismiss('invoice-share');
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `Invoice ${invoice.invoiceNumber}`,
+            text: buildShareMessage(),
+          });
+          return;
+        }
+      } catch (err: any) {
+        // User cancelled the share sheet — do nothing further.
+        if (err?.name === 'AbortError') { toast.dismiss('invoice-share'); return; }
+        toast.dismiss('invoice-share');
+      } finally {
+        setIsDownloadingPdf(false);
+      }
+    }
+    // Fallback (desktop / unsupported): open WhatsApp with the text + rating link.
+    openWhatsAppText();
+    toast.info('Opening WhatsApp with invoice details. Use “Download PDF” to attach the bill.', { duration: 5000 });
   };
 
   const handleCopySummary = () => {
@@ -601,14 +652,16 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
 
-            {/* 2. Share */}
+            {/* 2. Share on WhatsApp (PDF + rating link) */}
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isDownloadingPdf}
+              title={invoice.customerPhone ? `Send to ${invoice.customerPhone} on WhatsApp` : 'Share on WhatsApp'}
+              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
             >
               <Share2 className="h-4 w-4 text-emerald-600" />
-              <span>Share</span>
+              <span>WhatsApp</span>
             </button>
 
             {/* 3. Print */}

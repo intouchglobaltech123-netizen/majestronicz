@@ -3,7 +3,7 @@ import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireCapability } from '../middleware/rbac.js';
-import { authenticatePin, issueToken, Capability } from '../lib/auth.js';
+import { issueToken, Capability } from '../lib/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import invoiceRoutes from './invoice.routes.js';
 import stockRoutes from './stock.routes.js';
@@ -13,10 +13,15 @@ import hrmRoutes from './hrm.routes.js';
 import enquiryRoutes from './enquiry.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
-import { sseHandler } from '../lib/events.js';
+import { sseHandler, broadcastChange } from '../lib/events.js';
 import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
-import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix } from '../lib/auth.js';
+import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags } from '../lib/auth.js';
+import { askAi, getAiStatus } from '../services/ai.service.js';
+import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
+import {
+  authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
+} from '../services/user.service.js';
 
 const router = Router();
 
@@ -37,20 +42,58 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   }
 
   const { pin, branchId } = req.body;
-  const user = authenticatePin(String(pin || ''), branchId);
-  if (!user) {
+  const auth = await authenticateUser(String(pin || ''), branchId);
+  if (!auth) {
     rec.fails += 1;
+    const remaining = Math.max(0, MAX_FAILS - rec.fails);
     if (rec.fails >= MAX_FAILS) {
       rec.lockUntil = now + LOCK_MS;
       rec.fails = 0;
     }
     loginAttempts.set(ip, rec);
-    throw new AppError('INVALID_PIN', 'Invalid PIN code', 401);
+    throw new AppError('INVALID_PIN', `Incorrect PIN.${remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before a 1-minute lock.` : ' Account locked for 1 minute.'}`, 401);
   }
 
   loginAttempts.delete(ip); // reset on success
+  const { user, mustResetPin } = auth;
   const token = issueToken(user);
-  res.json({ token, user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId } });
+  res.json({
+    token,
+    mustResetPin,
+    user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId, userId: user.userId },
+  });
+}));
+
+// Logged-in user sets a new PIN (mandatory on first login for new staff).
+router.post('/auth/change-pin', asyncHandler(async (req, res) => {
+  const actor = (req as any).user;
+  if (!actor?.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  await changeOwnPin(actor.userId, String(req.body?.newPin || ''));
+  broadcastChange('POST /api/auth/change-pin');
+  res.json({ ok: true });
+}));
+
+// ---- Staff account management (CEO/admin only) ----
+router.get('/users', requireCapability('admin'), asyncHandler(async (_req, res) => res.json(await listUsers())));
+router.post('/users', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const created = await createUser(req.body);
+  broadcastChange('POST /api/users');
+  res.json(created);
+}));
+router.put('/users/:id', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const updated = await updateUser(req.params.id, req.body);
+  broadcastChange('PUT /api/users');
+  res.json(updated);
+}));
+router.post('/users/:id/reset-pin', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await adminResetPin(req.params.id, String(req.body?.newPin || ''));
+  broadcastChange('POST /api/users/reset-pin');
+  res.json(result);
+}));
+router.delete('/users/:id', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await deleteUser(req.params.id);
+  broadcastChange('DELETE /api/users');
+  res.json(result);
 }));
 
 // ---- Generic id-keyed CRUD resources (RBAC per resource on writes) ----
@@ -106,6 +149,32 @@ router.get('/access-matrix', asyncHandler(async (_req, res) =>
 router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) =>
   res.json(await updateAccessMatrix(req.body))
 ));
+
+// ---- Payments / party ledger (receipts from customers, payments to vendors) ----
+router.get('/payments', asyncHandler(async (req, res) => {
+  const { partyType, partyId, type } = req.query as Record<string, string | undefined>;
+  res.json(await listPayments({ partyType, partyId, type }));
+}));
+router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const result = await recordPayment(req.body, { name: user?.name, id: user?.name });
+  broadcastChange('POST /api/payments');
+  res.json(result);
+}));
+router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {
+  const result = await deletePayment(req.params.id);
+  broadcastChange('DELETE /api/payments');
+  res.json(result);
+}));
+
+// ---- Beta AI (business assistant; requires ai:use; data scoped by role flags) ----
+router.get('/ai/status', asyncHandler(async (_req, res) => res.json(await getAiStatus())));
+router.post('/ai/ask', requireCapability('ai:use'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const flags = roleFlags(user.role);
+  const result = await askAi(String(req.body?.question || ''), flags, user.role);
+  res.json(result);
+}));
 
 // ---- Admin: reset to demo dataset (CEO only) ----
 router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (_req, res) => {

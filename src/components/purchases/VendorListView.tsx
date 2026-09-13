@@ -10,21 +10,33 @@ import {
   Trash2,
   ShoppingBag,
   ExternalLink,
+  Wallet,
 } from 'lucide-react';
 import { Vendor } from '../../types';
+import { formatCurrency } from '../../lib/utils';
 import { useErp } from '../../context/ErpContext';
 import { VendorMasterModal } from './VendorMasterModal';
+import { RecordPaymentModal } from '../payments/RecordPaymentModal';
 
 interface VendorListViewProps {
   onSelectVendorForPo?: (vendor: Vendor) => void;
 }
 
 export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorForPo }) => {
-  const { vendors, deleteVendor, purchaseOrders, canManagePurchases } = useErp();
+  const { vendors, deleteVendor, purchaseOrders, canManagePurchases, canRecordPayment, currentBranch } = useErp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vendorToEdit, setVendorToEdit] = useState<Vendor | null>(null);
+  const [vendorToPay, setVendorToPay] = useState<Vendor | null>(null);
+
+  // Unpaid purchase orders for a vendor (non-cancelled, balance > 0).
+  const vendorUnpaidPOs = (vendorId: string) =>
+    purchaseOrders
+      .filter((po) => po.vendorId === vendorId && po.status !== 'Cancelled')
+      .map((po) => ({ refId: po.id, refNumber: po.poNumber, date: po.date, balanceDue: Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0)) }))
+      .filter((o) => o.balanceDue > 0.5);
+  const vendorPayable = (vendorId: string) => vendorUnpaidPOs(vendorId).reduce((t, o) => t + o.balanceDue, 0);
 
   const filteredVendors = vendors.filter((v) => {
     if (!searchQuery.trim()) return true;
@@ -88,13 +100,14 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
                 <th className="py-3 px-4">Location / Address</th>
                 <th className="py-3 px-4">GSTIN</th>
                 <th className="py-3 px-4 text-center">Linked POs</th>
+                <th className="py-3 px-4 text-right">Payable</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredVendors.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <Building2 className="h-10 w-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-medium text-slate-600">No suppliers found</p>
                     <p className="text-xs text-slate-400 mt-0.5">
@@ -105,6 +118,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
               ) : (
                 filteredVendors.map((vendor) => {
                   const poCount = getVendorPoCount(vendor.id);
+                  const payable = vendorPayable(vendor.id);
                   return (
                     <tr key={vendor.id} className="hover:bg-slate-50/70 transition-colors group">
                       {/* Name & Badge */}
@@ -164,9 +178,27 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
                         )}
                       </td>
 
+                      {/* Payable */}
+                      <td className="py-3.5 px-4 text-right">
+                        {payable > 0 ? (
+                          <span className="font-black font-mono text-rose-700 text-sm">{formatCurrency(payable)}</span>
+                        ) : (
+                          <span className="text-xs font-semibold text-emerald-600">Settled</span>
+                        )}
+                      </td>
+
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="inline-flex items-center gap-1">
+                          {canRecordPayment && payable > 0 && (
+                            <button
+                              onClick={() => setVendorToPay(vendor)}
+                              title="Record payment to this supplier"
+                              className="p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                            >
+                              <Wallet className="h-4 w-4" />
+                            </button>
+                          )}
                           {onSelectVendorForPo && (
                             <button
                               onClick={() => onSelectVendorForPo(vendor)}
@@ -220,6 +252,20 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
         onClose={() => setIsModalOpen(false)}
         vendorToEdit={vendorToEdit}
       />
+
+      {/* Supplier Payment Modal */}
+      {vendorToPay && (
+        <RecordPaymentModal
+          isOpen={Boolean(vendorToPay)}
+          onClose={() => setVendorToPay(null)}
+          type="out"
+          partyType="vendor"
+          partyId={vendorToPay.id}
+          partyName={vendorToPay.vendorName}
+          branchId={currentBranch && currentBranch !== 'all' ? currentBranch : 'erode-hq'}
+          outstanding={vendorUnpaidPOs(vendorToPay.id)}
+        />
+      )}
     </div>
   );
 };

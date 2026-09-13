@@ -7,14 +7,10 @@ interface ExportPdfOptions {
 }
 
 /**
- * Captures an HTML element and triggers a direct PDF file download in the browser
- * without opening the native print dialog.
+ * Captures an HTML element and returns the rendered A4 PDF as a jsPDF document.
+ * Shared by the download and share flows.
  */
-export async function exportElementToPdf(
-  elementId: string,
-  filename: string,
-  options: ExportPdfOptions = {}
-): Promise<void> {
+async function renderElementToPdf(elementId: string, options: ExportPdfOptions = {}): Promise<jsPDF> {
   const element = document.getElementById(elementId);
   if (!element) {
     throw new Error(`Element with id "${elementId}" not found`);
@@ -59,6 +55,35 @@ export async function exportElementToPdf(
     heightLeft -= pageHeight;
   }
 
-  const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-  pdf.save(safeFilename);
+  return pdf;
+}
+
+const ensurePdfExt = (filename: string) => (filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+
+/**
+ * Captures an HTML element and triggers a direct PDF file download in the browser
+ * without opening the native print dialog.
+ */
+export async function exportElementToPdf(
+  elementId: string,
+  filename: string,
+  options: ExportPdfOptions = {}
+): Promise<void> {
+  const pdf = await renderElementToPdf(elementId, options);
+  pdf.save(ensurePdfExt(filename));
+}
+
+/**
+ * Captures an HTML element and returns the PDF as a File, for use with the Web
+ * Share API (e.g. sharing the invoice PDF to WhatsApp on mobile).
+ */
+export async function exportElementToPdfFile(
+  elementId: string,
+  filename: string,
+  options: ExportPdfOptions = {}
+): Promise<File> {
+  const pdf = await renderElementToPdf(elementId, options);
+  const safeFilename = ensurePdfExt(filename);
+  const blob = pdf.output('blob');
+  return new File([blob], safeFilename, { type: 'application/pdf' });
 }

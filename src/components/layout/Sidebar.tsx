@@ -18,6 +18,7 @@ import {
   Users,
   Clock,
   LogOut,
+  Sparkles,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { cn } from '../../lib/utils';
@@ -38,6 +39,7 @@ export const Sidebar: React.FC = () => {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     visible: boolean;
+    badge?: string;
   }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canAccessView('dashboard') },
     { id: 'items', label: 'Items', icon: Boxes, visible: canAccessView('items') },
@@ -52,6 +54,7 @@ export const Sidebar: React.FC = () => {
     { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canAccessView('purchases') },
     { id: 'hrm', label: 'Attendance', icon: Users, visible: canAccessView('hrm') },
     { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
+    { id: 'ai-assistant', label: 'Beta AI', icon: Sparkles, visible: canAccessView('ai-assistant'), badge: 'Beta' },
     { id: 'access', label: 'Access Control', icon: ShieldCheck, visible: canAccessView('access') },
   ];
 
@@ -109,6 +112,18 @@ export const Sidebar: React.FC = () => {
                   )}
                 />
                 <span className="truncate">{item.label}</span>
+                {item.badge && (
+                  <span
+                    className={cn(
+                      'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
+                      isActive
+                        ? 'bg-white/20 text-white border-white/30'
+                        : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
+                    )}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}

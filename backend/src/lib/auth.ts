@@ -30,12 +30,12 @@ export const ROLE_DEFS: RoleDef[] = [
 export type Capability =
   | 'items:write' | 'sales:write' | 'stock:write' | 'purchase:write' | 'cash:write'
   | 'hrm:write' | 'payroll:admin' | 'enquiry:write' | 'estimate:write' | 'challan:write'
-  | 'config:write' | 'customer:write' | 'admin';
+  | 'config:write' | 'customer:write' | 'payment:write' | 'ai:use' | 'admin';
 
 const ALL: Capability[] = [
   'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
   'hrm:write', 'payroll:admin', 'enquiry:write', 'estimate:write', 'challan:write',
-  'config:write', 'customer:write', 'admin',
+  'config:write', 'customer:write', 'payment:write', 'ai:use', 'admin',
 ];
 
 export const ALL_CAPS = ALL;
@@ -44,10 +44,10 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
   CEO: ALL,
   Manager: [
     'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
-    'hrm:write', 'enquiry:write', 'estimate:write', 'challan:write', 'config:write', 'customer:write',
+    'hrm:write', 'enquiry:write', 'estimate:write', 'challan:write', 'config:write', 'customer:write', 'payment:write', 'ai:use',
   ],
-  Billing: ['sales:write', 'cash:write', 'enquiry:write', 'estimate:write', 'challan:write', 'customer:write'],
-  Purchase: ['purchase:write', 'enquiry:write'],
+  Billing: ['sales:write', 'cash:write', 'enquiry:write', 'estimate:write', 'challan:write', 'customer:write', 'payment:write'],
+  Purchase: ['purchase:write', 'enquiry:write', 'payment:write'],
   Sales: ['enquiry:write'],
 };
 
@@ -55,12 +55,12 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
 export const ALL_VIEWS = [
   'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
-  'hrm', 'reports', 'access',
+  'hrm', 'reports', 'ai-assistant', 'access',
 ];
 
 export const DEFAULT_ROLE_VIEWS: Record<Role, string[]> = {
   CEO: [...ALL_VIEWS],
-  Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+  Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
   Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
   Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
   Sales: ['items', 'enquiries'],
@@ -73,13 +73,27 @@ export const ALL_FLAGS = [
   'bill.giveDiscount',    // apply line/overall discounts while billing
   'view.purchaseCost',    // see purchase price / cost of items
   'view.customerBalance', // see customer outstanding / credit due
+  // ---- Beta AI data scopes: which business domains this role's AI may read ----
+  'ai.data.sales',        // AI can read sales / invoices figures
+  'ai.data.cash',         // AI can read cash register / balances
+  'ai.data.inventory',    // AI can read stock levels
+  'ai.data.products',     // AI can read product/item details & pricing
+  'ai.data.customers',    // AI can read customer info & balances
+  'ai.data.purchase',     // AI can read purchases / supplier costs
+  'ai.data.hrm',          // AI can read staff / payroll
+];
+
+// AI data-scope flags, isolated for context-building & UI grouping.
+export const AI_DATA_FLAGS = [
+  'ai.data.sales', 'ai.data.cash', 'ai.data.inventory', 'ai.data.products',
+  'ai.data.customers', 'ai.data.purchase', 'ai.data.hrm',
 ];
 
 const DEFAULT_ROLE_FLAGS: Record<Role, string[]> = {
   CEO: [...ALL_FLAGS],
   Manager: [...ALL_FLAGS],
-  Billing: ['bill.editPrice', 'bill.giveDiscount', 'view.customerBalance'],
-  Purchase: ['view.purchaseCost'],
+  Billing: ['bill.editPrice', 'bill.giveDiscount', 'view.customerBalance', 'ai.data.sales', 'ai.data.products', 'ai.data.customers'],
+  Purchase: ['view.purchaseCost', 'ai.data.inventory', 'ai.data.purchase', 'ai.data.products'],
   Sales: [],
 };
 
@@ -105,6 +119,12 @@ export const roleCan = (role: Role, cap: Capability) => {
   return (liveMatrix[role]?.caps || ROLE_CAPS[role] || []).includes(cap);
 };
 
+/** The live field/data flags for a role (CEO always has all). */
+export const roleFlags = (role: Role): string[] => {
+  if (role === 'CEO') return [...ALL_FLAGS];
+  return liveMatrix[role]?.flags || DEFAULT_ROLE_FLAGS[role] || [];
+};
+
 // ---- Signed token (dependency-free HMAC) ----
 const SECRET = process.env.AUTH_SECRET || 'majestronicz-dev-secret-change-in-prod';
 const b64 = (s: string) => Buffer.from(s).toString('base64url');
@@ -115,6 +135,7 @@ export interface SessionUser {
   role: Role;
   name: string;
   assignedBranchId?: string;
+  userId?: string;
   exp: number;
 }
 

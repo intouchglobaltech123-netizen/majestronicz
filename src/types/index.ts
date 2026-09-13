@@ -17,19 +17,27 @@ export interface UserSession {
   name: string;
   pin: string;
   assignedBranchId?: BranchId; // Only applicable for Manager
+  userId?: string; // staff account id (for PIN reset targeting)
 }
 
 // ---- Dynamic role-based access control (managed by CEO) ----
 export type Capability =
   | 'items:write' | 'sales:write' | 'stock:write' | 'purchase:write' | 'cash:write'
   | 'hrm:write' | 'payroll:admin' | 'enquiry:write' | 'estimate:write' | 'challan:write'
-  | 'config:write' | 'customer:write' | 'admin';
+  | 'config:write' | 'customer:write' | 'payment:write' | 'ai:use' | 'admin';
 
 export type AccessMatrix = Record<Role, { views: string[]; caps: Capability[]; flags: string[] }>;
+
+// AI data-scope flags: which business domains a role's Beta AI may read.
+export const AI_DATA_FLAGS: string[] = [
+  'ai.data.sales', 'ai.data.cash', 'ai.data.inventory', 'ai.data.products',
+  'ai.data.customers', 'ai.data.purchase', 'ai.data.hrm',
+];
 
 // Fine-grained field/data-visibility flags (keep in sync with backend ALL_FLAGS).
 export const ALL_FLAGS: string[] = [
   'bill.editPrice', 'bill.giveDiscount', 'view.purchaseCost', 'view.customerBalance',
+  ...AI_DATA_FLAGS,
 ];
 
 export const FLAG_LABELS: Record<string, string> = {
@@ -37,26 +45,33 @@ export const FLAG_LABELS: Record<string, string> = {
   'bill.giveDiscount': 'Give discounts while billing',
   'view.purchaseCost': 'See purchase price / cost',
   'view.customerBalance': 'See customer outstanding balance',
+  'ai.data.sales': 'AI can read sales & invoices',
+  'ai.data.cash': 'AI can read cash register & balances',
+  'ai.data.inventory': 'AI can read stock levels',
+  'ai.data.products': 'AI can read product details & pricing',
+  'ai.data.customers': 'AI can read customer info & balances',
+  'ai.data.purchase': 'AI can read purchases & supplier costs',
+  'ai.data.hrm': 'AI can read staff & payroll',
 };
 
 // Keep in sync with backend/src/lib/auth.ts (ALL_VIEWS / ALL_CAPS).
 export const ALL_VIEWS: string[] = [
   'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
-  'hrm', 'reports', 'access',
+  'hrm', 'reports', 'ai-assistant', 'access',
 ];
 
 export const ALL_CAPABILITIES: Capability[] = [
   'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
   'hrm:write', 'payroll:admin', 'enquiry:write', 'estimate:write', 'challan:write',
-  'config:write', 'customer:write', 'admin',
+  'config:write', 'customer:write', 'payment:write', 'ai:use', 'admin',
 ];
 
 export const VIEW_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', items: 'Items Master', customers: 'Customers', enquiries: 'Enquiries',
   'pending-orders': 'Pending Orders', estimates: 'Quotes', challans: 'Delivery Challan',
   inventory: 'Inventory', invoices: 'Sales', barcodes: 'Barcode', 'cash-register': 'Cash Register',
-  purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', access: 'Access Control',
+  purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', 'ai-assistant': 'Beta AI', access: 'Access Control',
 };
 
 export const CAP_LABELS: Record<Capability, string> = {
@@ -72,6 +87,8 @@ export const CAP_LABELS: Record<Capability, string> = {
   'challan:write': 'Create / edit delivery challans',
   'config:write': 'Edit catalog config & loyalty settings',
   'customer:write': 'Add / edit customers',
+  'payment:write': 'Record payments & receipts (party ledger)',
+  'ai:use': 'Use Beta AI assistant',
   admin: 'Reset demo data & manage access control (CEO)',
 };
 
@@ -322,6 +339,7 @@ export interface CompanyProfile {
   email: string;
   gstin: string;
   state: string;
+  ratingLink?: string; // customer review / rating URL shared on invoices
 }
 
 export const COMPANY_PROFILE: CompanyProfile = {
@@ -331,6 +349,8 @@ export const COMPANY_PROFILE: CompanyProfile = {
   email: 'majestroniczonline@gmail.com',
   gstin: '33ABZFM5739L1ZD',
   state: '33-Tamil Nadu',
+  // Replace with your Google review short-link (g.page/r/…/review) when available.
+  ratingLink: 'https://www.google.com/search?q=Majestronicz+Erode',
 };
 
 export const DEFAULT_TERMS_AND_CONDITIONS = `**NO WARRANTY**
@@ -748,6 +768,7 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   items: POLineItem[];
   totalAmount: number;
+  amountPaid?: number; // total paid to vendor against this PO (payables tracking)
   notes?: string;
   pendingOrderId?: string;
   pendingOrderNumber?: string;
@@ -930,6 +951,63 @@ export interface CustomerOutstandingInvoice {
 export interface CustomerOutstandingSummary {
   totalOutstanding: number;
   unpaidInvoices: CustomerOutstandingInvoice[];
+}
+
+/**
+ * Party ledger payment — money received from a customer ("in") or paid to a
+ * vendor ("out"). May be allocated across the specific invoices it settles.
+ */
+export interface PaymentAllocation {
+  refId: string;
+  refNumber?: string;
+  amount: number;
+}
+
+export interface Payment {
+  id: string;
+  receiptNumber: string;
+  type: 'in' | 'out';
+  partyType: 'customer' | 'vendor';
+  partyId?: string | null;
+  partyName: string;
+  branchId: string;
+  date: string;
+  amount: number;
+  paymentMode: string;
+  reference?: string | null;
+  notes?: string | null;
+  allocations?: PaymentAllocation[] | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+/** A staff login account (PIN never sent to the client). */
+export interface StaffUser {
+  id: string;
+  name: string;
+  role: Role;
+  assignedBranchId?: string | null;
+  status: 'active' | 'disabled';
+  mustResetPin: boolean;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface RecordPaymentInput {
+  type: 'in' | 'out';
+  partyType: 'customer' | 'vendor';
+  partyId?: string;
+  partyName: string;
+  branchId: string;
+  date?: string;
+  amount: number;
+  paymentMode: string;
+  reference?: string;
+  notes?: string;
+  allocations?: PaymentAllocation[];
 }
 
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {

@@ -299,6 +299,7 @@ model PurchaseOrder {
   status              String
   items               Json
   totalAmount         Float
+  amountPaid          Float?  // total paid to vendor against this PO (payables tracking)
   notes               String?
   pendingOrderId      String?
   pendingOrderNumber  String?
@@ -395,6 +396,53 @@ model StockTransfer {
 
   @@index([fromBranch])
   @@index([toBranch])
+}
+
+// Party ledger entry: money received from a customer ("in") or paid to a
+// vendor ("out"). Optionally allocated across specific invoices / purchase
+// orders it settles (allocations JSON: [{ refId, refNumber, amount }]).
+model Payment {
+  id            String  @id
+  receiptNumber String  @unique
+  type          String  // 'in' (received) | 'out' (paid)
+  partyType     String  // 'customer' | 'vendor'
+  partyId       String?
+  partyName     String
+  branchId      String
+  date          String
+  amount        Float
+  paymentMode   String
+  reference     String?
+  notes         String?
+  allocations   Json?
+  createdById   String?
+  createdByName String?
+  createdAt     String
+  updatedAt     String?
+
+  @@index([partyType, partyId])
+  @@index([type])
+  @@index([date])
+}
+
+// Staff login account. Each user signs in with their own PIN and carries an
+// RBAC role. New staff are created with a default PIN and mustResetPin=true,
+// forcing them to set their own PIN on first login.
+model User {
+  id               String  @id
+  name             String
+  role             String  // 'CEO' | 'Manager' | 'Billing' | 'Purchase' | 'Sales'
+  pin              String  @unique
+  assignedBranchId String?
+  status           String  // 'active' | 'disabled'
+  mustResetPin     Boolean @default(false)
+  isSystem         Boolean @default(false) // seeded/owner account (cannot be deleted)
+  employeeId       String? // linked Employee record (attendance / payroll)
+  createdAt        String
+  updatedAt        String?
+
+  @@index([role])
+  @@index([status])
 }
 
 // Key/value store for app-level configuration singletons:

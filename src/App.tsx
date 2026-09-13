@@ -16,6 +16,7 @@ import { InventoryView } from './components/inventory/InventoryView';
 import { ReportsView } from './components/reports/ReportsView';
 import { CustomersView } from './components/customers/CustomersView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
+import { AiAssistantView } from './components/ai/AiAssistantView';
 import { Toaster } from 'sonner';
 
 const AppContent: React.FC = () => {
@@ -59,6 +60,8 @@ const AppContent: React.FC = () => {
             <HrmView />
           ) : currentView === 'reports' ? (
             <ReportsView />
+          ) : currentView === 'ai-assistant' ? (
+            <AiAssistantView />
           ) : currentView === 'access' ? (
             <AccessManagementView />
           ) : (

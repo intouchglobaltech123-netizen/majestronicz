@@ -53,7 +53,8 @@ async function handle<T>(res: Response): Promise<T> {
     let detail = '';
     try {
       const body = await res.json();
-      detail = body?.error ? `: ${body.error}` : '';
+      // Prefer the human-readable message; fall back to the error code.
+      detail = body?.message ? `: ${body.message}` : body?.error ? `: ${body.error}` : '';
     } catch {
       /* ignore parse errors */
     }

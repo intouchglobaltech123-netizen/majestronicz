@@ -61,6 +61,9 @@ import {
   Customer,
   LoyaltySettings,
   StockTransfer,
+  Payment,
+  RecordPaymentInput,
+  StaffUser,
   InventorySettings,
   CustomerOutstandingInvoice,
   getCustomerOutstandingSummary,
@@ -88,6 +91,7 @@ export type ActiveNavView =
   | 'purchases'
   | 'hrm'
   | 'reports'
+  | 'ai-assistant'
   | 'access';
 
 interface StorageState {
@@ -142,6 +146,20 @@ interface ErpContextType {
   logout: () => void;
   isAuthModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
+
+  // Login UX + mandatory first-login PIN reset
+  loginError: string | null;
+  clearLoginError: () => void;
+  mustResetPin: boolean;
+  changeOwnPin: (newPin: string) => Promise<boolean>;
+
+  // Staff account management (CEO/admin only)
+  staffUsers: StaffUser[];
+  refreshStaffUsers: () => Promise<void>;
+  createStaffUser: (input: { name: string; role: Role; pin: string; assignedBranchId?: string; monthlySalary?: number; phone?: string }) => Promise<boolean>;
+  updateStaffUser: (id: string, input: { name?: string; role?: Role; assignedBranchId?: string | null; status?: 'active' | 'disabled' }) => Promise<boolean>;
+  resetStaffPin: (id: string, newPin: string) => Promise<boolean>;
+  deleteStaffUser: (id: string) => Promise<boolean>;
 
   // Permissions
   canManageItems: boolean; // CEO & Manager can edit master item catalog & master pricing
@@ -396,6 +414,16 @@ interface ErpContextType {
   accessMatrix: AccessMatrix | null;
   updateAccessMatrix: (matrix: AccessMatrix) => Promise<void>;
   hasFlag: (flag: string) => boolean;
+
+  // Beta AI assistant
+  askAi: (question: string) => Promise<{ answer: string; degraded?: boolean; retryAfterSec?: number }>;
+  getAiStatus: () => Promise<{ engine: string; model: string; connected: boolean; private?: boolean; message: string }>;
+
+  // Party ledger / payments
+  payments: Payment[];
+  recordPayment: (input: RecordPaymentInput) => Promise<Payment | null>;
+  deletePayment: (id: string) => Promise<void>;
+  canRecordPayment: boolean;
 
   // Multi-item transfers, dead-stock, outstanding balance, inventory config
   stockTransfers: StockTransfer[];
@@ -794,6 +822,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Multi-item transfer history + inventory config (hydrated from backend).
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
+  // Party-ledger payments (receipts from customers / payments to vendors).
+  const [payments, setPayments] = useState<Payment[]>([]);
+  // Login UX + staff accounts.
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [mustResetPin, setMustResetPin] = useState(false);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [inventorySettings, setInventorySettings] = useState<InventorySettings>({ deadStockThresholdDays: 90 });
   // Dynamic role-based access matrix (managed by CEO, hydrated from backend).
   const [accessMatrix, setAccessMatrix] = useState<AccessMatrix | null>(null);
@@ -975,6 +1009,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.payrollRecords)) setPayrollRecords(data.payrollRecords);
     if (Array.isArray(data.customers)) setCustomers(data.customers);
     if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
+    if (Array.isArray(data.payments)) setPayments(data.payments);
     if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
     if (data.accessMatrix && typeof data.accessMatrix === 'object') setAccessMatrix(data.accessMatrix);
     if (Array.isArray(data.categories)) setCategories(data.categories);
@@ -1100,8 +1135,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Built-in fallback (used before the backend matrix loads / if absent).
   const DEFAULT_ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
-    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'access'],
-    Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports'],
+    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant', 'access'],
+    Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
     Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
     Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
     Sales: ['items', 'enquiries'],
@@ -1126,6 +1161,51 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser.role === 'Manager';
   };
   const canAccessView = (view: ActiveNavView) => roleViews().includes(view);
+
+  // ---- Beta AI ----
+  const askAi = async (question: string) => {
+    try {
+      return await apiPost<{ answer: string; degraded?: boolean; retryAfterSec?: number }>(
+        '/api/ai/ask',
+        { question }
+      );
+    } catch (e: any) {
+      return { answer: e?.message || 'AI request failed. Please try again.', degraded: true };
+    }
+  };
+  const getAiStatus = async () => {
+    try {
+      return await apiGet<{ engine: string; model: string; connected: boolean; private?: boolean; message: string }>('/api/ai/status');
+    } catch {
+      return { engine: 'ollama', model: '', connected: false, private: true, message: 'Could not reach the AI service.' };
+    }
+  };
+
+  // ---- Party ledger / payments ----
+  const canRecordPayment = hasCap('payment:write');
+  const recordPayment = async (input: RecordPaymentInput): Promise<Payment | null> => {
+    try {
+      const created = await apiPost<Payment>('/api/payments', input);
+      setPayments((prev) => [created, ...prev]);
+      // Refresh invoices so settled balances reflect immediately.
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success(`${input.type === 'in' ? 'Payment received' : 'Payment recorded'} — ${created.receiptNumber}`);
+      return created;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not record payment');
+      return null;
+    }
+  };
+  const deletePayment = async (id: string): Promise<void> => {
+    try {
+      await apiDelete(`/api/payments/${id}`);
+      setPayments((prev) => prev.filter((p) => p.id !== id));
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success('Payment deleted and balances restored');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not delete payment');
+    }
+  };
 
   // Redirect out of a view the current role may not access.
   useEffect(() => {
@@ -1214,19 +1294,27 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Authenticate against the backend (server verifies the PIN and issues a
   // signed token). The token is what actually authorizes writes server-side.
+  const clearLoginError = () => setLoginError(null);
+
   const loginWithPin = async (pin: string): Promise<boolean> => {
+    setLoginError(null);
     try {
       // Branch scope is assigned by the account server-side — not chosen here.
-      const res = await apiPost<{ token: string; user: { role: Role; name: string; assignedBranchId?: BranchId } }>(
+      const res = await apiPost<{ token: string; mustResetPin?: boolean; user: { role: Role; name: string; assignedBranchId?: BranchId; userId?: string } }>(
         '/api/auth/login',
         { pin }
       );
       setAuthToken(res.token);
       const assigned = res.user.assignedBranchId;
-      setCurrentUser({ role: res.user.role, name: res.user.name, pin, assignedBranchId: assigned });
+      setCurrentUser({ role: res.user.role, name: res.user.name, pin, assignedBranchId: assigned, userId: res.user.userId });
       setCurrentBranch(res.user.role === 'CEO' ? 'all' : assigned || 'erode-hq');
       setCurrentView(landingViewFor(res.user.role));
+      setMustResetPin(Boolean(res.mustResetPin));
       setIsAuthenticated(true);
+      if (res.mustResetPin) {
+        // Do not greet — the app gate shows the mandatory PIN-reset screen.
+        return true;
+      }
       toast.success(`Signed in as ${res.user.role}`, {
         description: res.user.assignedBranchId
           ? `Branch: ${BRANCHES.find((b) => b.id === res.user.assignedBranchId)?.name}`
@@ -1236,12 +1324,100 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return true;
     } catch (e: any) {
-      const msg = String(e?.message || '');
-      if (msg.includes('429') || msg.toLowerCase().includes('too many')) {
-        toast.error('Account temporarily locked', { description: 'Too many failed attempts. Please wait a minute and try again.' });
-      } else {
-        toast.error('Incorrect PIN', { description: 'Please check your PIN and try again.' });
-      }
+      // The server sends a precise message (attempts left / lockout). Extract it.
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      const friendly = afterColon && !/^[A-Z_]+$/.test(afterColon)
+        ? afterColon
+        : raw.includes('429') || raw.toLowerCase().includes('too many')
+        ? 'Too many attempts. Please wait a minute and try again.'
+        : 'Incorrect PIN. Please try again.';
+      setLoginError(friendly);
+      return false;
+    }
+  };
+
+  // Mandatory first-login PIN reset (and voluntary change).
+  const changeOwnPin = async (newPin: string): Promise<boolean> => {
+    if (!/^\d{4}$/.test(newPin)) {
+      toast.error('PIN must be exactly 4 digits');
+      return false;
+    }
+    try {
+      await apiPost('/api/auth/change-pin', { newPin });
+      setMustResetPin(false);
+      setCurrentUser((u) => ({ ...u, pin: newPin }));
+      toast.success('PIN updated', { description: 'Your new PIN is now active.' });
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not update PIN. Try a different one.');
+      return false;
+    }
+  };
+
+  // ---- Staff account management (CEO/admin) ----
+  const refreshStaffUsers = async () => {
+    try {
+      setStaffUsers(await apiGet<StaffUser[]>('/api/users'));
+    } catch {
+      /* non-admins get 403; ignore */
+    }
+  };
+  const createStaffUser = async (input: { name: string; role: Role; pin: string; assignedBranchId?: string; monthlySalary?: number; phone?: string }): Promise<boolean> => {
+    try {
+      await apiPost('/api/users', input);
+      await refreshStaffUsers();
+      // The linked employee/attendance record was created too — refresh state.
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success('Staff account created', { description: `${input.name} is added to Attendance and must reset the PIN on first login.` });
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not create account');
+      return false;
+    }
+  };
+  const updateStaffUser = async (id: string, input: { name?: string; role?: Role; assignedBranchId?: string | null; status?: 'active' | 'disabled' }): Promise<boolean> => {
+    try {
+      await apiPut(`/api/users/${id}`, input);
+      await refreshStaffUsers();
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success('Account updated');
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not update account');
+      return false;
+    }
+  };
+  const resetStaffPin = async (id: string, newPin: string): Promise<boolean> => {
+    try {
+      await apiPost(`/api/users/${id}/reset-pin`, { newPin });
+      await refreshStaffUsers();
+      toast.success('PIN reset', { description: 'The staff member must set a new PIN on next login.' });
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not reset PIN');
+      return false;
+    }
+  };
+  const deleteStaffUser = async (id: string): Promise<boolean> => {
+    try {
+      await apiDelete(`/api/users/${id}`);
+      await refreshStaffUsers();
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success('Account removed');
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not remove account');
       return false;
     }
   };
@@ -1249,6 +1425,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setAuthToken(null);
     setIsAuthenticated(false);
+    setMustResetPin(false);
+    setLoginError(null);
     toast.info('Logged out');
   };
 
@@ -2529,6 +2707,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(snap.payrollRecords)) setPayrollRecords(snap.payrollRecords);
     if (Array.isArray(snap.customers)) setCustomers(snap.customers);
     if (Array.isArray(snap.stockTransfers)) setStockTransfers(snap.stockTransfers);
+    if (Array.isArray(snap.payments)) setPayments(snap.payments);
   };
   const applySaleSnapshot = applySnapshot;
 
@@ -4025,6 +4204,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         accessMatrix,
         updateAccessMatrix,
         hasFlag,
+        askAi,
+        getAiStatus,
+        payments,
+        recordPayment,
+        deletePayment,
+        canRecordPayment,
+        loginError,
+        clearLoginError,
+        mustResetPin,
+        changeOwnPin,
+        staffUsers,
+        refreshStaffUsers,
+        createStaffUser,
+        updateStaffUser,
+        resetStaffPin,
+        deleteStaffUser,
         stockTransfers,
         transferStockBatch,
         inventorySettings,
@@ -4048,7 +4243,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetToDemoData,
       }}
     >
-      {isAuthenticated ? children : <LoginScreen />}
+      {isAuthenticated && !mustResetPin ? children : <LoginScreen />}
     </ErpContext.Provider>
   );
 };

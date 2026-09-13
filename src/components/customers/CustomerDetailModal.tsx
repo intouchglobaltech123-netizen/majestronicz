@@ -20,8 +20,12 @@ import {
   Building2,
   User,
   AlertCircle,
+  Wallet,
+  Trash2,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
+import { RecordPaymentModal } from '../payments/RecordPaymentModal';
 
 interface CustomerDetailModalProps {
   customer: Customer | null;
@@ -38,9 +42,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onEditCustomer,
   onCreateSale,
 }) => {
-  const { invoices, loyaltySettings, customers } = useErp();
+  const { invoices, loyaltySettings, customers, payments, canRecordPayment, deletePayment, currentBranch } = useErp();
+  const receiptBranch = currentBranch && currentBranch !== 'all' ? currentBranch : (BRANCHES[0]?.id || 'erode-hq');
   const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
   const [selectedInvoiceForPdf, setSelectedInvoiceForPdf] = useState<Invoice | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Always resolve latest customer from master records to avoid stale display after edits
   const currentCustomer = useMemo(() => {
@@ -72,6 +78,17 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
     if (!currentCustomer) return { totalOutstanding: 0, unpaidInvoices: [] };
     return getCustomerOutstandingSummary(currentCustomer, invoices);
   }, [currentCustomer, invoices]);
+
+  // This customer's recorded payments (receipts), newest first.
+  const customerPayments = useMemo(() => {
+    if (!currentCustomer) return [];
+    return payments.filter((p) => {
+      if (p.type !== 'in' || p.partyType !== 'customer') return false;
+      if (p.partyId && p.partyId === currentCustomer.id) return true;
+      if (currentCustomer.name && p.partyName && p.partyName.trim().toLowerCase() === currentCustomer.name.trim().toLowerCase()) return true;
+      return false;
+    });
+  }, [payments, currentCustomer]);
 
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'unpaid'>('all');
 
@@ -172,6 +189,16 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {canRecordPayment && outstandingSummary.totalOutstanding > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-xs"
+                >
+                  <ArrowDownCircle className="h-3.5 w-3.5" />
+                  <span>Receive Payment</span>
+                </button>
+              )}
               {onEditCustomer && (
                 <button
                   type="button"
@@ -541,6 +568,48 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 )}
               </div>
             )}
+
+            {/* Payments received ledger */}
+            {customerPayments.length > 0 && (
+              <div className="pt-2">
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
+                  <Wallet className="h-4 w-4 text-emerald-600" />
+                  <span>Payments Received ({customerPayments.length})</span>
+                </h3>
+                <div className="rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                  {customerPayments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between px-4 py-2.5 gap-3 hover:bg-slate-50/60">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                          <ArrowDownCircle className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 font-mono truncate">{p.receiptNumber}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {p.date} · {p.paymentMode}
+                            {p.reference ? ` · ${p.reference}` : ''}
+                            {p.allocations && p.allocations.length ? ` · ${p.allocations.length} bill(s)` : ' · advance'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-black text-emerald-700 font-mono">{formatCurrency(p.amount)}</span>
+                        {canRecordPayment && (
+                          <button
+                            type="button"
+                            onClick={() => { if (confirm(`Delete receipt ${p.receiptNumber}? This will restore the bill balances.`)) deletePayment(p.id); }}
+                            title="Delete receipt"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -551,6 +620,25 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         isOpen={Boolean(selectedInvoiceForPdf)}
         onClose={() => setSelectedInvoiceForPdf(null)}
       />
+
+      {/* Receive Payment Modal */}
+      {currentCustomer && (
+        <RecordPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          type="in"
+          partyType="customer"
+          partyId={currentCustomer.id}
+          partyName={currentCustomer.name}
+          branchId={receiptBranch}
+          outstanding={outstandingSummary.unpaidInvoices.map((u) => ({
+            refId: u.invoice.id,
+            refNumber: u.invoice.invoiceNumber,
+            date: u.invoice.date,
+            balanceDue: u.balanceDue,
+          }))}
+        />
+      )}
     </>
   );
 };

@@ -1,11 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
-  Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, ALL_FLAGS,
+  Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, ALL_FLAGS, AI_DATA_FLAGS,
   VIEW_LABELS, CAP_LABELS, FLAG_LABELS, PRESET_ROLES,
 } from '../../types';
-import { ShieldCheck, Save, RotateCcw, Lock, Check } from 'lucide-react';
+import { ShieldCheck, Save, RotateCcw, Lock, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { StaffAccountsSection } from './StaffAccountsSection';
+
+const FIELD_FLAGS = ALL_FLAGS.filter((f) => !AI_DATA_FLAGS.includes(f));
 
 const EDITABLE_ROLES: Role[] = ['Manager', 'Billing', 'Purchase', 'Sales'];
 const roleName = (r: Role) => PRESET_ROLES.find((p) => p.role === r)?.defaultName || r;
@@ -88,6 +91,9 @@ export const AccessManagementView: React.FC = () => {
         </p>
       </div>
 
+      {/* Staff login accounts */}
+      <StaffAccountsSection />
+
       {/* Per-role editors */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {EDITABLE_ROLES.map((role) => {
@@ -155,10 +161,10 @@ export const AccessManagementView: React.FC = () => {
               </div>
 
               {/* Field & data visibility (Vyapar-style fine permissions) */}
-              <div className="px-5 pb-5">
+              <div className="px-5 pb-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Field & data visibility</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                  {ALL_FLAGS.map((f) => {
+                  {FIELD_FLAGS.map((f) => {
                     const on = cfg.flags.includes(f);
                     return (
                       <button
@@ -172,6 +178,37 @@ export const AccessManagementView: React.FC = () => {
                           {on && <Check className="h-3 w-3" />}
                         </span>
                         {FLAG_LABELS[f] || f}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Beta AI data access — which domains this role's AI may read */}
+              <div className="px-5 pb-5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-500 mb-2 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" /> Beta AI — data the AI can read
+                </p>
+                {!cfg.caps.includes('ai:use') && (
+                  <p className="text-[10px] text-slate-400 mb-2">
+                    Enable “Use Beta AI assistant” under Actions to let this role use the AI. These scopes then limit what it can read.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  {AI_DATA_FLAGS.map((f) => {
+                    const on = cfg.flags.includes(f);
+                    return (
+                      <button
+                        key={f}
+                        onClick={() => toggle(role, 'flags', f)}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
+                          on ? 'bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-fuchsia-600 text-white' : 'border border-slate-300'}`}>
+                          {on && <Check className="h-3 w-3" />}
+                        </span>
+                        {FLAG_LABELS[f]?.replace(/^AI can read /, '') || f}
                       </button>
                     );
                   })}

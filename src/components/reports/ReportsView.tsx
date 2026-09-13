@@ -11,9 +11,11 @@ import {
   Users,
   Calendar,
   Building,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
+import { GstReportTab } from './GstReportTab';
 import { BranchPnlReportTab } from './BranchPnlReportTab';
 import { StockValuationReportTab } from './StockValuationReportTab';
 import { EnquiryConversionReportTab } from './EnquiryConversionReportTab';
@@ -26,6 +28,7 @@ export type ReportTabType =
   | 'stock-valuation'
   | 'enquiry-conversion'
   | 'purchase-orders'
+  | 'gst'
   | 'payroll';
 
 export const ReportsView: React.FC = () => {
@@ -84,6 +87,7 @@ export const ReportsView: React.FC = () => {
     { id: 'stock-valuation' as const, label: 'Stock Valuation', icon: Boxes, description: 'Physical asset costs and retail margins' },
     { id: 'enquiry-conversion' as const, label: 'Enquiry Conversion', icon: TrendingUp, description: 'Funnel velocity and open pending orders' },
     { id: 'purchase-orders' as const, label: 'PO Procurement', icon: ShoppingBag, description: 'Vendor fulfillment and overdue orders' },
+    { id: 'gst' as const, label: 'GST Summary', icon: Landmark, description: 'GSTR-1 / 3B rate-wise & HSN tax report' },
     ...(canViewPayrollReport
       ? [{ id: 'payroll' as const, label: 'Payroll Summary', icon: Users, description: 'Staff compensation and labor spend' }]
       : []),
@@ -276,6 +280,14 @@ export const ReportsView: React.FC = () => {
 
         {activeTab === 'purchase-orders' && (
           <PurchaseOrderStatusReportTab
+            startDate={startDate}
+            endDate={endDate}
+            branchScope={branchScope}
+          />
+        )}
+
+        {activeTab === 'gst' && (
+          <GstReportTab
             startDate={startDate}
             endDate={endDate}
             branchScope={branchScope}
