@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -43,6 +43,25 @@ export const DashboardView: React.FC = () => {
   const [trendHover, setTrendHover] = useState<number | null>(null);
   const [topMetric, setTopMetric] = useState<'revenue' | 'qty'>('revenue');
   const [trendDays, setTrendDays] = useState<7 | 14 | 30>(14);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // One-time smooth "tour" scroll (down then back up) after a fresh login,
+  // so the user sees there's more below the fold. Runs once per login.
+  useEffect(() => {
+    let flag: string | null = null;
+    try { flag = sessionStorage.getItem('mjz_dashboard_tour'); } catch { /* ignore */ }
+    if (flag !== '1') return;
+    try { sessionStorage.removeItem('mjz_dashboard_tour'); } catch { /* ignore */ }
+    const scroller = rootRef.current?.closest('main') as HTMLElement | null;
+    if (!scroller) return;
+    const t1 = setTimeout(() => {
+      const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+      if (maxScroll < 60) return;
+      scroller.scrollTo({ top: maxScroll, behavior: 'smooth' });
+      setTimeout(() => scroller.scrollTo({ top: 0, behavior: 'smooth' }), 1600);
+    }, 700);
+    return () => clearTimeout(t1);
+  }, []);
 
   // Item lookups for cost-of-goods / profit.
   const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
@@ -173,7 +192,7 @@ export const DashboardView: React.FC = () => {
   const salesMonthDelta = pct(money.salesMonth, money.salesPrevMonth);
 
   return (
-    <div className="p-6 space-y-5 w-full">
+    <div ref={rootRef} className="p-6 space-y-5 w-full">
       {/* Header */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">

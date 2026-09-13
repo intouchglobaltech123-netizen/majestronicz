@@ -4,9 +4,10 @@ import {
   Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, ALL_FLAGS, AI_DATA_FLAGS,
   VIEW_LABELS, CAP_LABELS, FLAG_LABELS, PRESET_ROLES,
 } from '../../types';
-import { ShieldCheck, Save, RotateCcw, Lock, Check, Sparkles } from 'lucide-react';
+import { ShieldCheck, Save, RotateCcw, Lock, Check, Sparkles, LayoutGrid, Zap, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { StaffAccountsSection } from './StaffAccountsSection';
+import { UniversalDropdown } from '../common/UniversalDropdown';
 
 const FIELD_FLAGS = ALL_FLAGS.filter((f) => !AI_DATA_FLAGS.includes(f));
 
@@ -17,6 +18,7 @@ export const AccessManagementView: React.FC = () => {
   const { accessMatrix, updateAccessMatrix, currentUser } = useErp();
 
   const [draft, setDraft] = useState<AccessMatrix | null>(accessMatrix);
+  const [selectedRole, setSelectedRole] = useState<Role>('Manager');
   const [saving, setSaving] = useState(false);
   useEffect(() => { setDraft(accessMatrix); }, [accessMatrix]);
 
@@ -94,130 +96,113 @@ export const AccessManagementView: React.FC = () => {
       {/* Staff login accounts */}
       <StaffAccountsSection />
 
-      {/* Per-role editors */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {EDITABLE_ROLES.map((role) => {
-          const cfg = draft[role];
-          return (
-            <div key={role} className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-extrabold text-slate-900">{role}</span>
-                  <span className="ml-2 text-[11px] text-slate-500">{roleName(role)}</span>
-                </div>
-                <span className="text-[10px] font-semibold text-slate-500">
-                  {cfg.views.length} modules · {cfg.caps.length} actions · {cfg.flags.length} data
-                </span>
+      {/* Role editor — pick a role, then edit its access by section */}
+      {(() => {
+        const role = selectedRole;
+        const cfg = draft[role];
+        const tone: Record<string, { on: string; box: string }> = {
+          blue: { on: 'bg-blue-50 text-blue-800 border-blue-200', box: 'bg-blue-600' },
+          emerald: { on: 'bg-emerald-50 text-emerald-800 border-emerald-200', box: 'bg-emerald-600' },
+          violet: { on: 'bg-violet-50 text-violet-800 border-violet-200', box: 'bg-violet-600' },
+          fuchsia: { on: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200', box: 'bg-fuchsia-600' },
+        };
+        const ToggleGrid = ({ items, on, onToggle, color }: { items: { key: string; label: string }[]; on: (k: string) => boolean; onToggle: (k: string) => void; color: string }) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {items.map((it) => {
+              const active = on(it.key);
+              const t = tone[color];
+              return (
+                <button
+                  key={it.key}
+                  onClick={() => onToggle(it.key)}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-left transition-colors border ${active ? t.on : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'}`}
+                >
+                  <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${active ? `${t.box} text-white` : 'border border-slate-300'}`}>
+                    {active && <Check className="h-3 w-3" />}
+                  </span>
+                  {it.label}
+                </button>
+              );
+            })}
+          </div>
+        );
+
+        const Section = ({ icon: Icon, title, hint, children }: { icon: React.ComponentType<{ className?: string }>; title: string; hint?: string; children: React.ReactNode }) => (
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+              <Icon className="h-4 w-4 text-slate-500" />
+              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{title}</span>
+              {hint && <span className="text-[10px] text-slate-400 ml-1">{hint}</span>}
+            </div>
+            <div className="p-5">{children}</div>
+          </div>
+        );
+
+        return (
+          <div className="space-y-5">
+            {/* Role picker */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Editing role</span>
               </div>
-
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {/* Modules */}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Modules (can open)</p>
-                  <div className="space-y-1">
-                    {ALL_VIEWS.filter((v) => v !== 'access').map((v) => {
-                      const on = cfg.views.includes(v);
-                      return (
-                        <button
-                          key={v}
-                          onClick={() => toggle(role, 'views', v)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
-                            on ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
-                          }`}
-                        >
-                          <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-blue-600 text-white' : 'border border-slate-300'}`}>
-                            {on && <Check className="h-3 w-3" />}
-                          </span>
-                          {VIEW_LABELS[v] || v}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Capabilities */}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Actions (can perform)</p>
-                  <div className="space-y-1">
-                    {ALL_CAPABILITIES.filter((c) => c !== 'admin').map((c: Capability) => {
-                      const on = cfg.caps.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => toggle(role, 'caps', c)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
-                            on ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
-                          }`}
-                        >
-                          <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-emerald-600 text-white' : 'border border-slate-300'}`}>
-                            {on && <Check className="h-3 w-3" />}
-                          </span>
-                          {CAP_LABELS[c] || c}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="w-full sm:w-72">
+                <UniversalDropdown
+                  value={role}
+                  onChange={(v) => setSelectedRole(v as Role)}
+                  options={EDITABLE_ROLES.map((r) => ({ value: r, label: r, sublabel: roleName(r) }))}
+                  buttonClassName="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900"
+                />
               </div>
+              <span className="text-[11px] font-semibold text-slate-500 sm:ml-auto">
+                {cfg.views.length} modules · {cfg.caps.length} actions · {cfg.flags.length} data scopes
+              </span>
+            </div>
 
-              {/* Field & data visibility (Vyapar-style fine permissions) */}
-              <div className="px-5 pb-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Field & data visibility</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                  {FIELD_FLAGS.map((f) => {
-                    const on = cfg.flags.includes(f);
-                    return (
-                      <button
-                        key={f}
-                        onClick={() => toggle(role, 'flags', f)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
-                          on ? 'bg-violet-50 text-violet-800 border border-violet-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-violet-600 text-white' : 'border border-slate-300'}`}>
-                          {on && <Check className="h-3 w-3" />}
-                        </span>
-                        {FLAG_LABELS[f] || f}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <Section icon={LayoutGrid} title="Modules" hint="pages this role can open">
+                <ToggleGrid
+                  color="blue"
+                  items={ALL_VIEWS.filter((v) => v !== 'access').map((v) => ({ key: v, label: VIEW_LABELS[v] || v }))}
+                  on={(k) => cfg.views.includes(k)}
+                  onToggle={(k) => toggle(role, 'views', k)}
+                />
+              </Section>
 
-              {/* Beta AI data access — which domains this role's AI may read */}
-              <div className="px-5 pb-5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-500 mb-2 flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3" /> Beta AI — data the AI can read
-                </p>
+              <Section icon={Zap} title="Actions" hint="what this role can do">
+                <ToggleGrid
+                  color="emerald"
+                  items={ALL_CAPABILITIES.filter((c) => c !== 'admin').map((c) => ({ key: c, label: CAP_LABELS[c as Capability] || c }))}
+                  on={(k) => cfg.caps.includes(k as Capability)}
+                  onToggle={(k) => toggle(role, 'caps', k)}
+                />
+              </Section>
+
+              <Section icon={Eye} title="Field & Data Visibility" hint="Vyapar-style fine control">
+                <ToggleGrid
+                  color="violet"
+                  items={FIELD_FLAGS.map((f) => ({ key: f, label: FLAG_LABELS[f] || f }))}
+                  on={(k) => cfg.flags.includes(k)}
+                  onToggle={(k) => toggle(role, 'flags', k)}
+                />
+              </Section>
+
+              <Section icon={Sparkles} title="Beta AI — Data the AI Can Read">
                 {!cfg.caps.includes('ai:use') && (
-                  <p className="text-[10px] text-slate-400 mb-2">
-                    Enable “Use Beta AI assistant” under Actions to let this role use the AI. These scopes then limit what it can read.
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-3">
+                    Enable “Use Beta AI assistant” under Actions first — these scopes then limit what its AI can read.
                   </p>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                  {AI_DATA_FLAGS.map((f) => {
-                    const on = cfg.flags.includes(f);
-                    return (
-                      <button
-                        key={f}
-                        onClick={() => toggle(role, 'flags', f)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
-                          on ? 'bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200' : 'bg-slate-50 text-slate-500 border border-transparent hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${on ? 'bg-fuchsia-600 text-white' : 'border border-slate-300'}`}>
-                          {on && <Check className="h-3 w-3" />}
-                        </span>
-                        {FLAG_LABELS[f]?.replace(/^AI can read /, '') || f}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                <ToggleGrid
+                  color="fuchsia"
+                  items={AI_DATA_FLAGS.map((f) => ({ key: f, label: FLAG_LABELS[f]?.replace(/^AI can read /, '') || f }))}
+                  on={(k) => cfg.flags.includes(k)}
+                  onToggle={(k) => toggle(role, 'flags', k)}
+                />
+              </Section>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

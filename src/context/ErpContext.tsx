@@ -1313,6 +1313,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView(landingViewFor(res.user.role));
       setMustResetPin(Boolean(res.mustResetPin));
       setIsAuthenticated(true);
+      // One-time dashboard "tour" auto-scroll after each fresh login.
+      try { sessionStorage.setItem('mjz_dashboard_tour', '1'); } catch { /* ignore */ }
       if (res.mustResetPin) {
         // Do not greet — the app gate shows the mandatory PIN-reset screen.
         return true;

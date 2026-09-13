@@ -15,6 +15,9 @@ import {
   Check,
   User,
   Wallet,
+  Maximize2,
+  Minimize2,
+  LogOut,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -39,6 +42,21 @@ export const TopBar: React.FC = () => {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -156,6 +174,17 @@ export const TopBar: React.FC = () => {
 
       {/* Right: Notifications Bell & Role Profile */}
       <div className="flex items-center gap-3">
+        {/* Fullscreen toggle */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label="Toggle full screen"
+          title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          className="h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition-all shadow-xs"
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+
         {/* Notification Bell Dropdown Container */}
         <div className="relative" ref={notifRef}>
           <button
@@ -441,9 +470,9 @@ export const TopBar: React.FC = () => {
           )}
         </div>
 
-        {/* Current user + logout */}
+        {/* Current user + logout (asks for confirmation) */}
         <button
-          onClick={logout}
+          onClick={() => setShowLogoutConfirm(true)}
           title="Logout"
           className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-rose-50 text-slate-900 border border-slate-200 hover:border-rose-200 rounded-xl transition-all shadow-xs group"
         >
@@ -464,6 +493,27 @@ export const TopBar: React.FC = () => {
           </div>
         </button>
       </div>
+
+      {/* Logout confirmation */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <h2 className="text-base font-extrabold text-slate-900">Sign out?</h2>
+            <p className="text-xs text-slate-500 mt-1">You'll need to enter your PIN again to sign back in.</p>
+            <div className="flex items-center gap-2 mt-5">
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { setShowLogoutConfirm(false); logout(); }} className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs">
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
