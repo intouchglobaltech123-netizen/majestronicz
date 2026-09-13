@@ -17,6 +17,7 @@ import { ReportsView } from './components/reports/ReportsView';
 import { CustomersView } from './components/customers/CustomersView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
+import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
 
 const AppContent: React.FC = () => {
@@ -69,6 +70,9 @@ const AppContent: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* App-wide keyboard navigation (press ? for help) */}
+      <GlobalKeyboardShortcuts />
 
       {/* Sonner Toast Notifications */}
       <Toaster

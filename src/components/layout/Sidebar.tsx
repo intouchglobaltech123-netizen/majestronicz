@@ -182,6 +182,9 @@ export const Sidebar: React.FC = () => {
             <span>Logout</span>
           </button>
         </div>
+        <p className="text-center text-[10px] text-slate-400 pt-1">
+          Press <kbd className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-slate-600">?</kbd> for keyboard shortcuts
+        </p>
       </div>
     </aside>
   );

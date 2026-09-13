@@ -5,7 +5,7 @@ import { formatCurrency, cn } from '../../lib/utils';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, Layers, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
-  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon,
+  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent,
 } from 'lucide-react';
 
 // Outstanding due on a single invoice — mirrors the server's receivables logic.
@@ -42,6 +42,12 @@ export const DashboardView: React.FC = () => {
 
   const [trendHover, setTrendHover] = useState<number | null>(null);
   const [topMetric, setTopMetric] = useState<'revenue' | 'qty'>('revenue');
+  const [trendDays, setTrendDays] = useState<7 | 14 | 30>(14);
+
+  // Item lookups for cost-of-goods / profit.
+  const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
+  const itemByCode = useMemo(() => new Map(items.map((it) => [it.itemCode, it])), [items]);
+  const itemByName = useMemo(() => new Map(items.map((it) => [(it.itemName || '').toLowerCase(), it])), [items]);
 
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
@@ -89,6 +95,20 @@ export const DashboardView: React.FC = () => {
     return { salesToday, salesYest, salesMonth, salesPrevMonth, countToday, receivables, payables, cashInHand };
   }, [scopedSales, purchaseOrders, cashRegisters, isAllBranches, currentBranch, today, yesterday, thisMonth, lastMonth]);
 
+  // ---- Profit / margin (this month): revenue − cost of goods sold ----
+  const profit = useMemo(() => {
+    const monthInv = scopedSales.filter((i) => (i.date || '').startsWith(thisMonth));
+    let revenue = 0, cost = 0;
+    for (const i of monthInv) {
+      revenue += netRevenue(i);
+      for (const li of (i.items || []) as any[]) {
+        const it = itemById.get(li.itemId) || itemByCode.get(li.itemCode) || itemByName.get((li.itemName || '').toLowerCase());
+        cost += (li.quantity || 0) * (it?.purchasePrice || 0);
+      }
+    }
+    return { value: revenue - cost, margin: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0 };
+  }, [scopedSales, thisMonth, itemById, itemByCode, itemByName]);
+
   // ---- Inventory health ----
   const inv = useMemo(() => {
     let stockValue = 0, lowStock = 0, deadStock = 0;
@@ -104,17 +124,17 @@ export const DashboardView: React.FC = () => {
     return { stockValue, lowStock, deadStock, totalItems: items.length };
   }, [items, branchStocks, isAllBranches, currentBranch, getItemLastSaleInfo, inventorySettings]);
 
-  // ---- 14-day sales trend ----
+  // ---- Sales trend (selectable window) ----
   const trend = useMemo(() => {
     const days: { date: string; label: string; total: number }[] = [];
-    for (let i = 13; i >= 0; i--) {
+    for (let i = trendDays - 1; i >= 0; i--) {
       const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
       const total = scopedSales.filter((x) => x.date === d).reduce((t, x) => t + netRevenue(x), 0);
       days.push({ date: d, label: d.slice(5), total });
     }
     const max = Math.max(1, ...days.map((d) => d.total));
     return { days, max };
-  }, [scopedSales]);
+  }, [scopedSales, trendDays]);
 
   // ---- Payment mode split (this month) ----
   const modeSplit = useMemo(() => {
@@ -183,13 +203,15 @@ export const DashboardView: React.FC = () => {
       </div>
 
       {/* ---- Money KPI row ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
           icon={IndianRupee} tone="blue" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
           icon={TrendingUp} tone="indigo" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
+        <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`${profit.margin}% margin`}
+          icon={Percent} tone="emerald" onClick={() => setCurrentView('reports')} />
         <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
-          icon={ArrowDownCircle} tone="emerald" onClick={() => setCurrentView('customers')} accent={money.receivables > 0} />
+          icon={ArrowDownCircle} tone="amber" onClick={() => setCurrentView('customers')} accent={money.receivables > 0} />
         <KpiCard label="To Pay" value={formatCurrency(money.payables)} sub="supplier dues"
           icon={ArrowUpCircle} tone="rose" onClick={() => setCurrentView('purchases')} accent={money.payables > 0} />
         <KpiCard label="Cash in Hand" value={formatCurrency(money.cashInHand)} sub="approx · registers"
@@ -204,12 +226,19 @@ export const DashboardView: React.FC = () => {
         <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">Sales — Last 14 Days</h3>
-              <p className="text-[11px] text-slate-500">Daily billed revenue {isAllBranches ? '(all branches)' : ''}</p>
+              <h3 className="text-sm font-extrabold text-slate-900">Sales — Last {trendDays} Days</h3>
+              <p className="text-[11px] text-slate-500">
+                Total {formatCurrency(trend.days.reduce((t, d) => t + d.total, 0))} {isAllBranches ? '· all branches' : ''}
+              </p>
             </div>
-            <span className="text-[11px] font-semibold text-slate-500">
-              Total {formatCurrency(trend.days.reduce((t, d) => t + d.total, 0))}
-            </span>
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+              {([7, 14, 30] as const).map((n) => (
+                <button key={n} onClick={() => setTrendDays(n)}
+                  className={cn('px-2 py-1 rounded-md transition-colors', trendDays === n ? 'bg-white text-blue-700 shadow-2xs' : 'hover:text-slate-800')}>
+                  {n}d
+                </button>
+              ))}
+            </div>
           </div>
           <div className="relative">
             {trendHover !== null && (
@@ -225,7 +254,7 @@ export const DashboardView: React.FC = () => {
                   <div className={cn('w-full rounded-t-md transition-all cursor-pointer',
                     i === trendHover ? 'bg-blue-600' : d.date === today ? 'bg-blue-400' : 'bg-blue-200 group-hover:bg-blue-300')}
                     style={{ height: `${Math.max(2, (d.total / trend.max) * 100)}%` }} />
-                  <span className="text-[8px] text-slate-400 mt-1 rotate-0">{d.label.slice(3)}</span>
+                  <span className="text-[8px] text-slate-400 mt-1 h-2.5">{trendDays <= 14 || i % 3 === 0 ? d.label.slice(3) : ''}</span>
                 </div>
               ))}
             </div>
