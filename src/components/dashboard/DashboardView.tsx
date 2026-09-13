@@ -1,710 +1,439 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId } from '../../types';
+import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
-  TrendingUp,
-  Boxes,
-  AlertTriangle,
-  ReceiptText,
-  Building,
-  ArrowRight,
-  ShieldCheck,
-  Building2,
-  CheckCircle2,
-  Layers,
-  ChevronRight,
-  Package,
-  ClipboardList,
-  Sparkles,
-  AlertOctagon,
+  TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
+  Building2, Layers, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
+  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon,
 } from 'lucide-react';
+
+// Outstanding due on a single invoice — mirrors the server's receivables logic.
+function invoiceDue(inv: Invoice): number {
+  const billed = inv.grandTotal || 0;
+  const splits = getInvoicePaymentSplits(inv);
+  const hasCod = splits.some((s) => s.mode === 'COD-Credit');
+  let due = 0;
+  if (splits.length > 1 && hasCod) due = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
+  else if (inv.isPartialPayment) due = inv.balanceDue ?? Math.max(0, billed - (inv.partialAmount || 0));
+  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') due = inv.balanceDue ?? billed;
+  else if (inv.balanceDue && inv.balanceDue > 0) due = inv.balanceDue;
+  if (inv.totalReturnedAmount) due = Math.max(0, due - inv.totalReturnedAmount);
+  return Math.max(0, due);
+}
+
+const netRevenue = (inv: Invoice) => Math.max(0, (inv.grandTotal || 0) - (inv.totalReturnedAmount || 0));
+const pct = (cur: number, prev: number) => (prev <= 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100));
+
+const MODE_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
+  Cash: { label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
+  UPI: { label: 'UPI', icon: Smartphone, color: 'bg-blue-500' },
+  Card: { label: 'Card', icon: CreditCard, color: 'bg-violet-500' },
+  'Bank Transfer': { label: 'Bank', icon: Landmark, color: 'bg-cyan-500' },
+  'COD-Credit': { label: 'Credit', icon: ClipboardList, color: 'bg-amber-500' },
+};
 
 export const DashboardView: React.FC = () => {
   const {
-    items,
-    branchStocks,
-    currentBranch,
-    isAllBranches,
-    currentBranchData,
-    switchBranch,
-    setCurrentView,
-    currentUser,
-    invoices,
-    enquiries,
-    pendingOrders,
-    navigateToNewItemRequestsQueue,
-    getItemLastSaleInfo,
-    inventorySettings,
-    navigateToInventoryWithMovementFilter,
+    items, branchStocks, currentBranch, isAllBranches, currentBranchData, switchBranch, setCurrentView,
+    currentUser, invoices, purchaseOrders, cashRegisters, enquiries, pendingOrders,
+    getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
   } = useErp();
 
-  // 1. Calculate KPI Metrics based on current scope (All Branches vs Individual Branch)
-  const kpiData = useMemo(() => {
-    let totalStockValue = 0;
-    let lowStockCount = 0;
-    let inStockSkuCount = 0;
-    let deadStockCount = 0;
-    const lowStockItems: { item: typeof items[0]; quantity: number; threshold: number; branchName?: string }[] = [];
+  const [trendHover, setTrendHover] = useState<number | null>(null);
+  const [topMetric, setTopMetric] = useState<'revenue' | 'qty'>('revenue');
 
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const thisMonth = today.slice(0, 7);
+  const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+
+  const inScope = (branchId: string) => isAllBranches || branchId === currentBranch;
+  const scopedSales = useMemo(
+    () => invoices.filter((i) => !i.isVoided && inScope(i.branchId)),
+    [invoices, isAllBranches, currentBranch]
+  );
+
+  // ---- Money & business KPIs ----
+  const money = useMemo(() => {
+    const dayTotal = (d: string) => scopedSales.filter((i) => i.date === d).reduce((t, i) => t + netRevenue(i), 0);
+    const monthTotal = (m: string) => scopedSales.filter((i) => (i.date || '').startsWith(m)).reduce((t, i) => t + netRevenue(i), 0);
+    const salesToday = dayTotal(today);
+    const salesYest = dayTotal(yesterday);
+    const salesMonth = monthTotal(thisMonth);
+    const salesPrevMonth = monthTotal(lastMonth);
+    const countToday = scopedSales.filter((i) => i.date === today).length;
+
+    const receivables = scopedSales.reduce((t, i) => t + invoiceDue(i), 0);
+    const payables = purchaseOrders
+      .filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
+      .reduce((t, p) => t + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
+
+    // Cash-in-hand (approx): latest register per in-scope branch (opening − expenses) + today's cash sales.
+    const branchesInScope = isAllBranches ? BRANCHES.map((b) => b.id) : [currentBranch];
+    let cashInHand = 0;
+    for (const bId of branchesInScope) {
+      const regs = cashRegisters.filter((r) => r.branchId === bId).sort((a, b) => (a.date < b.date ? 1 : -1));
+      const latest = regs[0];
+      if (latest) {
+        const exp = Array.isArray(latest.expenses) ? latest.expenses.reduce((t: number, e: any) => t + (Number(e?.amount) || 0), 0) : 0;
+        cashInHand += (latest.openingAmount || 0) - exp;
+      }
+    }
+    const todayCash = scopedSales
+      .filter((i) => i.date === today)
+      .reduce((t, i) => t + getInvoicePaymentSplits(i).filter((s) => s.mode === 'Cash').reduce((x, s) => x + s.amount, 0), 0);
+    cashInHand += todayCash;
+
+    return { salesToday, salesYest, salesMonth, salesPrevMonth, countToday, receivables, payables, cashInHand };
+  }, [scopedSales, purchaseOrders, cashRegisters, isAllBranches, currentBranch, today, yesterday, thisMonth, lastMonth]);
+
+  // ---- Inventory health ----
+  const inv = useMemo(() => {
+    let stockValue = 0, lowStock = 0, deadStock = 0;
     items.forEach((item) => {
       const threshold = item.reorderThreshold ?? 10;
-
-      // Dead Stock calculation
-      const saleInfo = getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch);
-      if (saleInfo.isDeadStock) {
-        deadStockCount++;
-      }
-
-      if (isAllBranches) {
-        // Aggregate across all branches
-        const itemStocks = branchStocks.filter((s) => s.itemId === item.id);
-        const totalQty = itemStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-        totalStockValue += totalQty * (item.purchasePrice || 0);
-
-        if (totalQty > 0) {
-          inStockSkuCount++;
-        }
-
-        if (totalQty <= threshold) {
-          lowStockCount++;
-          lowStockItems.push({ item, quantity: totalQty, threshold });
-        }
-      } else {
-        // Scoped to specific single branch
-        const stockRow = branchStocks.find(
-          (s) => s.itemId === item.id && s.branchId === currentBranch
-        );
-        const branchQty = stockRow?.quantity ?? 0;
-
-        totalStockValue += branchQty * (item.purchasePrice || 0);
-
-        if (branchQty > 0) {
-          inStockSkuCount++;
-        }
-
-        if (branchQty <= threshold) {
-          lowStockCount++;
-          lowStockItems.push({
-            item,
-            quantity: branchQty,
-            threshold,
-            branchName: currentBranchData?.name,
-          });
-        }
-      }
+      const qty = isAllBranches
+        ? branchStocks.filter((s) => s.itemId === item.id).reduce((s2, s) => s2 + s.quantity, 0)
+        : branchStocks.find((s) => s.itemId === item.id && s.branchId === currentBranch)?.quantity ?? 0;
+      stockValue += qty * (item.purchasePrice || 0);
+      if (qty <= threshold) lowStock++;
+      if (getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch).isDeadStock) deadStock++;
     });
+    return { stockValue, lowStock, deadStock, totalItems: items.length };
+  }, [items, branchStocks, isAllBranches, currentBranch, getItemLastSaleInfo, inventorySettings]);
 
-    return {
-      totalStockValue,
-      totalSkuCount: items.length,
-      inStockSkuCount,
-      lowStockCount,
-      lowStockItems,
-      deadStockCount,
-    };
-  }, [items, branchStocks, isAllBranches, currentBranch, currentBranchData, getItemLastSaleInfo, inventorySettings]);
+  // ---- 14-day sales trend ----
+  const trend = useMemo(() => {
+    const days: { date: string; label: string; total: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+      const total = scopedSales.filter((x) => x.date === d).reduce((t, x) => t + netRevenue(x), 0);
+      days.push({ date: d, label: d.slice(5), total });
+    }
+    const max = Math.max(1, ...days.map((d) => d.total));
+    return { days, max };
+  }, [scopedSales]);
 
-  // Role visibility for management widgets: CEO & Manager only (hidden for Billing)
-  const canViewNewItemRequests = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-
-  // Count of open (unresolved) Enquiries where isNewItemRequest = true, scoped to selected branch or All Branches
-  const openNewItemRequests = useMemo(() => {
-    return enquiries.filter((e) => {
-      if (!e.isNewItemRequest || e.itemId || e.status === 'Cancelled') return false;
-      if (!isAllBranches && e.branchId !== currentBranch) return false;
-      return true;
+  // ---- Payment mode split (this month) ----
+  const modeSplit = useMemo(() => {
+    const map: Record<string, number> = {};
+    scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
+      getInvoicePaymentSplits(i).forEach((s) => { map[s.mode] = (map[s.mode] || 0) + s.amount; });
     });
-  }, [enquiries, isAllBranches, currentBranch]);
+    const rows = Object.entries(map).map(([mode, amount]) => ({ mode, amount, meta: MODE_META[mode] || { label: mode, icon: Wallet, color: 'bg-slate-400' } }))
+      .sort((a, b) => b.amount - a.amount);
+    const total = rows.reduce((t, r) => t + r.amount, 0) || 1;
+    return { rows, total };
+  }, [scopedSales, thisMonth]);
 
-  const openNewItemRequestsCount = openNewItemRequests.length;
-
-  // 2. Calculate Branch Breakdown data (Used when isAllBranches is true)
-  const branchBreakdowns = useMemo(() => {
-    return BRANCHES.map((b) => {
-      let branchValue = 0;
-      let skuWithStock = 0;
-      let branchLowStockCount = 0;
-
-      items.forEach((item) => {
-        const threshold = item.reorderThreshold ?? 10;
-        const stockRow = branchStocks.find(
-          (s) => s.itemId === item.id && s.branchId === b.id
-        );
-        const qty = stockRow?.quantity ?? 0;
-
-        branchValue += qty * (item.purchasePrice || 0);
-        if (qty > 0) skuWithStock++;
-        if (qty <= threshold) branchLowStockCount++;
+  // ---- Top products (this month) ----
+  const topProducts = useMemo(() => {
+    const map: Record<string, { name: string; qty: number; revenue: number }> = {};
+    scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
+      (i.items || []).forEach((li: any) => {
+        const key = li.itemName || li.itemCode || 'Item';
+        if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
+        map[key].qty += li.quantity || 0;
+        map[key].revenue += li.totalAmount || 0;
       });
-
-      return {
-        branch: b,
-        stockValue: branchValue,
-        skuCount: items.length,
-        activeStockSkus: skuWithStock,
-        lowStockCount: branchLowStockCount,
-      };
     });
-  }, [items, branchStocks]);
+    const rows = Object.values(map).sort((a, b) => (topMetric === 'revenue' ? b.revenue - a.revenue : b.qty - a.qty)).slice(0, 5);
+    const max = Math.max(1, ...rows.map((r) => (topMetric === 'revenue' ? r.revenue : r.qty)));
+    return { rows, max };
+  }, [scopedSales, thisMonth, topMetric]);
+
+  const recentSales = useMemo(
+    () => [...scopedSales].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 6),
+    [scopedSales]
+  );
+
+  const salesTodayDelta = pct(money.salesToday, money.salesYest);
+  const salesMonthDelta = pct(money.salesMonth, money.salesPrevMonth);
 
   return (
-    <div className="p-6 space-y-6 w-full">
-      {/* Header Banner */}
+    <div className="p-6 space-y-5 w-full">
+      {/* Header */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            {isAllBranches ? (
-              <Layers className="h-6 w-6" />
-            ) : (
-              <Building className="h-6 w-6" />
-            )}
+            {isAllBranches ? <Layers className="h-6 w-6" /> : <Building className="h-6 w-6" />}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                {isAllBranches ? 'Executive Dashboard — All Branches' : `Branch Dashboard — ${currentBranchData?.name}`}
-              </h1>
-              <span
-                className={cn(
-                  'text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border',
-                  isAllBranches
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                )}
-              >
-                {isAllBranches ? 'All Branches' : currentBranchData?.name}
-              </span>
-            </div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">
+              {isAllBranches ? 'Business Overview — All Branches' : `${currentBranchData?.name} Dashboard`}
+            </h1>
             <p className="text-xs text-slate-600 mt-0.5">
-              {isAllBranches
-                ? 'Aggregating physical inventory valuation across Erode HQ, Coimbatore, and Chennai.'
-                : `Showing stock valuation and item health strictly for ${currentBranchData?.location}.`}
+              Live snapshot of sales, money flow, and stock health {isAllBranches ? 'across all branches.' : `for ${currentBranchData?.location}.`}
             </p>
           </div>
         </div>
-
-        {/* Scope Mode Pill or Drill-out button */}
         <div className="flex items-center gap-2">
           {!isAllBranches && currentUser.role === 'CEO' && (
-            <button
-              onClick={() => switchBranch('all')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors"
-            >
-              <span>← Return to All Branches</span>
+            <button onClick={() => switchBranch('all')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors">
+              ← All Branches
             </button>
           )}
-
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600">
-            {currentUser.role === 'CEO' ? (
-              <ShieldCheck className="h-4 w-4 text-amber-600" />
-            ) : (
-              <Building2 className="h-4 w-4 text-blue-600" />
-            )}
-            <span>Logged in as: <strong>{currentUser.name}</strong></span>
+            {currentUser.role === 'CEO' ? <ShieldCheck className="h-4 w-4 text-amber-600" /> : <Building2 className="h-4 w-4 text-blue-600" />}
+            <span><strong>{currentUser.name}</strong></span>
           </div>
         </div>
       </div>
 
-      {/* TOP ROW: KPI CARDS (Values update dynamically based on branch selection) */}
-      <div className={cn(
-        'grid grid-cols-1 sm:grid-cols-2 gap-4',
-        canViewNewItemRequests ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-3 xl:grid-cols-5'
-      )}>
-        {/* KPI 1: Total Stock Value */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-blue-300 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">
-              {isAllBranches ? 'Total Stock Value' : `Stock Value (${currentBranchData?.name})`}
-            </span>
-            <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-              <TrendingUp className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono">
-              {formatCurrency(kpiData.totalStockValue)}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-              <span>Based on inward purchase cost</span>
-            </p>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Branch Scope:</span>
-            <span className="font-semibold text-slate-800">
-              {isAllBranches ? 'All 3 Branches' : currentBranchData?.name}
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 2: Total Items Count */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-blue-300 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Items</span>
-            <div className="h-9 w-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700">
-              <Boxes className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono">
-              {kpiData.totalSkuCount} Items
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {kpiData.inStockSkuCount} Items with active available stock
-            </p>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Items in Stock:</span>
-            <span className="font-bold text-slate-800 font-mono">
-              {kpiData.inStockSkuCount} / {kpiData.totalSkuCount}
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 3: Low Stock Alerts */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-amber-300 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Low Stock Alerts</span>
-            <div
-              className={cn(
-                'h-9 w-9 rounded-xl border flex items-center justify-center',
-                kpiData.lowStockCount > 0
-                  ? 'bg-amber-50 border-amber-200 text-amber-700'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              )}
-            >
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div
-              className={cn(
-                'text-3xl lg:text-4xl font-black tracking-tight font-mono',
-                kpiData.lowStockCount > 0 ? 'text-amber-700' : 'text-slate-900'
-              )}
-            >
-              {kpiData.lowStockCount} {kpiData.lowStockCount === 1 ? 'Item' : 'Items'}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Units at or below reorder threshold
-            </p>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Reorder Trigger:</span>
-            <span className="font-semibold text-slate-800">
-              {isAllBranches ? 'Combined ≤ Threshold' : 'Branch ≤ Threshold'}
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 4: Dead Stock Items Alert Widget (Alongside Low Stock Alerts) */}
-        <div
-          onClick={() => navigateToInventoryWithMovementFilter('not-moving')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              navigateToInventoryWithMovementFilter('not-moving');
-            }
-          }}
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-rose-300 hover:shadow-md cursor-pointer transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Dead Stock Items</span>
-            <div
-              className={cn(
-                'h-9 w-9 rounded-xl border flex items-center justify-center transition-colors',
-                kpiData.deadStockCount > 0
-                  ? 'bg-rose-50 border-rose-200 text-rose-700 group-hover:bg-rose-100'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              )}
-            >
-              {kpiData.deadStockCount > 0 ? (
-                <AlertOctagon className="h-4 w-4" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4" />
-              )}
-            </div>
-          </div>
-
-          <div className="mt-3">
-            <div
-              className={cn(
-                'text-3xl lg:text-4xl font-black tracking-tight font-mono',
-                kpiData.deadStockCount > 0 ? 'text-rose-700' : 'text-slate-900'
-              )}
-            >
-              {kpiData.deadStockCount} {kpiData.deadStockCount === 1 ? 'Item' : 'Items'}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              No sale in {inventorySettings.deadStockThresholdDays}+ days or never sold
-            </p>
-          </div>
-
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Filter Inventory:</span>
-            <span className="font-semibold text-rose-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-              <span>View Not Moving</span>
-              <ArrowRight className="h-3 w-3" />
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 4: New Item Requests Alert Widget (Visible to CEO & Manager, placed alongside Low Stock Alerts) */}
-        {canViewNewItemRequests && (
-          <div
-            onClick={navigateToNewItemRequestsQueue}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                navigateToNewItemRequestsQueue();
-              }
-            }}
-            className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-purple-300 hover:shadow-md cursor-pointer transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">New Item Requests</span>
-              <div
-                className={cn(
-                  'h-9 w-9 rounded-xl border flex items-center justify-center transition-colors',
-                  openNewItemRequestsCount > 0
-                    ? 'bg-purple-50 border-purple-200 text-purple-700 group-hover:bg-purple-100'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                )}
-              >
-                {openNewItemRequestsCount > 0 ? (
-                  <Sparkles className="h-4 w-4" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-              </div>
-            </div>
-
-            <div className="mt-3">
-              {openNewItemRequestsCount > 0 ? (
-                <>
-                  <div className="text-3xl lg:text-4xl font-black text-purple-700 tracking-tight font-mono">
-                    {openNewItemRequestsCount} {openNewItemRequestsCount === 1 ? 'Request' : 'Requests'}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Awaiting catalog review
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight font-mono">
-                    All caught up
-                  </div>
-                  <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                    No pending new item requests
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span>View Queue:</span>
-              <span className="font-semibold text-purple-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                <span>{isAllBranches ? 'All Branches' : currentBranchData?.name}</span>
-                <ArrowRight className="h-3 w-3" />
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* KPI 4: Billed Sales Invoices */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between relative overflow-hidden group">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Billed Sales</span>
-            <div className="h-9 w-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-              <ReceiptText className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono">
-              {formatCurrency(
-                invoices
-                  .filter((i) => (isAllBranches || i.branchId === currentBranch) && !i.isVoided)
-                  .reduce((sum, i) => sum + Math.max(0, i.grandTotal - (i.totalReturnedAmount || 0)), 0)
-              )}
-            </div>
-            <p className="text-[11px] font-medium text-emerald-700 mt-1">
-              {invoices.filter((i) => (isAllBranches || i.branchId === currentBranch) && !i.isVoided).length} Sales Recorded
-            </p>
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Sales:</span>
-            <button
-              onClick={() => setCurrentView('invoices')}
-              className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-            >
-              <span>View Sales</span>
-              <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
+      {/* ---- Money KPI row ---- */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
+          icon={IndianRupee} tone="blue" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
+        <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
+          icon={TrendingUp} tone="indigo" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
+        <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
+          icon={ArrowDownCircle} tone="emerald" onClick={() => setCurrentView('customers')} accent={money.receivables > 0} />
+        <KpiCard label="To Pay" value={formatCurrency(money.payables)} sub="supplier dues"
+          icon={ArrowUpCircle} tone="rose" onClick={() => setCurrentView('purchases')} accent={money.payables > 0} />
+        <KpiCard label="Cash in Hand" value={formatCurrency(money.cashInHand)} sub="approx · registers"
+          icon={Wallet} tone="cyan" onClick={() => setCurrentView('cash-register')} />
+        <KpiCard label="Stock Value" value={formatCurrency(inv.stockValue)} sub={`${inv.totalItems} items`}
+          icon={Boxes} tone="slate" onClick={() => setCurrentView('inventory')} />
       </div>
 
-      {/* Enquiry Conversion & Pending Orders Tie-In Widget */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-white to-slate-50 border border-blue-200/70 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-            <ClipboardList className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900">Enquiries & Pending Orders</h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                Live Status
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {enquiries.filter((e) => e.status === 'Follow-up').length} active customer enquiries •{' '}
-              {pendingOrders.filter((p) => p.status === 'Waiting').length} waiting pending orders •{' '}
-              {pendingOrders.filter((p) => p.status === 'Stock Arrived').length > 0 ? (
-                <strong className="text-emerald-700">
-                  {pendingOrders.filter((p) => p.status === 'Stock Arrived').length} Stock Arrived (Action needed)
-                </strong>
-              ) : (
-                '0 pending orders ready'
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setCurrentView('enquiries')}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
-          >
-            <span>Enquiries</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setCurrentView('pending-orders')}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
-          >
-            <span>Pending Orders</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* BRANCH BREAKDOWN TABLE (Visible ONLY in "All Branches" mode) */}
-      {isAllBranches ? (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/60">
+      {/* ---- Charts row ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Sales trend (14 days) */}
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Branch Stock Breakdown</h2>
-              <p className="text-xs text-slate-500">
-                Combined overview across all warehouses. Click any branch row to view single-branch mode.
-              </p>
+              <h3 className="text-sm font-extrabold text-slate-900">Sales — Last 14 Days</h3>
+              <p className="text-[11px] text-slate-500">Daily billed revenue {isAllBranches ? '(all branches)' : ''}</p>
             </div>
-            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1">
-              <span>View Branch</span>
-              <ArrowRight className="h-3 w-3" />
+            <span className="text-[11px] font-semibold text-slate-500">
+              Total {formatCurrency(trend.days.reduce((t, d) => t + d.total, 0))}
             </span>
           </div>
+          <div className="relative">
+            {trendHover !== null && (
+              <div className="absolute -top-1 z-10 -translate-x-1/2 rounded-lg bg-slate-900 text-white text-[11px] font-semibold px-2 py-1 shadow-lg pointer-events-none"
+                style={{ left: `${((trendHover + 0.5) / trend.days.length) * 100}%` }}>
+                {trend.days[trendHover].label} · {formatCurrency(trend.days[trendHover].total)}
+              </div>
+            )}
+            <div className="flex items-end gap-1.5 h-40 pt-6">
+              {trend.days.map((d, i) => (
+                <div key={d.date} className="flex-1 h-full flex flex-col justify-end items-center group"
+                  onMouseEnter={() => setTrendHover(i)} onMouseLeave={() => setTrendHover(null)}>
+                  <div className={cn('w-full rounded-t-md transition-all cursor-pointer',
+                    i === trendHover ? 'bg-blue-600' : d.date === today ? 'bg-blue-400' : 'bg-blue-200 group-hover:bg-blue-300')}
+                    style={{ height: `${Math.max(2, (d.total / trend.max) * 100)}%` }} />
+                  <span className="text-[8px] text-slate-400 mt-1 rotate-0">{d.label.slice(3)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
+        {/* Payment mode split */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <h3 className="text-sm font-extrabold text-slate-900 mb-1">Payment Modes</h3>
+          <p className="text-[11px] text-slate-500 mb-4">This month · by collection</p>
+          {modeSplit.rows.length === 0 ? (
+            <p className="text-xs text-slate-400 py-8 text-center">No sales this month yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {modeSplit.rows.map((r) => {
+                const Icon = r.meta.icon;
+                const share = Math.round((r.amount / modeSplit.total) * 100);
+                return (
+                  <div key={r.mode}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-700"><Icon className="h-3.5 w-3.5 text-slate-400" />{r.meta.label}</span>
+                      <span className="font-mono font-bold text-slate-800">{formatCurrency(r.amount)} <span className="text-slate-400 font-sans font-normal">· {share}%</span></span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className={cn('h-full rounded-full', r.meta.color)} style={{ width: `${share}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ---- Top products + Recent sales ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Top products */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Trophy className="h-4 w-4 text-amber-500" /> Top Products</h3>
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+              <button onClick={() => setTopMetric('revenue')} className={cn('px-2 py-1 rounded-md', topMetric === 'revenue' ? 'bg-white text-blue-700 shadow-2xs' : '')}>Revenue</button>
+              <button onClick={() => setTopMetric('qty')} className={cn('px-2 py-1 rounded-md', topMetric === 'qty' ? 'bg-white text-blue-700 shadow-2xs' : '')}>Qty</button>
+            </div>
+          </div>
+          {topProducts.rows.length === 0 ? (
+            <p className="text-xs text-slate-400 py-8 text-center">No sales this month yet.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {topProducts.rows.map((p, idx) => {
+                const val = topMetric === 'revenue' ? p.revenue : p.qty;
+                return (
+                  <div key={p.name} className="flex items-center gap-3">
+                    <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0',
+                      idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}>{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-800 truncate">{p.name}</span>
+                        <span className="text-xs font-mono font-bold text-slate-700 shrink-0">{topMetric === 'revenue' ? formatCurrency(p.revenue) : `${p.qty}`}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
+                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${(val / topProducts.max) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Recent sales */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Receipt className="h-4 w-4 text-blue-500" /> Recent Sales</h3>
+            <button onClick={() => setCurrentView('invoices')} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">View all <ChevronRight className="h-3 w-3" /></button>
+          </div>
+          {recentSales.length === 0 ? (
+            <p className="text-xs text-slate-400 py-8 text-center">No sales recorded yet.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {recentSales.map((i) => {
+                const due = invoiceDue(i);
+                return (
+                  <div key={i.id} className="flex items-center justify-between py-2 gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 font-mono truncate">{i.invoiceNumber}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{i.date} · {i.customerName}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-black text-slate-900 font-mono">{formatCurrency(netRevenue(i))}</p>
+                      {due > 0 ? <p className="text-[10px] font-bold text-amber-600">Due {formatCurrency(due)}</p> : <p className="text-[10px] font-semibold text-emerald-600">Paid</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ---- Inventory health strip ---- */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <HealthCard label="Low Stock" count={inv.lowStock} unit="items" tone={inv.lowStock > 0 ? 'amber' : 'emerald'}
+          icon={AlertTriangle} onClick={() => setCurrentView('items')} hint="at or below reorder level" />
+        <HealthCard label="Dead Stock" count={inv.deadStock} unit="items" tone={inv.deadStock > 0 ? 'rose' : 'emerald'}
+          icon={AlertOctagon} onClick={() => navigateToInventoryWithMovementFilter('not-moving')} hint={`no sale in ${inventorySettings.deadStockThresholdDays}+ days`} />
+        <HealthCard label="Open Enquiries" count={enquiries.filter((e) => e.status === 'Follow-up').length + pendingOrders.filter((p) => p.status === 'Waiting').length} unit="active"
+          tone="blue" icon={ClipboardList} onClick={() => setCurrentView('enquiries')} hint="enquiries + waiting orders" />
+      </div>
+
+      {/* ---- Branch breakdown (all-branches only) ---- */}
+      {isAllBranches && (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-slate-200 bg-slate-50/60">
+            <h2 className="text-base font-extrabold text-slate-900">Branch Performance</h2>
+            <p className="text-xs text-slate-500">This month's sales &amp; stock per branch · click a row to focus</p>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                  <th className="py-3.5 px-5">Branch Location</th>
-                  <th className="py-3.5 px-5">Physical Stock Value</th>
-                  <th className="py-3.5 px-5">Items in Stock</th>
-                  <th className="py-3.5 px-5">Low Stock Count</th>
-                  <th className="py-3.5 px-5 text-right">Action</th>
+                  <th className="py-3 px-5">Branch</th>
+                  <th className="py-3 px-5 text-right">Sales (Month)</th>
+                  <th className="py-3 px-5 text-right">To Collect</th>
+                  <th className="py-3 px-5 text-right">Stock Value</th>
+                  <th className="py-3 px-5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-800">
-                {branchBreakdowns.map(({ branch, stockValue, activeStockSkus, lowStockCount }) => (
-                  <tr
-                    key={branch.id}
-                    onClick={() => switchBranch(branch.id as BranchId)}
-                    className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
-                  >
-                    {/* Branch Info */}
-                    <td className="py-4 px-5">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-slate-100 group-hover:bg-blue-100 group-hover:text-blue-700 border border-slate-200 flex items-center justify-center text-slate-700 transition-colors">
-                          <Building className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900 group-hover:text-blue-700 flex items-center gap-2">
-                            <span>{branch.name}</span>
-                            {branch.isHq && (
-                              <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                                HQ
-                              </span>
-                            )}
+              <tbody className="divide-y divide-slate-100">
+                {BRANCHES.map((b) => {
+                  const bSales = invoices.filter((i) => !i.isVoided && i.branchId === b.id && (i.date || '').startsWith(thisMonth)).reduce((t, i) => t + netRevenue(i), 0);
+                  const bRecv = invoices.filter((i) => !i.isVoided && i.branchId === b.id).reduce((t, i) => t + invoiceDue(i), 0);
+                  const bStock = items.reduce((t, item) => t + (branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id)?.quantity ?? 0) * (item.purchasePrice || 0), 0);
+                  return (
+                    <tr key={b.id} onClick={() => switchBranch(b.id as BranchId)} className="hover:bg-blue-50/50 cursor-pointer group">
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-blue-100 border border-slate-200 flex items-center justify-center text-slate-600 group-hover:text-blue-700"><Building className="h-4 w-4" /></div>
+                          <div>
+                            <p className="font-bold text-slate-900 group-hover:text-blue-700">{b.name}</p>
+                            <p className="text-[10px] text-slate-500">{b.location}</p>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{branch.location}</p>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* Stock Value */}
-                    <td className="py-4 px-5">
-                      <span className="font-extrabold text-sm text-slate-900 font-mono">
-                        {formatCurrency(stockValue)}
-                      </span>
-                    </td>
-
-                    {/* Item Count */}
-                    <td className="py-4 px-5">
-                      <div className="font-semibold text-slate-800">
-                        {activeStockSkus} of {items.length} Items in stock
-                      </div>
-                      <span className="text-[10px] text-slate-500">
-                        {Math.round((activeStockSkus / items.length) * 100)}% catalog coverage
-                      </span>
-                    </td>
-
-                    {/* Low Stock Count */}
-                    <td className="py-4 px-5">
-                      {lowStockCount > 0 ? (
-                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" /> {lowStockCount} below threshold
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Healthy Stock
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-4 px-5 text-right">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:text-blue-700 transition-colors">
-                        <span>View Branch</span>
-                        <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-900">{formatCurrency(bSales)}</td>
+                      <td className="py-3.5 px-5 text-right font-mono font-semibold text-amber-700">{formatCurrency(bRecv)}</td>
+                      <td className="py-3.5 px-5 text-right font-mono text-slate-700">{formatCurrency(bStock)}</td>
+                      <td className="py-3.5 px-5 text-right">
+                        <span className="inline-flex items-center gap-1 text-blue-600 font-bold group-hover:text-blue-700">View <ArrowRight className="h-3.5 w-3.5" /></span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
-      ) : (
-        /* SINGLE BRANCH DETAILS VIEW (When individual branch is selected) */
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                {currentBranchData?.name} — Branch Summary
-              </h2>
-              <p className="text-xs text-slate-500">
-                Viewing physical stock and reorder requirements for this facility.
-              </p>
-            </div>
-            <button
-              onClick={() => setCurrentView('items')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
-            >
-              <span>Manage Items in {currentBranchData?.name}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-xs font-medium text-slate-500">Branch Address</span>
-              <p className="text-xs font-bold text-slate-900 mt-1">{currentBranchData?.location}</p>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-xs font-medium text-slate-500">Facility Type</span>
-              <p className="text-xs font-bold text-slate-900 mt-1">{currentBranchData?.tagline}</p>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-xs font-medium text-slate-500">Branch Access</span>
-              <p className="text-xs font-bold text-slate-900 mt-1">
-                {currentUser.role === 'CEO'
-                  ? 'CEO (All Branches)'
-                  : currentUser.assignedBranchId === currentBranch
-                  ? 'Branch Manager'
-                  : 'Read Only'}
-              </p>
-            </div>
-          </div>
-        </div>
       )}
-
-      {/* Low Stock Items Detailed List */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Low Stock Alerts ({isAllBranches ? 'All Branches' : currentBranchData?.name})
-              </h3>
-              <p className="text-xs text-slate-500">
-                Items requiring procurement or internal branch stock transfer.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setCurrentView('items')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-          >
-            <span>Open Items</span>
-            <ArrowRight className="h-3 w-3" />
-          </button>
-        </div>
-
-        {kpiData.lowStockItems.length === 0 ? (
-          <div className="py-8 text-center text-slate-500">
-            <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-1" />
-            <p className="font-semibold text-xs text-slate-700">All stock levels healthy!</p>
-            <p className="text-[11px] text-slate-400">
-              No items are below their specified reorder threshold.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {kpiData.lowStockItems.slice(0, 6).map(({ item, quantity, threshold }) => (
-              <div
-                key={item.id}
-                className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-3 hover:border-slate-300 transition-colors"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200">
-                      {item.itemCode}
-                    </span>
-                    <span className="text-[10px] text-slate-500">{item.category}</span>
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-900 mt-1 truncate">
-                    {item.itemName}
-                  </h4>
-                  <div className="flex items-center gap-3 mt-2 text-[11px]">
-                    <span className="text-slate-500">
-                      Stock: <strong className="text-amber-700 font-bold">{quantity} {item.unit}</strong>
-                    </span>
-                    <span className="text-slate-400">
-                      Threshold: {threshold} {item.unit}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setCurrentView('items')}
-                  title="View in Items catalog"
-                  className="p-1.5 rounded-lg bg-white hover:bg-slate-200 text-slate-600 border border-slate-200 transition-colors"
-                >
-                  <Package className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 };
+
+// ---- KPI card ----
+const TONES: Record<string, string> = {
+  blue: 'bg-blue-50 border-blue-200 text-blue-700', indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+  emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700', rose: 'bg-rose-50 border-rose-200 text-rose-700',
+  cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700', slate: 'bg-slate-100 border-slate-200 text-slate-600',
+  amber: 'bg-amber-50 border-amber-200 text-amber-700',
+};
+
+const KpiCard: React.FC<{
+  label: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>;
+  tone: string; delta?: number; deltaLabel?: string; onClick?: () => void; accent?: boolean;
+}> = ({ label, value, sub, icon: Icon, tone, delta, deltaLabel, onClick, accent }) => (
+  <button onClick={onClick} className={cn('text-left p-4 rounded-2xl bg-white border shadow-xs transition-all hover:shadow-md hover:-translate-y-0.5',
+    accent ? 'border-slate-300' : 'border-slate-200')}>
+    <div className="flex items-center justify-between">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+      <div className={cn('h-7 w-7 rounded-lg border flex items-center justify-center', TONES[tone])}><Icon className="h-3.5 w-3.5" /></div>
+    </div>
+    <div className="mt-2 text-xl font-black text-slate-900 tracking-tight font-mono truncate">{value}</div>
+    <div className="mt-0.5 flex items-center gap-1.5">
+      {typeof delta === 'number' && (
+        <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>
+          {delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{Math.abs(delta)}%
+        </span>
+      )}
+      {sub && <span className="text-[10px] text-slate-400">{deltaLabel || sub}</span>}
+    </div>
+  </button>
+);
+
+// ---- Health card ----
+const HealthCard: React.FC<{
+  label: string; count: number; unit: string; tone: string; hint: string;
+  icon: React.ComponentType<{ className?: string }>; onClick?: () => void;
+}> = ({ label, count, unit, tone, hint, icon: Icon, onClick }) => (
+  <button onClick={onClick} className="text-left p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-3.5">
+    <div className={cn('h-11 w-11 rounded-xl border flex items-center justify-center shrink-0', TONES[tone])}><Icon className="h-5 w-5" /></div>
+    <div className="min-w-0">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xl font-black text-slate-900">{count}</span>
+        <span className="text-xs text-slate-500 font-semibold">{unit}</span>
+      </div>
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className="text-[10px] text-slate-400 truncate">{hint}</p>
+    </div>
+    <ArrowRight className="h-4 w-4 text-slate-300 ml-auto shrink-0" />
+  </button>
+);
