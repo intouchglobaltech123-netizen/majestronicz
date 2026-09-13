@@ -27,6 +27,7 @@ const PROVIDER = (process.env.AI_PROVIDER || 'groq').toLowerCase();
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODELS_URL = 'https://api.groq.com/openai/v1/models';
 // Groq's current production model (free). Override with GROQ_MODEL if desired.
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const MAX_RATELIMIT_WAIT_MS = 60_000; // groq only: respect Retry-After up to ~1 min
@@ -44,15 +45,20 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Report whether the configured engine is reachable and ready. */
 export async function getAiStatus(): Promise<AiStatus> {
   if (PROVIDER === 'groq') {
-    const connected = !!process.env.GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return { engine: 'groq', model: GROQ_MODEL, connected: false, private: false,
+        message: 'AI engine not connected. Add a free GROQ_API_KEY in the Railway environment to enable Beta AI.' };
+    }
+    const model = await resolveGroqModel(apiKey);
     return {
       engine: 'groq',
-      model: GROQ_MODEL,
-      connected,
+      model: model || GROQ_MODEL,
+      connected: !!model,
       private: false,
-      message: connected
-        ? `AI engine ready (${GROQ_MODEL}) — fast cloud model, no server memory used.`
-        : 'AI engine not connected. Add a free GROQ_API_KEY in the Railway environment to enable Beta AI.',
+      message: model
+        ? `AI engine ready (${model}) — cloud model, no server memory used.`
+        : 'GROQ_API_KEY is set but no chat model is available on this key. Check your Groq account.',
     };
   }
   // Ollama (private, default): ping the tags endpoint and confirm the model is pulled.
@@ -310,10 +316,43 @@ async function askOllama(system: string, question: string): Promise<AskResult> {
   }
 }
 
+// Resolve a model this Groq key can actually use. Model availability differs per
+// account/region, so we ask the account and pick the best available chat model
+// instead of hardcoding one that may 404. Cached after first lookup.
+let cachedGroqModel: string | null = null;
+const GROQ_PREFERENCE = [
+  'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.1-70b-versatile',
+  'llama3-70b-8192', 'llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768',
+];
+export async function resolveGroqModel(apiKey: string, force = false): Promise<string | null> {
+  if (cachedGroqModel && !force) return cachedGroqModel;
+  try {
+    const res = await fetch(GROQ_MODELS_URL, { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return process.env.GROQ_MODEL || null;
+    const data: any = await res.json();
+    const ids: string[] = (data?.data || []).map((m: any) => m?.id).filter(Boolean);
+    // Only text chat models (exclude audio / guard / embedding models).
+    const chat = ids.filter((id) => !/whisper|tts|guard|embed|allam|distil-whisper/i.test(id));
+    const configured = process.env.GROQ_MODEL;
+    const pick =
+      (configured && chat.includes(configured) && configured) ||
+      GROQ_PREFERENCE.find((p) => chat.includes(p)) ||
+      chat.find((id) => /llama|gemma|qwen|mixtral|gpt|deepseek/i.test(id)) ||
+      chat[0] ||
+      null;
+    cachedGroqModel = pick;
+    return pick;
+  } catch {
+    return process.env.GROQ_MODEL || null;
+  }
+}
+
 // ---- Optional cloud engine: Groq (only when AI_PROVIDER=groq) ----
 async function askGroq(system: string, question: string): Promise<AskResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return { degraded: true, answer: 'Cloud AI engine selected but GROQ_API_KEY is not set.' };
+
+  let model = (await resolveGroqModel(apiKey)) || GROQ_MODEL;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     let res: Response;
@@ -322,7 +361,7 @@ async function askGroq(system: string, question: string): Promise<AskResult> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: GROQ_MODEL,
+          model,
           temperature: 0.2,
           max_tokens: 700,
           messages: [
@@ -333,6 +372,12 @@ async function askGroq(system: string, question: string): Promise<AskResult> {
       });
     } catch {
       return { degraded: true, answer: 'I could not reach the AI engine (network issue). Please try again shortly.' };
+    }
+
+    // If the chosen model isn't available, re-resolve from the live list and retry once.
+    if (res.status === 404 && attempt === 0) {
+      const fresh = await resolveGroqModel(apiKey, true);
+      if (fresh && fresh !== model) { model = fresh; continue; }
     }
 
     if (res.status === 429) {

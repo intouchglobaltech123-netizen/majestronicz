@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Sparkles, Send, AlertTriangle, ShieldCheck, Loader2, RefreshCw, Cpu } from 'lucide-react';
+import { Sparkles, Send, AlertTriangle, ShieldCheck, Loader2, RefreshCw, Cpu, Eraser } from 'lucide-react';
 import { FLAG_LABELS, AI_DATA_FLAGS } from '../../types';
 import { cn } from '../../lib/utils';
 
@@ -55,11 +55,20 @@ export const AiAssistantView: React.FC = () => {
             <p className="text-[11px] text-slate-500">Ask about your business — answers use your live data.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {status?.connected && (
             <span className="hidden sm:flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-500">
               <Cpu className="h-3 w-3" /> {status.model || 'AI'}
             </span>
+          )}
+          {messages.length > 0 && (
+            <button
+              onClick={() => { setMessages([]); setInput(''); }}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+              title="Clear chat"
+            >
+              <Eraser className="h-3.5 w-3.5" /> Clear
+            </button>
           )}
           <button onClick={loadStatus} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Refresh status">
             <RefreshCw className="h-4 w-4" />
