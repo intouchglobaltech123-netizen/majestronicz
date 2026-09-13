@@ -1141,7 +1141,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             </div>
 
             <p className="text-[11px] text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-              ⚠️ <strong>Audit Rule:</strong> This sale will be excluded from the Daily Cash Register and Reports, but will remain visible in the Sales Ledger flagged as Voided.
+<strong>Audit Rule:</strong> This sale will be excluded from the Daily Cash Register and Reports, but will remain visible in the Sales Ledger flagged as Voided.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">

@@ -1466,7 +1466,7 @@ export const InventoryView: React.FC = () => {
 
                                   <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
                                     <span>
-                                      💡 Max available combo kits ({avail}) is determined by the bottleneck component with the lowest supported count ({lowestSupported === Infinity ? 0 : lowestSupported}).
+                                      Max available combo kits ({avail}) is determined by the bottleneck component with the lowest supported count ({lowestSupported === Infinity ? 0 : lowestSupported}).
                                     </span>
                                     <span className="font-medium text-slate-400">
                                       Read-only verification · Adjust stock under Regular Items

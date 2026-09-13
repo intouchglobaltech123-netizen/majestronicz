@@ -338,7 +338,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     <span>Progress to Reward:</span>
                     <span className="font-bold">
                       {isEligible
-                        ? '🎉 Milestone Ready to Redeem!'
+                        ? 'Milestone Ready to Redeem!'
                         : `${progress.currentCount} / ${progress.threshold} purchases (${progress.purchasesUntilNext} to next)`}
                     </span>
                   </div>

@@ -78,7 +78,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
       : invoice.paymentMode;
     const ratingLine = COMPANY_PROFILE.ratingLink
-      ? `\n\n⭐ Loved our service? Please rate us here:\n${COMPANY_PROFILE.ratingLink}`
+      ? `\n\nLoved our service? Please rate us here:\n${COMPANY_PROFILE.ratingLink}`
       : '';
     return `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with ${COMPANY_PROFILE.name}!${ratingLine}`;
   };

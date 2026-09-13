@@ -121,7 +121,7 @@ export function getLoyaltyProgress(
       currentCount: customer.purchaseCount,
       threshold,
       purchasesUntilNext: 0,
-      label: '🎉 Reward available',
+      label: 'Reward available',
     };
   }
 

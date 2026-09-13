@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ShieldAlert,
   MapPin,
+  X,
 } from 'lucide-react';
 import { PurchaseOrderPdfModal } from '../purchases/PurchaseOrderPdfModal';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
@@ -1047,9 +1048,9 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedAdjustment(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-600"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
 

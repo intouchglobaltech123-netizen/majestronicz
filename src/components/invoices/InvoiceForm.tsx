@@ -184,7 +184,7 @@ export const InvoiceForm: React.FC<Props> = ({
     setOverallDiscountType(loyaltySettings.discountType === 'percentage' ? '%' : 'amount');
     setOverallDiscountValue(loyaltySettings.discountValue);
     setIsLoyaltyRewardApplied(true);
-    toast.success('🎉 Loyalty milestone discount applied!', {
+    toast.success('Loyalty milestone discount applied!', {
       description: `${loyaltySettings.discountValue}${loyaltySettings.discountType === 'percentage' ? '%' : '₹'} off for ${selectedCustomerObj.name}`,
     });
   };
@@ -1715,7 +1715,7 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
 
             <span className="text-[11px] text-blue-700 font-medium hidden xl:inline-block">
-              💡 Price edits apply only to this invoice; catalog item prices are never modified.
+              Price edits apply only to this invoice; catalog item prices are never modified.
             </span>
           </div>
         </div>
@@ -2365,7 +2365,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     </div>
                     <div>
                       <span className="text-xs font-bold text-amber-950 block">
-                        🎉 Loyalty Milestone Reached!
+                        Loyalty Milestone Reached!
                       </span>
                       <span className="text-[11px] text-amber-800">
                         Eligible for {loyaltySettings.discountValue}{loyaltySettings.discountType === 'percentage' ? '%' : '₹'} off

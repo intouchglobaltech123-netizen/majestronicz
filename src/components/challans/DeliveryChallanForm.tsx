@@ -18,6 +18,7 @@ import {
   MapPin,
   Truck,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -522,7 +523,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                               onClick={() => setShowItemAutocomplete(null)}
                               className="text-slate-400 hover:text-slate-700"
                             >
-                              ✕
+                              <X className="h-3.5 w-3.5" />
                             </button>
                           </div>
                           {masterItems

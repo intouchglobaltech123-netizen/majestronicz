@@ -112,9 +112,7 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
                   </span>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono font-bold">
-                    📍
-                  </span>
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-3.5 w-3.5" />
                   <input
                     type="text"
                     value={locations[b.id] || ''}
