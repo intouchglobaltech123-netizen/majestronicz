@@ -992,6 +992,7 @@ export interface StaffUser {
   status: 'active' | 'disabled';
   mustResetPin: boolean;
   isSystem: boolean;
+  employeeId?: string | null;
   createdAt: string;
   updatedAt?: string | null;
 }

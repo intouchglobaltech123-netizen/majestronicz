@@ -160,6 +160,8 @@ interface ErpContextType {
   updateStaffUser: (id: string, input: { name?: string; role?: Role; assignedBranchId?: string | null; status?: 'active' | 'disabled' }) => Promise<boolean>;
   resetStaffPin: (id: string, newPin: string) => Promise<boolean>;
   deleteStaffUser: (id: string) => Promise<boolean>;
+  linkStaffLogin: (input: { employeeId: string; role: Role; name: string; assignedBranchId?: string; pin: string; status?: string }) => Promise<boolean>;
+  unlinkStaffLogin: (employeeId: string) => Promise<boolean>;
 
   // Permissions
   canManageItems: boolean; // CEO & Manager can edit master item catalog & master pricing
@@ -1418,6 +1420,33 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const raw = String(e?.message || '');
       const afterColon = raw.split(': ').slice(1).join(': ').trim();
       toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not remove account');
+      return false;
+    }
+  };
+  // Attach/detach a login for an employee (used by the unified enroll form).
+  const linkStaffLogin = async (input: { employeeId: string; role: Role; name: string; assignedBranchId?: string; pin: string; status?: string }): Promise<boolean> => {
+    try {
+      await apiPost('/api/staff/login', input);
+      await refreshStaffUsers();
+      toast.success('App login enabled', { description: 'This staff member can sign in and must reset the PIN on first login.' });
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not enable app login');
+      return false;
+    }
+  };
+  const unlinkStaffLogin = async (employeeId: string): Promise<boolean> => {
+    try {
+      await apiDelete(`/api/staff/login/${employeeId}`);
+      await refreshStaffUsers();
+      toast.success('App login removed');
+      return true;
+    } catch (e: any) {
+      const raw = String(e?.message || '');
+      const afterColon = raw.split(': ').slice(1).join(': ').trim();
+      toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not remove app login');
       return false;
     }
   };
@@ -4226,6 +4255,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStaffUser,
         resetStaffPin,
         deleteStaffUser,
+        linkStaffLogin,
+        unlinkStaffLogin,
         stockTransfers,
         transferStockBatch,
         inventorySettings,

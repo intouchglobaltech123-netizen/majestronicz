@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, KeyRound, Check, Lock } from 'lucide-react';
-import { Employee, BranchId } from '../../types';
+import { X, User, KeyRound, Check, Lock, ShieldCheck } from 'lucide-react';
+import { Employee, BranchId, Role } from '../../types';
 import { useErp } from '../../context/ErpContext';
+
+type LoginRole = '' | Extract<Role, 'Manager' | 'Billing' | 'Purchase' | 'Sales'>;
+const LOGIN_ROLES: Exclude<LoginRole, ''>[] = ['Manager', 'Billing', 'Purchase', 'Sales'];
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -20,7 +23,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     currentUser,
     accessibleBranches,
     canEditSalaries,
+    staffUsers,
+    refreshStaffUsers,
+    linkStaffLogin,
+    unlinkStaffLogin,
   } = useErp();
+
+  const isCEO = currentUser.role === 'CEO';
+  const existingLogin = employeeToEdit ? staffUsers.find((u) => u.employeeId === employeeToEdit.id) : undefined;
 
   const [name, setName] = useState('');
   const [designation, setDesignation] = useState('');
@@ -31,7 +41,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [joinedDate, setJoinedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loginRole, setLoginRole] = useState<LoginRole>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  // CEO needs the current staff-login list to know if this employee already has a login.
+  useEffect(() => { if (isOpen && isCEO) refreshStaffUsers(); }, [isOpen, isCEO]);
 
   useEffect(() => {
     if (employeeToEdit) {
@@ -44,6 +59,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setPhone(employeeToEdit.phone || '');
       setEmail(employeeToEdit.email || '');
       setJoinedDate(employeeToEdit.joinedDate);
+      const linked = staffUsers.find((u) => u.employeeId === employeeToEdit.id);
+      setLoginRole((linked?.role as LoginRole) || '');
     } else {
       setName('');
       setDesignation('');
@@ -60,6 +77,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setPhone('');
       setEmail('');
       setJoinedDate(new Date().toISOString().split('T')[0]);
+      setLoginRole('');
     }
     setErrors({});
   }, [employeeToEdit, isOpen]);
@@ -71,16 +89,19 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     if (!name.trim()) errs.name = 'Full name is required';
     if (!designation.trim()) errs.designation = 'Role / Designation is required';
     if (!pin.trim() || pin.length < 4) errs.pin = '4-digit attendance PIN is required';
+    // App login requires an exact 4-digit PIN (it doubles as the sign-in PIN).
+    if (loginRole && !/^\d{4}$/.test(pin.trim())) errs.pin = 'App login needs an exact 4-digit PIN';
     if (monthlySalary <= 0) errs.salary = 'Monthly salary must be greater than 0';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate() || submitting) return;
+    setSubmitting(true);
 
-    saveEmployee({
+    const saved = saveEmployee({
       id: employeeToEdit?.id,
       name: name.trim(),
       designation: designation.trim(),
@@ -93,6 +114,20 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       joinedDate,
     });
 
+    // Attach / update / remove the app login (CEO only).
+    if (isCEO) {
+      if (loginRole) {
+        const ok = await linkStaffLogin({
+          employeeId: saved.id, role: loginRole, name: name.trim(),
+          assignedBranchId: branchId, pin: pin.trim(), status,
+        });
+        if (!ok) { setSubmitting(false); return; } // keep modal open so PIN clash can be fixed
+      } else if (existingLogin) {
+        await unlinkStaffLogin(saved.id);
+      }
+    }
+
+    setSubmitting(false);
     onClose();
   };
 
@@ -282,6 +317,32 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             />
           </div>
 
+          {/* App Login Access (CEO only) — unifies staff creation with account access */}
+          {isCEO && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-800 mb-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" /> App Login Access
+              </label>
+              <select
+                value={loginRole}
+                onChange={(e) => setLoginRole(e.target.value as LoginRole)}
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+              >
+                <option value="">No app login (attendance only)</option>
+                {LOGIN_ROLES.map((r) => (
+                  <option key={r} value={r}>Can log in as {r}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                {loginRole
+                  ? `This staff member will sign in with the ${pin.length === 4 ? 'PIN above' : '4-digit PIN above'} and must reset it on first login. Manage access in Access Control.`
+                  : existingLogin
+                  ? 'Saving with “No app login” will remove this staff member’s ability to sign in.'
+                  : 'Give this employee access to the app, or leave as attendance-only.'}
+              </p>
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
             <button
@@ -293,10 +354,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors disabled:opacity-60"
             >
               <Check className="h-4 w-4" />
-              <span>{employeeToEdit ? 'Save Changes' : 'Enroll Employee'}</span>
+              <span>{submitting ? 'Saving…' : employeeToEdit ? 'Save Changes' : 'Enroll Employee'}</span>
             </button>
           </div>
         </form>

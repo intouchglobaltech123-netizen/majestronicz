@@ -1,43 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Role, BRANCHES } from '../../types';
-import { UniversalDropdown } from '../common/UniversalDropdown';
-import { Users, Plus, KeyRound, Trash2, ShieldCheck, Check, X, UserCog, Ban, CheckCircle2 } from 'lucide-react';
+import { BRANCHES } from '../../types';
+import { Users, KeyRound, Trash2, ShieldCheck, Check, X, UserCog, Ban, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-const CREATABLE_ROLES: Role[] = ['Manager', 'Billing', 'Purchase', 'Sales'];
 const branchName = (id?: string | null) => BRANCHES.find((b) => b.id === id)?.name || '—';
 
 export const StaffAccountsSection: React.FC = () => {
-  const { staffUsers, refreshStaffUsers, createStaffUser, updateStaffUser, resetStaffPin, deleteStaffUser } = useErp();
+  const { staffUsers, refreshStaffUsers, updateStaffUser, resetStaffPin, deleteStaffUser } = useErp();
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<Role>('Billing');
-  const [branch, setBranch] = useState<string>(BRANCHES[0]?.id || 'erode-hq');
-  const [pin, setPin] = useState('');
-  const [salary, setSalary] = useState('');
-  const [phone, setPhone] = useState('');
-  const [saving, setSaving] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [resetPinValue, setResetPinValue] = useState('');
 
   useEffect(() => { refreshStaffUsers(); }, []);
-
-  const pinValid = /^\d{4}$/.test(pin);
-
-  const submitAdd = async () => {
-    if (!name.trim() || !pinValid || saving) return;
-    setSaving(true);
-    const ok = await createStaffUser({
-      name: name.trim(), role, pin,
-      assignedBranchId: role === 'Manager' ? branch : undefined,
-      monthlySalary: salary ? Number(salary) : undefined,
-      phone: phone.trim() || undefined,
-    });
-    setSaving(false);
-    if (ok) { setName(''); setPin(''); setSalary(''); setPhone(''); setRole('Billing'); setShowAdd(false); }
-  };
 
   const submitReset = async (id: string) => {
     if (!/^\d{4}$/.test(resetPinValue)) return;
@@ -55,99 +30,10 @@ export const StaffAccountsSection: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm font-extrabold text-slate-900">Staff Login Accounts</h2>
-            <p className="text-xs text-slate-500">Each staff member signs in with their own PIN. New staff must reset the default PIN on first login.</p>
+            <p className="text-xs text-slate-500">Add staff from <span className="font-semibold text-slate-700">Attendance → Enroll Employee</span> (set an App Login role there). Manage their access &amp; PINs here.</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAdd((s) => !s)}
-          className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs shrink-0"
-        >
-          {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-          {showAdd ? 'Close' : 'Add Staff'}
-        </button>
       </div>
-
-      {/* Add form */}
-      {showAdd && (
-        <div className="p-5 bg-blue-50/30 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Staff name</label>
-            <input
-              value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Priya (Cashier)"
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Role</label>
-            <UniversalDropdown
-              value={role}
-              onChange={(v) => setRole(v as Role)}
-              options={CREATABLE_ROLES.map((r) => ({ value: r, label: r }))}
-              buttonClassName="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold text-slate-900"
-            />
-          </div>
-          {role === 'Manager' ? (
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Branch</label>
-              <UniversalDropdown
-                value={branch}
-                onChange={(v) => setBranch(String(v))}
-                options={BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
-                buttonClassName="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold text-slate-900"
-              />
-            </div>
-          ) : (
-            <div className="hidden lg:block" />
-          )}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Default PIN (4 digits)</label>
-            <div className="flex items-center gap-2">
-              <input
-                value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                inputMode="numeric" placeholder="e.g. 4821"
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-mono font-bold tracking-widest text-slate-900 placeholder:font-sans placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-              />
-              <button
-                type="button"
-                onClick={() => setPin(String(Math.floor(1000 + Math.random() * 9000)))}
-                title="Suggest a random PIN"
-                className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 text-[11px] font-bold shrink-0"
-              >
-                Random
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Monthly salary (₹, optional)</label>
-            <input
-              value={salary} onChange={(e) => setSalary(e.target.value.replace(/[^\d]/g, ''))}
-              inputMode="numeric" placeholder="e.g. 18000"
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-mono text-slate-900 placeholder:font-sans placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Phone (optional)</label>
-            <input
-              value={phone} onChange={(e) => setPhone(e.target.value)}
-              placeholder="Mobile number"
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-blue-500" />
-              Also creates an Attendance employee record with the same PIN for clock-in.
-            </p>
-            <button
-              onClick={submitAdd}
-              disabled={!name.trim() || !pinValid || saving}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 transition-colors"
-            >
-              <Check className="h-3.5 w-3.5" /> {saving ? 'Creating…' : 'Create account'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* List */}
       <div className="overflow-x-auto">

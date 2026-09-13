@@ -21,6 +21,7 @@ import { askAi, getAiStatus } from '../services/ai.service.js';
 import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
+  linkLoginToEmployee, unlinkLogin,
 } from '../services/user.service.js';
 
 const router = Router();
@@ -93,6 +94,17 @@ router.post('/users/:id/reset-pin', requireCapability('admin'), asyncHandler(asy
 router.delete('/users/:id', requireCapability('admin'), asyncHandler(async (req, res) => {
   const result = await deleteUser(req.params.id);
   broadcastChange('DELETE /api/users');
+  res.json(result);
+}));
+// Attach / detach a login for an existing employee (unified enroll form).
+router.post('/staff/login', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await linkLoginToEmployee(req.body);
+  broadcastChange('POST /api/staff/login');
+  res.json(result);
+}));
+router.delete('/staff/login/:employeeId', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await unlinkLogin(req.params.employeeId);
+  broadcastChange('DELETE /api/staff/login');
   res.json(result);
 }));
 

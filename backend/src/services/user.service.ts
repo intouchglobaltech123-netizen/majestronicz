@@ -65,7 +65,7 @@ export function listUsers() {
   return prisma.user.findMany({
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     select: {
-      id: true, name: true, role: true, assignedBranchId: true,
+      id: true, name: true, role: true, assignedBranchId: true, employeeId: true,
       status: true, mustResetPin: true, isSystem: true, createdAt: true, updatedAt: true,
     },
   });
@@ -201,6 +201,66 @@ export async function changeOwnPin(userId: string, newPin: string) {
   if (clash) throw new AppError('CONFLICT', 'That PIN is already in use. Choose a different one.', 409);
   await prisma.user.update({ where: { id: userId }, data: { pin: newPin, mustResetPin: false, updatedAt: nowIso() } });
   await syncEmployeePin(existing.employeeId, newPin);
+  return { ok: true };
+}
+
+/**
+ * Attach (or update) a login account for an EXISTING employee — used by the
+ * unified "Enroll Employee" form so staff are added in one place. If a login
+ * already exists for the employee it is updated; otherwise one is created
+ * (mustResetPin=true). The employee's PIN is kept in sync.
+ */
+export async function linkLoginToEmployee(input: {
+  employeeId: string; role: Role; name: string; assignedBranchId?: string; pin: string; status?: string;
+}) {
+  if (!CREATABLE_ROLES.includes(input.role)) {
+    throw new AppError('BAD_REQUEST', 'Role must be Manager, Billing, Purchase or Sales', 400);
+  }
+  if (!isValidPin(input.pin)) throw new AppError('BAD_REQUEST', 'Login PIN must be exactly 4 digits', 400);
+
+  const emp = await prisma.employee.findUnique({ where: { id: input.employeeId } });
+  if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
+
+  const existing = await prisma.user.findFirst({ where: { employeeId: input.employeeId } });
+  const clash = await prisma.user.findFirst({
+    where: existing ? { pin: input.pin, NOT: { id: existing.id } } : { pin: input.pin },
+  });
+  if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another login. Choose a different one.', 409);
+
+  const status = input.status === 'Inactive' ? 'disabled' : 'active';
+  const assignedBranchId = input.role === 'Manager' ? (input.assignedBranchId || emp.branchId) : (input.assignedBranchId ?? null);
+  // Keep the employee's attendance PIN in sync with the login PIN.
+  await prisma.employee.updateMany({ where: { id: input.employeeId }, data: { pin: input.pin, updatedAt: nowIso() } });
+
+  if (existing) {
+    const pinChanged = existing.pin !== input.pin;
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        role: input.role, name: input.name.trim(), assignedBranchId, pin: input.pin, status,
+        mustResetPin: pinChanged ? true : existing.mustResetPin, updatedAt: nowIso(),
+      },
+    });
+    const { pin, ...safe } = updated;
+    return safe;
+  }
+  const created = await prisma.user.create({
+    data: {
+      id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: input.name.trim(), role: input.role, pin: input.pin, assignedBranchId,
+      status, mustResetPin: true, isSystem: false, employeeId: input.employeeId, createdAt: nowIso(),
+    },
+  });
+  const { pin, ...safe } = created;
+  return safe;
+}
+
+/** Remove the login account attached to an employee (keeps the employee). */
+export async function unlinkLogin(employeeId: string) {
+  const existing = await prisma.user.findFirst({ where: { employeeId } });
+  if (!existing) return { ok: true };
+  if (existing.isSystem) throw new AppError('FORBIDDEN', 'The owner account cannot be removed', 403);
+  await prisma.user.delete({ where: { id: existing.id } });
   return { ok: true };
 }
 
