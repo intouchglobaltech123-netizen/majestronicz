@@ -1209,10 +1209,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Redirect out of a view the current role may not access.
+  // Redirect out of a view the current role may not access — but only to a view
+  // that IS accessible and different, so a misconfigured matrix can't cause an
+  // infinite setState loop (which previously could crash the app to the login gate).
   useEffect(() => {
     if (!canAccessView(currentView)) {
-      setCurrentView(landingViewFor(currentUser.role));
+      const target = landingViewFor(currentUser.role);
+      if (target !== currentView && canAccessView(target)) {
+        setCurrentView(target);
+      }
     }
     if (currentUser.role === 'Manager') {
       const managerBranch = currentUser.assignedBranchId || 'coimbatore';
@@ -1291,8 +1296,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Landing view per role after login.
-  const landingViewFor = (role: Role): ActiveNavView =>
-    role === 'CEO' || role === 'Manager' ? 'dashboard' : role === 'Purchase' ? 'purchases' : role === 'Sales' ? 'items' : 'items';
+  // Views a role can open (matrix-driven, with built-in fallback).
+  const viewsForRole = (role: Role): string[] =>
+    role === 'CEO' ? DEFAULT_ROLE_VIEWS.CEO : (accessMatrix?.[role]?.views || DEFAULT_ROLE_VIEWS[role] || []);
+
+  // The landing view MUST be one the role can actually access, otherwise the
+  // redirect effect below would loop forever. Fall back to the first allowed view.
+  const landingViewFor = (role: Role): ActiveNavView => {
+    const preferred: ActiveNavView =
+      role === 'CEO' || role === 'Manager' ? 'dashboard' : role === 'Purchase' ? 'purchases' : 'items';
+    const views = viewsForRole(role);
+    if (views.includes(preferred)) return preferred;
+    return ((views[0] as ActiveNavView) || 'items');
+  };
 
   // Authenticate against the backend (server verifies the PIN and issues a
   // signed token). The token is what actually authorizes writes server-side.
