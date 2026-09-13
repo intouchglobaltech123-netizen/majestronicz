@@ -234,6 +234,9 @@ export function processReturn(
     if (!validLines.length) throw new AppError('NO_LINES', 'No return quantity specified', 400);
 
     const ts = nowIso();
+    // Business rule: damaged goods are written off, NOT added back to stock.
+    const isDamaged = /damag/i.test(reason || '');
+    const stockReason = isDamaged ? 'Sales Return (Damaged - Written Off)' : 'Sales Return';
     const items = await tx.item.findMany();
     const itemById = new Map(items.map((i: any) => [i.id, i]));
     const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
@@ -243,14 +246,15 @@ export function processReturn(
     for (const line of validLines) {
       if (line.isCombo && line.comboComponents?.length) {
         for (const comp of line.comboComponents) {
-          const qtyToRestore = comp.quantity * line.returnQty;
+          // Damaged returns restore 0 units (write-off); others restock normally.
+          const qtyToRestore = isDamaged ? 0 : comp.quantity * line.returnQty;
           const { prevQty, newQty } = ledger.apply(comp.itemId, qtyToRestore);
           const ci: any = itemById.get(comp.itemId);
           newLogs.push({
             id: rid('adj'), itemId: comp.itemId, itemName: ci?.itemName || 'Component Item',
             itemCode: ci?.itemCode || '', branchId: inv.branchId, previousQuantity: prevQty,
-            quantityChange: qtyToRestore, newQuantity: newQty, reason: 'Sales Return',
-            notes: `Sales Return on #${inv.invoiceNumber} (Component of Combo: ${line.itemName}) - ${reason}${notes ? ` (${notes})` : ''}`,
+            quantityChange: qtyToRestore, newQuantity: newQty, reason: stockReason,
+            notes: `Sales Return on #${inv.invoiceNumber} (Component of Combo: ${line.itemName}) - ${reason}${notes ? ` (${notes})` : ''}${isDamaged ? ' [damaged — not restocked]' : ''}`,
             adjustedBy: actor, timestamp: ts,
           });
         }
@@ -261,12 +265,13 @@ export function processReturn(
           isCombo: true, comboId: line.comboId, comboComponents: line.comboComponents,
         });
       } else {
-        const { prevQty, newQty } = ledger.apply(line.itemId, line.returnQty);
+        const qtyToRestore = isDamaged ? 0 : line.returnQty;
+        const { prevQty, newQty } = ledger.apply(line.itemId, qtyToRestore);
         newLogs.push({
           id: rid('adj'), itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode,
-          branchId: inv.branchId, previousQuantity: prevQty, quantityChange: line.returnQty,
-          newQuantity: newQty, reason: 'Sales Return',
-          notes: `Sales Return on #${inv.invoiceNumber} - ${reason}${notes ? ` (${notes})` : ''}`,
+          branchId: inv.branchId, previousQuantity: prevQty, quantityChange: qtyToRestore,
+          newQuantity: newQty, reason: stockReason,
+          notes: `Sales Return on #${inv.invoiceNumber} - ${reason}${notes ? ` (${notes})` : ''}${isDamaged ? ' [damaged — not restocked]' : ''}`,
           adjustedBy: actor, timestamp: ts,
         });
         returnRecords.push({

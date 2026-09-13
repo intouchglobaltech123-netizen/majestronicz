@@ -408,7 +408,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs"
             >
               <Plus className="h-3 w-3" />
-              <span>+ Add New Customer</span>
+              <span>Add New Customer</span>
             </button>
           </div>
 

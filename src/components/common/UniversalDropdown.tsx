@@ -215,7 +215,8 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                   className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50/60 flex items-center gap-1.5 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>{addNewLabel}</span>
+                  {/* Strip any leading "+" from the label — the Plus icon already shows it. */}
+                  <span>{addNewLabel.replace(/^\s*\+\s*/, '')}</span>
                 </button>
               )}
             </div>

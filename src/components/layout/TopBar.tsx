@@ -2,12 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchScope } from '../../types';
 import {
-  Building,
   MapPin,
   ShieldCheck,
   Building2,
   Lock,
-  Layers,
   Bell,
   CheckCircle2,
   Clock,
@@ -20,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
+import { UniversalDropdown } from '../common/UniversalDropdown';
 
 export const TopBar: React.FC = () => {
   const {
@@ -139,57 +138,19 @@ export const TopBar: React.FC = () => {
           <span>Branch:</span>
         </div>
 
-        {/* Segmented Branch Selector Pills */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-          {/* "All Branches" Option — Visible only for CEO as per role visibility requirement */}
-          {currentUser.role === 'CEO' && (
-            <button
-              onClick={() => switchBranch('all')}
-              className={cn(
-                'relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200',
-                isAllBranches
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-              )}
-            >
-              <Layers className={cn('h-3.5 w-3.5', isAllBranches ? 'text-white' : 'text-slate-500')} />
-              <span>All Branches</span>
-            </button>
-          )}
-
-          {/* Individual Branches: For CEO show all; For Manager show ONLY their assigned branch */}
-          {BRANCHES.filter((b) =>
-            currentUser.role === 'CEO'
-              ? true
-              : b.id === (currentUser.assignedBranchId || 'coimbatore')
-          ).map((b) => {
-            const isActive = !isAllBranches && currentBranch === b.id;
-            return (
-              <button
-                key={b.id}
-                onClick={() => switchBranch(b.id as BranchScope)}
-                className={cn(
-                  'relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200',
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                )}
-              >
-                <Building className={cn('h-3.5 w-3.5', isActive ? 'text-white' : 'text-slate-500')} />
-                <span>{b.name}</span>
-                {b.isHq && (
-                  <span
-                    className={cn(
-                      'text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded',
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    )}
-                  >
-                    HQ
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Branch Selector Dropdown (was segmented pills) */}
+        <div className="w-56">
+          <UniversalDropdown
+            value={isAllBranches ? 'all' : currentBranch}
+            onChange={(v) => switchBranch(v as BranchScope)}
+            options={[
+              ...(currentUser.role === 'CEO' ? [{ value: 'all', label: 'All Branches', sublabel: 'Erode · Coimbatore · Chennai' }] : []),
+              ...BRANCHES.filter((b) =>
+                currentUser.role === 'CEO' ? true : b.id === (currentUser.assignedBranchId || 'coimbatore')
+              ).map((b) => ({ value: b.id, label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
+            ]}
+            buttonClassName="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800"
+          />
         </div>
       </div>
 

@@ -192,7 +192,7 @@ export const CustomersView: React.FC = () => {
             className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="h-4 w-4" />
-            <span>+ Add Customer</span>
+            <span>Add Customer</span>
           </button>
         </div>
       </div>
@@ -594,7 +594,7 @@ export const CustomersView: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>+ Add New Customer</span>
+                  <span>Add New Customer</span>
                 </button>
               </div>
             )}

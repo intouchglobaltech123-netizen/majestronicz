@@ -359,7 +359,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Inventory health strip ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <HealthCard label="Low Stock" count={inv.lowStock} unit="items" tone={inv.lowStock > 0 ? 'amber' : 'emerald'}
-          icon={AlertTriangle} onClick={() => setCurrentView('items')} hint="at or below reorder level" />
+          icon={AlertTriangle} onClick={() => setCurrentView('inventory')} hint="at or below reorder level" />
         <HealthCard label="Dead Stock" count={inv.deadStock} unit="items" tone={inv.deadStock > 0 ? 'rose' : 'emerald'}
           icon={AlertOctagon} onClick={() => navigateToInventoryWithMovementFilter('not-moving')} hint={`no sale in ${inventorySettings.deadStockThresholdDays}+ days`} />
         <HealthCard label="Open Enquiries" count={enquiries.filter((e) => e.status === 'Follow-up').length + pendingOrders.filter((p) => p.status === 'Waiting').length} unit="active"

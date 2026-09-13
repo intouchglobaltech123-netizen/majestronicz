@@ -4,6 +4,7 @@ import { Item, BranchId, BRANCHES, StockAdjustmentReason } from '../../types';
 import { X, Plus, Minus, AlertTriangle, Check, ShieldAlert, ArrowRight, MapPin } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { UniversalDropdown } from '../common/UniversalDropdown';
 
 interface Props {
   isOpen: boolean;
@@ -309,17 +310,19 @@ export const AdjustStockModal: React.FC<Props> = ({
             <label className="text-xs font-bold text-slate-700 block mb-1.5">
               Adjustment Reason <span className="text-rose-500">*</span>
             </label>
-            <select
+            <UniversalDropdown
               value={reason}
-              onChange={(e) => setReason(e.target.value as StockAdjustmentReason)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all"
-            >
-              {ADJUSTMENT_REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label} — {r.description}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setReason(v as StockAdjustmentReason)}
+              options={ADJUSTMENT_REASONS.map((r) => ({ value: r.value, label: r.label, sublabel: r.description }))}
+              addNewLabel="Add custom reason"
+              addNewPlaceholder="e.g. Scrapped in calibration test"
+              onAddNew={(name) => {
+                // A typed-in reason routes through the "Other" custom-reason path.
+                setReason('Other');
+                setCustomReason(name);
+              }}
+              buttonClassName="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-semibold text-xs"
+            />
           </div>
 
           {/* Free-text input if "Other" */}

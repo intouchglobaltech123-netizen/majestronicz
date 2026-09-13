@@ -8,7 +8,6 @@ import {
   PaymentMode,
   BranchId,
   BRANCHES,
-  INDIAN_STATES,
   INVOICE_TERMS_PRESETS,
   DiscountType,
   Estimate,
@@ -1501,18 +1500,8 @@ export const InvoiceForm: React.FC<Props> = ({
               <Clock className="h-3.5 w-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
           </div>
-
-          {/* State of Supply */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              State of Supply
-            </label>
-            <UniversalDropdown
-              value={stateOfSupply}
-              onChange={(v) => setStateOfSupply(String(v))}
-              options={INDIAN_STATES.map((s) => ({ value: s, label: s }))}
-            />
-          </div>
+          {/* State of Supply field removed per client request — value defaults to
+              the home state (33-Tamil Nadu) and still drives GST intra/inter split. */}
         </div>
 
         {/* Customer & Payment Terms Details Row */}
@@ -2090,7 +2079,7 @@ export const InvoiceForm: React.FC<Props> = ({
                       className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 px-3 py-2 rounded-xl border border-blue-200/80 transition-all cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      <span>+ Add Payment Split (e.g. Cash + GPay)</span>
+                      <span>Add Payment Split (e.g. Cash + GPay)</span>
                     </button>
                   </div>
                 </div>
@@ -2176,7 +2165,7 @@ export const InvoiceForm: React.FC<Props> = ({
                       )}
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      <span>+ Add Another Split</span>
+                      <span>Add Another Split</span>
                     </button>
 
                     <span className="text-[11px] text-slate-500 font-medium">

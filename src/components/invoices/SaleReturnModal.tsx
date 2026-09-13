@@ -9,6 +9,7 @@ import {
   DollarSign,
   Plus,
   Minus,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -336,6 +337,12 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   required
                   className="w-full mt-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
                 />
+              )}
+              {/damag/i.test(reason) && (
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  Damaged goods are written off — the returned quantity will NOT be added back to stock.
+                </p>
               )}
             </div>
 

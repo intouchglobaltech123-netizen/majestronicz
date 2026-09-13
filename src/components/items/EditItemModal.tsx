@@ -59,6 +59,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [zoomImage, setZoomImage] = useState(false);
 
   // Static Master Pricing fields
   const [salePrice, setSalePrice] = useState<number | ''>('');
@@ -177,12 +178,19 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-3.5">
-            <ItemImage
-              src={imageUrl || item.imageUrl}
-              alt={item.itemName}
-              className="h-11 w-11 rounded-xl shadow-xs"
-              iconClassName="h-5 w-5"
-            />
+            <button
+              type="button"
+              onClick={() => { if (imageUrl || item.imageUrl) setZoomImage(true); }}
+              className={cn('shrink-0 rounded-xl', (imageUrl || item.imageUrl) ? 'cursor-zoom-in hover:ring-2 hover:ring-blue-300 transition-all' : 'cursor-default')}
+              title={(imageUrl || item.imageUrl) ? 'Click to enlarge' : undefined}
+            >
+              <ItemImage
+                src={imageUrl || item.imageUrl}
+                alt={item.itemName}
+                className="h-11 w-11 rounded-xl shadow-xs"
+                iconClassName="h-5 w-5"
+              />
+            </button>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">
@@ -740,6 +748,32 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
           )}
         </div>
       </div>
+
+      {/* Image zoom lightbox */}
+      {zoomImage && (imageUrl || item.imageUrl) && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-6"
+          onClick={() => setZoomImage(false)}
+        >
+          <img
+            src={imageUrl || item.imageUrl}
+            alt={item.itemName}
+            className="max-h-[85vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain bg-white"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setZoomImage(false)}
+            className="absolute top-5 right-5 h-10 w-10 rounded-full bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center shadow-lg"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-xs font-semibold bg-black/40 px-3 py-1.5 rounded-full">
+            {item.itemName} · {item.itemCode}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

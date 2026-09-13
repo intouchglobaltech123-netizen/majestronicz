@@ -17,7 +17,6 @@ import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { VendorMasterModal } from './VendorMasterModal';
 import { formatCurrency } from '../../lib/utils';
-import { toast } from 'sonner';
 
 interface PurchaseOrderFormModalProps {
   isOpen: boolean;
@@ -217,11 +216,14 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   };
 
   const handleRemoveLine = (index: number) => {
-    if (lines.length <= 1) {
-      toast.error('A Purchase Order must contain at least one line item');
-      return;
-    }
-    setLines((prev) => prev.filter((_, idx) => idx !== index));
+    setLines((prev) => {
+      // Removing the only remaining line clears it back to a fresh blank row
+      // instead of erroring — the submit validation still requires a real item.
+      if (prev.length <= 1) {
+        return [{ id: `poli-add-${Date.now()}`, item: null, searchQuery: '', quantity: 1, purchasePrice: 0, amount: 0 }];
+      }
+      return prev.filter((_, idx) => idx !== index);
+    });
   };
 
   // Calculations
@@ -344,19 +346,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
               {/* Supplier Selection */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Supplier / Vendor <span className="text-rose-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsVendorModalOpen(true)}
-                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-0.5"
-                  >
-                    <Plus className="h-3 w-3" />
-                    New
-                  </button>
-                </div>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Supplier / Vendor <span className="text-rose-500">*</span>
+                </label>
+                {/* Stray "+ New" button removed — the dropdown's own "Add New Supplier" is enough. */}
                 <UniversalDropdown
                   options={vendors.map((v) => ({
                     value: v.id,

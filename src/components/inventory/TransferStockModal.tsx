@@ -28,6 +28,7 @@ interface TransferRow {
   id: string;
   itemId: string;
   quantity: number | '';
+  searchQuery?: string; // free-text the user types to search the catalog
 }
 
 export const TransferStockModal: React.FC<Props> = ({
@@ -120,14 +121,12 @@ export const TransferStockModal: React.FC<Props> = ({
   };
 
   const handleAddRow = () => {
-    // Pick an item that isn't already chosen if possible
-    const chosenItemIds = new Set(rows.map((r) => r.itemId).filter(Boolean));
-    const nextItem = items.find((i) => !chosenItemIds.has(i.id)) || items[0];
-
+    // Start blank so the user searches and picks the item deliberately.
     const newRow: TransferRow = {
       id: `tr-row-${Date.now()}-${rows.length + 1}`,
-      itemId: nextItem?.id || '',
+      itemId: '',
       quantity: '',
+      searchQuery: '',
     };
     setRows((prev) => [...prev, newRow]);
   };
@@ -412,9 +411,9 @@ export const TransferStockModal: React.FC<Props> = ({
                           {/* Item Search Dropdown */}
                           <td className="py-3 px-3">
                             <ItemSearchDropdown
-                              value={item?.itemName || ''}
-                              onChange={() => {}}
-                              onSelectItem={(selected) => handleUpdateRow(row.id, { itemId: selected.id })}
+                              value={row.searchQuery ?? (item?.itemName || '')}
+                              onChange={(v) => handleUpdateRow(row.id, { searchQuery: v })}
+                              onSelectItem={(selected) => handleUpdateRow(row.id, { itemId: selected.id, searchQuery: selected.itemName })}
                               selectedBranchId={fromBranch}
                               lockOutOfStock={false}
                               placeholder="Search catalog item by name or code..."

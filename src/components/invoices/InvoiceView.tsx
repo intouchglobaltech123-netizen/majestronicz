@@ -404,7 +404,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               title="Create a new Sales Invoice (Tax Invoice or Cash/Credit Bill)"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>+ New Sale</span>
+              <span>New Sale</span>
             </button>
 
             <button
@@ -419,7 +419,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               title="Create a new Commercial Quotation / Proforma"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>+ New Quote</span>
+              <span>New Quote</span>
             </button>
           </div>
         </div>

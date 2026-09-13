@@ -290,8 +290,14 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="number"
                 min="1"
                 max="5000"
-                value={noOfLabels}
-                onChange={(e) => setNoOfLabels(Math.max(1, parseInt(e.target.value) || 1))}
+                // Allow free typing (including clearing the field); clamp on blur so
+                // the value can actually be edited instead of snapping back to 1.
+                value={noOfLabels === 0 ? '' : noOfLabels}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  setNoOfLabels(Number.isNaN(n) ? 0 : Math.min(5000, Math.max(0, n)));
+                }}
+                onBlur={() => { if (noOfLabels < 1) setNoOfLabels(1); }}
                 className="w-full text-center text-xs font-bold border-y border-slate-300 py-2.5 focus:outline-none"
               />
               <button
