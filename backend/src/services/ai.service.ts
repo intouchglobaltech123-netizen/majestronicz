@@ -20,7 +20,10 @@ import { prisma } from '../db.js';
  *  engine by setting AI_PROVIDER=groq — off by default; Ollama is the private default.)
  */
 
-const PROVIDER = (process.env.AI_PROVIDER || 'ollama').toLowerCase();
+// Cloud-first: Groq's hosted API needs NO install and ~zero extra memory on
+// Railway (it's just an HTTPS call). Set GROQ_API_KEY in the environment.
+// Self-hosted Ollama is still available via AI_PROVIDER=ollama.
+const PROVIDER = (process.env.AI_PROVIDER || 'groq').toLowerCase();
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -47,8 +50,8 @@ export async function getAiStatus(): Promise<AiStatus> {
       connected,
       private: false,
       message: connected
-        ? `Cloud AI engine ready (${GROQ_MODEL}). Note: data is sent to Groq's servers.`
-        : 'Cloud AI engine selected but GROQ_API_KEY is not set.',
+        ? `AI engine ready (${GROQ_MODEL}) — fast cloud model, no server memory used.`
+        : 'AI engine not connected. Add a free GROQ_API_KEY in the Railway environment to enable Beta AI.',
     };
   }
   // Ollama (private, default): ping the tags endpoint and confirm the model is pulled.
