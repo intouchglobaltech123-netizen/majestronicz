@@ -21,6 +21,9 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  IndianRupee,
+  TrendingUp,
+  Percent,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { ItemImage } from '../common/ItemImage';
@@ -178,10 +181,16 @@ export const InventoryView: React.FC = () => {
     let totalUnits = 0;
     let notMovingCount = 0;
     let activeMovingCount = 0;
+    let costValue = 0;
+    let retailValue = 0;
+    let deadStockValue = 0;
 
     items.forEach((item) => {
       const data = getItemStockData(item);
-      totalUnits += data.currentStock;
+      const qty = data.currentStock;
+      totalUnits += qty;
+      costValue += qty * (item.purchasePrice || 0);
+      retailValue += qty * (item.salePrice || 0);
       if (data.status === 'out-of-stock') {
         outOfStock++;
       } else if (data.status === 'low-stock') {
@@ -193,11 +202,13 @@ export const InventoryView: React.FC = () => {
       const saleInfo = getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch);
       if (saleInfo.isDeadStock) {
         notMovingCount++;
+        deadStockValue += qty * (item.purchasePrice || 0);
       } else {
         activeMovingCount++;
       }
     });
 
+    const potentialMargin = retailValue - costValue;
     return {
       totalSkus: items.length,
       inStock,
@@ -206,6 +217,11 @@ export const InventoryView: React.FC = () => {
       totalUnits,
       notMovingCount,
       activeMovingCount,
+      costValue,
+      retailValue,
+      deadStockValue,
+      potentialMargin,
+      marginPct: retailValue > 0 ? Math.round((potentialMargin / retailValue) * 100) : 0,
     };
   }, [items, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo]);
 
@@ -458,6 +474,46 @@ export const InventoryView: React.FC = () => {
 
       {activeInventoryTab === 'items' && (
         <>
+          {/* Inventory Worth — money locked in stock */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
+            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/60 to-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Value (Cost)</span>
+                <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"><IndianRupee className="h-4 w-4" /></div>
+              </div>
+              <p className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Capital tied up at purchase cost</span>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50/60 to-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Retail Value</span>
+                <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600"><TrendingUp className="h-4 w-4" /></div>
+              </div>
+              <p className="text-2xl font-black text-emerald-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">If sold at listed sale price</span>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-violet-50/60 to-white shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Potential Margin</span>
+                <div className="h-8 w-8 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center text-violet-600"><Percent className="h-4 w-4" /></div>
+              </div>
+              <p className="text-2xl font-black text-violet-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
+            </div>
+            <div
+              onClick={() => setMovementFilter(movementFilter === 'not-moving' ? 'all' : 'not-moving')}
+              className={cn('p-4 rounded-xl border bg-gradient-to-br from-rose-50/60 to-white shadow-2xs cursor-pointer transition-all hover:border-rose-400',
+                movementFilter === 'not-moving' ? 'ring-2 ring-rose-500/20 border-rose-500' : 'border-slate-200')}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Locked in Dead Stock</span>
+                <div className="h-8 w-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600"><AlertOctagon className="h-4 w-4" /></div>
+              </div>
+              <p className="text-2xl font-black text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
+              <span className="text-[10px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
+            </div>
+          </div>
+
           {/* KPI Metric Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Total Items */}

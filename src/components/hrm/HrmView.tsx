@@ -7,6 +7,8 @@ import {
   Camera,
   Plus,
   CheckCircle2,
+  Percent,
+  UserX,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { EmployeeMasterView } from './EmployeeMasterView';
@@ -46,6 +48,12 @@ export const HrmView: React.FC = () => {
     const hourlyRate = emp.monthlySalary / standardHours;
     return sum + hourlyRate * empHours;
   }, 0);
+
+  // Today's presence — unique active staff who checked in vs those who didn't.
+  const presentIds = new Set(todayCheckIns.map((a) => a.employeeId));
+  const presentToday = activeStaff.filter((e) => presentIds.has(e.id)).length;
+  const absentToday = Math.max(0, activeStaff.length - presentToday);
+  const attendanceRate = activeStaff.length > 0 ? Math.round((presentToday / activeStaff.length) * 100) : 0;
 
   if (!canViewHrm) {
     return (
@@ -97,7 +105,31 @@ export const HrmView: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* Attendance rate today */}
+        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${attendanceRate >= 80 ? 'bg-emerald-50/50 border-emerald-200' : attendanceRate >= 50 ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
+          <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
+            <Percent className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Attendance Today</p>
+            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{attendanceRate}%</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{presentToday}/{activeStaff.length} present</p>
+          </div>
+        </div>
+
+        {/* Absent today */}
+        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${absentToday > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+          <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
+            <UserX className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Not Clocked In</p>
+            <p className={`text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${absentToday > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{absentToday}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{absentToday > 0 ? 'Yet to check in today' : 'Everyone is in'}</p>
+          </div>
+        </div>
+
         {/* Active Staff */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60 font-bold">

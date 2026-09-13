@@ -1,6 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES } from '../../types';
+import { BranchScope, BRANCHES, getInvoicePaymentSplits, Invoice } from '../../types';
+import { formatCurrency } from '../../lib/utils';
+
+function invoiceDue(inv: Invoice): number {
+  const billed = inv.grandTotal || 0;
+  const splits = getInvoicePaymentSplits(inv);
+  const hasCod = splits.some((s) => s.mode === 'COD-Credit');
+  let due = 0;
+  if (splits.length > 1 && hasCod) due = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
+  else if (inv.isPartialPayment) due = inv.balanceDue ?? Math.max(0, billed - (inv.partialAmount || 0));
+  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') due = inv.balanceDue ?? billed;
+  else if (inv.balanceDue && inv.balanceDue > 0) due = inv.balanceDue;
+  if (inv.totalReturnedAmount) due = Math.max(0, due - inv.totalReturnedAmount);
+  return Math.max(0, due);
+}
 import {
   BarChart3,
   Receipt,
@@ -36,6 +50,8 @@ export const ReportsView: React.FC = () => {
     currentBranch,
     currentUser,
     canViewPayrollReport,
+    invoices,
+    purchaseOrders,
   } = useErp();
 
   // Active Report Tab
@@ -92,6 +108,20 @@ export const ReportsView: React.FC = () => {
       ? [{ id: 'payroll' as const, label: 'Payroll Summary', icon: Users, description: 'Staff compensation and labor spend' }]
       : []),
   ];
+
+  // At-a-glance summary for the selected date range + branch scope.
+  const summary = useMemo(() => {
+    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
+    const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
+    const scoped = invoices.filter((i) => !i.isVoided && inScope(i.branchId));
+    const periodInv = scoped.filter((i) => inRange(i.date || ''));
+    const sales = periodInv.reduce((t, i) => t + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)), 0);
+    const tax = periodInv.filter((i) => i.withGst).reduce((t, i) => t + (i.totalTax || 0), 0);
+    const receivables = scoped.reduce((t, i) => t + invoiceDue(i), 0);
+    const payables = purchaseOrders.filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
+      .reduce((t, p) => t + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
+    return { sales, tax, receivables, payables, bills: periodInv.length };
+  }, [invoices, purchaseOrders, branchScope, startDate, endDate]);
 
   return (
     <div className="p-6 space-y-6 w-full">
@@ -219,6 +249,30 @@ export const ReportsView: React.FC = () => {
               className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
             />
           </div>
+        </div>
+      </div>
+
+      {/* At-a-glance summary (reflects selected range + branch) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
+          <p className="text-xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
+          <span className="text-[10px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
+          <p className="text-xl font-black text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
+          <span className="text-[10px] text-slate-400">On taxable invoices</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>
+          <p className="text-xl font-black text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
+          <span className="text-[10px] text-slate-400">Customer dues (current)</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Pay</span>
+          <p className="text-xl font-black text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
+          <span className="text-[10px] text-slate-400">Supplier dues (current)</span>
         </div>
       </div>
 

@@ -48,6 +48,21 @@ export const EstimateView: React.FC = () => {
     });
   }, [estimates, isAllBranches, currentBranch, searchQuery]);
 
+  // Scoped quote metrics.
+  const quoteStats = useMemo(() => {
+    const scoped = estimates.filter((e) => isAllBranches || e.branchId === currentBranch);
+    const month = new Date().toISOString().slice(0, 7);
+    const totalValue = scoped.reduce((t, e) => t + (e.grandTotal || 0), 0);
+    const monthList = scoped.filter((e) => (e.date || '').startsWith(month));
+    return {
+      count: scoped.length,
+      totalValue,
+      monthCount: monthList.length,
+      monthValue: monthList.reduce((t, e) => t + (e.grandTotal || 0), 0),
+      avgValue: scoped.length ? Math.round(totalValue / scoped.length) : 0,
+    };
+  }, [estimates, isAllBranches, currentBranch]);
+
   const handleSaved = (savedEstimate: Estimate) => {
     setEditingEstimate(null);
     setDuplicateSourceEstimate(null);
@@ -142,6 +157,30 @@ export const EstimateView: React.FC = () => {
               <span>Create New</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Quote metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Quotes</span>
+          <p className="text-2xl font-black text-slate-900 mt-1">{quoteStats.count}</p>
+          <span className="text-[10px] text-slate-400">{isAllBranches ? 'All branches' : currentBranchData?.name}</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quoted Value</span>
+          <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.totalValue)}</p>
+          <span className="text-[10px] text-slate-400">Across all quotes</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
+          <p className="text-2xl font-black text-indigo-700 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
+          <span className="text-[10px] text-slate-400">{quoteStats.monthCount} quote{quoteStats.monthCount === 1 ? '' : 's'}</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Avg Quote</span>
+          <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.avgValue)}</p>
+          <span className="text-[10px] text-slate-400">Per quotation</span>
         </div>
       </div>
 

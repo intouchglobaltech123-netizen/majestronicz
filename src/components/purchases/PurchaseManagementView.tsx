@@ -5,6 +5,8 @@ import {
   Plus,
   AlertTriangle,
   PackageCheck,
+  Wallet,
+  IndianRupee,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Vendor } from '../../types';
@@ -37,6 +39,15 @@ export const PurchaseManagementView: React.FC = () => {
     const totalReceived = p.items.reduce((s, it) => s + (it.receivedQuantity || 0), 0);
     return sum + Math.max(0, totalOrdered - totalReceived);
   }, 0);
+
+  // Money owed to suppliers, and this month's purchase spend.
+  const totalPayable = purchaseOrders
+    .filter((p) => p.status !== 'Cancelled')
+    .reduce((sum, p) => sum + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
+  const thisMonth = todayStr.slice(0, 7);
+  const monthSpend = purchaseOrders
+    .filter((p) => p.status !== 'Cancelled' && (p.date || '').startsWith(thisMonth))
+    .reduce((sum, p) => sum + (p.totalAmount || 0), 0);
 
   const handleStartPoWithVendor = (vendor: Vendor) => {
     setSelectedVendorForPo(vendor);
@@ -88,7 +99,31 @@ export const PurchaseManagementView: React.FC = () => {
       </div>
 
       {/* KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* To Pay (payables) */}
+        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${totalPayable > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+          <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To Pay (Suppliers)</p>
+            <p className="text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Outstanding supplier dues</p>
+          </div>
+        </div>
+
+        {/* This month spend */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200/60">
+            <IndianRupee className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Purchases This Month</p>
+            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Ordered value this month</p>
+          </div>
+        </div>
+
         {/* Active POs */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60">

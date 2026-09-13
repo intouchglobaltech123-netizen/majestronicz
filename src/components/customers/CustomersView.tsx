@@ -69,6 +69,12 @@ export const CustomersView: React.FC = () => {
     return Math.round((totalPurchases / totalCustomers) * 10) / 10;
   }, [customers, totalCustomers]);
 
+  // Segmentation: institutional accounts vs walk-in retail.
+  const orgCount = useMemo(
+    () => customers.filter((c) => (c.customerType || 'Retail') === 'Organization').length,
+    [customers]
+  );
+
   // Filtered & Sorted Customers
   const filteredCustomers = useMemo(() => {
     let result = [...customers];
@@ -196,7 +202,7 @@ export const CustomersView: React.FC = () => {
       ) : (
         <>
           {/* KPI Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* Total Customers */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
@@ -263,6 +269,22 @@ export const CustomersView: React.FC = () => {
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
                 Rule: Every {loyaltySettings.purchaseThreshold} gives reward
+              </span>
+            </div>
+
+            {/* Segmentation: Organizations vs Retail */}
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 block">
+                  Institutional
+                </span>
+                <Building2 className="h-4 w-4 text-purple-600" />
+              </div>
+              <div className="text-2xl font-black text-purple-950 mt-1">
+                {orgCount} <span className="text-xs font-bold text-purple-700">orgs</span>
+              </div>
+              <span className="text-[11px] text-purple-800 mt-0.5 block">
+                {totalCustomers - orgCount} retail · {totalCustomers} total
               </span>
             </div>
           </div>

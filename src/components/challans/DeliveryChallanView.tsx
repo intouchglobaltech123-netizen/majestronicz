@@ -35,6 +35,19 @@ export const DeliveryChallanView: React.FC = () => {
     });
   }, [challans, searchQuery]);
 
+  // Dispatch metrics.
+  const challanStats = useMemo(() => {
+    const month = new Date().toISOString().slice(0, 7);
+    const monthList = challans.filter((c) => (c.date || '').startsWith(month));
+    const totalUnits = challans.reduce((t, c) => t + ((c.items as any[]) || []).reduce((s, it) => s + (it.quantity || 0), 0), 0);
+    return {
+      count: challans.length,
+      monthCount: monthList.length,
+      totalUnits,
+      recipients: new Set(challans.map((c) => c.recipientName)).size,
+    };
+  }, [challans]);
+
   const handleSaved = (ch?: DeliveryChallan) => {
     setEditingChallan(null);
     setActiveTab('history');
@@ -101,6 +114,30 @@ export const DeliveryChallanView: React.FC = () => {
               {challans.length}
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* Dispatch metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Challans</span>
+          <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.count}</p>
+          <span className="text-[10px] text-slate-400">Dispatch notes issued</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
+          <p className="text-2xl font-black text-blue-700 mt-1">{challanStats.monthCount}</p>
+          <span className="text-[10px] text-slate-400">Dispatched this month</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Units Dispatched</span>
+          <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
+          <span className="text-[10px] text-slate-400">Across all challans</span>
+        </div>
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recipients</span>
+          <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.recipients}</p>
+          <span className="text-[10px] text-slate-400">Unique delivery parties</span>
         </div>
       </div>
 

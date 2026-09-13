@@ -111,6 +111,38 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             <WalletCards className="w-16 h-16 opacity-80" />
           </div>
         </div>
+
+        {/* Collection mix — how today's revenue splits across channels */}
+        {(() => {
+          const total = Math.max(1, cashSales + bankDigitalTotal + creditTotal);
+          const seg = [
+            { label: 'Cash', amount: cashSales, color: 'bg-emerald-500', text: 'text-emerald-700' },
+            { label: 'Digital / Bank', amount: bankDigitalTotal, color: 'bg-purple-500', text: 'text-purple-700' },
+            { label: 'Credit', amount: creditTotal, color: 'bg-indigo-500', text: 'text-indigo-700' },
+          ];
+          return (
+            <div className="mt-5 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's Collection Mix</span>
+                <span className="text-[11px] font-bold text-slate-700 font-mono">{formatCurrency(cashSales + bankDigitalTotal + creditTotal)}</span>
+              </div>
+              <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100">
+                {seg.map((s) => (
+                  <div key={s.label} className={s.color} style={{ width: `${(s.amount / total) * 100}%` }} title={`${s.label}: ${formatCurrency(s.amount)}`} />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
+                {seg.map((s) => (
+                  <span key={s.label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                    <span className={`h-2 w-2 rounded-full ${s.color}`} />
+                    {s.label} <span className={`font-mono font-bold ${s.text}`}>{formatCurrency(s.amount)}</span>
+                    <span className="text-slate-400">· {Math.round((s.amount / total) * 100)}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* CONSOLIDATED ROW OF 5 AUDIT STAT CARDS */}
