@@ -5,7 +5,7 @@ import { formatCurrency, cn } from '../../lib/utils';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, Layers, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
-  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent,
+  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent, CheckCircle2,
 } from 'lucide-react';
 
 // Outstanding due on a single invoice — single source of truth.
@@ -26,6 +26,7 @@ export const DashboardView: React.FC = () => {
     items, branchStocks, currentBranch, isAllBranches, currentBranchData, switchBranch, setCurrentView,
     currentUser, invoices, purchaseOrders, cashRegisters, enquiries, pendingOrders,
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
+    employees,
   } = useErp();
 
   const [trendHover, setTrendHover] = useState<number | null>(null);
@@ -186,6 +187,38 @@ export const DashboardView: React.FC = () => {
     () => [...scopedSales].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 6),
     [scopedSales]
   );
+
+  // ---- Receivables aging (how old the outstanding dues are) ----
+  const aging = useMemo(() => {
+    const buckets = { current: 0, d30: 0, d60: 0, d60plus: 0 };
+    const now = Date.now();
+    scopedSales.forEach((i) => {
+      const due = invoiceDue(i);
+      if (due <= 0) return;
+      const ageDays = Math.floor((now - new Date(i.date || today).getTime()) / 864e5);
+      if (ageDays <= 30) buckets.current += due;
+      else if (ageDays <= 60) buckets.d30 += due;
+      else if (ageDays <= 90) buckets.d60 += due;
+      else buckets.d60plus += due;
+    });
+    const total = buckets.current + buckets.d30 + buckets.d60 + buckets.d60plus;
+    return { ...buckets, total };
+  }, [scopedSales, today]);
+
+  // ---- Top salespeople this month (uses the incentive/salesperson data) ----
+  const topSalespeople = useMemo(() => {
+    const map: Record<string, { name: string; sales: number; incentive: number; bills: number }> = {};
+    scopedSales.filter((i) => (i.date || '').startsWith(thisMonth) && i.salespersonId).forEach((i) => {
+      const key = i.salespersonId as string;
+      if (!map[key]) map[key] = { name: i.salespersonName || employees.find((e) => e.id === key)?.name || 'Staff', sales: 0, incentive: 0, bills: 0 };
+      map[key].sales += netRevenue(i);
+      map[key].incentive += i.incentiveAmount || 0;
+      map[key].bills += 1;
+    });
+    const rows = Object.values(map).sort((a, b) => b.sales - a.sales).slice(0, 5);
+    const max = Math.max(1, ...rows.map((r) => r.sales));
+    return { rows, max };
+  }, [scopedSales, thisMonth, employees]);
 
   const salesTodayDelta = pct(money.salesToday, money.salesYest);
   const salesMonthDelta = pct(money.salesMonth, money.salesPrevMonth);
@@ -374,6 +407,81 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
+      {/* ---- Receivables aging + Top salespeople ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Receivables aging */}
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><ArrowDownCircle className="h-4 w-4 text-amber-500" /> Receivables Aging</h3>
+              <p className="text-[11px] text-slate-500">How overdue the money customers owe is</p>
+            </div>
+            <button onClick={() => setCurrentView('customers')} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">Collect <ChevronRight className="h-3 w-3" /></button>
+          </div>
+          {aging.total <= 0 ? (
+            <div className="py-6 text-center">
+              <CheckCircle2 className="h-7 w-7 mx-auto text-emerald-500 mb-1" />
+              <p className="text-xs font-semibold text-slate-600">All dues collected — nothing outstanding.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex h-3 rounded-full overflow-hidden bg-slate-100 mb-3">
+                {[
+                  { v: aging.current, c: 'bg-emerald-500' },
+                  { v: aging.d30, c: 'bg-amber-400' },
+                  { v: aging.d60, c: 'bg-orange-500' },
+                  { v: aging.d60plus, c: 'bg-rose-600' },
+                ].map((s, i) => s.v > 0 && <div key={i} className={s.c} style={{ width: `${(s.v / aging.total) * 100}%` }} title={formatCurrency(s.v)} />)}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: '0–30 days', v: aging.current, dot: 'bg-emerald-500', tone: 'text-emerald-700' },
+                  { label: '31–60 days', v: aging.d30, dot: 'bg-amber-400', tone: 'text-amber-700' },
+                  { label: '61–90 days', v: aging.d60, dot: 'bg-orange-500', tone: 'text-orange-700' },
+                  { label: '90+ days', v: aging.d60plus, dot: 'bg-rose-600', tone: 'text-rose-700' },
+                ].map((b) => (
+                  <div key={b.label} className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><span className={`h-2 w-2 rounded-full ${b.dot}`} />{b.label}</span>
+                    <p className={`text-sm font-black font-mono mt-1 ${b.tone}`}>{formatCurrency(b.v)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Total to collect</span>
+                <span className="font-black font-mono text-slate-900">{formatCurrency(aging.total)}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Top salespeople */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5 mb-1"><Trophy className="h-4 w-4 text-amber-500" /> Top Salespeople</h3>
+          <p className="text-[11px] text-slate-500 mb-4">This month · by attributed sales</p>
+          {topSalespeople.rows.length === 0 ? (
+            <p className="text-xs text-slate-400 py-8 text-center">No salesperson-tagged bills yet. Assign a salesperson on the Sales form.</p>
+          ) : (
+            <div className="space-y-3">
+              {topSalespeople.rows.map((p, idx) => (
+                <div key={p.name} className="flex items-center gap-3">
+                  <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0', idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}>{idx + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-slate-800 truncate">{p.name}</span>
+                      <span className="text-xs font-mono font-bold text-slate-700 shrink-0">{formatCurrency(p.sales)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
+                      <div className="h-full rounded-full bg-violet-500" style={{ width: `${(p.sales / topSalespeople.max) * 100}%` }} />
+                    </div>
+                    <span className="text-[10px] text-slate-400">{p.bills} bill{p.bills === 1 ? '' : 's'}{p.incentive > 0 ? ` · incentive ${formatCurrency(p.incentive)}` : ''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ---- Inventory health strip ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <HealthCard label="Low Stock" count={inv.lowStock} unit="items" tone={inv.lowStock > 0 ? 'amber' : 'emerald'}
@@ -443,12 +551,18 @@ const TONES: Record<string, string> = {
   cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700', slate: 'bg-slate-100 border-slate-200 text-slate-600',
   amber: 'bg-amber-50 border-amber-200 text-amber-700',
 };
+const ACCENT: Record<string, string> = {
+  blue: 'before:bg-blue-500', indigo: 'before:bg-indigo-500', emerald: 'before:bg-emerald-500',
+  rose: 'before:bg-rose-500', cyan: 'before:bg-cyan-500', slate: 'before:bg-slate-400', amber: 'before:bg-amber-500',
+};
 
 const KpiCard: React.FC<{
   label: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>;
   tone: string; delta?: number; deltaLabel?: string; onClick?: () => void; accent?: boolean;
 }> = ({ label, value, sub, icon: Icon, tone, delta, deltaLabel, onClick, accent }) => (
-  <button onClick={onClick} className={cn('text-left p-4 rounded-2xl bg-white border shadow-xs transition-all hover:shadow-md hover:-translate-y-0.5',
+  <button onClick={onClick} className={cn(
+    'relative overflow-hidden text-left p-4 pt-[18px] rounded-2xl bg-white border shadow-xs transition-all hover:shadow-md hover:-translate-y-0.5',
+    'before:absolute before:top-0 before:left-0 before:right-0 before:h-1', ACCENT[tone] || 'before:bg-slate-300',
     accent ? 'border-slate-300' : 'border-slate-200')}>
     <div className="flex items-center justify-between">
       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
