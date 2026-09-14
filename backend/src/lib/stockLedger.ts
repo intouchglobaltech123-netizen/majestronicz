@@ -1,5 +1,10 @@
 export const nowIso = () => new Date().toISOString();
-export const cleanPhone = (p?: string) => (p || '').trim().replace(/\D/g, '');
+export const cleanPhone = (raw?: string): string => {
+  let d = (raw || '').trim().replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return d;
+};
 export const rid = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 

@@ -124,29 +124,29 @@ router.get('/audit', requireCapability('admin'), asyncHandler(async (req, res) =
   res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined }));
 }));
 
-// ---- Generic id-keyed CRUD resources (RBAC per resource on writes) ----
-const resources: Record<string, { delegate: any; cap: Capability }> = {
+// ---- Generic id-keyed CRUD resources (RBAC per resource on writes & sensitive reads) ----
+const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability }> = {
   items: { delegate: prisma.item, cap: 'items:write' },
   combos: { delegate: prisma.comboItem, cap: 'items:write' },
-  'stock-adjustments': { delegate: prisma.stockAdjustmentLog, cap: 'stock:write' },
-  estimates: { delegate: prisma.estimate, cap: 'estimate:write' },
-  challans: { delegate: prisma.deliveryChallan, cap: 'challan:write' },
-  invoices: { delegate: prisma.invoice, cap: 'sales:write' },
-  enquiries: { delegate: prisma.enquiry, cap: 'enquiry:write' },
-  'pending-orders': { delegate: prisma.pendingOrder, cap: 'enquiry:write' },
-  reminders: { delegate: prisma.followUpReminder, cap: 'enquiry:write' },
-  'cash-registers': { delegate: prisma.dailyCashRegister, cap: 'cash:write' },
-  'recurring-expenses': { delegate: prisma.recurringExpenseTemplate, cap: 'cash:write' },
-  vendors: { delegate: prisma.vendor, cap: 'purchase:write' },
-  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write' },
-  employees: { delegate: prisma.employee, cap: 'hrm:write' },
-  'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write' },
-  'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin' },
-  customers: { delegate: prisma.customer, cap: 'customer:write' },
-  'stock-transfers': { delegate: prisma.stockTransfer, cap: 'stock:write' },
+  'stock-adjustments': { delegate: prisma.stockAdjustmentLog, cap: 'stock:write', readCap: 'stock:write' },
+  estimates: { delegate: prisma.estimate, cap: 'estimate:write', readCap: 'estimate:write' },
+  challans: { delegate: prisma.deliveryChallan, cap: 'challan:write', readCap: 'challan:write' },
+  invoices: { delegate: prisma.invoice, cap: 'sales:write', readCap: 'sales:write' },
+  enquiries: { delegate: prisma.enquiry, cap: 'enquiry:write', readCap: 'enquiry:write' },
+  'pending-orders': { delegate: prisma.pendingOrder, cap: 'enquiry:write', readCap: 'enquiry:write' },
+  reminders: { delegate: prisma.followUpReminder, cap: 'enquiry:write', readCap: 'enquiry:write' },
+  'cash-registers': { delegate: prisma.dailyCashRegister, cap: 'cash:write', readCap: 'cash:write' },
+  'recurring-expenses': { delegate: prisma.recurringExpenseTemplate, cap: 'cash:write', readCap: 'cash:write' },
+  vendors: { delegate: prisma.vendor, cap: 'purchase:write', readCap: 'purchase:write' },
+  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write', readCap: 'purchase:write' },
+  employees: { delegate: prisma.employee, cap: 'hrm:write', readCap: 'hrm:write' },
+  'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write', readCap: 'hrm:write' },
+  'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin', readCap: 'payroll:admin' },
+  customers: { delegate: prisma.customer, cap: 'customer:write', readCap: 'customer:write' },
+  'stock-transfers': { delegate: prisma.stockTransfer, cap: 'stock:write', readCap: 'stock:write' },
 };
-for (const [path, { delegate, cap }] of Object.entries(resources)) {
-  router.use(`/${path}`, crudRouter(delegate, prisma, cap));
+for (const [path, { delegate, cap, readCap }] of Object.entries(resources)) {
+  router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap));
 }
 
 // ---- Transactional domain endpoints (RBAC-guarded) ----
@@ -211,13 +211,13 @@ router.post('/ai/ask', requireCapability('ai:use'), asyncHandler(async (req, res
 }));
 
 // ---- Admin: reset to demo dataset (CEO only) ----
-router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (_req, res) => {
+router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (req, res) => {
   await reseedDatabase();
-  res.json(await system.getBootstrap());
+  res.json(await system.getBootstrap((req as any).user));
 }));
 
-// ---- Bootstrap + health (open reads) ----
-router.get('/bootstrap', asyncHandler(async (_req, res) => res.json(await system.getBootstrap())));
+// ---- Bootstrap + health (bootstrap is scoped by authenticated role) ----
+router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user))));
 router.get('/health', asyncHandler(async (_req, res) => res.json(await system.healthCheck())));
 
 export default router;

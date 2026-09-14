@@ -471,19 +471,19 @@ const ErpContext = createContext<ErpContextType | null>(null);
 
 export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserSession>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.currentUser) return parsed.currentUser;
-      }
-    } catch (e) {
-      console.error('Failed to load currentUser from storage:', e);
+    const session = getTokenSession();
+    if (session) {
+      return {
+        role: session.role as Role,
+        name: session.name,
+        pin: '',
+        assignedBranchId: session.assignedBranchId as BranchId | undefined,
+      };
     }
     return {
-      role: 'CEO',
-      name: 'Sathish Kumar (CEO)',
-      pin: '1111',
+      role: 'Sales',
+      name: '',
+      pin: '',
     };
   });
 
@@ -505,190 +505,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser.role === 'Billing' ? 'items' : 'dashboard';
   });
 
-  const [items, setItems] = useState<Item[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.items && Array.isArray(parsed.items) && parsed.items[0]?.salePrice !== undefined) {
-          return parsed.items;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load items from storage:', e);
-    }
-    return [];
-  });
-
-  const [combos, setCombos] = useState<ComboItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.combos && Array.isArray(parsed.combos)) {
-          return parsed.combos;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load combos from storage:', e);
-    }
-    return [];
-  });
-
-  const [branchStocks, setBranchStocks] = useState<BranchStock[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.branchStocks && Array.isArray(parsed.branchStocks)) {
-          return parsed.branchStocks;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load branch stocks from storage:', e);
-    }
-    return [];
-  });
-
-  const [stockAdjustmentLogs, setStockAdjustmentLogs] = useState<StockAdjustmentLog[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.stockAdjustmentLogs && Array.isArray(parsed.stockAdjustmentLogs)) {
-          return parsed.stockAdjustmentLogs;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load stock adjustment logs from storage:', e);
-    }
-    return [];
-  });
-
-  const [estimates, setEstimates] = useState<Estimate[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.estimates && Array.isArray(parsed.estimates)) {
-          return parsed.estimates;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load estimates from storage:', e);
-    }
-    return [];
-  });
-
-  const [challans, setChallans] = useState<DeliveryChallan[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.challans && Array.isArray(parsed.challans)) {
-          return parsed.challans;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load challans from storage:', e);
-    }
-    return [];
-  });
-
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.invoices && Array.isArray(parsed.invoices)) {
-          return parsed.invoices;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load invoices from storage:', e);
-    }
-    return [];
-  });
-
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
-          return parsed.enquiries;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load enquiries from storage:', e);
-    }
-    return [];
-  });
-
-  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.pendingOrders && Array.isArray(parsed.pendingOrders)) {
-          return parsed.pendingOrders;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load pendingOrders from storage:', e);
-    }
-    return [];
-  });
-
-  const [reminders, setReminders] = useState<FollowUpReminder[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.reminders && Array.isArray(parsed.reminders)) {
-          return parsed.reminders;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load reminders from storage:', e);
-    }
-    return [];
-  });
+  const [items, setItems] = useState<Item[]>([]);
+  const [combos, setCombos] = useState<ComboItem[]>([]);
+  const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
+  const [stockAdjustmentLogs, setStockAdjustmentLogs] = useState<StockAdjustmentLog[]>([]);
+  const [estimates, setEstimates] = useState<Estimate[]>([]);
+  const [challans, setChallans] = useState<DeliveryChallan[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [reminders, setReminders] = useState<FollowUpReminder[]>([]);
 
   const [selectedEnquiryForDetail, setSelectedEnquiryForDetail] = useState<Enquiry | null>(null);
   const [selectedPendingOrderForDetail, setSelectedPendingOrderForDetail] = useState<PendingOrder | null>(null);
   const [selectedPurchaseOrderForDetail, setSelectedPurchaseOrderForDetail] = useState<PurchaseOrder | null>(null);
   const [reminderModalEnquiry, setReminderModalEnquiry] = useState<Enquiry | null>(null);
 
-  const [cashRegisters, setCashRegisters] = useState<DailyCashRegister[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.cashRegisters && Array.isArray(parsed.cashRegisters)) {
-          return parsed.cashRegisters;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load cashRegisters from storage:', e);
-    }
-    return [];
-  });
-
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpenseTemplate[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.recurringExpenses && Array.isArray(parsed.recurringExpenses)) {
-          return parsed.recurringExpenses;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load recurringExpenses from storage:', e);
-    }
-    return [];
-  });
+  const [cashRegisters, setCashRegisters] = useState<DailyCashRegister[]>([]);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpenseTemplate[]>([]);
 
   const [enquiryActiveTab, setEnquiryActiveTab] = useState<'all' | 'new-item-requests'>('all');
 
@@ -697,125 +531,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentView('enquiries');
   };
 
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.vendors && Array.isArray(parsed.vendors) && parsed.vendors.length > 0) {
-          return parsed.vendors;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load vendors from storage:', e);
-    }
-    return [];
-  });
-
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.purchaseOrders && Array.isArray(parsed.purchaseOrders) && parsed.purchaseOrders.length > 0) {
-          return parsed.purchaseOrders;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load purchase orders from storage:', e);
-    }
-    return [];
-  });
-
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.employees && Array.isArray(parsed.employees) && parsed.employees.length > 0) {
-          return parsed.employees;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load employees from storage:', e);
-    }
-    return [];
-  });
-
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.attendanceRecords && Array.isArray(parsed.attendanceRecords)) {
-          return parsed.attendanceRecords;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load attendanceRecords from storage:', e);
-    }
-    return [];
-  });
-
-  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.payrollSettings && parsed.payrollSettings.standardHoursPerMonth) {
-          return parsed.payrollSettings;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load payrollSettings from storage:', e);
-    }
-    return { standardHoursPerMonth: 208 };
-  });
-
-  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.payrollRecords && Array.isArray(parsed.payrollRecords)) {
-          return parsed.payrollRecords;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load payrollRecords from storage:', e);
-    }
-    return [];
-  });
-
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.customers && Array.isArray(parsed.customers) && parsed.customers.length > 0) {
-          return parsed.customers;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load customers from storage:', e);
-    }
-    return [];
-  });
-
-  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.loyaltySettings && typeof parsed.loyaltySettings.purchaseThreshold === 'number') {
-          return parsed.loyaltySettings;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load loyaltySettings from storage:', e);
-    }
-    return { purchaseThreshold: 10, discountType: 'percentage', discountValue: 0, isActive: false, updatedAt: '', updatedBy: '' };
-  });
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>({ standardHoursPerMonth: 208 });
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>({ purchaseThreshold: 10, discountType: 'percentage', discountValue: 0, isActive: false, updatedAt: '', updatedBy: '' });
 
   const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<Customer | null>(null);
 
@@ -858,110 +581,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Categories & Subcategories State
-  const [categories, setCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.categories && Array.isArray(parsed.categories)) {
-          return parsed.categories;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load categories:', e);
-    }
-    return [];
-  });
-
-  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<Record<string, string[]>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.subcategoriesByCategory && typeof parsed.subcategoriesByCategory === 'object') {
-          return parsed.subcategoriesByCategory;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load subcategories:', e);
-    }
-    return {};
-  });
-
-  const [categoryPrefixMap, setCategoryPrefixMap] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.categoryPrefixMap) {
-          return parsed.categoryPrefixMap;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load category prefix map:', e);
-    }
-    return {};
-  });
-
-  const [subcategoryPrefixMap, setSubcategoryPrefixMap] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.subcategoryPrefixMap) {
-          return parsed.subcategoryPrefixMap;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load subcategory prefix map:', e);
-    }
-    return {};
-  });
-
-  const [unitsList, setUnitsList] = useState<{ label: string; value: string }[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.unitsList && Array.isArray(parsed.unitsList)) {
-          return parsed.unitsList;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load units list:', e);
-    }
-    return [];
-  });
-
-  const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.gstSlabsList && Array.isArray(parsed.gstSlabsList)) {
-          return parsed.gstSlabsList;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load gst slabs:', e);
-    }
-    return [];
-  });
-
-  const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: StorageState = JSON.parse(saved);
-        if (parsed.paymentTermsOptions && Array.isArray(parsed.paymentTermsOptions)) {
-          return parsed.paymentTermsOptions;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load payment terms:', e);
-    }
-    return [];
-  });
+  const [categories, setCategories] = useState<string[]>([]);
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<Record<string, string[]>>({});
+  const [categoryPrefixMap, setCategoryPrefixMap] = useState<Record<string, string>>({});
+  const [subcategoryPrefixMap, setSubcategoryPrefixMap] = useState<Record<string, string>>({});
+  const [unitsList, setUnitsList] = useState<{ label: string; value: string }[]>([]);
+  const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>([]);
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
     try {
@@ -1053,15 +679,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             assignedBranchId: session.assignedBranchId as BranchId | undefined,
           });
           setIsAuthenticated(true);
+          const data = await apiGet<any>('/api/bootstrap');
+          if (cancelled) return;
+          hydrateState(data);
+          setBootstrapError(null);
         } else {
           setAuthToken(null);
           setIsAuthenticated(false);
         }
-
-        const data = await apiGet<any>('/api/bootstrap');
-        if (cancelled) return;
-        hydrateState(data);
-        setBootstrapError(null);
       } catch (e: any) {
         console.error('Bootstrap load failed:', e);
         if (!cancelled) setBootstrapError(e?.message ?? 'Failed to reach backend');
@@ -1123,20 +748,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useDbSync('/api/config/loyaltySettings', loyaltySettings, dbReady);
   useDbSync('/api/config/payrollSettings', payrollSettings, dbReady);
 
-  // Persist ONLY per-session UI state to localStorage (which role is logged in,
-  // active branch, current view). All business data lives in Postgres — never
-  // mirrored to the browser.
+  // Persist ONLY non-sensitive per-session UI state to localStorage (active
+  // branch, current view). User identity & credentials live in signed tokens & Postgres.
   useEffect(() => {
     if (isBootstrapping) return;
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ currentBranch, currentUser, currentView })
+        JSON.stringify({ currentBranch, currentView })
       );
     } catch (e) {
-      console.error('Failed to persist session to localStorage:', e);
+      console.error('Failed to persist UI state to localStorage:', e);
     }
-  }, [isBootstrapping, currentBranch, currentUser, currentView]);
+  }, [isBootstrapping, currentBranch, currentView]);
 
   // Built-in fallback (used before the backend matrix loads / if absent).
   const DEFAULT_ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
@@ -1332,6 +956,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView(landingViewFor(res.user.role));
       setMustResetPin(Boolean(res.mustResetPin));
       setIsAuthenticated(true);
+      try {
+        const bootstrapData = await apiGet<any>('/api/bootstrap');
+        hydrateState(bootstrapData);
+      } catch (err) {
+        console.error('Failed to load ERP state on login:', err);
+      }
       // One-time dashboard "tour" auto-scroll after each fresh login.
       try { sessionStorage.setItem('mjz_dashboard_tour', '1'); } catch { /* ignore */ }
       if (res.mustResetPin) {

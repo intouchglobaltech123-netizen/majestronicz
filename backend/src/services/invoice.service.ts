@@ -45,7 +45,10 @@ async function snapshot(tx: any) {
 
 /** Create or edit an invoice: customer link/update + stock decrement, atomic.
  * New sales get a server-authoritative, collision-free invoice number. */
-export function createSale(inv: any) {
+export function createSale(inv: any, reqUser?: any) {
+  if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && inv.branchId !== reqUser.assignedBranchId) {
+    throw new AppError('FORBIDDEN', `You are only authorized to bill for branch ${reqUser.assignedBranchId}`, 403);
+  }
   recomputeInvoiceMoney(inv); // server-authoritative totals
   // Salesperson incentive: store the ₹ computed from the authoritative grand total.
   if (inv.salespersonId && Number(inv.incentivePercent) > 0) {
@@ -69,15 +72,11 @@ export function createSale(inv: any) {
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
 
-    // Customer link / update
+    // Customer link / update (never match by name alone to prevent merging distinct customers)
     const customers = await tx.customer.findMany();
     const cust =
       (inv.customerId && customers.find((c: any) => c.id === inv.customerId)) ||
       (phoneClean && customers.find((c: any) => cleanPhone(c.phone) === phoneClean)) ||
-      (inv.customerName?.trim() &&
-        customers.find(
-          (c: any) => c.name.trim().toLowerCase() === inv.customerName.trim().toLowerCase()
-        )) ||
       null;
 
     if (cust) {
@@ -88,9 +87,10 @@ export function createSale(inv: any) {
       await tx.customer.update({
         where: { id: cust.id },
         data: {
-          name: inv.customerName || cust.name,
-          phone: inv.customerPhone || cust.phone,
-          address: inv.customerAddress || cust.address,
+          // Do not silently overwrite customer master details with invoice inputs
+          name: cust.name || inv.customerName || '',
+          phone: cust.phone || inv.customerPhone || '',
+          address: cust.address || inv.customerAddress || '',
           purchaseCount: newCount,
           totalSpent: newSpent,
           firstPurchaseDate: cust.firstPurchaseDate || inv.date,
@@ -100,13 +100,13 @@ export function createSale(inv: any) {
           updatedAt: ts,
         },
       });
-    } else if (inv.customerName?.trim()) {
-      const newCustId = rid('cust');
+    } else if (inv.customerName?.trim() || phoneClean) {
+      const newCustId = inv.customerId || rid('cust');
       inv.customerId = newCustId;
       await tx.customer.create({
         data: {
           id: newCustId,
-          name: inv.customerName.trim(),
+          name: (inv.customerName || 'Customer').trim(),
           phone: inv.customerPhone || '',
           address: inv.customerAddress || '',
           firstPurchaseDate: inv.date,
@@ -120,7 +120,7 @@ export function createSale(inv: any) {
       });
     }
 
-    // Branch stock: restore old invoice qty (edit), then decrement new items
+    // Branch stock: restore old invoice qty (edit), then validate and decrement new items
     const allStocks = await tx.branchStock.findMany();
     const ledger = new StockLedger(allStocks, inv.branchId);
     if (oldInvoice) {
@@ -133,13 +133,36 @@ export function createSale(inv: any) {
         }
       }
     }
+
+    // Authoritative stock shortage validation across standalone items and combo components
+    const demand = new Map<string, { qty: number; name: string }>();
     for (const newItem of inv.items as any[]) {
       if (newItem.isCombo && newItem.comboComponents?.length) {
-        for (const comp of newItem.comboComponents)
-          ledger.apply(comp.itemId, -(comp.quantity * (newItem.quantity || 0)), true);
+        for (const comp of newItem.comboComponents) {
+          const needed = (comp.quantity || 0) * (newItem.quantity || 0);
+          const cur = demand.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component' };
+          demand.set(comp.itemId, { qty: cur.qty + needed, name: cur.name });
+        }
       } else if (newItem.itemId) {
-        ledger.apply(newItem.itemId, -(newItem.quantity || 0), true);
+        const needed = newItem.quantity || 0;
+        const cur = demand.get(newItem.itemId) || { qty: 0, name: newItem.itemName || 'Item' };
+        demand.set(newItem.itemId, { qty: cur.qty + needed, name: cur.name });
       }
+    }
+
+    for (const [itemId, req] of demand.entries()) {
+      const available = ledger.qty(itemId);
+      if (available < req.qty) {
+        throw new AppError(
+          'INSUFFICIENT_STOCK',
+          `Insufficient stock for "${req.name}" at this branch. Available: ${available}, Requested: ${req.qty}`,
+          400
+        );
+      }
+    }
+
+    for (const [itemId, req] of demand.entries()) {
+      ledger.apply(itemId, -req.qty, false);
     }
     await ledger.flush(tx);
 

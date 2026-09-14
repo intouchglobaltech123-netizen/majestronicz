@@ -4,6 +4,8 @@ import { broadcastChange } from './lib/events.js';
 import { requireCapability } from './middleware/rbac.js';
 import { Capability } from './lib/auth.js';
 
+import { AppError } from './middleware/errorHandler.js';
+
 /**
  * Generic REST CRUD router for a Prisma model keyed on a single string `id`.
  * Exposes:
@@ -13,15 +15,24 @@ import { Capability } from './lib/auth.js';
  *   PUT    /:id         update
  *   DELETE /:id         delete
  */
-export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability): Router {
+export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability, readCap?: Capability): Router {
   const router = Router();
 
-  // Enforce RBAC on all mutating (non-GET) requests to this resource.
-  if (writeCap) {
-    router.use((req, res, next) =>
-      req.method === 'GET' ? next() : requireCapability(writeCap)(req, res, next)
-    );
-  }
+  // Enforce RBAC on both read and mutating requests
+  router.use((req, res, next) => {
+    if (req.method === 'GET') {
+      if (readCap) {
+        return requireCapability(readCap)(req, res, next);
+      }
+      const user = (req as any).user;
+      if (!user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+      return next();
+    }
+    if (writeCap) {
+      return requireCapability(writeCap)(req, res, next);
+    }
+    next();
+  });
 
   const wrap =
     (fn: (req: Request, res: Response) => Promise<unknown>) =>

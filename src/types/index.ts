@@ -1107,13 +1107,6 @@ export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean 
   const cleanCustomerPhone = normalizePhone(customer.phone);
   const cleanInvPhone = normalizePhone(inv.customerPhone);
   if (cleanCustomerPhone && cleanInvPhone && cleanCustomerPhone === cleanInvPhone) return true;
-  if (
-    customer.name &&
-    inv.customerName &&
-    customer.name.trim().toLowerCase() === inv.customerName.trim().toLowerCase()
-  ) {
-    return true;
-  }
   return false;
 };
 

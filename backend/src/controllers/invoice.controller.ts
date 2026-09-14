@@ -6,7 +6,7 @@ const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` 
 
 export const createSale = async (req: Request, res: Response) => {
   const inv = req.body;
-  const result: any = await invoiceService.createSale(inv);
+  const result: any = await invoiceService.createSale(inv, (req as any).user);
   await recordAudit({
     actor: actorOf(req), action: 'sale.save', entity: 'invoice', entityId: result?.invoiceNumber || inv?.id,
     summary: `Sale ${inv?.customerName || ''} · ₹${inv?.grandTotal ?? ''}${inv?.salespersonName ? ` · incentive ${inv?.incentivePercent}% to ${inv.salespersonName}` : ''}`,
