@@ -1003,6 +1003,18 @@ export interface StaffUser {
   updatedAt?: string | null;
 }
 
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  entity: string;
+  entityId?: string | null;
+  summary?: string | null;
+  before?: unknown;
+  after?: unknown;
+}
+
 export interface RecordPaymentInput {
   type: 'in' | 'out';
   partyType: 'customer' | 'vendor';

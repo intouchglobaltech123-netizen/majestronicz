@@ -64,6 +64,7 @@ import {
   Payment,
   RecordPaymentInput,
   StaffUser,
+  AuditEntry,
   InventorySettings,
   CustomerOutstandingInvoice,
   getCustomerOutstandingSummary,
@@ -162,6 +163,7 @@ interface ErpContextType {
   deleteStaffUser: (id: string) => Promise<boolean>;
   linkStaffLogin: (input: { employeeId: string; role: Role; name: string; assignedBranchId?: string; pin: string; status?: string }) => Promise<boolean>;
   unlinkStaffLogin: (employeeId: string) => Promise<boolean>;
+  getAuditLog: (filter?: { entity?: string; action?: string; limit?: number }) => Promise<AuditEntry[]>;
 
   // Permissions
   canManageItems: boolean; // CEO & Manager can edit master item catalog & master pricing
@@ -1453,6 +1455,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const afterColon = raw.split(': ').slice(1).join(': ').trim();
       toast.error(afterColon && !/^[A-Z_]+$/.test(afterColon) ? afterColon : 'Could not enable app login');
       return false;
+    }
+  };
+  const getAuditLog = async (filter?: { entity?: string; action?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (filter?.entity) qs.set('entity', filter.entity);
+    if (filter?.action) qs.set('action', filter.action);
+    if (filter?.limit) qs.set('limit', String(filter.limit));
+    try {
+      return await apiGet<AuditEntry[]>(`/api/audit${qs.toString() ? `?${qs}` : ''}`);
+    } catch {
+      return [];
     }
   };
   const unlinkStaffLogin = async (employeeId: string): Promise<boolean> => {
@@ -4275,6 +4288,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteStaffUser,
         linkStaffLogin,
         unlinkStaffLogin,
+        getAuditLog,
         stockTransfers,
         transferStockBatch,
         inventorySettings,

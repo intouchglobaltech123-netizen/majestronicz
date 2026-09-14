@@ -7,6 +7,7 @@ import {
 import { ShieldCheck, Save, RotateCcw, Lock, Check, Sparkles, LayoutGrid, Zap, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { StaffAccountsSection } from './StaffAccountsSection';
+import { AuditLogSection } from './AuditLogSection';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 
 const FIELD_FLAGS = ALL_FLAGS.filter((f) => !AI_DATA_FLAGS.includes(f));
@@ -203,6 +204,9 @@ export const AccessManagementView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Audit trail */}
+      <AuditLogSection />
     </div>
   );
 };

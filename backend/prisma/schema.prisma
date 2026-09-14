@@ -450,6 +450,24 @@ model User {
   @@index([status])
 }
 
+// Append-only audit trail for sensitive changes (financial, payroll, access,
+// inventory). Written by recordAudit(); never updated or deleted via the API.
+model AuditLog {
+  id        String  @id
+  timestamp String
+  actor     String  // "Name (Role)" of who made the change
+  action    String  // e.g. 'sale.create', 'sale.void', 'payment.record', 'user.update'
+  entity    String  // 'invoice' | 'payment' | 'user' | 'accessMatrix' | 'return' ...
+  entityId  String?
+  summary   String? // short human description
+  before    Json?
+  after     Json?
+
+  @@index([timestamp])
+  @@index([entity, entityId])
+  @@index([action])
+}
+
 // Key/value store for app-level configuration singletons:
 // loyaltySettings, payrollSettings, categories, subcategoriesByCategory,
 // categoryPrefixMap, subcategoryPrefixMap, unitsList, gstSlabsList,

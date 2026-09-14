@@ -23,6 +23,9 @@ import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
   linkLoginToEmployee, unlinkLogin,
 } from '../services/user.service.js';
+import { recordAudit, listAudit } from '../services/audit.service.js';
+
+const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
 
 const router = Router();
 
@@ -70,6 +73,7 @@ router.post('/auth/change-pin', asyncHandler(async (req, res) => {
   const actor = (req as any).user;
   if (!actor?.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
   await changeOwnPin(actor.userId, String(req.body?.newPin || ''));
+  await recordAudit({ actor: actorOf(req), action: 'auth.change-pin', entity: 'user', entityId: actor.userId, summary: 'Staff set their own new PIN' });
   broadcastChange('POST /api/auth/change-pin');
   res.json({ ok: true });
 }));
@@ -77,35 +81,47 @@ router.post('/auth/change-pin', asyncHandler(async (req, res) => {
 // ---- Staff account management (CEO/admin only) ----
 router.get('/users', requireCapability('admin'), asyncHandler(async (_req, res) => res.json(await listUsers())));
 router.post('/users', requireCapability('admin'), asyncHandler(async (req, res) => {
-  const created = await createUser(req.body);
+  const created: any = await createUser(req.body);
+  await recordAudit({ actor: actorOf(req), action: 'user.create', entity: 'user', entityId: created.id, summary: `Created ${created.role} account for ${created.name}`, after: created });
   broadcastChange('POST /api/users');
   res.json(created);
 }));
 router.put('/users/:id', requireCapability('admin'), asyncHandler(async (req, res) => {
-  const updated = await updateUser(req.params.id, req.body);
+  const updated: any = await updateUser(req.params.id, req.body);
+  await recordAudit({ actor: actorOf(req), action: 'user.update', entity: 'user', entityId: req.params.id, summary: `Updated ${updated.name}`, after: updated });
   broadcastChange('PUT /api/users');
   res.json(updated);
 }));
 router.post('/users/:id/reset-pin', requireCapability('admin'), asyncHandler(async (req, res) => {
   const result = await adminResetPin(req.params.id, String(req.body?.newPin || ''));
+  await recordAudit({ actor: actorOf(req), action: 'user.reset-pin', entity: 'user', entityId: req.params.id, summary: 'Reset staff PIN (must reset on next login)' });
   broadcastChange('POST /api/users/reset-pin');
   res.json(result);
 }));
 router.delete('/users/:id', requireCapability('admin'), asyncHandler(async (req, res) => {
   const result = await deleteUser(req.params.id);
+  await recordAudit({ actor: actorOf(req), action: 'user.delete', entity: 'user', entityId: req.params.id, summary: 'Removed staff login account' });
   broadcastChange('DELETE /api/users');
   res.json(result);
 }));
 // Attach / detach a login for an existing employee (unified enroll form).
 router.post('/staff/login', requireCapability('admin'), asyncHandler(async (req, res) => {
-  const result = await linkLoginToEmployee(req.body);
+  const result: any = await linkLoginToEmployee(req.body);
+  await recordAudit({ actor: actorOf(req), action: 'user.link-login', entity: 'user', entityId: result.id, summary: `Enabled ${result.role} login for ${result.name}`, after: result });
   broadcastChange('POST /api/staff/login');
   res.json(result);
 }));
 router.delete('/staff/login/:employeeId', requireCapability('admin'), asyncHandler(async (req, res) => {
   const result = await unlinkLogin(req.params.employeeId);
+  await recordAudit({ actor: actorOf(req), action: 'user.unlink-login', entity: 'employee', entityId: req.params.employeeId, summary: 'Removed app login from employee' });
   broadcastChange('DELETE /api/staff/login');
   res.json(result);
+}));
+
+// ---- Audit trail (read-only; CEO/admin) ----
+router.get('/audit', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const { entity, entityId, action, limit } = req.query as Record<string, string | undefined>;
+  res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined }));
 }));
 
 // ---- Generic id-keyed CRUD resources (RBAC per resource on writes) ----
@@ -158,9 +174,12 @@ router.get('/events', sseHandler);
 router.get('/access-matrix', asyncHandler(async (_req, res) =>
   res.json({ matrix: getLiveMatrix(), allViews: ALL_VIEWS, allCaps: ALL_CAPS, allFlags: ALL_FLAGS })
 ));
-router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) =>
-  res.json(await updateAccessMatrix(req.body))
-));
+router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const before = getLiveMatrix();
+  const updated = await updateAccessMatrix(req.body);
+  await recordAudit({ actor: actorOf(req), action: 'access.update', entity: 'accessMatrix', entityId: 'accessMatrix', summary: 'Updated role access matrix', before, after: updated });
+  res.json(updated);
+}));
 
 // ---- Payments / party ledger (receipts from customers, payments to vendors) ----
 router.get('/payments', asyncHandler(async (req, res) => {
@@ -169,12 +188,15 @@ router.get('/payments', asyncHandler(async (req, res) => {
 }));
 router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const user = (req as any).user;
-  const result = await recordPayment(req.body, { name: user?.name, id: user?.name });
+  const result: any = await recordPayment(req.body, { name: user?.name, id: user?.name });
+  await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
+    summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result });
   broadcastChange('POST /api/payments');
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const result = await deletePayment(req.params.id);
+  await recordAudit({ actor: actorOf(req), action: 'payment.delete', entity: 'payment', entityId: req.params.id, summary: 'Payment deleted / reversed' });
   broadcastChange('DELETE /api/payments');
   res.json(result);
 }));
