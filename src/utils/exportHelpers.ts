@@ -19,8 +19,15 @@ const baseName = (filename: string) => filename.replace(/\.(csv|xls|xlsx|pdf)$/i
  * Export to a real Excel-openable file (.xls) using an HTML table — no library,
  * opens directly in Excel / Google Sheets with basic formatting.
  */
+// Neutralize spreadsheet formula injection: a cell starting with = + - @ (or tab/CR)
+// is prefixed with an apostrophe so Excel/Sheets treat it as text, not a formula.
+const deFormula = (v: Cell) => {
+  const s = String(v ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+};
+
 export function exportToExcel(filename: string, headers: string[], rows: Cell[][]): void {
-  const esc = (v: Cell) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const esc = (v: Cell) => deFormula(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const thead = `<tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>`;
   const tbody = rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
   const html =

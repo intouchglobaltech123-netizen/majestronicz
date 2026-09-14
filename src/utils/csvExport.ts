@@ -12,7 +12,9 @@ export const exportToCsv = (
   try {
     const escapeCell = (cell: string | number | boolean | null | undefined): string => {
       if (cell === null || cell === undefined) return '""';
-      const str = String(cell);
+      let str = String(cell);
+      // Neutralize spreadsheet formula injection (=, +, -, @ prefixes).
+      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
       if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
         return `"${str.replace(/"/g, '""')}"`;
       }
