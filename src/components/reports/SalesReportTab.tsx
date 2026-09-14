@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES, PaymentMode, getInvoicePaymentSplits } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import {
   Receipt,
-  Download,
+
   CreditCard,
   Banknote,
   Smartphone,
@@ -132,7 +134,7 @@ export const SalesReportTab: React.FC<Props> = ({
     };
   }, [filteredInvoices]);
 
-  const handleExportCsv = () => {
+  const handleExport = (format: ExportFormat = 'csv') => {
     if (filteredInvoices.length === 0) return;
 
     const branchName = branchScope === 'all'
@@ -224,7 +226,11 @@ export const SalesReportTab: React.FC<Props> = ({
       ]);
     });
 
-    exportToCsv(filename, headers, rows);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
+
+    else exportToCsv(filename, headers, rows);
   };
 
   const getModeIcon = (mode: PaymentMode) => {
@@ -254,14 +260,7 @@ export const SalesReportTab: React.FC<Props> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          disabled={filteredInvoices.length === 0}
-          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Sales CSV</span>
-        </button>
+        <ReportExportButtons onExport={handleExport} />
       </div>
 
       {filteredInvoices.length === 0 ? (

@@ -2,9 +2,11 @@ import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import {
   TrendingUp,
-  Download,
+
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -97,7 +99,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
     }
   };
 
-  const handleExportCsv = () => {
+  const handleExport = (format: ExportFormat = 'csv') => {
     if (filteredEnquiries.length === 0 && openPendingOrders.length === 0) return;
 
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
@@ -159,7 +161,11 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
       ]);
     });
 
-    exportToCsv(filename, headers, rows);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
+
+    else exportToCsv(filename, headers, rows);
   };
 
   return (
@@ -176,14 +182,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          disabled={filteredEnquiries.length === 0 && openPendingOrders.length === 0}
-          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Conversion CSV</span>
-        </button>
+        <ReportExportButtons onExport={handleExport} />
       </div>
 
       {/* KPI Cards */}

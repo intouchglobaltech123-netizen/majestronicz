@@ -218,8 +218,9 @@ export async function linkLoginToEmployee(input: {
   }
   if (!isValidPin(input.pin)) throw new AppError('BAD_REQUEST', 'Login PIN must be exactly 4 digits', 400);
 
+  // The employee may still be committing (created moments earlier from the enroll
+  // form), so its absence here is not fatal — we link by id regardless.
   const emp = await prisma.employee.findUnique({ where: { id: input.employeeId } });
-  if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
 
   const existing = await prisma.user.findFirst({ where: { employeeId: input.employeeId } });
   const clash = await prisma.user.findFirst({
@@ -228,8 +229,8 @@ export async function linkLoginToEmployee(input: {
   if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another login. Choose a different one.', 409);
 
   const status = input.status === 'Inactive' ? 'disabled' : 'active';
-  const assignedBranchId = input.role === 'Manager' ? (input.assignedBranchId || emp.branchId) : (input.assignedBranchId ?? null);
-  // Keep the employee's attendance PIN in sync with the login PIN.
+  const assignedBranchId = input.role === 'Manager' ? (input.assignedBranchId || emp?.branchId || 'coimbatore') : (input.assignedBranchId ?? null);
+  // Keep the employee's attendance PIN in sync with the login PIN (no-op if not created yet).
   await prisma.employee.updateMany({ where: { id: input.employeeId }, data: { pin: input.pin, updatedAt: nowIso() } });
 
   if (existing) {

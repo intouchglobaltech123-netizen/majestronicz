@@ -21,6 +21,7 @@ export const PayrollSummaryView: React.FC = () => {
     attendanceRecords,
     payrollSettings,
     payrollRecords,
+    invoices,
     updatePayrollAdjustment,
     markPayrollPaid,
     currentBranch,
@@ -82,9 +83,23 @@ export const PayrollSummaryView: React.FC = () => {
       (p) => p.employeeId === emp.id && p.month === selectedMonth
     );
 
+    // 2b. Salesperson incentives credited to this employee this month.
+    // Voided bills are excluded (reversed); returns reduce it proportionally.
+    const incentiveEarned = Math.round(
+      invoices
+        .filter((inv) => !inv.isVoided && inv.salespersonId === emp.id && (inv.date || '').startsWith(selectedMonth))
+        .reduce((sum, inv) => {
+          const amt = inv.incentiveAmount || 0;
+          if (!amt) return sum;
+          const gross = inv.grandTotal || 0;
+          const netRatio = gross > 0 ? Math.max(0, gross - (inv.totalReturnedAmount || 0)) / gross : 0;
+          return sum + amt * netRatio;
+        }, 0)
+    );
+
     const manualAdjustment = existingRec?.manualAdjustment || 0;
     const adjustmentReason = existingRec?.adjustmentReason;
-    const finalPayable = Math.max(0, computedPay + manualAdjustment);
+    const finalPayable = Math.max(0, computedPay + incentiveEarned + manualAdjustment);
     const status = existingRec?.status || 'Draft';
 
     return {
@@ -100,6 +115,7 @@ export const PayrollSummaryView: React.FC = () => {
       totalDaysPresent,
       totalHoursWorked,
       computedPay,
+      incentiveEarned,
       manualAdjustment,
       adjustmentReason,
       finalPayable,
@@ -258,6 +274,7 @@ export const PayrollSummaryView: React.FC = () => {
                 <th className="py-3 px-3 text-center">Days / Hours</th>
                 <th className="py-3 px-3 text-right">Hourly Rate</th>
                 <th className="py-3 px-3 text-right">Computed Pay</th>
+                <th className="py-3 px-3 text-right">Incentive</th>
                 <th className="py-3 px-3 text-right">Adjustment</th>
                 <th className="py-3 px-4 text-right">Final Payable</th>
                 <th className="py-3 px-3 text-center">Status</th>
@@ -267,7 +284,7 @@ export const PayrollSummaryView: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {payrollRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={11} className="py-12 text-center text-slate-400">
                     <DollarSign className="h-10 w-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-medium text-slate-600">No employees for this period</p>
                   </td>
@@ -319,6 +336,15 @@ export const PayrollSummaryView: React.FC = () => {
                       {/* Computed Pay */}
                       <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(row.computedPay)}
+                      </td>
+
+                      {/* Salesperson incentive */}
+                      <td className="py-3.5 px-3 text-right font-mono">
+                        {(row.incentiveEarned || 0) > 0 ? (
+                          <span className="font-bold text-violet-700">+{formatCurrency(row.incentiveEarned || 0)}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Adjustment (+/-) */}

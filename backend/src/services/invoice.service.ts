@@ -47,6 +47,15 @@ async function snapshot(tx: any) {
  * New sales get a server-authoritative, collision-free invoice number. */
 export function createSale(inv: any) {
   recomputeInvoiceMoney(inv); // server-authoritative totals
+  // Salesperson incentive: store the ₹ computed from the authoritative grand total.
+  if (inv.salespersonId && Number(inv.incentivePercent) > 0) {
+    inv.incentiveAmount = Math.round((inv.grandTotal || 0) * Number(inv.incentivePercent)) / 100;
+  } else {
+    inv.salespersonId = inv.salespersonId || null;
+    inv.salespersonName = inv.salespersonName || null;
+    inv.incentivePercent = inv.incentivePercent ?? null;
+    inv.incentiveAmount = inv.incentiveAmount ?? null;
+  }
   return serializableTx(async (tx: any) => {
     const reg = await tx.dailyCashRegister.findFirst({
       where: { branchId: inv.branchId, date: inv.date, isClosed: true },

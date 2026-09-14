@@ -273,6 +273,11 @@ export interface Invoice {
   totalReturnedAmount?: number;
   isLoyaltyRewardApplied?: boolean;
   loyaltyRewardDiscountAmount?: number;
+  // Salesperson incentive — manually assigned per bill; ₹ stored at save time.
+  salespersonId?: string;
+  salespersonName?: string;
+  incentivePercent?: number;
+  incentiveAmount?: number;
 }
 
 export const BRANCHES: Branch[] = [
@@ -866,9 +871,10 @@ export interface PayrollRecord {
   totalDaysPresent: number;
   totalHoursWorked: number;
   computedPay: number; // hourlyRate * totalHoursWorked
+  incentiveEarned?: number; // salesperson incentives credited this month
   manualAdjustment: number; // Bonus (+) or Deduction (-)
   adjustmentReason?: string;
-  finalPayable: number; // Math.max(0, computedPay + manualAdjustment)
+  finalPayable: number; // Math.max(0, computedPay + incentiveEarned + manualAdjustment)
   status: 'Draft' | 'Approved' | 'Paid';
   paidAt?: string;
   paymentMode?: 'Cash' | 'Bank Transfer';

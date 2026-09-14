@@ -96,6 +96,7 @@ export const InvoiceForm: React.FC<Props> = ({
     hasFlag,
     items,
     combos,
+    employees,
   } = useErp();
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
@@ -201,6 +202,9 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // State of Supply
   const [stateOfSupply, setStateOfSupply] = useState('33-Tamil Nadu');
+  // Salesperson incentive — manually assigned per bill.
+  const [salespersonId, setSalespersonId] = useState<string>(initialInvoice?.salespersonId || '');
+  const [incentivePercent, setIncentivePercent] = useState<number>(initialInvoice?.incentivePercent || 0);
 
   // GST Toggle
   const [withGst, setWithGst] = useState(true);
@@ -1096,6 +1100,11 @@ export const InvoiceForm: React.FC<Props> = ({
       roundOffEnabled,
       grandTotal: totals.grandTotal,
       amountInWords: totals.amountInWords,
+      // Salesperson incentive (₹ computed & stored at save time).
+      salespersonId: salespersonId || undefined,
+      salespersonName: salespersonId ? employees.find((e) => e.id === salespersonId)?.name : undefined,
+      incentivePercent: salespersonId && incentivePercent > 0 ? incentivePercent : undefined,
+      incentiveAmount: salespersonId && incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : undefined,
       termsAndConditions: terms,
       description: description.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -1503,6 +1512,47 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* State of Supply field removed per client request — value defaults to
               the home state (33-Tamil Nadu) and still drives GST intra/inter split. */}
         </div>
+
+        {/* Salesperson Incentive (sales bills only) */}
+        {documentType !== 'Quotation' && (
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end p-3 rounded-xl bg-violet-50/40 border border-violet-200/70">
+            <div className="sm:col-span-5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">
+                Salesperson (incentive credit)
+              </label>
+              <UniversalDropdown
+                value={salespersonId}
+                onChange={(v) => setSalespersonId(String(v))}
+                options={[
+                  { value: '', label: 'No salesperson' },
+                  ...employees.filter((e) => e.status === 'Active').map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
+                ]}
+                placeholder="Select employee…"
+                buttonClassName="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-900"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Incentive %</label>
+              <div className="relative">
+                <input
+                  type="number" min={0} max={100} step={0.5}
+                  value={incentivePercent || ''}
+                  onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  disabled={!salespersonId}
+                  placeholder="0"
+                  className="w-full pr-7 pl-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+              </div>
+            </div>
+            <div className="sm:col-span-4">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Incentive Amount</label>
+              <div className="px-3 py-2 rounded-xl bg-white border border-violet-200 text-sm font-black font-mono text-violet-800">
+                {formatCurrency(salespersonId && incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : 0)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Customer & Payment Terms Details Row */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2 border-t border-slate-100">

@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BranchId, BRANCHES } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import {
   Boxes,
-  Download,
+
   Building,
   AlertTriangle,
   XCircle,
@@ -163,7 +165,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     });
   }, [valuationData.itemRows, searchFilter, statusFilter]);
 
-  const handleExportCsv = () => {
+  const handleExport = (format: ExportFormat = 'csv') => {
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
     const filename = `Stock_Valuation_Report_${branchLabel}_${new Date().toISOString().split('T')[0]}.csv`;
 
@@ -207,7 +209,11 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     rows.push(['Low Stock Items Count', valuationData.activeLowStock]);
     rows.push(['Out of Stock Items Count', valuationData.activeOutOfStock]);
 
-    exportToCsv(filename, headers, rows);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
+
+    else exportToCsv(filename, headers, rows);
   };
 
   return (
@@ -224,13 +230,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all flex items-center gap-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Valuation CSV</span>
-        </button>
+        <ReportExportButtons onExport={handleExport} />
       </div>
 
       {/* Summary Stat Cards */}

@@ -2,8 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
-import { FileSpreadsheet, Download, Landmark, Percent, Hash } from 'lucide-react';
+import { FileSpreadsheet, Landmark, Percent, Hash } from 'lucide-react';
 
 interface Props {
   startDate: string;
@@ -81,18 +83,20 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     };
   }, [filtered]);
 
-  const exportRate = () =>
-    exportToCsv(
-      `gstr1-rate-summary_${startDate}_to_${endDate}.csv`,
-      ['GST Rate (%)', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'],
-      rateRows.map((r) => [r.rate, r.taxable.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.igst.toFixed(2), r.total.toFixed(2)])
-    );
-  const exportHsn = () =>
-    exportToCsv(
-      `hsn-summary_${startDate}_to_${endDate}.csv`,
-      ['HSN/SAC', 'Total Qty', 'GST Rates', 'Taxable Value', 'Tax Amount'],
-      hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), h.taxable.toFixed(2), h.tax.toFixed(2)])
-    );
+  const handleExport = (format: ExportFormat = 'csv') => {
+    const isRate = view === 'rate';
+    const filename = isRate ? `gstr1-rate-summary_${startDate}_to_${endDate}` : `hsn-summary_${startDate}_to_${endDate}`;
+    const title = isRate ? `GSTR-1 Rate Summary ${startDate} to ${endDate}` : `HSN Summary ${startDate} to ${endDate}`;
+    const headers = isRate
+      ? ['GST Rate (%)', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax']
+      : ['HSN/SAC', 'Total Qty', 'GST Rates', 'Taxable Value', 'Tax Amount'];
+    const rows = isRate
+      ? rateRows.map((r) => [r.rate, r.taxable.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.igst.toFixed(2), r.total.toFixed(2)])
+      : hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), h.taxable.toFixed(2), h.tax.toFixed(2)]);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, title);
+    else exportToCsv(`${filename}.csv`, headers, rows);
+  };
 
   const kpis = [
     { label: 'Taxable Value', value: totals.taxable, tone: 'text-slate-900' },
@@ -117,12 +121,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
             </p>
           </div>
         </div>
-        <button
-          onClick={view === 'rate' ? exportRate : exportHsn}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors shadow-2xs"
-        >
-          <Download className="h-3.5 w-3.5" /> Export {view === 'rate' ? 'Rate' : 'HSN'} CSV
-        </button>
+        <ReportExportButtons onExport={handleExport} />
       </div>
 
       {/* KPI row */}

@@ -2,9 +2,11 @@ import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchId, BranchScope, BRANCHES } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import {
   PieChart,
-  Download,
+
   Building,
   TrendingUp,
   TrendingDown,
@@ -112,7 +114,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
 
   const hasAnyActivity = pnlData.consolidated.totalSales > 0 || pnlData.consolidated.totalExpenses > 0;
 
-  const handleExportCsv = () => {
+  const handleExport = (format: ExportFormat = 'csv') => {
     if (!hasAnyActivity) return;
 
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
@@ -184,7 +186,11 @@ export const BranchPnlReportTab: React.FC<Props> = ({
       ]);
     });
 
-    exportToCsv(filename, headers, rows);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
+
+    else exportToCsv(filename, headers, rows);
   };
 
   return (
@@ -201,14 +207,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          disabled={!hasAnyActivity}
-          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export P&L CSV</span>
-        </button>
+        <ReportExportButtons onExport={handleExport} />
       </div>
 
       {!hasAnyActivity ? (

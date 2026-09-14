@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BranchId, BRANCHES } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
+import { ReportExportButtons } from './ReportExportButtons';
 import {
   Users,
-  Download,
+
   Building,
   ExternalLink,
   ShieldAlert,
@@ -91,7 +93,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
     };
   }, [filteredRecords]);
 
-  const handleExportCsv = () => {
+  const handleExport = (format: ExportFormat = 'csv') => {
     if (filteredRecords.length === 0) return;
 
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
@@ -150,7 +152,11 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
     rows.push(['Disbursed (Paid)', summary.paidCount]);
     rows.push(['Pending (Draft)', summary.draftCount]);
 
-    exportToCsv(filename, headers, rows);
+    if (format === 'excel') exportToExcel(filename, headers, rows);
+
+    else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
+
+    else exportToCsv(filename, headers, rows);
   };
 
   return (
@@ -188,14 +194,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
 
-          <button
-            onClick={handleExportCsv}
-            disabled={filteredRecords.length === 0}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            <span>Export Payroll CSV</span>
-          </button>
+          <ReportExportButtons onExport={handleExport} />
         </div>
       </div>
 
