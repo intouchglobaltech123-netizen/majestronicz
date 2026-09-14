@@ -1,7 +1,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso } from '../lib/stockLedger.js';
-import { ROLE_DEFS, Role, SessionUser } from '../lib/auth.js';
+import { ROLE_DEFS, Role, SessionUser, hashPin, isPinHashed } from '../lib/auth.js';
 
 /**
  * Staff login accounts. Each user has their own PIN and an RBAC role.
@@ -31,7 +31,7 @@ export async function ensureUsers(): Promise<void> {
         id: `user-${def.role.toLowerCase()}`,
         name: def.defaultName,
         role: def.role,
-        pin: def.pin,
+        pin: hashPin(def.pin),
         assignedBranchId: def.defaultBranch ?? null,
         status: 'active',
         mustResetPin: false,
@@ -42,6 +42,19 @@ export async function ensureUsers(): Promise<void> {
   }
 }
 
+/** One-time upgrade of any legacy plaintext login PINs to hashed form. */
+export async function migrateUserPins(): Promise<number> {
+  const users = await prisma.user.findMany({ select: { id: true, pin: true } });
+  let migrated = 0;
+  for (const u of users) {
+    if (!isPinHashed(u.pin)) {
+      await prisma.user.update({ where: { id: u.id }, data: { pin: hashPin(u.pin) } });
+      migrated++;
+    }
+  }
+  return migrated;
+}
+
 export interface AuthResult {
   user: SessionUser;
   mustResetPin: boolean;
@@ -49,7 +62,7 @@ export interface AuthResult {
 
 /** Verify a PIN against active staff accounts. */
 export async function authenticateUser(pin: string, branchId?: string): Promise<AuthResult | null> {
-  const account = await prisma.user.findFirst({ where: { pin: String(pin || ''), status: 'active' } });
+  const account = await prisma.user.findFirst({ where: { pin: hashPin(String(pin || '')), status: 'active' } });
   if (!account) return null;
   const role = account.role as Role;
   const assignedBranchId =
@@ -88,7 +101,7 @@ export async function createUser(input: CreateUserInput) {
   }
   if (!isValidPin(input.pin)) throw new AppError('BAD_REQUEST', 'Default PIN must be exactly 4 digits', 400);
 
-  const clash = await prisma.user.findUnique({ where: { pin: input.pin } });
+  const clash = await prisma.user.findUnique({ where: { pin: hashPin(input.pin) } });
   if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another account. Choose a different one.', 409);
 
   const branchId = input.role === 'Manager' ? input.assignedBranchId || 'coimbatore' : input.assignedBranchId || 'erode-hq';
@@ -118,7 +131,7 @@ export async function createUser(input: CreateUserInput) {
         id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name,
         role: input.role,
-        pin: input.pin,
+        pin: hashPin(input.pin),
         assignedBranchId: input.role === 'Manager' ? branchId : input.assignedBranchId ?? null,
         status: 'active',
         mustResetPin: true, // must change the default PIN on first login
@@ -185,9 +198,9 @@ export async function adminResetPin(id: string, newPin: string) {
   if (!isValidPin(newPin)) throw new AppError('BAD_REQUEST', 'PIN must be exactly 4 digits', 400);
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new AppError('NOT_FOUND', 'Account not found', 404);
-  const clash = await prisma.user.findFirst({ where: { pin: newPin, NOT: { id } } });
+  const clash = await prisma.user.findFirst({ where: { pin: hashPin(newPin), NOT: { id } } });
   if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another account.', 409);
-  await prisma.user.update({ where: { id }, data: { pin: newPin, mustResetPin: true, updatedAt: nowIso() } });
+  await prisma.user.update({ where: { id }, data: { pin: hashPin(newPin), mustResetPin: true, updatedAt: nowIso() } });
   await syncEmployeePin(existing.employeeId, newPin);
   return { ok: true };
 }
@@ -197,9 +210,9 @@ export async function changeOwnPin(userId: string, newPin: string) {
   if (!isValidPin(newPin)) throw new AppError('BAD_REQUEST', 'PIN must be exactly 4 digits', 400);
   const existing = await prisma.user.findUnique({ where: { id: userId } });
   if (!existing) throw new AppError('NOT_FOUND', 'Account not found', 404);
-  const clash = await prisma.user.findFirst({ where: { pin: newPin, NOT: { id: userId } } });
+  const clash = await prisma.user.findFirst({ where: { pin: hashPin(newPin), NOT: { id: userId } } });
   if (clash) throw new AppError('CONFLICT', 'That PIN is already in use. Choose a different one.', 409);
-  await prisma.user.update({ where: { id: userId }, data: { pin: newPin, mustResetPin: false, updatedAt: nowIso() } });
+  await prisma.user.update({ where: { id: userId }, data: { pin: hashPin(newPin), mustResetPin: false, updatedAt: nowIso() } });
   await syncEmployeePin(existing.employeeId, newPin);
   return { ok: true };
 }
@@ -222,23 +235,24 @@ export async function linkLoginToEmployee(input: {
   // form), so its absence here is not fatal — we link by id regardless.
   const emp = await prisma.employee.findUnique({ where: { id: input.employeeId } });
 
+  const hashed = hashPin(input.pin);
   const existing = await prisma.user.findFirst({ where: { employeeId: input.employeeId } });
   const clash = await prisma.user.findFirst({
-    where: existing ? { pin: input.pin, NOT: { id: existing.id } } : { pin: input.pin },
+    where: existing ? { pin: hashed, NOT: { id: existing.id } } : { pin: hashed },
   });
   if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another login. Choose a different one.', 409);
 
   const status = input.status === 'Inactive' ? 'disabled' : 'active';
   const assignedBranchId = input.role === 'Manager' ? (input.assignedBranchId || emp?.branchId || 'coimbatore') : (input.assignedBranchId ?? null);
-  // Keep the employee's attendance PIN in sync with the login PIN (no-op if not created yet).
+  // Employee attendance PIN stays PLAINTEXT (used by the kiosk); only the login PIN is hashed.
   await prisma.employee.updateMany({ where: { id: input.employeeId }, data: { pin: input.pin, updatedAt: nowIso() } });
 
   if (existing) {
-    const pinChanged = existing.pin !== input.pin;
+    const pinChanged = existing.pin !== hashed;
     const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
-        role: input.role, name: input.name.trim(), assignedBranchId, pin: input.pin, status,
+        role: input.role, name: input.name.trim(), assignedBranchId, pin: hashed, status,
         mustResetPin: pinChanged ? true : existing.mustResetPin, updatedAt: nowIso(),
       },
     });
@@ -248,7 +262,7 @@ export async function linkLoginToEmployee(input: {
   const created = await prisma.user.create({
     data: {
       id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: input.name.trim(), role: input.role, pin: input.pin, assignedBranchId,
+      name: input.name.trim(), role: input.role, pin: hashed, assignedBranchId,
       status, mustResetPin: true, isSystem: false, employeeId: input.employeeId, createdAt: nowIso(),
     },
   });

@@ -51,6 +51,7 @@ export const SalesReportTab: React.FC<Props> = ({
   // Aggregate Sales Metrics
   const summary = useMemo(() => {
     let totalGross = 0;
+    let totalReturns = 0;
     let totalTaxable = 0;
     let totalTax = 0;
     let loyaltyRewardCount = 0;
@@ -78,6 +79,7 @@ export const SalesReportTab: React.FC<Props> = ({
 
     filteredInvoices.forEach((inv) => {
       totalGross += inv.grandTotal;
+      totalReturns += inv.totalReturnedAmount || 0;
       totalTaxable += inv.subtotal;
       totalTax += inv.totalCgst + inv.totalSgst;
 
@@ -122,6 +124,8 @@ export const SalesReportTab: React.FC<Props> = ({
 
     return {
       totalGross,
+      totalReturns,
+      netSales: totalGross - totalReturns,
       totalTaxable,
       totalTax,
       loyaltyRewardCount,
@@ -185,6 +189,8 @@ export const SalesReportTab: React.FC<Props> = ({
     rows.push(['--- SUMMARY BREAKDOWN ---', '', '', '', '', '', '', '', '', '', '', '', '']);
     rows.push(['Total Invoices', summary.invoiceCount, '', '', '', '', '', '', '', '', '', '', '']);
     rows.push(['Total Gross Sales (₹)', summary.totalGross.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
+    rows.push(['Less: Returns (₹)', summary.totalReturns.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
+    rows.push(['Net Sales (₹)', summary.netSales.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
     rows.push(['Total Tax Collected (₹)', summary.totalTax.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
     rows.push(['Average Invoice Value (₹)', summary.averageInvoice.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
     rows.push(['Loyalty Rewards Given', `${summary.loyaltyRewardCount} bills`, '', '', '', '', '', '', '', '', '', '', '']);
@@ -273,6 +279,19 @@ export const SalesReportTab: React.FC<Props> = ({
         </div>
       ) : (
         <>
+          {/* Gross → Returns → Net reconciliation */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono">
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales reconciliation:</span>
+            <span className="font-bold text-slate-800">₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-sans text-[11px] text-slate-400">gross</span>
+            <span className="text-rose-600 font-bold">−</span>
+            <span className="font-bold text-rose-700">₹{summary.totalReturns.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-sans text-[11px] text-slate-400">returns</span>
+            <span className="text-slate-400 font-bold">=</span>
+            <span className="font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-sans text-[11px] text-slate-400">net sales</span>
+          </div>
+
           {/* KPI Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">

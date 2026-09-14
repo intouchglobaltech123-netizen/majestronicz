@@ -127,6 +127,14 @@ export const roleFlags = (role: Role): string[] => {
 
 // ---- Signed token (dependency-free HMAC) ----
 const SECRET = process.env.AUTH_SECRET || 'majestronicz-dev-secret-change-in-prod';
+
+// Deterministic keyed hash for login PINs so plaintext is never stored in the DB.
+// Keyed by AUTH_SECRET (an attacker without it can't precompute), and deterministic
+// so PIN uniqueness (@unique) and lookup-by-hash keep working.
+export const hashPin = (pin: string) =>
+  crypto.createHmac('sha256', SECRET + ':pin').update(String(pin)).digest('hex');
+/** True if a stored value is already a hash (64 hex chars) rather than a plaintext PIN. */
+export const isPinHashed = (v: string) => /^[0-9a-f]{64}$/.test(v);
 const b64 = (s: string) => Buffer.from(s).toString('base64url');
 const unb64 = (s: string) => Buffer.from(s, 'base64url').toString('utf8');
 const sign = (payload: string) => crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
