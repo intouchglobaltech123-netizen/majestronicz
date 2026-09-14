@@ -155,11 +155,22 @@ export const DashboardView: React.FC = () => {
     return { days, max };
   }, [scopedSales, trendDays]);
 
-  // ---- Payment mode split (this month) ----
+  // ---- Payment mode split (this month) — ACTUAL collections only ----
+  // An invoice contributes only the amount actually received (billed − due − returns),
+  // distributed across its real (non-credit) payment modes. Unpaid/credit bills = ₹0.
   const modeSplit = useMemo(() => {
     const map: Record<string, number> = {};
     scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
-      getInvoicePaymentSplits(i).forEach((s) => { map[s.mode] = (map[s.mode] || 0) + s.amount; });
+      const paid = Math.max(0, netRevenue(i) - invoiceDue(i));
+      if (paid <= 0) return;
+      const splits = getInvoicePaymentSplits(i).filter((s) => s.mode !== 'COD-Credit');
+      const splitTotal = splits.reduce((t, s) => t + s.amount, 0);
+      if (splitTotal <= 0) {
+        const mode = i.paymentMode && i.paymentMode !== 'COD-Credit' ? i.paymentMode : 'Cash';
+        map[mode] = (map[mode] || 0) + paid;
+      } else {
+        splits.forEach((s) => { map[s.mode] = (map[s.mode] || 0) + paid * (s.amount / splitTotal); });
+      }
     });
     const rows = Object.entries(map).map(([mode, amount]) => ({ mode, amount, meta: MODE_META[mode] || { label: mode, icon: Wallet, color: 'bg-slate-400' } }))
       .sort((a, b) => b.amount - a.amount);
@@ -222,7 +233,7 @@ export const DashboardView: React.FC = () => {
       </div>
 
       {/* ---- Money KPI row ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
           icon={IndianRupee} tone="blue" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
@@ -455,7 +466,7 @@ const KpiCard: React.FC<{
       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
       <div className={cn('h-7 w-7 rounded-lg border flex items-center justify-center', TONES[tone])}><Icon className="h-3.5 w-3.5" /></div>
     </div>
-    <div className="mt-2 text-xl font-black text-slate-900 tracking-tight font-mono truncate">{value}</div>
+    <div className="mt-2 text-lg lg:text-xl font-black text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
     <div className="mt-0.5 flex items-center gap-1.5">
       {typeof delta === 'number' && (
         <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>

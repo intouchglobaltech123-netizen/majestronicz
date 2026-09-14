@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits } from '../../types';
+import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
@@ -937,7 +937,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                   }}
                                   className={cn(
                                     'inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border shadow-2xs transition-all hover:scale-105 cursor-pointer',
-                                    (inv.totalReturnedAmount || 0) >= inv.grandTotal
+                                    isInvoiceFullyReturned(inv)
                                       ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
                                       : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                                   )}
@@ -945,8 +945,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 >
                                   <RotateCcw className="h-2.5 w-2.5" />
                                   <span>
-                                    {(inv.totalReturnedAmount || 0) >= inv.grandTotal
-                                      ? 'Returned'
+                                    {isInvoiceFullyReturned(inv)
+                                      ? 'Fully Returned'
                                       : 'Partial Return'}
                                   </span>
                                 </button>

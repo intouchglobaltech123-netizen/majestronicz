@@ -23,9 +23,8 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
   const converted = enquiries.filter((e) => e.status === 'Converted').length;
   const cancelled = enquiries.filter((e) => e.status === 'Cancelled').length;
 
-  // Conversion rate based on closed decisions (converted vs cancelled) or total
-  const closedTotal = converted + cancelled;
-  const conversionRate = closedTotal > 0 ? Math.round((converted / closedTotal) * 100) : total > 0 ? Math.round((converted / total) * 100) : 0;
+  // Conversion rate = converted / total enquiries (clear, standard definition).
+  const conversionRate = total > 0 ? Math.round((converted / total) * 100) : 0;
 
   const waitingOrders = pendingOrders.filter((p) => p.status === 'Waiting').length;
   const stockArrivedOrders = pendingOrders.filter((p) => p.status === 'Stock Arrived').length;
@@ -99,6 +98,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             <Sparkles className="h-3.5 w-3.5 text-blue-600" />
           </div>
           <div className="text-2xl lg:text-3xl font-black font-mono text-blue-900">{conversionRate}%</div>
+          <div className="text-[10px] text-blue-700 font-semibold">{converted} converted / {total} enquiries</div>
           <div className="w-full bg-blue-200 rounded-full h-1.5 overflow-hidden">
             <div
               className="bg-blue-600 h-full rounded-full transition-all duration-500"

@@ -1017,6 +1017,27 @@ export interface RecordPaymentInput {
   allocations?: PaymentAllocation[];
 }
 
+/**
+ * Whether a sale is FULLY returned — decided by quantity (every sold unit
+ * returned), not by amount (tax/rounding can make refund < grand total even on a
+ * complete return). Used for the Full vs Partial return label.
+ */
+export const isInvoiceFullyReturned = (
+  inv: Pick<Invoice, 'items' | 'returns'>
+): boolean => {
+  const items = inv.items || [];
+  const returns = inv.returns || [];
+  if (!items.length || !returns.length) return false;
+  return items.every((li) => {
+    const sold = li.quantity || 0;
+    if (sold <= 0) return true;
+    const returned = returns
+      .filter((r) => (r.itemId && r.itemId === li.itemId) || (r.isCombo && li.comboId && r.comboId === li.comboId))
+      .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
+    return returned >= sold;
+  });
+};
+
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {
   if (inv.customerId && inv.customerId === customer.id) return true;
   const cleanCustomerPhone = (customer.phone || '').trim().replace(/\D/g, '');

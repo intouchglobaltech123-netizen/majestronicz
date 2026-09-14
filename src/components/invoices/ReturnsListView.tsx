@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, BranchId, BRANCHES } from '../../types';
+import { Invoice, BranchId, BRANCHES, isInvoiceFullyReturned } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   RotateCcw,
@@ -236,7 +236,7 @@ export const ReturnsListView: React.FC<Props> = ({
                     : inv.time;
 
                   const returnStaff = latest?.processedBy || 'Store Staff';
-                  const isFullReturn = (inv.totalReturnedAmount || 0) >= inv.grandTotal;
+                  const isFullReturn = isInvoiceFullyReturned(inv);
 
                   return (
                     <tr
