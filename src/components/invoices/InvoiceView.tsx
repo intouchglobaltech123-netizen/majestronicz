@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned } from '../../types';
+import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
@@ -106,16 +106,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     }
   }, [currentBranch, isAllBranches]);
 
-  // Helper for computing sale status
+  // Helper for computing sale status — uses the single finance-truth (nets returns).
   const getSaleStatus = (inv: Invoice): { label: string; color: string } => {
     if (inv.isVoided) {
       return { label: 'Voided', color: 'bg-rose-50 text-rose-700 border-rose-200' };
     }
-    if (inv.isPartialPayment) {
-      return { label: 'Partial', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-    }
-    if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
-      return { label: 'Credit', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+    const fin = computeInvoiceFinance(inv);
+    if (fin.due > 0) {
+      return fin.received > 0
+        ? { label: 'Partial', color: 'bg-amber-50 text-amber-700 border-amber-200' }
+        : { label: 'Credit', color: 'bg-purple-50 text-purple-700 border-purple-200' };
     }
     return { label: 'Paid', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   };
@@ -903,11 +903,18 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 </div>
                               );
                             })()}
-                            {inv.isPartialPayment && (
-                              <div className="text-[10px] font-bold text-amber-700 mt-0.5">
-                                Paid: ₹{inv.partialAmount?.toLocaleString('en-IN')} (Bal: ₹{inv.balanceDue?.toLocaleString('en-IN')})
-                              </div>
-                            )}
+                            {(() => {
+                              // Consistent, return-aware paid/balance (single finance-truth).
+                              const fin = computeInvoiceFinance(inv);
+                              if (fin.due <= 0 && fin.customerCredit <= 0) return null;
+                              return (
+                                <div className={`text-[10px] font-bold mt-0.5 ${fin.due > 0 ? 'text-amber-700' : 'text-blue-700'}`}>
+                                  {fin.due > 0
+                                    ? `Paid: ₹${fin.received.toLocaleString('en-IN')} (Bal: ₹${fin.due.toLocaleString('en-IN')})`
+                                    : `Credit due to customer: ₹${fin.customerCredit.toLocaleString('en-IN')}`}
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Total (Clean, unmodified original amount) */}

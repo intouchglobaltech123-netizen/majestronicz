@@ -1,20 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, getInvoicePaymentSplits, Invoice } from '../../types';
+import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 
-function invoiceDue(inv: Invoice): number {
-  const billed = inv.grandTotal || 0;
-  const splits = getInvoicePaymentSplits(inv);
-  const hasCod = splits.some((s) => s.mode === 'COD-Credit');
-  let due = 0;
-  if (splits.length > 1 && hasCod) due = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
-  else if (inv.isPartialPayment) due = inv.balanceDue ?? Math.max(0, billed - (inv.partialAmount || 0));
-  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') due = inv.balanceDue ?? billed;
-  else if (inv.balanceDue && inv.balanceDue > 0) due = inv.balanceDue;
-  if (inv.totalReturnedAmount) due = Math.max(0, due - inv.totalReturnedAmount);
-  return Math.max(0, due);
-}
+const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 import {
   BarChart3,
   Receipt,

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice } from '../../types';
+import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
@@ -8,21 +8,9 @@ import {
   Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent,
 } from 'lucide-react';
 
-// Outstanding due on a single invoice — mirrors the server's receivables logic.
-function invoiceDue(inv: Invoice): number {
-  const billed = inv.grandTotal || 0;
-  const splits = getInvoicePaymentSplits(inv);
-  const hasCod = splits.some((s) => s.mode === 'COD-Credit');
-  let due = 0;
-  if (splits.length > 1 && hasCod) due = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
-  else if (inv.isPartialPayment) due = inv.balanceDue ?? Math.max(0, billed - (inv.partialAmount || 0));
-  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') due = inv.balanceDue ?? billed;
-  else if (inv.balanceDue && inv.balanceDue > 0) due = inv.balanceDue;
-  if (inv.totalReturnedAmount) due = Math.max(0, due - inv.totalReturnedAmount);
-  return Math.max(0, due);
-}
-
-const netRevenue = (inv: Invoice) => Math.max(0, (inv.grandTotal || 0) - (inv.totalReturnedAmount || 0));
+// Outstanding due on a single invoice — single source of truth.
+const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
+const netRevenue = (inv: Invoice) => computeInvoiceFinance(inv).net;
 const pct = (cur: number, prev: number) => (prev <= 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100));
 
 const MODE_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {

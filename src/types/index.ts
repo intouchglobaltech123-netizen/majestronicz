@@ -1050,6 +1050,46 @@ export const isInvoiceFullyReturned = (
   });
 };
 
+/**
+ * Single source of truth for an invoice's money position. Every screen
+ * (dashboard, ledger, customer balance, reports, cash register) must use THIS
+ * so numbers reconcile. Returns are netted; over-collection becomes customer credit.
+ */
+export interface InvoiceFinance {
+  gross: number;          // original grand total (incl. tax)
+  returns: number;        // amount returned so far
+  net: number;            // gross − returns (what the sale is now worth)
+  received: number;       // actually collected at/after billing (pre-returns)
+  due: number;            // remaining owed by the customer (>= 0)
+  customerCredit: number; // amount owed BACK to the customer (refund/credit, >= 0)
+}
+
+export const computeInvoiceFinance = (
+  inv: Pick<Invoice, 'grandTotal' | 'totalReturnedAmount' | 'paymentSplits' | 'paymentMode' | 'isPartialPayment' | 'partialAmount' | 'balanceDue' | 'transactionType'>
+): InvoiceFinance => {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const gross = inv.grandTotal || 0;
+  const returns = Math.min(gross, inv.totalReturnedAmount || 0);
+  const net = round(Math.max(0, gross - returns));
+
+  const splits = getInvoicePaymentSplits(inv);
+  const codCredit = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
+  let received: number;
+  if (splits.length > 1 && codCredit > 0) received = Math.max(0, gross - codCredit);
+  else if (inv.isPartialPayment) received = inv.partialAmount ?? Math.max(0, gross - (inv.balanceDue || 0));
+  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') received = 0;
+  else if (inv.balanceDue && inv.balanceDue > 0) received = Math.max(0, gross - inv.balanceDue);
+  else received = gross; // paid in full
+  received = round(Math.min(received, gross));
+
+  const netOwed = round(net - received);
+  return {
+    gross, returns: round(returns), net, received,
+    due: Math.max(0, netOwed),
+    customerCredit: Math.max(0, round(-netOwed)),
+  };
+};
+
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {
   if (inv.customerId && inv.customerId === customer.id) return true;
   const cleanCustomerPhone = (customer.phone || '').trim().replace(/\D/g, '');
@@ -1094,39 +1134,15 @@ export const getCustomerOutstandingSummary = (
   let totalOutstanding = 0;
 
   customerInvoices.forEach((inv) => {
-    const billed = inv.grandTotal;
-    let paid = 0;
-    let due = 0;
-
-    const splits = getInvoicePaymentSplits(inv);
-    const hasCodCreditSplit = splits.some((s) => s.mode === 'COD-Credit');
-
-    if (splits.length > 1 && hasCodCreditSplit) {
-      // Split payment containing COD-Credit portion
-      due = splits.filter((s) => s.mode === 'COD-Credit').reduce((sum, s) => sum + s.amount, 0);
-      paid = Math.max(0, billed - due);
-    } else if (inv.isPartialPayment) {
-      paid = inv.partialAmount || 0;
-      due = inv.balanceDue !== undefined ? inv.balanceDue : Math.max(0, billed - paid);
-    } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
-      paid = 0;
-      due = inv.balanceDue !== undefined ? inv.balanceDue : billed;
-    } else if (inv.balanceDue && inv.balanceDue > 0) {
-      due = inv.balanceDue;
-      paid = Math.max(0, billed - due);
-    }
-
-    if (inv.totalReturnedAmount) {
-      due = Math.max(0, due - inv.totalReturnedAmount);
-    }
-
-    if (due > 0) {
-      totalOutstanding += due;
+    // Single source of truth — nets returns and handles over-collection consistently.
+    const fin = computeInvoiceFinance(inv);
+    if (fin.due > 0) {
+      totalOutstanding += fin.due;
       unpaidInvoices.push({
         invoice: inv,
-        billedAmount: billed,
-        paidAmount: paid,
-        balanceDue: due,
+        billedAmount: fin.gross,
+        paidAmount: fin.received,
+        balanceDue: fin.due,
       });
     }
   });

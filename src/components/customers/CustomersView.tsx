@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Customer } from '../../types';
+import { Customer, computeInvoiceFinance } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
@@ -25,6 +25,7 @@ import { LoyaltySettingsTab } from './LoyaltySettingsTab';
 export const CustomersView: React.FC = () => {
   const {
     customers,
+    invoices,
     loyaltySettings,
     setCurrentView,
     selectedCustomerForDetail,
@@ -55,9 +56,19 @@ export const CustomersView: React.FC = () => {
     return customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
   }, [customers]);
 
-  const totalOutstandingDues = useMemo(() => {
+  const assignedOutstandingDues = useMemo(() => {
     return customers.reduce((sum, c) => sum + getCustomerOutstandingBalance(c), 0);
   }, [customers, getCustomerOutstandingBalance]);
+
+  // Total receivables across ALL non-voided invoices (single finance-truth) — this
+  // is the authoritative figure the Dashboard/Reports show. Anything not attributable
+  // to a customer record is "unassigned" and flagged so the numbers reconcile.
+  const totalReceivables = useMemo(
+    () => invoices.filter((i) => !i.isVoided).reduce((sum, i) => sum + computeInvoiceFinance(i).due, 0),
+    [invoices]
+  );
+  const unassignedDues = Math.max(0, Math.round((totalReceivables - assignedOutstandingDues) * 100) / 100);
+  const totalOutstandingDues = assignedOutstandingDues;
 
   const customersWithDueCount = useMemo(() => {
     return customers.filter((c) => getCustomerOutstandingBalance(c) > 0).length;
@@ -226,6 +237,11 @@ export const CustomersView: React.FC = () => {
               <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
                 {customersWithDueCount} customer{customersWithDueCount === 1 ? '' : 's'} with balance due
               </span>
+              {unassignedDues > 0 && (
+                <span className="text-[10px] text-rose-700 mt-1 block font-bold bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
+                  + {formatCurrency(unassignedDues)} on invoices not linked to a customer — review &amp; assign
+                </span>
+              )}
             </div>
 
             {/* Milestone Ready */}
