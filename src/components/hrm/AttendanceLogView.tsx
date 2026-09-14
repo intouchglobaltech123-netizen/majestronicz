@@ -8,6 +8,7 @@ import {
   LogIn,
   LogOut,
   Camera,
+  AlertTriangle,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture, BRANCHES, BranchScope } from '../../types';
@@ -344,10 +345,19 @@ export const AttendanceLogView: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 font-medium inline-flex items-center gap-1">
-                            <Clock className="h-3 w-3 animate-spin" />
-                            <span>Shift In Progress</span>
-                          </span>
+                          // A missing check-out on a PAST day is a stale shift (needs
+                          // correction) — not a live "in progress" one.
+                          (rec.date || '') < new Date().toISOString().slice(0, 10) ? (
+                            <span className="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded-md border border-rose-200 font-bold inline-flex items-center gap-1" title="No check-out recorded — correct before running payroll">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Missing check-out</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 font-medium inline-flex items-center gap-1">
+                              <Clock className="h-3 w-3 animate-spin" />
+                              <span>Shift In Progress</span>
+                            </span>
+                          )
                         )}
                       </td>
 

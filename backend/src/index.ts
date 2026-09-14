@@ -9,7 +9,24 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { attachUser } from './middleware/rbac.js';
 
 const app = express();
-app.use(cors());
+
+// CORS: restrict to an allowlist when CORS_ORIGINS is set (comma-separated),
+// otherwise allow all (dev). Auth is Bearer-token based (no cookies), so this is
+// the main cross-origin control.
+const allowlist = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors(allowlist.length ? {
+  origin: (origin, cb) => cb(null, !origin || allowlist.includes(origin)),
+} : undefined));
+
+// Baseline security headers.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-XSS-Protection', '0');
+  next();
+});
+
 app.use(express.json({ limit: '25mb' })); // base64 photos/attachments can be large
 
 app.use(attachUser); // parse Bearer token → req.user (RBAC enforced per-route)

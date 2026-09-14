@@ -1090,10 +1090,22 @@ export const computeInvoiceFinance = (
   };
 };
 
+/**
+ * Normalize an Indian phone number for equality checks: strip non-digits, a
+ * leading country code (91) and a leading trunk 0, so "09842…", "+91 9842…" and
+ * "9842…" all compare equal. Does NOT merge different people — just matches formats.
+ */
+export const normalizePhone = (raw?: string): string => {
+  let d = (raw || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return d;
+};
+
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {
   if (inv.customerId && inv.customerId === customer.id) return true;
-  const cleanCustomerPhone = (customer.phone || '').trim().replace(/\D/g, '');
-  const cleanInvPhone = (inv.customerPhone || '').trim().replace(/\D/g, '');
+  const cleanCustomerPhone = normalizePhone(customer.phone);
+  const cleanInvPhone = normalizePhone(inv.customerPhone);
   if (cleanCustomerPhone && cleanInvPhone && cleanCustomerPhone === cleanInvPhone) return true;
   if (
     customer.name &&

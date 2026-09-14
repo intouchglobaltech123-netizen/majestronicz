@@ -21,5 +21,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     return res.status(409).json({ error: 'UNIQUE_CONFLICT', message: err.meta?.target });
   }
   console.error(err);
-  return res.status(500).json({ error: 'INTERNAL', message: err?.message ?? 'Internal error' });
+  // Don't leak internal error detail to clients in production.
+  const message = process.env.NODE_ENV === 'production' ? 'Something went wrong. Please try again.' : (err?.message ?? 'Internal error');
+  return res.status(500).json({ error: 'INTERNAL', message });
 }

@@ -68,6 +68,7 @@ import {
   InventorySettings,
   CustomerOutstandingInvoice,
   getCustomerOutstandingSummary,
+  normalizePhone,
   AccessMatrix,
   Capability,
 } from '../types';
@@ -2669,7 +2670,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveCustomer = (customerData: Customer): { success: boolean; error?: string; customer?: Customer } => {
-    const cleanPhone = (customerData.phone || '').trim().replace(/\D/g, '');
+    // Normalize (country code / leading 0) so equivalent formats are caught as duplicates.
+    const cleanPhone = normalizePhone(customerData.phone);
     if (!cleanPhone) {
       toast.error('Phone number is required');
       return { success: false, error: 'Phone number is required' };
@@ -2679,9 +2681,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Customer name is required' };
     }
 
-    // Phone uniqueness check (prevent duplicate customer records)
+    // Phone uniqueness check (normalized — prevents duplicate master records)
     const duplicate = customers.find(
-      (c) => c.id !== customerData.id && c.phone.trim().replace(/\D/g, '') === cleanPhone
+      (c) => c.id !== customerData.id && normalizePhone(c.phone) === cleanPhone
     );
     if (duplicate) {
       toast.error(`A customer with phone ${customerData.phone} already exists (${duplicate.name})`);
