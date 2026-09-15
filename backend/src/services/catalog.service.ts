@@ -3,22 +3,34 @@ import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, cleanPhone } from '../lib/stockLedger.js';
 import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
-import { calculateLineTax, numberToWordsIndian } from '../lib/taxCalc.js';
+import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 
-/** Server-authoritative recompute of estimate line taxes + totals. */
+/**
+ * Server-authoritative recompute of estimate line taxes + totals.
+ * Mirrors the invoice recompute: honors per-line discounts, overall discount,
+ * freight/shipping, and round-off so quotations keep the same money math as
+ * sales (previously these adjustments were silently dropped).
+ */
 function recomputeEstimateMoney(est: any) {
   const withGst = !!est.withGst;
   est.items = (est.items || []).map((li: any) => {
-    const c = calculateLineTax(li.quantity, li.unitPrice, li.gstRate, withGst);
-    return { ...li, taxableAmount: c.taxableAmount, cgstAmount: c.cgstAmount, sgstAmount: c.sgstAmount, totalTax: c.totalTax, totalAmount: c.totalAmount };
+    const rate = li.gstRate ?? li.taxRate ?? 0;
+    const calc = calculateLineTax(li.quantity, li.unitPrice, rate, withGst, li.discountType || '%', li.discountValue ?? li.discount ?? 0);
+    return { ...li, ...calc };
   });
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  est.subtotal = r2(est.items.reduce((s: number, i: any) => s + (i.taxableAmount || 0), 0));
-  est.totalCgst = r2(est.items.reduce((s: number, i: any) => s + (i.cgstAmount || 0), 0));
-  est.totalSgst = r2(est.items.reduce((s: number, i: any) => s + (i.sgstAmount || 0), 0));
-  est.totalTax = r2(est.items.reduce((s: number, i: any) => s + (i.totalTax || 0), 0));
-  est.grandTotal = Math.round(est.subtotal + (withGst ? est.totalTax : 0));
-  est.amountInWords = numberToWordsIndian(est.grandTotal);
+  const totals = calculateInvoiceTotals(
+    est.items, withGst, est.overallDiscountType || '%', est.overallDiscountValue || 0,
+    est.shippingCharges || 0, est.roundOffEnabled !== false
+  );
+  est.subtotal = totals.subtotal;
+  est.totalTax = totals.totalTax;
+  est.totalCgst = totals.totalCgst;
+  est.totalSgst = totals.totalSgst;
+  est.overallDiscountAmount = totals.overallDiscountAmount;
+  est.shippingCharges = totals.shippingCharges;
+  est.roundOff = totals.roundOff;
+  est.grandTotal = totals.grandTotal;
+  est.amountInWords = totals.amountInWords;
   return est;
 }
 

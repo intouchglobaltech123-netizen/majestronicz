@@ -99,6 +99,12 @@ model Estimate {
   totalCgst           Float
   totalSgst           Float
   totalTax            Float
+  overallDiscountType String?
+  overallDiscountValue Float?
+  overallDiscountAmount Float?
+  shippingCharges     Float?
+  roundOff            Float?
+  roundOffEnabled     Boolean?
   grandTotal          Float
   amountInWords       String
   termsAndConditions  String

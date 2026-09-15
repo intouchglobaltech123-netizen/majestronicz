@@ -341,14 +341,25 @@ export const InvoiceForm: React.FC<Props> = ({
       setSourceEstimateNumber(convertedFromEstimate.estimateNumber);
       setSourceEnquiryId(convertedFromEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(convertedFromEstimate.sourceEnquiryNumber);
+      // Carry document-level adjustments (overall discount / freight / round-off)
+      // over to the invoice so conversion preserves quotation pricing.
+      setOverallDiscountType(convertedFromEstimate.overallDiscountType || '%');
+      setOverallDiscountValue(convertedFromEstimate.overallDiscountValue || 0);
+      setShippingCharges(convertedFromEstimate.shippingCharges || 0);
+      setRoundOffEnabled(convertedFromEstimate.roundOffEnabled ?? true);
 
-      // Map Estimate line items to Invoice line items
+      // Map Estimate line items to Invoice line items (preserve per-line discounts)
       const convertedItems: InvoiceLineItem[] = convertedFromEstimate.items.map((estItem) => {
+        const discType = estItem.discountType || '%';
+        const discVal = estItem.discount || estItem.discountValue || 0;
+        const rate = estItem.gstRate ?? estItem.taxRate ?? 0;
         const lineTax = calculateLineTax(
           estItem.quantity,
           estItem.unitPrice,
-          estItem.gstRate,
-          convertedFromEstimate.withGst
+          rate,
+          convertedFromEstimate.withGst,
+          discType,
+          discVal
         );
         return {
           id: `li-conv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -358,10 +369,10 @@ export const InvoiceForm: React.FC<Props> = ({
           unit: estItem.unit,
           quantity: estItem.quantity,
           unitPrice: estItem.unitPrice,
-          discountType: '%',
-          discountValue: 0,
-          discountAmount: 0,
-          taxRate: estItem.gstRate,
+          discountType: discType,
+          discountValue: discVal,
+          discountAmount: (estItem.quantity * estItem.unitPrice) - lineTax.taxableAmount,
+          taxRate: rate,
           taxableAmount: lineTax.taxableAmount,
           cgstAmount: lineTax.cgstAmount,
           sgstAmount: lineTax.sgstAmount,
@@ -395,6 +406,10 @@ export const InvoiceForm: React.FC<Props> = ({
       setTerms(initialEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
       setSourceEnquiryId(initialEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(initialEstimate.sourceEnquiryNumber);
+      setOverallDiscountType(initialEstimate.overallDiscountType || '%');
+      setOverallDiscountValue(initialEstimate.overallDiscountValue || 0);
+      setShippingCharges(initialEstimate.shippingCharges || 0);
+      setRoundOffEnabled(initialEstimate.roundOffEnabled ?? true);
 
       const quoteItems: InvoiceLineItem[] = initialEstimate.items.map((estItem) => {
         const discType = estItem.discountType || '%';
@@ -446,6 +461,10 @@ export const InvoiceForm: React.FC<Props> = ({
       setIsLoyaltyRewardApplied(false);
       setWithGst(duplicateSourceEstimate.withGst);
       setTerms(duplicateSourceEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+      setOverallDiscountType(duplicateSourceEstimate.overallDiscountType || '%');
+      setOverallDiscountValue(duplicateSourceEstimate.overallDiscountValue || 0);
+      setShippingCharges(duplicateSourceEstimate.shippingCharges || 0);
+      setRoundOffEnabled(duplicateSourceEstimate.roundOffEnabled ?? true);
 
       const dupQuoteItems: InvoiceLineItem[] = duplicateSourceEstimate.items.map((estItem) => {
         const discType = estItem.discountType || '%';
@@ -544,7 +563,14 @@ export const InvoiceForm: React.FC<Props> = ({
         setPaymentSplits([{ mode: 'Cash', amount: totals.grandTotal }]);
       }
     }
-  }, [selectedBranch, initialInvoice, initialEstimate, convertedFromEstimate, duplicateSourceInvoice, duplicateSourceEstimate, getNextInvoiceNumber, getNextEstimateNumber, date]);
+    // Seed the form ONCE per source document. Keyed on the source identity only
+    // — NOT on selectedBranch/date (which this effect itself sets) or the context
+    // getter refs (which change on every live-sync re-bootstrap). Including those
+    // caused the effect to re-run and wipe in-progress edits / re-fire the
+    // "Pre-filled from Estimate" toast repeatedly. The form is remounted via a
+    // `key` when a new source is chosen, so this is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialInvoice?.id, initialEstimate?.id, convertedFromEstimate?.id, duplicateSourceInvoice?.id, duplicateSourceEstimate?.id]);
 
   // Keep document number in sync with financial year and mode when date or branch changes
   useEffect(() => {
@@ -1173,6 +1199,12 @@ export const InvoiceForm: React.FC<Props> = ({
       totalCgst: totals.totalCgst,
       totalSgst: totals.totalSgst,
       totalTax: totals.totalTax,
+      overallDiscountType,
+      overallDiscountValue,
+      overallDiscountAmount: totals.overallDiscountAmount,
+      shippingCharges,
+      roundOff: totals.roundOff,
+      roundOffEnabled,
       grandTotal: totals.grandTotal,
       amountInWords: totals.amountInWords,
       termsAndConditions: terms,

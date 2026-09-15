@@ -216,13 +216,12 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                       </span>
                     </div>
 
-                    {/* Line Items */}
+                    {/* Line Items — show every optional line the user entered */}
                     <div className="w-full text-[7.5px] leading-tight text-slate-700 space-y-0.2">
                       {label.line1 && <div className="font-bold truncate">{label.line1}</div>}
                       {label.line2 && <div className="truncate text-slate-500">{label.line2}</div>}
-                      {!label.line2 && label.line3 && (
-                        <div className="truncate text-slate-500">{label.line3}</div>
-                      )}
+                      {label.line3 && <div className="truncate text-slate-500">{label.line3}</div>}
+                      {label.line4 && <div className="truncate text-slate-400">{label.line4}</div>}
                     </div>
                   </div>
                 );
@@ -313,16 +312,12 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                         </span>
                       </div>
 
-                      {/* Text Lines */}
+                      {/* Text Lines — show every optional line the user entered */}
                       <div className="w-full text-[7px] leading-tight text-black space-y-0.2">
                         {label.line1 && <div className="font-bold truncate">{label.line1}</div>}
                         {label.line2 && <div className="truncate">{label.line2}</div>}
-                        {!label.line2 && label.line3 && (
-                          <div className="truncate">{label.line3}</div>
-                        )}
-                        {!label.line1 && !label.line2 && label.line4 && (
-                          <div className="truncate">{label.line4}</div>
-                        )}
+                        {label.line3 && <div className="truncate">{label.line3}</div>}
+                        {label.line4 && <div className="truncate">{label.line4}</div>}
                       </div>
                     </div>
                   );

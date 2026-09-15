@@ -409,6 +409,14 @@ export interface Estimate {
   totalCgst: number;
   totalSgst: number;
   totalTax: number;
+  // Document-level adjustments (mirror Invoice) so quotations retain and
+  // round-trip overall discount + freight + round-off through save/reopen/convert.
+  overallDiscountType?: DiscountType;
+  overallDiscountValue?: number;
+  overallDiscountAmount?: number;
+  shippingCharges?: number;
+  roundOff?: number;
+  roundOffEnabled?: boolean;
   grandTotal: number;
   amountInWords: string;
   termsAndConditions: string;

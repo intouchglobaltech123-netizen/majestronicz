@@ -641,7 +641,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                         liveCalculations.savings >= 0 ? 'text-emerald-700' : 'text-amber-800'
                       )}
                     >
-                      Savings: {formatCurrency(Math.abs(liveCalculations.savings))}
+                      {liveCalculations.savings >= 0 ? 'Savings' : 'Extra Cost'}: {formatCurrency(Math.abs(liveCalculations.savings))}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-600 mt-0.5">

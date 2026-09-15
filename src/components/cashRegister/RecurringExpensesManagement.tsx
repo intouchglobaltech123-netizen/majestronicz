@@ -504,12 +504,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                     </div>
                     <input
                       type="number"
-                      min="1"
-                      step="1"
+                      min="0.01"
+                      step="0.01"
                       required
                       value={formAmount || ''}
                       onChange={(e) => setFormAmount(Math.max(0, Number(e.target.value)))}
-                      placeholder="e.g. 15000"
+                      placeholder="e.g. 15000.50"
                       className="w-full pl-8 pr-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
                     />
                   </div>

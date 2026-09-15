@@ -209,6 +209,10 @@ interface ErpContextType {
   getNextInvoiceNumber: (branchId: BranchId, date?: string) => string;
   estimateToConvert: Estimate | null;
   setEstimateToConvert: (estimate: Estimate | null) => void;
+  // Pre-filled quotation (e.g. from an enquiry) to open in the Sales form in
+  // Quotation mode — distinct from estimateToConvert which opens an invoice.
+  quoteToPrefill: Estimate | null;
+  setQuoteToPrefill: (estimate: Estimate | null) => void;
   inventoryFilterQuery: string;
   setInventoryFilterQuery: (query: string) => void;
   navigateToInventoryItem: (itemQuery: string) => void;
@@ -577,6 +581,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<Customer | null>(null);
 
   const [estimateToConvert, setEstimateToConvert] = useState<Estimate | null>(null);
+  const [quoteToPrefill, setQuoteToPrefill] = useState<Estimate | null>(null);
   const [inventoryFilterQuery, setInventoryFilterQuery] = useState<string>('');
   const [enquiryFilterQuery, setEnquiryFilterQuery] = useState<string>('');
   const [pendingOrderFilterQuery, setPendingOrderFilterQuery] = useState<string>('');
@@ -3102,10 +3107,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    setEstimateToConvert(preFilledEstimate);
     if (targetType === 'estimate') {
+      // Open the Sales form in Quotation mode, pre-filled (NOT an invoice draft).
+      setQuoteToPrefill(preFilledEstimate);
+      setEstimateToConvert(null);
       setCurrentView('estimates');
     } else {
+      setEstimateToConvert(preFilledEstimate);
+      setQuoteToPrefill(null);
       setCurrentView('invoices');
     }
 
@@ -3816,6 +3825,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getNextInvoiceNumber,
         estimateToConvert,
         setEstimateToConvert,
+        quoteToPrefill,
+        setQuoteToPrefill,
         inventoryFilterQuery,
         setInventoryFilterQuery,
         navigateToInventoryItem,

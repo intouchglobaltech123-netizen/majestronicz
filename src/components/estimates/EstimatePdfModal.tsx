@@ -343,6 +343,41 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                 </>
               ) : null}
 
+              {/* Overall discount (document-level) */}
+              {(estimate.overallDiscountAmount || 0) > 0 && (
+                <div className="flex justify-between py-1 text-emerald-700 border-t border-slate-200">
+                  <span>
+                    Overall Discount
+                    {estimate.overallDiscountType === '%' && (estimate.overallDiscountValue || 0) > 0
+                      ? ` (${estimate.overallDiscountValue}%)`
+                      : ''}:
+                  </span>
+                  <span className="font-mono font-semibold">
+                    - {formatCurrency(estimate.overallDiscountAmount || 0)}
+                  </span>
+                </div>
+              )}
+
+              {/* Freight / shipping */}
+              {(estimate.shippingCharges || 0) > 0 && (
+                <div className="flex justify-between py-1 text-slate-600 border-t border-slate-200">
+                  <span>Freight / Shipping:</span>
+                  <span className="font-mono font-semibold text-slate-800">
+                    + {formatCurrency(estimate.shippingCharges || 0)}
+                  </span>
+                </div>
+              )}
+
+              {/* Round-off */}
+              {!!estimate.roundOff && estimate.roundOff !== 0 && (
+                <div className="flex justify-between py-1 text-slate-500 border-t border-slate-200">
+                  <span>Round Off:</span>
+                  <span className="font-mono font-semibold">
+                    {estimate.roundOff > 0 ? '+' : ''}{formatCurrency(estimate.roundOff)}
+                  </span>
+                </div>
+              )}
+
               {/* Grand Total Bar */}
               <div className="mt-3 p-3 rounded-xl bg-blue-600 text-white flex items-baseline justify-between shadow-xs">
                 <div>

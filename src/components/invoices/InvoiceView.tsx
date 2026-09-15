@@ -48,6 +48,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     currentBranchData,
     estimateToConvert,
     setEstimateToConvert,
+    quoteToPrefill,
+    setQuoteToPrefill,
     voidInvoice,
     currentUser,
   } = useErp();
@@ -109,6 +111,23 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       setEstimateToConvert(null);
     }
   }, [estimateToConvert, setEstimateToConvert]);
+
+  // If handed a pre-filled quotation (e.g. from an enquiry), open the form in
+  // Quotation mode — NOT as an invoice conversion.
+  useEffect(() => {
+    if (quoteToPrefill) {
+      setEditingEstimate(quoteToPrefill);
+      setEditingInvoice(null);
+      setConvertedEstimate(null);
+      setDuplicateSourceInvoice(null);
+      setDuplicateSourceEstimate(null);
+      setResumedDraftId(null);
+      setInitialDocumentType('Quotation');
+      setFormInstanceId((prev) => prev + 1);
+      setActiveTab('new');
+      setQuoteToPrefill(null);
+    }
+  }, [quoteToPrefill, setQuoteToPrefill]);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
