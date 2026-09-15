@@ -201,7 +201,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     : 'Item Details'}
                 </h2>
                 {!canManageItems && (
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                     Read-Only
                   </span>
                 )}
@@ -244,7 +244,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                   <span>Description / Technical Specs</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Optional</span>
                 </label>
                 <textarea
                   rows={2}
@@ -397,7 +397,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 )}
               >
                 <span>Stock by Branch</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
+                <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
                   Read-Only
                 </span>
               </button>
@@ -424,7 +424,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                       <span>Sale Price (₹)</span>
-                      <span className="text-[10px] text-slate-400">Price across all branches</span>
+                      <span className="text-[11px] text-slate-400">Price across all branches</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -452,7 +452,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                       <span>Standard Discount</span>
-                      <span className="text-[10px] text-slate-400">Default discount scheme</span>
+                      <span className="text-[11px] text-slate-400">Default discount scheme</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -484,7 +484,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                           <span>Wholesale Price (₹)</span>
-                          <span className="text-[10px] text-slate-400">Bulk purchase tier</span>
+                          <span className="text-[11px] text-slate-400">Bulk purchase tier</span>
                         </label>
                         <input
                           type="number"
@@ -503,7 +503,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                           <span>Purchase Price (₹)</span>
-                          <span className="text-[10px] text-slate-400">Default purchase cost</span>
+                          <span className="text-[11px] text-slate-400">Default purchase cost</span>
                         </label>
                         <input
                           type="number"
@@ -525,7 +525,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                           <span>Min Wholesale Quantity</span>
-                          <span className="text-[10px] text-slate-400">Bulk threshold</span>
+                          <span className="text-[11px] text-slate-400">Bulk threshold</span>
                         </label>
                         <input
                           type="number"
@@ -574,7 +574,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     <span className="text-base font-extrabold text-blue-700">
                       ₹{effective.finalPrice.toFixed(2)}
                     </span>
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[11px] text-slate-500">
                       (Base ₹{effective.basePrice.toFixed(2)} + GST ₹{effective.taxAmount.toFixed(2)})
                     </span>
                   </div>
@@ -605,7 +605,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 {/* Read-Only Mini-Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                       <tr>
                         <th className="py-2.5 px-4">Branch</th>
                         <th className="py-2.5 px-4">Location / Rack</th>
@@ -625,7 +625,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                                 <Building className="h-3.5 w-3.5 text-blue-600" />
                                 <span>{b.name}</span>
                                 {b.isHq && (
-                                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  <span className="text-[11px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                     HQ
                                   </span>
                                 )}
@@ -647,19 +647,19 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                               <span className="font-extrabold text-sm text-slate-900 font-mono">
                                 {qty}
                               </span>{' '}
-                              <span className="text-[10px] text-slate-500 font-semibold">{unit}</span>
+                              <span className="text-[11px] text-slate-500 font-semibold">{unit}</span>
                             </td>
                             <td className="py-3 px-4 text-center">
                               {qty > threshold ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   In Stock
                                 </span>
                               ) : qty > 0 ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                                   Low Stock
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
                                   Out of Stock
                                 </span>
                               )}
@@ -677,18 +677,18 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           <span className="text-base font-black text-blue-700 font-mono">
                             {BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0)}
                           </span>{' '}
-                          <span className="text-[10px] text-blue-700 font-bold">{unit}</span>
+                          <span className="text-[11px] text-blue-700 font-bold">{unit}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {(() => {
                             const totalQty = BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0);
                             const threshold = Number(reorderThreshold) || (item.reorderThreshold ?? 10);
                             if (totalQty === 0) {
-                              return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Out of Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Out of Stock</span>;
                             } else if (totalQty <= threshold) {
-                              return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Low Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Low Stock</span>;
                             } else {
-                              return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">In Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">In Stock</span>;
                             }
                           })()}
                         </td>

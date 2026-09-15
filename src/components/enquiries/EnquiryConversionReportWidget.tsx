@@ -38,7 +38,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             Enquiry Conversion & Lead Pipeline
           </h2>
         </div>
-        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+        <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
           Executive Summary
         </span>
       </div>
@@ -46,59 +46,59 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Total Enquiries */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Enquiries
           </span>
           <div className="text-2xl lg:text-3xl font-black font-mono text-slate-900">{total}</div>
-          <span className="text-[10px] text-slate-400">All branches logged</span>
+          <span className="text-[11px] text-slate-400">All branches logged</span>
         </div>
 
         {/* Active Follow-ups */}
         <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
               Follow-ups
             </span>
             <Clock className="h-3.5 w-3.5 text-amber-600" />
           </div>
           <div className="text-2xl lg:text-3xl font-black font-mono text-amber-900">{followUps}</div>
-          <span className="text-[10px] text-amber-700 font-medium">Open buyer queries</span>
+          <span className="text-[11px] text-amber-700 font-medium">Open buyer queries</span>
         </div>
 
         {/* Converted */}
         <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
               Converted
             </span>
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
           </div>
           <div className="text-2xl lg:text-3xl font-black font-mono text-emerald-900">{converted}</div>
-          <span className="text-[10px] text-emerald-700 font-medium">Billed / Invoiced</span>
+          <span className="text-[11px] text-emerald-700 font-medium">Billed / Invoiced</span>
         </div>
 
         {/* Cancelled */}
         <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 block">
               Cancelled
             </span>
             <XCircle className="h-3.5 w-3.5 text-rose-600" />
           </div>
           <div className="text-2xl lg:text-3xl font-black font-mono text-rose-900">{cancelled}</div>
-          <span className="text-[10px] text-rose-700 font-medium">Lost / Dropped</span>
+          <span className="text-[11px] text-rose-700 font-medium">Lost / Dropped</span>
         </div>
 
         {/* Conversion Rate */}
         <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 block">
               Conversion Rate
             </span>
             <Sparkles className="h-3.5 w-3.5 text-blue-600" />
           </div>
           <div className="text-2xl lg:text-3xl font-black font-mono text-blue-900">{conversionRate}%</div>
-          <div className="text-[10px] text-blue-700 font-semibold">{converted} converted / {total} enquiries</div>
+          <div className="text-[11px] text-blue-700 font-semibold">{converted} converted / {total} enquiries</div>
           <div className="w-full bg-blue-200 rounded-full h-1.5 overflow-hidden">
             <div
               className="bg-blue-600 h-full rounded-full transition-all duration-500"
@@ -110,7 +110,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
         {/* Pending Orders & Stock Arrived */}
         <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800 block">
               Pending Orders
             </span>
             <PackageX className="h-3.5 w-3.5 text-purple-600" />
@@ -123,7 +123,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
               </span>
             )}
           </div>
-          <span className="text-[10px] text-purple-700 font-medium">Pending order log</span>
+          <span className="text-[11px] text-purple-700 font-medium">Pending order log</span>
         </div>
       </div>
     </div>

@@ -138,7 +138,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
         <Clock className="h-3.5 w-3.5 text-amber-600" />
         Follow-up Active
         {enquiry.isNewItemRequest && (
-          <span className="ml-1 text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded-full font-semibold">New Item</span>
+          <span className="ml-1 text-[11px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded-full font-semibold">New Item</span>
         )}
       </span>
     );
@@ -222,7 +222,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             {/* 2. Customer & Branch Information Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Prospective Buyer / Customer
                 </span>
                 <div className="flex items-center gap-2">
@@ -244,7 +244,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Fulfillment Location & Live Stock Status
                 </span>
                 <div className="flex items-center justify-between">
@@ -258,7 +258,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    <span className="text-[11px] uppercase font-bold text-slate-400 block">
                       Hub Inventory
                     </span>
                     {!enquiry.itemId ? (
@@ -323,7 +323,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
                       <th className="py-3 px-4">Item Name & Code</th>
                       <th className="py-3 px-4 text-center">Unit</th>
                       <th className="py-3 px-4 text-center">Required Qty</th>
@@ -346,18 +346,18 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                             <div className="font-bold text-slate-900 flex items-center gap-2">
                               <span>{enquiry.itemName}</span>
                               {enquiry.isNewItemRequest && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
                                   <Sparkles className="h-2.5 w-2.5" />
                                   New Item Request
                                 </span>
                               )}
                             </div>
                             {enquiry.itemCode ? (
-                              <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 inline-block">
+                              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 inline-block">
                                 {enquiry.itemCode}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 mt-0.5 inline-block italic font-semibold">
+                              <span className="text-[11px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 mt-0.5 inline-block italic font-semibold">
                                 Awaiting Catalog Registration
                               </span>
                             )}
@@ -404,14 +404,14 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                   <Layers className="h-3.5 w-3.5 text-blue-600" />
                   <span>Related Business Records</span>
                 </span>
-                <span className="text-[10px] text-blue-600">Cross-module traceability</span>
+                <span className="text-[11px] text-blue-600">Cross-module traceability</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Linked Pending Order */}
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       Linked Pending Stock Order
                     </span>
                     {linkedPo || enquiry.hasPendingOrder ? (
@@ -419,7 +419,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                         <span className="font-mono font-bold text-xs text-purple-700">
                           {linkedPo ? linkedPo.orderNumber : `PO-WAIT-${enquiry.enquiryNumber}`}
                         </span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
                           {linkedPo?.status || 'Waiting'}
                         </span>
                       </div>
@@ -443,7 +443,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                 {/* Converted Quote / Invoice */}
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       Resulting Sales Document
                     </span>
                     {enquiry.convertedTo ? (
@@ -451,7 +451,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                         <span className="font-mono font-bold text-xs text-emerald-700">
                           {enquiry.convertedTo.number}
                         </span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
                           {enquiry.convertedTo.type}
                         </span>
                       </div>
@@ -563,14 +563,14 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                           <span className="text-xs font-bold text-slate-900">
                             {event.title}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[11px] text-slate-400 font-mono">
                             {new Date(event.timestamp).toLocaleString('en-IN', {
                               dateStyle: 'short',
                               timeStyle: 'short',
                             })}
                           </span>
                           {event.actor && (
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                            <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
                               By {event.actor}
                             </span>
                           )}

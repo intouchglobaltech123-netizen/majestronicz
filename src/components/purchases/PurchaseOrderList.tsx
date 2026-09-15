@@ -172,7 +172,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
             >
               <span>{st === 'ALL' ? 'All Orders' : st}</span>
               <span
-                className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-md ${
+                className={`ml-1.5 text-[11px] px-1.5 py-0.2 rounded-md ${
                   selectedStatus === st ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                 }`}
               >

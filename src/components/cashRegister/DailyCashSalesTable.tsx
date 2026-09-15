@@ -43,7 +43,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">Sales Invoices Log</h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
                 Auto-Populated
               </span>
             </div>
@@ -58,7 +58,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
             {invoices.length} Bill{invoices.length === 1 ? '' : 's'}
           </span>
           {invoices.some((i) => i.isPartialPayment) && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[10px] flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[11px] flex items-center gap-1">
               <span>PP = Partial Payment</span>
             </span>
           )}
@@ -79,7 +79,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
       ) : (
         <div className="overflow-x-auto flex-1 max-h-[460px]">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="py-3 px-4">Bill No. & Customer</th>
                 <th className="py-3 px-3 text-right">HDFC</th>
@@ -120,7 +120,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                         {splits.length > 1 && (
                           <span
                             title={`Split Payment: ${splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')}`}
-                            className="px-1.5 py-0.5 rounded font-bold font-mono text-[9px] bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs cursor-help flex items-center gap-0.5"
+                            className="px-1.5 py-0.5 rounded font-bold font-mono text-[11px] bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs cursor-help flex items-center gap-0.5"
                           >
                             <Split className="h-2.5 w-2.5" />
                             <span>Split</span>
@@ -131,7 +131,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                         {inv.isPartialPayment && (
                           <span
                             title={`Partial Payment collected: ₹${inv.partialAmount} of ₹${inv.grandTotal}. Balance due: ₹${inv.balanceDue}`}
-                            className="px-1.5 py-0.5 rounded font-black font-mono text-[9px] bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs cursor-help"
+                            className="px-1.5 py-0.5 rounded font-black font-mono text-[11px] bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs cursor-help"
                           >
                             PP
                           </span>
@@ -141,7 +141,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                         {returned > 0 && (
                           <span
                             title={`Item returned amount: ₹${returned.toLocaleString('en-IN')}`}
-                            className="px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs cursor-help"
+                            className="px-1.5 py-0.5 rounded font-mono font-bold text-[11px] bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs cursor-help"
                           >
                             -₹{returned.toLocaleString('en-IN')} ret
                           </span>
@@ -151,7 +151,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                       <div className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5 flex items-center gap-1.5">
                         <span className="truncate">{inv.customerName}</span>
                         {inv.isPartialPayment && (
-                          <span className="text-[10px] text-amber-700 font-medium">
+                          <span className="text-[11px] text-amber-700 font-medium">
                             (Bal: ₹{inv.balanceDue?.toLocaleString('en-IN')})
                           </span>
                         )}
@@ -199,7 +199,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                             {formatCurrency(codAmount)}
                           </span>
                           {inv.isPartialPayment && (
-                            <span className="text-[9px] text-indigo-500">
+                            <span className="text-[11px] text-indigo-500">
                               Partially Paid
                             </span>
                           )}
@@ -219,7 +219,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                 <td className="py-3 px-4 text-slate-800 uppercase text-[11px] tracking-wider">
                   <div className="flex items-center gap-1.5">
                     <span>Total Sale</span>
-                    <span className="text-[10px] text-slate-500 font-normal">
+                    <span className="text-[11px] text-slate-500 font-normal">
                       ({invoices.length} Bills)
                     </span>
                   </div>

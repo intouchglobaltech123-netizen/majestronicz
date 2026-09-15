@@ -157,7 +157,7 @@ export const AdjustStockModal: React.FC<Props> = ({
               <h3 className="text-sm font-bold text-slate-900 mt-1">{item.itemName}</h3>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Unit</span>
+              <span className="text-[11px] uppercase font-bold text-slate-500 block">Unit</span>
               <span className="text-xs font-bold text-slate-800">{item.unit}</span>
             </div>
           </div>
@@ -182,7 +182,7 @@ export const AdjustStockModal: React.FC<Props> = ({
                     )}
                   >
                     <div className="font-bold text-slate-900">{b.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
+                    <div className="text-[11px] text-slate-500 mt-0.5">
                       Current: <span className="font-bold text-slate-800">{getBranchStock(item.id, b.id)?.quantity ?? 0}</span> {item.unit}
                     </div>
                   </button>
@@ -278,7 +278,7 @@ export const AdjustStockModal: React.FC<Props> = ({
 
             {/* Live Stock Transition Preview */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stock Result Preview</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Stock Result Preview</span>
               <div className="flex items-center gap-2 mt-1">
                 <div className="text-sm font-bold text-slate-600">
                   {currentQuantity}

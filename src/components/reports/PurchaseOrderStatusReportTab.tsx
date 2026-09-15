@@ -213,7 +213,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-slate-900 mt-1">
                 ₹{metrics.totalValueOrdered.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
                 {metrics.totalCount} orders placed
               </span>
             </div>
@@ -225,7 +225,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-emerald-700 mt-1">
                 ₹{metrics.totalValueReceived.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-emerald-600 mt-0.5 block">
+              <span className="text-[11px] text-emerald-600 mt-0.5 block">
                 Stock received into warehouse
               </span>
             </div>
@@ -237,7 +237,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-blue-700 mt-1">
                 {metrics.completionRate.toFixed(1)}%
               </p>
-              <span className="text-[10px] text-blue-600 mt-0.5 block">
+              <span className="text-[11px] text-blue-600 mt-0.5 block">
                 Received / Total Ordered Value
               </span>
             </div>
@@ -249,7 +249,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-rose-700 mt-1">
                 {metrics.overdueList.length}
               </p>
-              <span className="text-[10px] text-rose-600 mt-0.5 block">
+              <span className="text-[11px] text-rose-600 mt-0.5 block">
                 Past expected delivery date
               </span>
             </div>
@@ -267,27 +267,27 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-blue-700">Ordered (Pending)</span>
+                <span className="text-[11px] font-bold uppercase text-blue-700">Ordered (Pending)</span>
                 <div className="text-xl font-extrabold text-blue-900">{metrics.statusCounts.Ordered}</div>
-                <span className="text-[10px] text-blue-600">Awaiting dispatch</span>
+                <span className="text-[11px] text-blue-600">Awaiting dispatch</span>
               </div>
 
               <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-amber-700">Partially Received</span>
+                <span className="text-[11px] font-bold uppercase text-amber-700">Partially Received</span>
                 <div className="text-xl font-extrabold text-amber-900">{metrics.statusCounts['Partially Received']}</div>
-                <span className="text-[10px] text-amber-600">Partial shipment verified</span>
+                <span className="text-[11px] text-amber-600">Partial shipment verified</span>
               </div>
 
               <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-emerald-700">Fully Received</span>
+                <span className="text-[11px] font-bold uppercase text-emerald-700">Fully Received</span>
                 <div className="text-xl font-extrabold text-emerald-900">{metrics.statusCounts.Received}</div>
-                <span className="text-[10px] text-emerald-600">Complete stock receipt</span>
+                <span className="text-[11px] text-emerald-600">Complete stock receipt</span>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-slate-500">Cancelled</span>
+                <span className="text-[11px] font-bold uppercase text-slate-500">Cancelled</span>
                 <div className="text-xl font-extrabold text-slate-700">{metrics.statusCounts.Cancelled}</div>
-                <span className="text-[10px] text-slate-400">Voided orders</span>
+                <span className="text-[11px] text-slate-400">Voided orders</span>
               </div>
             </div>
           </div>
@@ -318,7 +318,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <th className="py-3 px-4">PO Number</th>
                       <th className="py-3 px-3">Branch</th>
                       <th className="py-3 px-3">Vendor</th>
@@ -337,7 +337,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
                         <tr key={po.id} className="hover:bg-rose-50/20 transition-colors">
                           <td className="py-3 px-4">
                             <span className="font-mono font-bold text-blue-700">{po.poNumber}</span>
-                            <span className="text-[10px] text-slate-400 block">{po.date}</span>
+                            <span className="text-[11px] text-slate-400 block">{po.date}</span>
                           </td>
                           <td className="py-3 px-3 font-semibold text-slate-700">
                             {bObj?.name || po.branchId}
@@ -360,7 +360,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
                           <td className="py-3 px-3 text-center">
                             <span
                               className={cn(
-                                'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                                'px-2 py-0.5 rounded-full text-[11px] font-bold border',
                                 po.status === 'Partially Received'
                                   ? 'bg-amber-100 text-amber-800 border-amber-200'
                                   : 'bg-blue-100 text-blue-800 border-blue-200'

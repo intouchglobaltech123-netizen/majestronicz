@@ -124,7 +124,7 @@ export const StockHistoryModal: React.FC<Props> = ({
                   {filterItem ? `Stock Audit History — ${filterItem.itemName}` : 'Master Inventory Audit Trail'}
                 </h2>
                 {filterItem && (
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                     {filterItem.itemCode}
                   </span>
                 )}
@@ -212,13 +212,13 @@ export const StockHistoryModal: React.FC<Props> = ({
                     <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex items-center flex-wrap gap-2">
                         <span className="font-bold text-slate-900">{log.itemName}</span>
-                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200">
+                        <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200">
                           {log.itemCode}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-blue-700 border border-blue-200">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white text-blue-700 border border-blue-200">
                           {branchObj?.name || log.branchId}
                         </span>
-                        <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold border', getReasonBadge(log.reason))}>
+                        <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-bold border', getReasonBadge(log.reason))}>
                           {log.reason}
                         </span>
                       </div>
@@ -229,7 +229,7 @@ export const StockHistoryModal: React.FC<Props> = ({
                         </p>
                       )}
 
-                      <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-500 pt-0.5">
+                      <div className="flex items-center flex-wrap gap-3 text-[11px] text-slate-500 pt-0.5">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-slate-400" />
                           {formatTimestamp(log.timestamp)}
@@ -263,7 +263,7 @@ export const StockHistoryModal: React.FC<Props> = ({
                     {/* Right: Quantity Movement Badge */}
                     <div className="flex items-center gap-3 shrink-0 self-end sm:self-center bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
                       <div className="text-right">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">From</span>
+                        <span className="text-[11px] text-slate-400 font-bold uppercase block">From</span>
                         <span className="text-xs font-semibold text-slate-600">{log.previousQuantity}</span>
                       </div>
 
@@ -282,7 +282,7 @@ export const StockHistoryModal: React.FC<Props> = ({
                       </div>
 
                       <div className="text-left">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">To</span>
+                        <span className="text-[11px] text-slate-400 font-bold uppercase block">To</span>
                         <span className="text-xs font-extrabold text-blue-700">{log.newQuantity}</span>
                       </div>
                     </div>

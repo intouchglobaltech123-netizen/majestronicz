@@ -323,7 +323,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             <span>Receiving History</span>
             <span
               className={cn(
-                'px-1.5 py-0.2 rounded-full text-[10px] font-mono',
+                'px-1.5 py-0.2 rounded-full text-[11px] font-mono',
                 receivingHistory.length > 0
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-slate-100 text-slate-500'
@@ -347,7 +347,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             <span>Vendor Bills</span>
             <span
               className={cn(
-                'px-1.5 py-0.2 rounded-full text-[10px] font-mono',
+                'px-1.5 py-0.2 rounded-full text-[11px] font-mono',
                 attachments.length > 0
                   ? 'bg-blue-100 text-blue-800'
                   : 'bg-slate-100 text-slate-500'
@@ -370,7 +370,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             >
               <Layers className="h-3.5 w-3.5" />
               <span>Linked Records</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 text-purple-800 font-mono">
+              <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-purple-100 text-purple-800 font-mono">
                 1
               </span>
             </button>
@@ -431,7 +431,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <span>{purchaseOrder.expectedDeliveryDate}</span>
                   </div>
                   {isOverdue ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded mt-1 border border-rose-200">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded mt-1 border border-rose-200">
                       <AlertTriangle className="h-3 w-3 text-rose-600" />
                       Delivery Overdue
                     </span>
@@ -753,7 +753,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                                 <tr key={l.itemId || lIdx} className="hover:bg-slate-50/40">
                                   <td className="py-2.5 px-4 font-semibold text-slate-900">
                                     <div>{l.itemName}</div>
-                                    <div className="font-mono text-[10px] text-slate-400">{l.itemCode}</div>
+                                    <div className="font-mono text-[11px] text-slate-400">{l.itemCode}</div>
                                   </td>
                                   <td className="py-2.5 px-3 text-center font-mono text-slate-600">
                                     {l.quantityOrdered}
@@ -909,7 +909,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         ) : (
                           <div className="flex flex-col items-center justify-center text-rose-600">
                             <FileText className="h-7 w-7" />
-                            <span className="text-[9px] font-black uppercase tracking-wider font-mono">
+                            <span className="text-[11px] font-black uppercase tracking-wider font-mono">
                               PDF
                             </span>
                           </div>
@@ -951,7 +951,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           <p>
                             Uploaded on <span className="font-semibold text-slate-700">{att.uploadedAt.split('T')[0]}</span>
                           </p>
-                          <p className="text-[10px] text-slate-400">By {att.uploadedBy}</p>
+                          <p className="text-[11px] text-slate-400">By {att.uploadedBy}</p>
                         </div>
 
                         {/* Action Buttons */}

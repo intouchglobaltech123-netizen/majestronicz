@@ -305,7 +305,7 @@ export const DashboardView: React.FC = () => {
                   <div className={cn('w-full rounded-t-md transition-all cursor-pointer',
                     i === trendHover ? 'bg-blue-600' : d.date === today ? 'bg-blue-400' : 'bg-blue-200 group-hover:bg-blue-300')}
                     style={{ height: `${Math.max(2, (d.total / trend.max) * 100)}%` }} />
-                  <span className="text-[8px] text-slate-400 mt-1 h-2.5">{trendDays <= 14 || i % 3 === 0 ? d.label.slice(3) : ''}</span>
+                  <span className="text-[11px] text-slate-400 mt-1 h-2.5">{trendDays <= 14 || i % 3 === 0 ? d.label.slice(3) : ''}</span>
                 </div>
               ))}
             </div>
@@ -397,7 +397,7 @@ export const DashboardView: React.FC = () => {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs font-black text-slate-900 font-mono">{formatCurrency(netRevenue(i))}</p>
-                      {due > 0 ? <p className="text-[10px] font-bold text-amber-600">Due {formatCurrency(due)}</p> : <p className="text-[10px] font-semibold text-emerald-600">Paid</p>}
+                      {due > 0 ? <p className="text-[11px] font-bold text-amber-600">Due {formatCurrency(due)}</p> : <p className="text-[11px] font-semibold text-emerald-600">Paid</p>}
                     </div>
                   </div>
                 );
@@ -441,7 +441,7 @@ export const DashboardView: React.FC = () => {
                   { label: '90+ days', v: aging.d60plus, dot: 'bg-rose-600', tone: 'text-rose-700' },
                 ].map((b) => (
                   <div key={b.label} className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
-                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><span className={`h-2 w-2 rounded-full ${b.dot}`} />{b.label}</span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className={`h-2 w-2 rounded-full ${b.dot}`} />{b.label}</span>
                     <p className={`text-sm font-black font-mono mt-1 ${b.tone}`}>{formatCurrency(b.v)}</p>
                   </div>
                 ))}
@@ -473,7 +473,7 @@ export const DashboardView: React.FC = () => {
                     <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
                       <div className="h-full rounded-full bg-violet-500" style={{ width: `${(p.sales / topSalespeople.max) * 100}%` }} />
                     </div>
-                    <span className="text-[10px] text-slate-400">{p.bills} bill{p.bills === 1 ? '' : 's'}{p.incentive > 0 ? ` · incentive ${formatCurrency(p.incentive)}` : ''}</span>
+                    <span className="text-[11px] text-slate-400">{p.bills} bill{p.bills === 1 ? '' : 's'}{p.incentive > 0 ? ` · incentive ${formatCurrency(p.incentive)}` : ''}</span>
                   </div>
                 </div>
               ))}
@@ -502,7 +502,7 @@ export const DashboardView: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-3 px-5">Branch</th>
                   <th className="py-3 px-5 text-right">Sales (Month)</th>
                   <th className="py-3 px-5 text-right">To Collect</th>
@@ -522,7 +522,7 @@ export const DashboardView: React.FC = () => {
                           <div className="h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-blue-100 border border-slate-200 flex items-center justify-center text-slate-600 group-hover:text-blue-700"><Building className="h-4 w-4" /></div>
                           <div>
                             <p className="font-bold text-slate-900 group-hover:text-blue-700">{b.name}</p>
-                            <p className="text-[10px] text-slate-500">{b.location}</p>
+                            <p className="text-[11px] text-slate-500">{b.location}</p>
                           </div>
                         </div>
                       </td>
@@ -571,11 +571,11 @@ const KpiCard: React.FC<{
     <div className="mt-2 text-lg lg:text-xl font-black text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
     <div className="mt-0.5 flex items-center gap-1.5">
       {typeof delta === 'number' && (
-        <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>
+        <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>
           {delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{Math.abs(delta)}%
         </span>
       )}
-      {sub && <span className="text-[10px] text-slate-400">{deltaLabel || sub}</span>}
+      {sub && <span className="text-[11px] text-slate-400">{deltaLabel || sub}</span>}
     </div>
   </button>
 );
@@ -593,7 +593,7 @@ const HealthCard: React.FC<{
         <span className="text-xs text-slate-500 font-semibold">{unit}</span>
       </div>
       <p className="text-xs font-bold text-slate-700">{label}</p>
-      <p className="text-[10px] text-slate-400 truncate">{hint}</p>
+      <p className="text-[11px] text-slate-400 truncate">{hint}</p>
     </div>
     <ArrowRight className="h-4 w-4 text-slate-300 ml-auto shrink-0" />
   </button>

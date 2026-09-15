@@ -127,7 +127,7 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
           <span>{label}</span>
           <span className="text-slate-400 font-normal">(Optional)</span>
         </label>
-        <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">
+        <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">
           {sublabel}
         </span>
       </div>
@@ -164,7 +164,7 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-800">Product Image Uploaded</span>
-                <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-md">
                   Active
                 </span>
               </div>

@@ -301,7 +301,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-blue-700 mt-1">
                 ₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
                 Gross sales inclusive of tax
               </span>
             </div>
@@ -311,7 +311,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 Billed Invoices
               </span>
               <p className="text-2xl font-extrabold text-slate-900 mt-1">{summary.invoiceCount}</p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Completed sale records</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Completed sale records</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -321,7 +321,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-emerald-700 mt-1">
                 ₹{summary.averageInvoice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Average ticket size</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Average ticket size</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -331,7 +331,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <p className="text-2xl font-extrabold text-slate-800 mt-1">
                 ₹{summary.totalTax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">CGST + SGST remittance</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">CGST + SGST remittance</span>
             </div>
 
             {/* Loyalty Rewards Given */}
@@ -346,7 +346,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 {summary.loyaltyRewardCount}{' '}
                 <span className="text-xs text-amber-700 font-bold">bills</span>
               </p>
-              <span className="text-[10px] text-amber-800 mt-0.5 block font-semibold">
+              <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
                 - ₹{summary.loyaltyDiscountGivenTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })} waived
               </span>
             </div>
@@ -377,7 +377,7 @@ export const SalesReportTab: React.FC<Props> = ({
                         {getModeIcon(mode)}
                         <span className="text-xs font-bold text-slate-900">{mode}</span>
                       </div>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
                         {data.count} bills
                       </span>
                     </div>
@@ -444,7 +444,7 @@ export const SalesReportTab: React.FC<Props> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-3 px-4 w-12 text-center">#</th>
                     <th className="py-3 px-4">Item Name & Code</th>
                     <th className="py-3 px-4 text-right">Units Sold</th>
@@ -465,12 +465,12 @@ export const SalesReportTab: React.FC<Props> = ({
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900">{item.itemName}</span>
                               {item.isCombo && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
                                   Combo
                                 </span>
                               )}
                             </div>
-                            <span className="font-mono text-[10px] text-slate-500">
+                            <span className="font-mono text-[11px] text-slate-500">
                               {item.itemCode}
                             </span>
                           </td>
@@ -481,7 +481,7 @@ export const SalesReportTab: React.FC<Props> = ({
                             ₹{item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                               {share.toFixed(1)}%
                             </span>
                           </td>

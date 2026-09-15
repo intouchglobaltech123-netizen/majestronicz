@@ -96,7 +96,7 @@ export const PendingOrderList: React.FC<Props> = ({
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
               Pending Orders Backlog ({pendingOrders.length})
             </span>
-            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-bold">
+            <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-bold">
               Restock Monitoring Active
             </span>
           </div>
@@ -108,7 +108,7 @@ export const PendingOrderList: React.FC<Props> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3.5 px-4">Order Ref</th>
                 <th className="py-3.5 px-4">Item & Needed Qty</th>
                 <th className="py-3.5 px-4">Customer</th>
@@ -138,7 +138,7 @@ export const PendingOrderList: React.FC<Props> = ({
                       <div className="font-mono font-bold text-blue-700 group-hover:underline">
                         {po.orderNumber}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                         Enq #{po.enquiryNumber}
                       </div>
                     </td>
@@ -150,7 +150,7 @@ export const PendingOrderList: React.FC<Props> = ({
                         <span className="text-xs font-mono font-black text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
                           Need: {po.quantityNeeded} {po.unit}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono">
+                        <span className="text-[11px] text-slate-500 font-mono">
                           In Branch: {currentBranchStock} {po.unit}
                         </span>
                       </div>
@@ -192,7 +192,7 @@ export const PendingOrderList: React.FC<Props> = ({
                           // Only pending (waiting) orders can be "overdue for restock".
                           <span
                             className={cn(
-                              'text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1',
+                              'text-[11px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1',
                               restock.isOverdue
                                 ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
                                 : 'bg-blue-50 text-blue-700 border-blue-200'
@@ -202,11 +202,11 @@ export const PendingOrderList: React.FC<Props> = ({
                             {restock.text}
                           </span>
                         ) : po.status === 'Stock Arrived' ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
                             Stock arrived — ready to fulfil
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
                             {po.status}
                           </span>
                         )}
@@ -225,7 +225,7 @@ export const PendingOrderList: React.FC<Props> = ({
                         )}
                       </div>
                       {po.expectedRestockDate && (
-                        <div className="text-[10px] text-slate-400 font-mono">
+                        <div className="text-[11px] text-slate-400 font-mono">
                           Target: {po.expectedRestockDate}
                         </div>
                       )}
@@ -234,22 +234,22 @@ export const PendingOrderList: React.FC<Props> = ({
                     {/* 7. Status (Single clean badge) */}
                     <td className="py-3.5 px-4">
                       {po.status === 'Stock Arrived' || canFulfillNow ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] shadow-2xs">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] shadow-2xs">
                           <Sparkles className="h-3 w-3 text-emerald-600" />
                           Stock Arrived
                         </span>
                       ) : po.status === 'Fulfilled' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold">
                           <CheckCircle2 className="h-3 w-3" />
                           Fulfilled
                         </span>
                       ) : po.status === 'Cancelled' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">
                           <XCircle className="h-3 w-3" />
                           Cancelled
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold">
                           <Clock className="h-3 w-3" />
                           Waiting Restock
                         </span>

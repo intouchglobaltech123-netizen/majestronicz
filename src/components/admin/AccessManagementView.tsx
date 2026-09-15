@@ -133,7 +133,7 @@ export const AccessManagementView: React.FC = () => {
             <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
               <Icon className="h-4 w-4 text-slate-500" />
               <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{title}</span>
-              {hint && <span className="text-[10px] text-slate-400 ml-1">{hint}</span>}
+              {hint && <span className="text-[11px] text-slate-400 ml-1">{hint}</span>}
             </div>
             <div className="p-5">{children}</div>
           </div>

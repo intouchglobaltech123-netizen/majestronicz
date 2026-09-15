@@ -320,14 +320,14 @@ export const DeliveryChallanForm: React.FC<Props> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Delivery Challan For (Recipient Details)
               </span>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[11px] text-slate-400">
                 Branch transfer OR customer delivery
               </span>
             </div>
 
             {/* Quick-fill pills for branches */}
             <div className="flex items-center gap-1.5 flex-wrap pb-1">
-              <span className="text-[10px] text-slate-500 font-medium">Quick Branch:</span>
+              <span className="text-[11px] text-slate-500 font-medium">Quick Branch:</span>
               <button
                 type="button"
                 onClick={() => {
@@ -335,7 +335,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   setLocation('100 Feet Road, Gandhipuram, Coimbatore');
                   setContactNo('9842211002');
                 }}
-                className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
+                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
               >
                 + Coimbatore Branch
               </button>
@@ -346,7 +346,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   setLocation('Mount Road, Anna Salai, Chennai');
                   setContactNo('9842211003');
                 }}
-                className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
+                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
               >
                 + Chennai Branch
               </button>
@@ -357,7 +357,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   setLocation('10, Nachiappa 2nd St, Kottai, Erode');
                   setContactNo('6379560289');
                 }}
-                className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
+                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
               >
                 + Erode HQ
               </button>
@@ -482,7 +482,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
           <div className="border border-slate-200 rounded-xl overflow-visible shadow-2xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3 min-w-[240px]">Item Description / Model</th>
                   <th className="py-2.5 px-3 w-32 text-center">HSN / SAC</th>
@@ -516,7 +516,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                       {/* Autocomplete Dropdown */}
                       {showItemAutocomplete === row.id && (
                         <div className="absolute top-full left-3 z-30 w-80 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto p-1.5 space-y-1">
-                          <div className="text-[10px] font-bold uppercase text-slate-400 px-2 py-1 flex items-center justify-between border-b border-slate-100">
+                          <div className="text-[11px] font-bold uppercase text-slate-400 px-2 py-1 flex items-center justify-between border-b border-slate-100">
                             <span>Select Master Catalog Item:</span>
                             <button
                               type="button"
@@ -545,12 +545,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                                   <p className="font-bold text-slate-900 group-hover/btn:text-blue-700 truncate">
                                     {item.itemName}
                                   </p>
-                                  <p className="text-[10px] text-slate-500">
+                                  <p className="text-[11px] text-slate-500">
                                     {item.itemCode} • {item.category} • HSN: {item.itemHSN}
                                   </p>
                                 </div>
                                 <div className="text-right pl-2">
-                                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                                     {item.unit}
                                   </span>
                                 </div>

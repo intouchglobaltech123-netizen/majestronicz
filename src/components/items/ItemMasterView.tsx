@@ -195,7 +195,7 @@ export const ItemMasterView: React.FC = () => {
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                 Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                 {isAllBranches ? 'All Branches' : currentBranchData?.name}
               </span>
             </div>
@@ -210,7 +210,7 @@ export const ItemMasterView: React.FC = () => {
 
         {/* Quick Branch Switcher */}
         <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-          <span className="text-[10px] uppercase font-bold text-slate-500 px-2">Branch:</span>
+          <span className="text-[11px] uppercase font-bold text-slate-500 px-2">Branch:</span>
           {currentUser.role === 'CEO' && (
             <button
               onClick={() => switchBranch('all')}
@@ -318,7 +318,7 @@ export const ItemMasterView: React.FC = () => {
           <span>Products Catalog</span>
           <span
             className={cn(
-              'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold',
+              'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold',
               activeMainTab === 'products'
                 ? 'bg-blue-100 text-blue-800'
                 : 'bg-slate-100 text-slate-600'
@@ -342,7 +342,7 @@ export const ItemMasterView: React.FC = () => {
           <span>Combos & Bundles</span>
           <span
             className={cn(
-              'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold',
+              'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold',
               activeMainTab === 'combos'
                 ? 'bg-purple-100 text-purple-800'
                 : 'bg-slate-100 text-slate-600'
@@ -459,7 +459,7 @@ export const ItemMasterView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Item Details</th>
                     <th className="py-3.5 px-4">Item Code</th>
                     <th className="py-3.5 px-4">Category & Unit</th>
@@ -561,11 +561,11 @@ export const ItemMasterView: React.FC = () => {
                           <td className="py-3.5 px-4">
                             <div className="font-semibold text-slate-800">{item.category}</div>
                             {item.subcategory && (
-                              <div className="text-[10px] text-slate-500 font-medium">
+                              <div className="text-[11px] text-slate-500 font-medium">
                                 ↳ {item.subcategory}
                               </div>
                             )}
-                            <div className="text-[10px] text-slate-400 uppercase font-mono mt-0.5">
+                            <div className="text-[11px] text-slate-400 uppercase font-mono mt-0.5">
                               Unit: {item.unit}
                             </div>
                           </td>
@@ -577,12 +577,12 @@ export const ItemMasterView: React.FC = () => {
                                 <span className="font-black text-sm text-slate-900">
                                   {formatCurrency(item.salePrice)}
                                 </span>
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-[11px] text-slate-500">
                                   {item.salePriceTaxMode === 'with' ? 'Incl. Tax' : 'Excl. Tax'}
                                 </span>
                               </div>
                               {item.discountOnSalePrice && item.discountOnSalePrice > 0 ? (
-                                <div className="text-[10px] text-emerald-700 flex items-center gap-0.5 font-medium mt-0.5">
+                                <div className="text-[11px] text-emerald-700 flex items-center gap-0.5 font-medium mt-0.5">
                                   <Percent className="h-2.5 w-2.5" />
                                   <span>
                                     Disc: {item.discountOnSalePrice}
@@ -601,7 +601,7 @@ export const ItemMasterView: React.FC = () => {
                                   <span className="font-semibold text-slate-800">
                                     {formatCurrency(item.wholesalePrice)}
                                   </span>
-                                  <span className="text-[10px] text-slate-500 block">
+                                  <span className="text-[11px] text-slate-500 block">
                                     Min. {item.minWholesaleQty} {item.unit}
                                   </span>
                                 </div>
@@ -620,21 +620,21 @@ export const ItemMasterView: React.FC = () => {
                                 </span>
                                 <span className="text-slate-300 text-xs font-normal">·</span>
                                 {qty > (item.reorderThreshold ?? 10) ? (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                                     In Stock
                                   </span>
                                 ) : qty > 0 ? (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
                                     Low
                                   </span>
                                 ) : (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200">
                                     Out
                                   </span>
                                 )}
                               </div>
                               {!isAllBranches && (
-                                <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                <div className="text-[11px] text-slate-500 font-medium mt-0.5">
                                   {rackLoc ? (
                                     <span className="font-mono text-slate-700">
                                       {rackLoc.toLowerCase().startsWith('rack') ||
@@ -792,7 +792,7 @@ export const ItemMasterView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4 w-12 text-center">#</th>
                     <th className="py-3 px-4">Combo Name & Code</th>
                     <th className="py-3 px-4">Components Preview</th>
@@ -865,12 +865,12 @@ export const ItemMasterView: React.FC = () => {
                               <div>
                                 <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
                                   <span>{combo.comboName}</span>
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                                  <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
                                     Combo
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="font-mono text-[10px] text-purple-700 font-bold">
+                                  <span className="font-mono text-[11px] text-purple-700 font-bold">
                                     {combo.comboCode}
                                   </span>
                                   <button
@@ -910,7 +910,7 @@ export const ItemMasterView: React.FC = () => {
                                     key={cIdx}
                                     title={`${it?.itemName || 'Product'} · ${compStock} available at this branch`}
                                     className={cn(
-                                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border',
+                                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border',
                                       isCompOut
                                         ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
                                         : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -924,7 +924,7 @@ export const ItemMasterView: React.FC = () => {
                                     </span>
                                     <span
                                       className={cn(
-                                        'font-mono text-[9px]',
+                                        'font-mono text-[11px]',
                                         isCompOut ? 'text-rose-600' : 'text-slate-400'
                                       )}
                                     >
@@ -941,7 +941,7 @@ export const ItemMasterView: React.FC = () => {
                             <div className="font-mono font-black text-slate-900 text-sm">
                               {formatCurrency(combo.comboPrice)}
                             </div>
-                            <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1.5 mt-0.5">
+                            <div className="text-[11px] text-slate-400 flex items-center justify-end gap-1.5 mt-0.5">
                               <span>Separate: {formatCurrency(buyingSeparately)}</span>
                               {savings > 0 && (
                                 <span className="font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
@@ -966,13 +966,13 @@ export const ItemMasterView: React.FC = () => {
                               </span>
 
                               {isOutOfStock && bottleneckItemName && (
-                                <span className="text-[9px] text-rose-600 max-w-[160px] truncate text-right">
+                                <span className="text-[11px] text-rose-600 max-w-[160px] truncate text-right">
                                   Depleted: {bottleneckItemName}
                                 </span>
                               )}
 
                               {!isOutOfStock && (
-                                <span className="text-[9px] text-slate-400">
+                                <span className="text-[11px] text-slate-400">
                                   Computed live from components
                                 </span>
                               )}

@@ -153,7 +153,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                     <div className="min-w-0 pr-2">
                       <div className="truncate">{opt.label}</div>
                       {opt.sublabel && (
-                        <div className="text-[10px] text-slate-400 font-normal truncate">
+                        <div className="text-[11px] text-slate-400 font-normal truncate">
                           {opt.sublabel}
                         </div>
                       )}

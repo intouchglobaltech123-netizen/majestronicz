@@ -96,7 +96,7 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-slate-400 mt-2">Number keys 1–9 and 0 open the first ten modules above.</p>
+            <p className="text-[11px] text-slate-400 mt-2">Number keys 1–9 and 0 open the first ten modules above.</p>
           </div>
         </div>
       </div>

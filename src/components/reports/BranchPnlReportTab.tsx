@@ -291,12 +291,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-3 px-4">Financial Metric</th>
                     {displayedBranches.map((b) => (
                       <th key={b.id} className="py-3 px-4 text-right">
                         <div>{b.name}</div>
-                        <span className="text-[9px] text-slate-400 font-normal">{b.location}</span>
+                        <span className="text-[11px] text-slate-400 font-normal">{b.location}</span>
                       </th>
                     ))}
                     {branchScope === 'all' && (
@@ -452,7 +452,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                         />
                       </div>
 
-                      <span className="text-[10px] text-slate-400 font-medium block">
+                      <span className="text-[11px] text-slate-400 font-medium block">
                         {share.toFixed(1)}% of total operating expenses
                       </span>
                     </div>

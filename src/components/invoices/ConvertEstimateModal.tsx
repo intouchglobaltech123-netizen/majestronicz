@@ -103,16 +103,16 @@ export const ConvertEstimateModal: React.FC<Props> = ({
                     <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                       {est.estimateNumber}
                     </span>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
+                    <span className="text-[11px] uppercase font-bold text-slate-500 flex items-center gap-1">
                       <Building className="h-3 w-3 text-slate-400" />
                       {est.branchId}
                     </span>
                     {est.withGst ? (
-                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
                         With GST
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
                         Without GST
                       </span>
                     )}
@@ -132,7 +132,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
 
                 <div className="flex items-center gap-3 pl-4 shrink-0 text-right">
                   <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total</span>
+                    <span className="text-[11px] uppercase font-semibold text-slate-400 block">Total</span>
                     <span className="font-mono font-black text-sm text-slate-900">
                       {formatCurrency(est.grandTotal)}
                     </span>

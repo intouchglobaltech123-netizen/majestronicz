@@ -80,12 +80,12 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">Daily Expenses Log</h3>
               {isClosed ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 flex items-center gap-1">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 flex items-center gap-1">
                   <Lock className="h-3 w-3" />
                   <span>Locked</span>
                 </span>
               ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
                   Manual Entry
                 </span>
               )}
@@ -167,7 +167,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
             {/* Quick Suggestions Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+              <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
                 <Sparkles className="h-2.5 w-2.5 text-amber-500" />
                 <span>Quick:</span>
               </span>
@@ -176,7 +176,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                   key={sug}
                   type="button"
                   onClick={() => setReason(sug)}
-                  className="text-[10.5px] px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors"
                 >
                   {sug}
                 </button>
@@ -207,7 +207,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
       ) : (
         <div className="overflow-x-auto flex-1 max-h-[380px]">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="py-3 px-4">Reason / Description</th>
                 <th className="py-3 px-3 text-right bg-rose-50/40 text-rose-900 border-x border-rose-100/50">
@@ -225,7 +225,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                     <div className="font-bold text-slate-900 truncate max-w-xs">
                       {exp.reason}
                     </div>
-                    <div className="text-[10px] text-slate-400">
+                    <div className="text-[11px] text-slate-400">
                       Logged by {exp.createdBy || 'Staff'}
                     </div>
                   </td>

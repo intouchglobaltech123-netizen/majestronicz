@@ -211,7 +211,7 @@ export const HrmView: React.FC = () => {
         >
           <Calendar className="h-4 w-4" />
           <span>Attendance Log</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
             activeTab === 'attendance' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
           }`}>
             {attendanceRecords.length}
@@ -228,7 +228,7 @@ export const HrmView: React.FC = () => {
         >
           <DollarSign className="h-4 w-4" />
           <span>Payroll</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
             activeTab === 'payroll' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
           }`}>
             {activeStaff.length}
@@ -245,7 +245,7 @@ export const HrmView: React.FC = () => {
         >
           <Users className="h-4 w-4" />
           <span>Employees</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
             activeTab === 'employees' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
           }`}>
             {employees.length}

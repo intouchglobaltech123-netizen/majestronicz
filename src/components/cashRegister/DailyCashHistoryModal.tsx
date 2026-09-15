@@ -82,7 +82,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
           <div className="overflow-x-auto flex-1 p-6">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Branch</th>
                   <th className="py-3 px-3 text-right">Total Sale</th>
@@ -141,7 +141,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       {/* Branch */}
                       <td className="py-3 px-4 text-slate-700">
                         <span className="font-semibold">{branch?.name}</span>
-                        <span className="text-[10px] text-slate-400 block">
+                        <span className="text-[11px] text-slate-400 block">
                           {branch?.shortCode}
                         </span>
                       </td>
@@ -149,7 +149,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       {/* Total Sale */}
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(totalSale)}
-                        <span className="text-[10px] text-slate-400 block font-normal">
+                        <span className="text-[11px] text-slate-400 block font-normal">
                           {dayInvoices.length} Bills
                         </span>
                       </td>
@@ -157,7 +157,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       {/* Total Expense */}
                       <td className="py-3 px-3 text-right font-mono text-rose-700 font-semibold">
                         {formatCurrency(totalExpense)}
-                        <span className="text-[10px] text-slate-400 block font-normal">
+                        <span className="text-[11px] text-slate-400 block font-normal">
                           {reg.expenses.length} Lines
                         </span>
                       </td>
@@ -165,7 +165,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       {/* Closing Balance */}
                       <td className="py-3 px-3 text-right font-mono font-extrabold text-blue-700 bg-blue-50/30">
                         {formatCurrency(closing)}
-                        <span className="text-[10px] text-slate-500 block font-normal">
+                        <span className="text-[11px] text-slate-500 block font-normal">
                           Drawer cash
                         </span>
                       </td>
@@ -176,7 +176,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                           {reg.closedBy || 'Admin'}
                         </span>
                         {reg.closedAt && (
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[11px] text-slate-400">
                             {new Date(reg.closedAt).toLocaleTimeString('en-IN', {
                               hour: '2-digit',
                               minute: '2-digit',

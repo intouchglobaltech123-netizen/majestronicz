@@ -268,7 +268,7 @@ export const AddItemModal: React.FC<Props> = ({
                   <span>
                     Item Name <span className="text-rose-500">*</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">
+                  <span className="text-[11px] text-slate-400 font-normal">
                     e.g. Delta PLC DVP-14SS2
                   </span>
                 </label>
@@ -286,7 +286,7 @@ export const AddItemModal: React.FC<Props> = ({
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                   <span>Description / Technical Specs</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Optional</span>
                 </label>
                 <textarea
                   rows={2}
@@ -304,7 +304,7 @@ export const AddItemModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => setShowHsnHelper(!showHsnHelper)}
-                    className="text-[10px] text-blue-600 hover:text-blue-700 flex items-center gap-1 font-semibold"
+                    className="text-[11px] text-blue-600 hover:text-blue-700 flex items-center gap-1 font-semibold"
                   >
                     <Search className="h-2.5 w-2.5" /> Quick HSNs
                   </button>
@@ -320,7 +320,7 @@ export const AddItemModal: React.FC<Props> = ({
                 {/* HSN Helper Popover */}
                 {showHsnHelper && (
                   <div className="absolute top-full left-0 right-0 mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 space-y-1 max-h-48 overflow-y-auto">
-                    <p className="text-[10px] font-bold uppercase text-slate-400 px-2 py-1">
+                    <p className="text-[11px] font-bold uppercase text-slate-400 px-2 py-1">
                       Select Common Automation HSN:
                     </p>
                     {COMMON_HSN_CODES.map((item) => (
@@ -334,7 +334,7 @@ export const AddItemModal: React.FC<Props> = ({
                         className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 text-xs text-slate-800 flex justify-between items-center"
                       >
                         <span className="font-mono font-bold text-blue-700">{item.code}</span>
-                        <span className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                        <span className="text-[11px] text-slate-500 truncate max-w-[180px]">
                           {item.desc}
                         </span>
                       </button>
@@ -368,14 +368,14 @@ export const AddItemModal: React.FC<Props> = ({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <span>Item Code</span>
-                    <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                    <span className="text-[11px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
                       {isCodeOverridden ? 'Manual' : 'Auto'}
                     </span>
                   </label>
                   <button
                     type="button"
                     onClick={handleAutoGenerateCode}
-                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold"
+                    className="text-[11px] text-blue-600 hover:text-blue-700 font-bold"
                   >
                     + Auto Assign
                   </button>
@@ -444,7 +444,7 @@ export const AddItemModal: React.FC<Props> = ({
                 )}
               >
                 <span>Stock Policy & Alerts</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">
                   0 {unit} (New)
                 </span>
               </button>
@@ -458,7 +458,7 @@ export const AddItemModal: React.FC<Props> = ({
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                       <span>Sale Price (₹)</span>
-                      <span className="text-[10px] text-slate-400">Price across all branches</span>
+                      <span className="text-[11px] text-slate-400">Price across all branches</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -487,7 +487,7 @@ export const AddItemModal: React.FC<Props> = ({
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                       <span>Standard Discount</span>
-                      <span className="text-[10px] text-slate-400">Default discount scheme</span>
+                      <span className="text-[11px] text-slate-400">Default discount scheme</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -517,7 +517,7 @@ export const AddItemModal: React.FC<Props> = ({
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span>Wholesale Price (₹)</span>
-                        <span className="text-[10px] text-slate-400">Bulk purchase tier</span>
+                        <span className="text-[11px] text-slate-400">Bulk purchase tier</span>
                       </label>
                       <input
                         type="number"
@@ -538,7 +538,7 @@ export const AddItemModal: React.FC<Props> = ({
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span>Purchase Price (₹)</span>
-                        <span className="text-[10px] text-slate-400">Default purchase cost</span>
+                        <span className="text-[11px] text-slate-400">Default purchase cost</span>
                       </label>
                       <input
                         type="number"
@@ -562,7 +562,7 @@ export const AddItemModal: React.FC<Props> = ({
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span>Min Wholesale Quantity</span>
-                        <span className="text-[10px] text-slate-400">Bulk threshold</span>
+                        <span className="text-[11px] text-slate-400">Bulk threshold</span>
                       </label>
                       <input
                         type="number"
@@ -610,7 +610,7 @@ export const AddItemModal: React.FC<Props> = ({
                     <span className="text-base font-extrabold text-blue-700">
                       ₹{effective.finalPrice.toFixed(2)}
                     </span>
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[11px] text-slate-500">
                       (Base ₹{effective.basePrice.toFixed(2)} + GST ₹{effective.taxAmount.toFixed(2)})
                     </span>
                   </div>

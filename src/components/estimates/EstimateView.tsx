@@ -165,22 +165,22 @@ export const EstimateView: React.FC = () => {
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Quotes</span>
           <p className="text-2xl font-black text-slate-900 mt-1">{quoteStats.count}</p>
-          <span className="text-[10px] text-slate-400">{isAllBranches ? 'All branches' : currentBranchData?.name}</span>
+          <span className="text-[11px] text-slate-400">{isAllBranches ? 'All branches' : currentBranchData?.name}</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quoted Value</span>
           <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.totalValue)}</p>
-          <span className="text-[10px] text-slate-400">Across all quotes</span>
+          <span className="text-[11px] text-slate-400">Across all quotes</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
           <p className="text-2xl font-black text-indigo-700 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
-          <span className="text-[10px] text-slate-400">{quoteStats.monthCount} quote{quoteStats.monthCount === 1 ? '' : 's'}</span>
+          <span className="text-[11px] text-slate-400">{quoteStats.monthCount} quote{quoteStats.monthCount === 1 ? '' : 's'}</span>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Avg Quote</span>
           <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.avgValue)}</p>
-          <span className="text-[10px] text-slate-400">Per quotation</span>
+          <span className="text-[11px] text-slate-400">Per quotation</span>
         </div>
       </div>
 
@@ -221,7 +221,7 @@ export const EstimateView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Estimate No</th>
                     <th className="py-3.5 px-4">Customer Details</th>
                     <th className="py-3.5 px-4">Date & Time</th>
@@ -257,7 +257,7 @@ export const EstimateView: React.FC = () => {
                         <td className="py-3.5 px-4 font-mono">
                           <span className="font-bold text-blue-700 block">{est.estimateNumber}</span>
                           {est.sourceEnquiryNumber && (
-                            <span className="text-[10px] text-purple-700 font-medium block truncate mt-0.5" title={`From Enquiry #${est.sourceEnquiryNumber}`}>
+                            <span className="text-[11px] text-purple-700 font-medium block truncate mt-0.5" title={`From Enquiry #${est.sourceEnquiryNumber}`}>
                               From Enq: #{est.sourceEnquiryNumber}
                             </span>
                           )}
@@ -273,18 +273,18 @@ export const EstimateView: React.FC = () => {
                             <Calendar className="h-3.5 w-3.5 text-slate-400" />
                             <span>{est.date}</span>
                           </div>
-                          <span className="text-[10px] text-slate-400 pl-4">{est.time}</span>
+                          <span className="text-[11px] text-slate-400 pl-4">{est.time}</span>
                         </td>
                         <td className="py-3.5 px-4 uppercase font-mono text-[11px] text-slate-600">
                           {est.branchId}
                         </td>
                         <td className="py-3.5 px-4">
                           {est.withGst ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                               With GST
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                               Without GST
                             </span>
                           )}

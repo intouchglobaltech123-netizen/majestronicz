@@ -187,7 +187,7 @@ export const CustomersView: React.FC = () => {
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               <span>Loyalty Rules</span>
               {milestoneReadyCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[10px] font-extrabold">
+                <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[11px] font-extrabold">
                   {milestoneReadyCount}
                 </span>
               )}
@@ -238,7 +238,7 @@ export const CustomersView: React.FC = () => {
                 {customersWithDueCount} customer{customersWithDueCount === 1 ? '' : 's'} with balance due
               </span>
               {unassignedDues > 0 && (
-                <span className="text-[10px] text-rose-700 mt-1 block font-bold bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
+                <span className="text-[11px] text-rose-700 mt-1 block font-bold bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
                   + {formatCurrency(unassignedDues)} on invoices not linked to a customer — review &amp; assign
                 </span>
               )}

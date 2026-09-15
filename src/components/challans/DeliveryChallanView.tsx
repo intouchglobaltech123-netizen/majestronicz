@@ -110,7 +110,7 @@ export const DeliveryChallanView: React.FC = () => {
           >
             <Truck className="h-3.5 w-3.5" />
             <span>Challan History</span>
-            <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-mono">
+            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-mono">
               {challans.length}
             </span>
           </button>
@@ -122,22 +122,22 @@ export const DeliveryChallanView: React.FC = () => {
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Challans</span>
           <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.count}</p>
-          <span className="text-[10px] text-slate-400">Dispatch notes issued</span>
+          <span className="text-[11px] text-slate-400">Dispatch notes issued</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
           <p className="text-2xl font-black text-blue-700 mt-1">{challanStats.monthCount}</p>
-          <span className="text-[10px] text-slate-400">Dispatched this month</span>
+          <span className="text-[11px] text-slate-400">Dispatched this month</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Units Dispatched</span>
           <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
-          <span className="text-[10px] text-slate-400">Across all challans</span>
+          <span className="text-[11px] text-slate-400">Across all challans</span>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recipients</span>
           <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.recipients}</p>
-          <span className="text-[10px] text-slate-400">Unique delivery parties</span>
+          <span className="text-[11px] text-slate-400">Unique delivery parties</span>
         </div>
       </div>
 
@@ -182,7 +182,7 @@ export const DeliveryChallanView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3 px-4">Challan No.</th>
                     <th className="py-3 px-4">Date & Time</th>
                     <th className="py-3 px-4">Recipient / Destination</th>
@@ -225,17 +225,17 @@ export const DeliveryChallanView: React.FC = () => {
                           <div className="flex items-center gap-1.5">
                             <Calendar className="h-3 w-3 text-slate-400" />
                             <span className="font-medium">{ch.date}</span>
-                            <span className="text-[10px] text-slate-400">({ch.time})</span>
+                            <span className="text-[11px] text-slate-400">({ch.time})</span>
                           </div>
                         </td>
 
                         <td className="py-3 px-4">
                           <p className="font-bold text-slate-900">{ch.recipientName}</p>
                           {ch.location && (
-                            <p className="text-[10px] text-slate-500 truncate max-w-xs">{ch.location}</p>
+                            <p className="text-[11px] text-slate-500 truncate max-w-xs">{ch.location}</p>
                           )}
                           {ch.contactNo && (
-                            <p className="text-[10px] text-slate-400">Ph: {ch.contactNo}</p>
+                            <p className="text-[11px] text-slate-400">Ph: {ch.contactNo}</p>
                           )}
                         </td>
 
@@ -249,7 +249,7 @@ export const DeliveryChallanView: React.FC = () => {
                           <span className="font-mono font-black text-slate-900 text-sm">
                             {ch.totalQuantity}
                           </span>
-                          <span className="text-[10px] text-slate-400 ml-1">Units</span>
+                          <span className="text-[11px] text-slate-400 ml-1">Units</span>
                         </td>
 
                         <td className="py-3 px-4 text-slate-600">
@@ -257,7 +257,7 @@ export const DeliveryChallanView: React.FC = () => {
                             {ch.deliveredBy?.name || '—'}
                           </p>
                           {ch.deliveredBy?.comment && (
-                            <p className="text-[10px] text-slate-400 truncate max-w-xs">
+                            <p className="text-[11px] text-slate-400 truncate max-w-xs">
                               {ch.deliveredBy.comment}
                             </p>
                           )}

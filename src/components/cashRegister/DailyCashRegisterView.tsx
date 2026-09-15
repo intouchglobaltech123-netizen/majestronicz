@@ -161,7 +161,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 Cash Register
               </h1>
               <span
-                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                   currentRegister.isClosed
                     ? 'bg-slate-100 text-slate-700 border-slate-300'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -216,7 +216,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 <Calendar className="h-3.5 w-3.5" />
                 <span>Scheduled Amounts</span>
                 {pendingRecurringCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-black rounded-full bg-amber-500 text-white">
+                  <span className="ml-0.5 px-1.5 py-0.2 text-[11px] font-black rounded-full bg-amber-500 text-white">
                     {pendingRecurringCount}
                   </span>
                 )}

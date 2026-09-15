@@ -169,19 +169,19 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         <div className="px-6 py-3 bg-blue-50/60 border-b border-blue-100 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-4 text-slate-700">
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Customer</span>
+              <span className="text-slate-400 block text-[11px] uppercase font-bold">Customer</span>
               <span className="font-bold text-slate-900">{invoice.customerName}</span>
             </div>
             <div className="border-l border-blue-200 pl-4">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Branch</span>
+              <span className="text-slate-400 block text-[11px] uppercase font-bold">Branch</span>
               <span className="font-bold uppercase font-mono text-blue-800">{invoice.branchId}</span>
             </div>
             <div className="border-l border-blue-200 pl-4">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Sale Date</span>
+              <span className="text-slate-400 block text-[11px] uppercase font-bold">Sale Date</span>
               <span className="font-medium text-slate-800">{invoice.date}</span>
             </div>
             <div className="border-l border-blue-200 pl-4">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Original Total</span>
+              <span className="text-slate-400 block text-[11px] uppercase font-bold">Original Total</span>
               <span className="font-bold font-mono text-slate-900">{formatCurrency(invoice.grandTotal)}</span>
             </div>
           </div>
@@ -210,7 +210,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-2.5 px-3">Item Details</th>
                   <th className="py-2.5 px-3 text-center">Billed Qty</th>
                   <th className="py-2.5 px-3 text-center">Prev. Returned</th>
@@ -232,7 +232,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{line.itemName}</span>
                           {line.isCombo && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                            <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
                               Combo
                             </span>
                           )}
@@ -296,7 +296,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       <td className="py-3 px-3 text-right font-mono font-medium">
                         {formatCurrency(line.unitPrice)}
                         {invoice.withGst && line.taxRate ? (
-                          <span className="block text-[10px] text-slate-400">+{line.taxRate}% GST</span>
+                          <span className="block text-[11px] text-slate-400">+{line.taxRate}% GST</span>
                         ) : null}
                       </td>
 
@@ -380,7 +380,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <div className="text-2xl font-black text-emerald-700">
                 {formatCurrency(totalRefundAmount)}
               </div>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[11px] text-slate-400">
                 {invoice.withGst ? 'Including GST' : 'Non-GST'}
               </span>
             </div>

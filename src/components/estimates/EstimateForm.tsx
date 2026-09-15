@@ -764,7 +764,7 @@ export const EstimateForm: React.FC<Props> = ({
           <div className="border border-slate-200 rounded-xl overflow-visible shadow-2xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3 min-w-[220px]">Item Description</th>
                   <th className="py-2.5 px-3 w-28">Location</th>
@@ -804,7 +804,7 @@ export const EstimateForm: React.FC<Props> = ({
                       />
                       {row.isCombo && (
                         <div className="flex items-center gap-1.5 mt-1">
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                          <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
                             Combo Bundle
                           </span>
                         </div>
@@ -944,13 +944,13 @@ export const EstimateForm: React.FC<Props> = ({
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                 <div className="bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800 border-b border-slate-200 flex items-center justify-between">
                   <span>Tax Breakdown (SGST & CGST Split)</span>
-                  <span className="text-[10px] text-slate-500 font-normal">
+                  <span className="text-[11px] text-slate-500 font-normal">
                     One pair per distinct GST slab (half rate each)
                   </span>
                 </div>
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-100/70 text-slate-600 font-semibold border-b border-slate-200 text-[10px] uppercase">
+                    <tr className="bg-slate-100/70 text-slate-600 font-semibold border-b border-slate-200 text-[11px] uppercase">
                       <th className="py-1.5 px-3.5">Tax Type</th>
                       <th className="py-1.5 px-3.5 text-right">Taxable Amount (₹)</th>
                       <th className="py-1.5 px-3.5 text-right">Rate</th>
@@ -975,7 +975,7 @@ export const EstimateForm: React.FC<Props> = ({
 
             {/* Estimate Amount in Words */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
                 Amount In Words (Indian Numbering)
               </span>
               <p className="font-bold text-slate-900 italic">{totals.amountInWords}</p>
@@ -985,7 +985,7 @@ export const EstimateForm: React.FC<Props> = ({
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                 <span>Terms and Conditions</span>
-                <span className="text-[10px] text-slate-400 font-normal">Default pre-filled</span>
+                <span className="text-[11px] text-slate-400 font-normal">Default pre-filled</span>
               </label>
               <textarea
                 rows={3}
@@ -1034,10 +1034,10 @@ export const EstimateForm: React.FC<Props> = ({
 
             <div className="mt-4 p-4 rounded-xl bg-blue-600 text-white flex items-baseline justify-between shadow-xs">
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider block text-blue-100">
+                <span className="text-[11px] uppercase font-bold tracking-wider block text-blue-100">
                   Final Estimate Total
                 </span>
-                <span className="text-[10px] text-blue-200">
+                <span className="text-[11px] text-blue-200">
                   {withGst ? 'With GST (CGST+SGST)' : 'Without GST'}
                 </span>
               </div>

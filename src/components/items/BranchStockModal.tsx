@@ -81,7 +81,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
                 >
                   {isSelected && (
                     <div className="absolute top-2.5 right-2.5">
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white shadow-xs">
+                      <span className="text-[11px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white shadow-xs">
                         Active Location
                       </span>
                     </div>
@@ -91,7 +91,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
                     <Building2 className="h-4 w-4 text-blue-600" />
                     <div>
                       <h3 className="font-bold text-sm text-slate-900">{b.name}</h3>
-                      <p className="text-[10px] text-slate-500">{b.shortCode}</p>
+                      <p className="text-[11px] text-slate-500">{b.shortCode}</p>
                     </div>
                   </div>
 
@@ -99,7 +99,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-500 font-medium">Physical Stock:</span>
                       {stock?.location?.trim() && (
-                        <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.2 rounded border border-blue-200">
+                        <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.2 rounded border border-blue-200">
                           Rack: {stock.location.trim()}
                         </span>
                       )}

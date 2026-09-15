@@ -1509,7 +1509,7 @@ export const InvoiceForm: React.FC<Props> = ({
                 )}
               />
               <span className={cn(
-                "absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded",
+                "absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold uppercase px-1.5 py-0.5 rounded",
                 documentType === 'Quotation'
                   ? "text-purple-600 bg-purple-100/70"
                   : "text-blue-600 bg-blue-100/70"
@@ -1722,7 +1722,7 @@ export const InvoiceForm: React.FC<Props> = ({
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
               Invoice Line Items ({lineItems.length})
             </span>
-            <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+            <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
               Branch: {BRANCHES.find((b) => b.id === selectedBranch)?.shortCode}
             </span>
           </div>
@@ -1839,7 +1839,7 @@ export const InvoiceForm: React.FC<Props> = ({
         <div className="overflow-x-auto min-h-[300px] pb-32">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-3 w-10 text-center">#</th>
                 <th className="py-3 px-3 min-w-[240px]">Item Description / Search Catalog</th>
                 <th className="py-3 px-3 w-28">Location</th>
@@ -1885,10 +1885,10 @@ export const InvoiceForm: React.FC<Props> = ({
                       />
                       {item.isCombo && (
                         <div className="flex items-center gap-1.5 mt-1">
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                          <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
                             Combo Bundle
                           </span>
-                          <span className="text-[10px] text-purple-700 font-mono font-bold">
+                          <span className="text-[11px] text-purple-700 font-mono font-bold">
                             {item.itemCode}
                           </span>
                         </div>
@@ -1978,7 +1978,7 @@ export const InvoiceForm: React.FC<Props> = ({
                               discountType: item.discountType === '%' ? 'amount' : '%',
                             })
                           }
-                          className="px-1.5 py-1 text-[10px] font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-600 shrink-0"
+                          className="px-1.5 py-1 text-[11px] font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-600 shrink-0"
                           title="Toggle % or ₹"
                         >
                           {item.discountType === '%' ? '%' : '₹'}
@@ -2060,7 +2060,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     <span>Payment Allocation (Daily Cash Register)</span>
                     <span className="text-rose-500">*</span>
                     {paymentSplits.length > 1 && (
-                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 flex items-center gap-1">
+                      <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 flex items-center gap-1">
                         <Split className="h-2.5 w-2.5" />
                         <span>Split Payment ({paymentSplits.length} modes)</span>
                       </span>
@@ -2075,12 +2075,12 @@ export const InvoiceForm: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={handleResetToSingleMode}
-                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
                     >
                       Reset to Single Mode
                     </button>
                   )}
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                     Auto-Reconciles
                   </span>
                 </div>
@@ -2105,7 +2105,7 @@ export const InvoiceForm: React.FC<Props> = ({
                       />
                     </div>
                     <div className="w-36 text-right px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
-                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Amount</span>
+                      <span className="text-[11px] text-slate-400 font-semibold block uppercase">Amount</span>
                       <span className="font-mono font-bold text-slate-800 text-xs">
                         {formatCurrency(totals.grandTotal)}
                       </span>
@@ -2120,7 +2120,7 @@ export const InvoiceForm: React.FC<Props> = ({
                           <span className="text-xs font-bold text-amber-900">
                             Partial Payment (PP) Received?
                           </span>
-                          <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
+                          <span className="text-[11px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
                             "PP" Register Column
                           </span>
                         </div>
@@ -2223,7 +2223,7 @@ export const InvoiceForm: React.FC<Props> = ({
                             type="button"
                             onClick={() => handleUpdateSplitAmount(index, split.amount + remainingBalance)}
                             title={`Fill remaining ₹${remainingBalance}`}
-                            className="hidden sm:inline-flex text-[10px] font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200 px-2 py-1 rounded transition-colors whitespace-nowrap cursor-pointer"
+                            className="hidden sm:inline-flex text-[11px] font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200 px-2 py-1 rounded transition-colors whitespace-nowrap cursor-pointer"
                           >
                             + Fill Remainder
                           </button>
@@ -2282,7 +2282,7 @@ export const InvoiceForm: React.FC<Props> = ({
                           <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                           <span>₹{remainingBalance.toLocaleString('en-IN')} remaining to allocate</span>
                         </div>
-                        <span className="text-[10px] font-medium text-amber-700">
+                        <span className="text-[11px] font-medium text-amber-700">
                           Must equal ₹{totals.grandTotal.toLocaleString('en-IN')} before saving
                         </span>
                       </div>
@@ -2292,7 +2292,7 @@ export const InvoiceForm: React.FC<Props> = ({
                           <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
                           <span>₹{Math.abs(remainingBalance).toLocaleString('en-IN')} over-allocated</span>
                         </div>
-                        <span className="text-[10px] font-medium text-rose-700">
+                        <span className="text-[11px] font-medium text-rose-700">
                           Exceeds grand total by ₹{Math.abs(remainingBalance).toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -2358,7 +2358,7 @@ export const InvoiceForm: React.FC<Props> = ({
                 <Paperclip className="h-4 w-4 text-slate-500" />
                 <span>Add Description & Attachments</span>
                 {attachments.length > 0 && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
+                  <span className="text-[11px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
                     {attachments.length} attached
                   </span>
                 )}
@@ -2561,7 +2561,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
               {/* Tax Slab Breakdown Tags */}
               {gstBreakdown.length > 0 && (
-                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 mt-1 space-y-1 text-[10px]">
+                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 mt-1 space-y-1 text-[11px]">
                   <span className="font-bold text-slate-500 uppercase tracking-wider block">
                     Tax Breakdown
                   </span>
@@ -2612,7 +2612,7 @@ export const InvoiceForm: React.FC<Props> = ({
               </span>
             </div>
             <p className={cn(
-              "text-[10px]",
+              "text-[11px]",
               documentType === 'Quotation' ? "text-purple-200" : "text-blue-200"
             )}>
               {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
@@ -2621,7 +2621,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
           {/* Amount In Words */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+            <span className="text-[11px] uppercase font-bold text-slate-400 block mb-0.5">
               Amount in Words
             </span>
             <p className="font-bold text-slate-900 italic leading-relaxed">

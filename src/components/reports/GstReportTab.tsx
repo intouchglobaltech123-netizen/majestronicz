@@ -156,7 +156,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
           {view === 'rate' ? (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-3 px-4">GST Rate</th>
                   <th className="py-3 px-4 text-right">Taxable Value</th>
                   <th className="py-3 px-4 text-right">CGST</th>
@@ -197,7 +197,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-3 px-4">HSN / SAC</th>
                   <th className="py-3 px-4 text-right">Qty</th>
                   <th className="py-3 px-4">GST Rate(s)</th>

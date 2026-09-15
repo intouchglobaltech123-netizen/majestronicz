@@ -65,10 +65,10 @@ export const AuditLogSection: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-slate-800">{meta.label}</span>
-                    {r.entityId && <span className="text-[10px] font-mono text-slate-400">{r.entityId}</span>}
+                    {r.entityId && <span className="text-[11px] font-mono text-slate-400">{r.entityId}</span>}
                   </div>
                   {r.summary && <p className="text-[11px] text-slate-600 mt-0.5">{r.summary}</p>}
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5">
                     {r.actor} · {when.toLocaleDateString('en-IN')} {when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>

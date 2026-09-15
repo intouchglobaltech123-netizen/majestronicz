@@ -122,7 +122,7 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
         ))}
       </svg>
       {showText && (
-        <span className="font-mono text-[9px] font-bold tracking-wider text-slate-800 mt-0.5">
+        <span className="font-mono text-[11px] font-bold tracking-wider text-slate-800 mt-0.5">
           {barcode.encodedValue}
         </span>
       )}

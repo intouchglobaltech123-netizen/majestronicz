@@ -201,7 +201,7 @@ export const TopBar: React.FC = () => {
           >
             <Bell className="h-4 w-4" />
             {totalAlertCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-600 text-white font-mono font-black text-[10px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
+              <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-600 text-white font-mono font-black text-[11px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
                 {totalAlertCount}
               </span>
             )}
@@ -218,13 +218,13 @@ export const TopBar: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">Follow-up Reminders & Alerts</h3>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[11px] text-slate-500">
                       {totalAlertCount > 0 ? `${totalAlertCount} requires attention` : 'All clear for now'}
                     </p>
                   </div>
                 </div>
                 {totalAlertCount > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
                     {totalAlertCount} Due
                   </span>
                 )}
@@ -245,7 +245,7 @@ export const TopBar: React.FC = () => {
                     {/* Section 0: Recurring Expenses Due Today / Overdue */}
                     {activeRecurringAlerts.length > 0 && (
                       <div className="p-2 bg-purple-50/50 border-b border-purple-100">
-                        <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-purple-800 flex items-center gap-1">
+                        <div className="px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-purple-800 flex items-center gap-1">
                           <Wallet className="h-3 w-3 text-purple-600" />
                           <span>Recurring Overhead Due ({activeRecurringAlerts.length})</span>
                         </div>
@@ -267,7 +267,7 @@ export const TopBar: React.FC = () => {
                                 <div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span
-                                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                                      className={`text-[11px] font-bold px-1.5 py-0.2 rounded uppercase ${
                                         isOverdue
                                           ? 'bg-rose-100 text-rose-700 border border-rose-300'
                                           : 'bg-purple-100 text-purple-700 border border-purple-300'
@@ -275,7 +275,7 @@ export const TopBar: React.FC = () => {
                                     >
                                       {isOverdue ? 'Overdue' : 'Due Today'}
                                     </span>
-                                    <span className="text-[10px] font-mono text-slate-500">
+                                    <span className="text-[11px] font-mono text-slate-500">
                                       Due {template.dueDay}th
                                     </span>
                                   </div>
@@ -289,7 +289,7 @@ export const TopBar: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleOpenRecurringExpense(template)}
-                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold transition-colors shrink-0 shadow-2xs flex items-center gap-1"
+                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold transition-colors shrink-0 shadow-2xs flex items-center gap-1"
                                 >
                                   <span>Register</span>
                                   <ExternalLink className="h-2.5 w-2.5" />
@@ -304,7 +304,7 @@ export const TopBar: React.FC = () => {
                     {/* Section 1: Stock Arrived Backlog Alerts */}
                     {stockArrivedOrders.length > 0 && (
                       <div className="p-2 bg-emerald-50/40">
-                        <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+                        <div className="px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
                           <Sparkles className="h-3 w-3" />
                           <span>Restock Arrived ({stockArrivedOrders.length})</span>
                         </div>
@@ -321,14 +321,14 @@ export const TopBar: React.FC = () => {
                                 <p className="text-xs font-bold text-slate-900 mt-0.5">
                                   {po.itemName}
                                 </p>
-                                <p className="text-[10px] text-slate-500">
+                                <p className="text-[11px] text-slate-500">
                                   {po.quantityNeeded} {po.unit} arrived at {po.branchId} for {po.customerName}
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleOpenPendingOrder(po.id)}
-                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-colors shrink-0 shadow-2xs flex items-center gap-1"
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition-colors shrink-0 shadow-2xs flex items-center gap-1"
                               >
                                 <span>Bill / Convert</span>
                                 <ExternalLink className="h-2.5 w-2.5" />
@@ -342,7 +342,7 @@ export const TopBar: React.FC = () => {
                     {/* Section 2: Due & Overdue Follow-up Reminders */}
                     {dueReminders.length > 0 && (
                       <div className="p-2 bg-amber-50/40">
-                        <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                        <div className="px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3 text-amber-600" />
                           <span>Action Due Today / Overdue ({dueReminders.length})</span>
                         </div>
@@ -366,7 +366,7 @@ export const TopBar: React.FC = () => {
                                     </span>
                                     <span
                                       className={cn(
-                                        'text-[9px] font-bold px-1.5 py-0.2 rounded uppercase',
+                                        'text-[11px] font-bold px-1.5 py-0.2 rounded uppercase',
                                         isOverdue
                                           ? 'bg-rose-100 text-rose-700 border border-rose-300'
                                           : 'bg-amber-100 text-amber-800 border border-amber-300'
@@ -380,7 +380,7 @@ export const TopBar: React.FC = () => {
                                     <User className="h-3 w-3 text-slate-400 shrink-0" />
                                     <span className="truncate">{rem.customerName}</span>
                                     {rem.customerPhone && (
-                                      <span className="text-[10px] font-mono text-slate-500 font-normal">
+                                      <span className="text-[11px] font-mono text-slate-500 font-normal">
                                         ({rem.customerPhone})
                                       </span>
                                     )}
@@ -391,7 +391,7 @@ export const TopBar: React.FC = () => {
                                   </p>
 
                                   {rem.notes && (
-                                    <p className="text-[10px] text-slate-500 italic bg-white/70 p-1.5 rounded border border-slate-100">
+                                    <p className="text-[11px] text-slate-500 italic bg-white/70 p-1.5 rounded border border-slate-100">
                                       "{rem.notes}"
                                     </p>
                                   )}
@@ -403,7 +403,7 @@ export const TopBar: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEnquiry(rem.enquiryId)}
-                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 shadow-2xs"
+                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 shadow-2xs"
                                 >
                                   <span>View Enquiry</span>
                                   <ExternalLink className="h-2.5 w-2.5" />
@@ -411,7 +411,7 @@ export const TopBar: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => completeFollowUpReminder(rem.id)}
-                                  className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1"
+                                  className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
                                 >
                                   <Check className="h-3 w-3 text-emerald-600" />
                                   <span>Mark Done</span>
@@ -426,7 +426,7 @@ export const TopBar: React.FC = () => {
                     {/* Section 3: Upcoming Reminders */}
                     {upcomingReminders.length > 0 && (
                       <div className="p-2">
-                        <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                        <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>Upcoming Follow-ups ({upcomingReminders.length})</span>
                         </div>
@@ -438,11 +438,11 @@ export const TopBar: React.FC = () => {
                             <div className="flex items-center justify-between gap-2">
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-[10px] font-bold text-slate-700">
+                                  <span className="font-mono text-[11px] font-bold text-slate-700">
                                     {rem.enquiryNumber}
                                   </span>
-                                  <span className="text-[10px] text-slate-400">•</span>
-                                  <span className="text-[10px] font-medium text-slate-600">
+                                  <span className="text-[11px] text-slate-400">•</span>
+                                  <span className="text-[11px] font-medium text-slate-600">
                                     {rem.dueDate} at {rem.dueTime}
                                   </span>
                                 </div>
@@ -487,7 +487,7 @@ export const TopBar: React.FC = () => {
           </div>
           <div className="text-left">
             <span className="text-xs font-bold block leading-tight">{currentUser.role}</span>
-            <span className="text-[10px] text-slate-500 block leading-tight group-hover:text-rose-600">
+            <span className="text-[11px] text-slate-500 block leading-tight group-hover:text-rose-600">
               Logout
             </span>
           </div>

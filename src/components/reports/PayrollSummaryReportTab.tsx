@@ -169,7 +169,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <Users className="h-5 w-5 text-blue-600" />
               <span>Payroll Cost & Labor Expense Summary</span>
             </h2>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
               CEO Restricted
             </span>
           </div>
@@ -217,7 +217,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <p className="text-2xl font-extrabold text-blue-700 mt-1">
                 ₹{summary.totalLiability.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
                 {summary.activeCount} employees processed
               </span>
             </div>
@@ -229,7 +229,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <p className="text-2xl font-extrabold text-slate-900 mt-1">
                 {summary.totalHoursWorked.toFixed(1)} <span className="text-sm font-normal text-slate-500">hrs</span>
               </p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
                 From biometric selfie kiosk
               </span>
             </div>
@@ -241,7 +241,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <p className="text-2xl font-extrabold text-emerald-700 mt-1">
                 {summary.paidCount}
               </p>
-              <span className="text-[10px] text-emerald-600 mt-0.5 block">
+              <span className="text-[11px] text-emerald-600 mt-0.5 block">
                 Completed disbursements
               </span>
             </div>
@@ -253,7 +253,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <p className="text-2xl font-extrabold text-amber-700 mt-1">
                 {summary.draftCount}
               </p>
-              <span className="text-[10px] text-amber-600 mt-0.5 block">
+              <span className="text-[11px] text-amber-600 mt-0.5 block">
                 Ready for payment
               </span>
             </div>
@@ -281,7 +281,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-xs font-bold text-slate-900">{b.name}</span>
-                          <span className="text-[10px] text-slate-400 block">{b.location}</span>
+                          <span className="text-[11px] text-slate-400 block">{b.location}</span>
                         </div>
                         <span className="text-xs font-extrabold text-blue-700">{share.toFixed(1)}%</span>
                       </div>
@@ -320,7 +320,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-3 px-4">Employee</th>
                     <th className="py-3 px-3">Designation & Branch</th>
                     <th className="py-3 px-3 text-right">Fixed Monthly (₹)</th>
@@ -339,11 +339,11 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
                       <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4">
                           <div className="font-bold text-slate-900">{r.employeeName}</div>
-                          <span className="font-mono text-[10px] text-slate-400">{r.employeeId}</span>
+                          <span className="font-mono text-[11px] text-slate-400">{r.employeeId}</span>
                         </td>
                         <td className="py-3 px-3">
                           <div className="text-slate-800 font-medium">{r.designation}</div>
-                          <span className="text-[10px] text-blue-700 font-semibold">{bObj?.name}</span>
+                          <span className="text-[11px] text-blue-700 font-semibold">{bObj?.name}</span>
                         </td>
                         <td className="py-3 px-3 text-right text-slate-600 font-semibold">
                           ₹{r.monthlySalary.toLocaleString('en-IN')}
@@ -374,7 +374,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
                         <td className="py-3 px-3 text-center">
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border',
+                              'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border',
                               r.status === 'Paid'
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                                 : 'bg-amber-100 text-amber-800 border-amber-200'

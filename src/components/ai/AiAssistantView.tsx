@@ -50,14 +50,14 @@ export const AiAssistantView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-extrabold text-slate-900">Beta AI</h1>
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide bg-gradient-to-r from-violet-100 to-fuchsia-100 text-fuchsia-700">Beta</span>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide bg-gradient-to-r from-violet-100 to-fuchsia-100 text-fuchsia-700">Beta</span>
             </div>
             <p className="text-[11px] text-slate-500">Ask about your business — answers use your live data.</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           {status?.connected && (
-            <span className="hidden sm:flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-500">
+            <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-500">
               <Cpu className="h-3 w-3" /> {status.model || 'AI'}
             </span>
           )}
@@ -94,7 +94,7 @@ export const AiAssistantView: React.FC = () => {
           <span className="text-[11px] text-slate-400">No domains enabled — ask the CEO.</span>
         ) : (
           allowedDomains.map((f) => (
-            <span key={f} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+            <span key={f} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
               {FLAG_LABELS[f]?.replace(/^AI can read /, '') || f}
             </span>
           ))
@@ -182,7 +182,7 @@ export const AiAssistantView: React.FC = () => {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>
         </div>
-        <p className="mt-2 text-[10px] text-slate-400 text-center">
+        <p className="mt-2 text-[11px] text-slate-400 text-center">
           Business questions only · figures come from your live data · verify important numbers.
         </p>
       </form>

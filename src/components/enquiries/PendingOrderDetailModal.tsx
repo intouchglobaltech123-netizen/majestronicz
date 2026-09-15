@@ -245,7 +245,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
             {/* 2. Customer & Shortage Overview Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Customer Waiting for Fulfillment
                 </span>
                 <div className="flex items-center gap-2">
@@ -267,7 +267,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Restock Timeline & Monitoring
                 </span>
                 <div className="flex items-center justify-between">
@@ -333,7 +333,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
                       <th className="py-3 px-4">Item Name & Code</th>
                       <th className="py-3 px-4 text-center">Unit</th>
                       <th className="py-3 px-4 text-center">Needed Quantity</th>
@@ -346,7 +346,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{pendingOrder.itemName}</div>
                         {pendingOrder.itemCode && (
-                          <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 inline-block">
+                          <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 inline-block">
                             {pendingOrder.itemCode}
                           </span>
                         )}
@@ -386,14 +386,14 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                   <Layers className="h-3.5 w-3.5 text-purple-600" />
                   <span>Related Business Records</span>
                 </span>
-                <span className="text-[10px] text-purple-600">Cross-links & traceability</span>
+                <span className="text-[11px] text-purple-600">Cross-links & traceability</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Link to Original Customer Enquiry */}
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       Original Customer Enquiry
                     </span>
                     <div className="flex items-center gap-2">
@@ -401,7 +401,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                         {pendingOrder.enquiryNumber}
                       </span>
                       {originalEnquiry && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
                           {originalEnquiry.status}
                         </span>
                       )}
@@ -423,7 +423,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                 {/* Link to Linked Purchase Order or Create PO Action */}
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       {linkedPo || pendingOrder.purchaseOrderNumber || pendingOrder.linkedPurchaseOrderId
                         ? 'Purchase Order Sent'
                         : 'Vendor Purchase Order'}
@@ -434,7 +434,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                           {linkedPo?.poNumber || pendingOrder.purchaseOrderNumber || 'Linked PO'}
                         </span>
                         {linkedPo && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
                             {linkedPo.status}
                           </span>
                         )}

@@ -463,7 +463,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                               <ExternalLink className="h-3 w-3 opacity-60" />
                             </button>
                             {inv.isVoided && (
-                              <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                              <span className="text-[11px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded mt-0.5 inline-block">
                                 Voided: {inv.voidReason}
                               </span>
                             )}
@@ -472,7 +472,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                           {/* Date */}
                           <td className="p-3 whitespace-nowrap text-slate-600">
                             {inv.date}
-                            <span className="text-[10px] text-slate-400 block">{inv.time}</span>
+                            <span className="text-[11px] text-slate-400 block">{inv.time}</span>
                           </td>
 
                           {/* Branch */}
@@ -496,7 +496,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                           {/* Payment */}
                           <td className="p-3">
                             <span className="font-semibold text-slate-900">{inv.paymentMode}</span>
-                            <span className="text-[10px] text-slate-400 block font-normal">
+                            <span className="text-[11px] text-slate-400 block font-normal">
                               {inv.transactionType === 'Cash' ? 'Cash Sale' : 'Credit Bill'}
                             </span>
                             {(() => {
@@ -505,7 +505,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                               );
                               if (unpaidMatch) {
                                 return (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-1">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-1">
                                     <AlertCircle className="h-2.5 w-2.5 text-amber-600 shrink-0" />
                                     <span>Due: {formatCurrency(unpaidMatch.balanceDue)}</span>
                                   </span>
@@ -523,7 +523,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                           {/* Loyalty Reward Flag */}
                           <td className="p-3 text-center">
                             {inv.isLoyaltyRewardApplied ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-[10px] font-bold text-emerald-800">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-[11px] font-bold text-emerald-800">
                                 <Sparkles className="h-2.5 w-2.5 text-emerald-600" />
                                 Redeemed
                               </span>

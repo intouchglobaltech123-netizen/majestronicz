@@ -104,7 +104,7 @@ export const AttendanceLogView: React.FC = () => {
         {/* Month Selector & Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
               Select Pay Period / Month
             </label>
             <input
@@ -116,7 +116,7 @@ export const AttendanceLogView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
               Staff Filter
             </label>
             <select
@@ -135,7 +135,7 @@ export const AttendanceLogView: React.FC = () => {
 
           {currentUser.role !== 'Manager' && (
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Branch Scope
               </label>
               <select

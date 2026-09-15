@@ -275,7 +275,7 @@ export const TransferStockModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Multi-Item Inter-Branch Transfer</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   Atomic Batch Transfer
                 </span>
               </div>
@@ -299,9 +299,9 @@ export const TransferStockModal: React.FC<Props> = ({
             <div className="flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-1.5">
                 <span>Transfer Route</span>
-                <span className="text-[10px] text-slate-400 font-normal">(Configured once for the entire batch)</span>
+                <span className="text-[11px] text-slate-400 font-normal">(Configured once for the entire batch)</span>
               </span>
-              <span className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">
+              <span className="text-[11px] text-blue-600 font-semibold uppercase tracking-wider">
                 All lines commit together
               </span>
             </div>
@@ -327,7 +327,7 @@ export const TransferStockModal: React.FC<Props> = ({
                 ) : (
                   <div className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
                     <span>{BRANCHES.find((b) => b.id === fromBranch)?.name}</span>
-                    <span className="text-[10px] px-1 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                    <span className="text-[11px] px-1 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
                       Your Branch
                     </span>
                   </div>
@@ -377,7 +377,7 @@ export const TransferStockModal: React.FC<Props> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200">
                       <th className="py-3 px-3 w-10 text-center">#</th>
                       <th className="py-3 px-3 min-w-[260px]">Product / Search Catalog</th>
                       <th className="py-3 px-3 w-32 text-center">
@@ -427,7 +427,7 @@ export const TransferStockModal: React.FC<Props> = ({
                             />
 
                             {item && (
-                              <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+                              <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
                                 <span className="font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                   {item.itemCode}
                                 </span>
@@ -489,7 +489,7 @@ export const TransferStockModal: React.FC<Props> = ({
                                   type="button"
                                   onClick={() => handleUpdateRow(row.id, { quantity: availableInFrom })}
                                   title="Transfer maximum available stock"
-                                  className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline shrink-0 cursor-pointer"
+                                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline shrink-0 cursor-pointer"
                                 >
                                   Max
                                 </button>
@@ -511,7 +511,7 @@ export const TransferStockModal: React.FC<Props> = ({
                                 <span className="font-extrabold text-emerald-700">
                                   {currentInTo + numQty}
                                 </span>
-                                <span className="text-[10px] font-bold text-emerald-600">(+{numQty})</span>
+                                <span className="text-[11px] font-bold text-emerald-600">(+{numQty})</span>
                               </div>
                             ) : (
                               <span className="text-slate-400 font-mono text-xs">
@@ -548,12 +548,12 @@ export const TransferStockModal: React.FC<Props> = ({
                         </button>
                       </td>
                       <td className="py-3 px-3 text-right">
-                        <span className="text-[10px] uppercase font-bold text-slate-500 mr-2">Total:</span>
+                        <span className="text-[11px] uppercase font-bold text-slate-500 mr-2">Total:</span>
                         <span className="font-mono font-black text-sm text-slate-900">
                           {totalTransferUnits}
                         </span>
                       </td>
-                      <td className="py-3 px-3 uppercase text-[10px] text-slate-500">Units</td>
+                      <td className="py-3 px-3 uppercase text-[11px] text-slate-500">Units</td>
                       <td colSpan={2} className="py-3 px-3 text-right text-[11px] text-slate-500">
                         {rows.length} {rows.length === 1 ? 'Item' : 'Items'} in batch
                       </td>

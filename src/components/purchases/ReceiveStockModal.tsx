@@ -189,7 +189,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   <th className="py-2.5 px-3 text-left">
                     <div className="flex items-center gap-1">
                       <span>Shelve / Rack</span>
-                      <span className="text-[10px] font-normal lowercase text-slate-400">(optional)</span>
+                      <span className="text-[11px] font-normal lowercase text-slate-400">(optional)</span>
                     </div>
                   </th>
                   <th className="py-2.5 px-4 text-right w-44">Inward Now</th>

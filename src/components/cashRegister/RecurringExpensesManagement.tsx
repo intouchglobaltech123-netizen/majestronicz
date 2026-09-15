@@ -175,7 +175,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
               {stats.totalTemplates}
             </span>
-            <span className="text-[10px] text-slate-400">Configured expenses</span>
+            <span className="text-[11px] text-slate-400">Configured expenses</span>
           </div>
           <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
             <Wallet className="h-5 w-5" />
@@ -188,7 +188,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
               {formatCurrency(stats.monthlyCommitment)}
             </span>
-            <span className="text-[10px] text-slate-400">Sum of defaults</span>
+            <span className="text-[11px] text-slate-400">Sum of defaults</span>
           </div>
           <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
             <DollarSign className="h-5 w-5" />
@@ -201,7 +201,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             <span className="text-2xl font-black font-mono text-emerald-700 mt-1 block">
               {stats.approvedCount} / {stats.totalTemplates}
             </span>
-            <span className="text-[10px] text-emerald-600 font-medium">Logged in Cash Register</span>
+            <span className="text-[11px] text-emerald-600 font-medium">Logged in Cash Register</span>
           </div>
           <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
             <CheckCircle2 className="h-5 w-5" />
@@ -216,7 +216,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             }`}>
               {stats.pendingActionCount}
             </span>
-            <span className="text-[10px] text-slate-400">Needs approval this month</span>
+            <span className="text-[11px] text-slate-400">Needs approval this month</span>
           </div>
           <div className={`h-10 w-10 rounded-xl border flex items-center justify-center ${
             stats.pendingActionCount > 0
@@ -287,7 +287,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
                   <th className="py-3 px-4">Expense Name</th>
                   <th className="py-3 px-4">Branch Facility</th>
                   <th className="py-3 px-4">Schedule & Due Day</th>
@@ -309,7 +309,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                     <tr key={template.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{template.name}</div>
-                        <span className="text-[10px] font-mono text-slate-400">
+                        <span className="text-[11px] font-mono text-slate-400">
                           {template.id}
                         </span>
                       </td>
@@ -336,7 +336,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                       <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border ${
                             template.paymentMode === 'Cash'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-blue-50 text-blue-700 border-blue-200'

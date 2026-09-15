@@ -633,7 +633,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Quote No</th>
                     <th className="py-3.5 px-4">Customer Details</th>
                     <th className="py-3.5 px-4">Date & Time</th>
@@ -670,7 +670,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           <span className="font-bold text-purple-700 block">{est.estimateNumber}</span>
                           {est.sourceEnquiryNumber && (
                             <span
-                              className="text-[10px] text-blue-700 font-medium block truncate mt-0.5"
+                              className="text-[11px] text-blue-700 font-medium block truncate mt-0.5"
                               title={`From Enquiry #${est.sourceEnquiryNumber}`}
                             >
                               From Enq: #{est.sourceEnquiryNumber}
@@ -688,18 +688,18 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                             <Calendar className="h-3.5 w-3.5 text-slate-400" />
                             <span>{est.date}</span>
                           </div>
-                          <span className="text-[10px] text-slate-400 pl-4">{est.time}</span>
+                          <span className="text-[11px] text-slate-400 pl-4">{est.time}</span>
                         </td>
                         <td className="py-3.5 px-4 uppercase font-mono text-[11px] text-slate-600">
                           {BRANCHES.find((b) => b.id === est.branchId)?.shortCode || est.branchId}
                         </td>
                         <td className="py-3.5 px-4">
                           {est.withGst ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                               With GST
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                               Without Tax
                             </span>
                           )}
@@ -856,7 +856,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
                 {/* Payment Mode Pills */}
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 px-1.5">Mode:</span>
+                  <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Mode:</span>
                   {(['ALL', 'Cash', 'HDFC', 'GPay', 'COD-Credit'] as const).map((m) => (
                     <button
                       key={m}
@@ -875,7 +875,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
                 {/* Status Pills */}
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 px-1.5">Status:</span>
+                  <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Status:</span>
                   {(['ALL', 'Paid', 'Partial', 'Credit', 'Voided'] as const).map((s) => (
                     <button
                       key={s}
@@ -916,7 +916,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Sale / Invoice No</th>
                     <th className="py-3.5 px-4">Date & Time</th>
                     <th className="py-3.5 px-4">Customer</th>
@@ -978,12 +978,12 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               {inv.invoiceNumber}
                             </span>
                             {inv.sourceEstimateNumber && (
-                              <span className="text-[10px] text-slate-400 block truncate mt-0.5">
+                              <span className="text-[11px] text-slate-400 block truncate mt-0.5">
                                 From Quote #{inv.sourceEstimateNumber}
                               </span>
                             )}
                             {inv.sourceEnquiryNumber && (
-                              <span className="text-[10px] text-purple-700 block truncate mt-0.5">
+                              <span className="text-[11px] text-purple-700 block truncate mt-0.5">
                                 From Enq #{inv.sourceEnquiryNumber}
                               </span>
                             )}
@@ -995,7 +995,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               <Calendar className="h-3.5 w-3.5 text-slate-400" />
                               <span>{inv.date}</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 pl-4">{inv.time}</span>
+                            <span className="text-[11px] text-slate-400 pl-4">{inv.time}</span>
                           </td>
 
                           {/* Customer */}
@@ -1029,7 +1029,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                       <Split className="h-2.5 w-2.5" />
                                       <span>Split ({splits.length})</span>
                                     </span>
-                                    <div className="text-[10px] text-slate-500 font-mono flex flex-wrap gap-1">
+                                    <div className="text-[11px] text-slate-500 font-mono flex flex-wrap gap-1">
                                       {splits.map((s, idx) => (
                                         <span key={idx} className="bg-slate-50 px-1 py-0.2 rounded border border-slate-200">
                                           {s.mode}: ₹{s.amount.toLocaleString('en-IN')}
@@ -1052,7 +1052,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               const fin = computeInvoiceFinance(inv);
                               if (fin.due <= 0 && fin.customerCredit <= 0) return null;
                               return (
-                                <div className={`text-[10px] font-bold mt-0.5 ${fin.due > 0 ? 'text-amber-700' : 'text-blue-700'}`}>
+                                <div className={`text-[11px] font-bold mt-0.5 ${fin.due > 0 ? 'text-amber-700' : 'text-blue-700'}`}>
                                   {fin.due > 0
                                     ? `Paid: ₹${fin.received.toLocaleString('en-IN')} (Bal: ₹${fin.due.toLocaleString('en-IN')})`
                                     : `Credit due to customer: ₹${fin.customerCredit.toLocaleString('en-IN')}`}
@@ -1076,7 +1076,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           {/* Status & Clean Return Badge */}
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', status.color)}>
+                              <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border', status.color)}>
                                 {status.label}
                               </span>
                               {hasReturns && !isVoided && (
@@ -1087,7 +1087,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                     setSelectedReturnInvoice(inv);
                                   }}
                                   className={cn(
-                                    'inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border shadow-2xs transition-all hover:scale-105 cursor-pointer',
+                                    'inline-flex items-center gap-1 text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-full border shadow-2xs transition-all hover:scale-105 cursor-pointer',
                                     isInvoiceFullyReturned(inv)
                                       ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
                                       : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
@@ -1104,7 +1104,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               )}
                             </div>
                             {isVoided && inv.voidReason && (
-                              <span className="block text-[9px] text-rose-500 truncate max-w-[120px] mx-auto mt-0.5" title={inv.voidReason}>
+                              <span className="block text-[11px] text-rose-500 truncate max-w-[120px] mx-auto mt-0.5" title={inv.voidReason}>
                                 {inv.voidReason}
                               </span>
                             )}
@@ -1371,7 +1371,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-4">{label} No (Provisional)</th>
                 <th className="py-3 px-4">Customer</th>
                 <th className="py-3 px-4">Branch</th>

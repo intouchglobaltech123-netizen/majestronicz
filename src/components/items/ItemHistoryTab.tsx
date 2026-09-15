@@ -286,7 +286,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
   const getBranchBadge = (bId: BranchId) => {
     const b = BRANCHES.find((x) => x.id === bId);
     return (
-      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+      <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
         {b?.shortCode || bId}
       </span>
     );
@@ -335,7 +335,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               <span className="text-xs font-semibold text-slate-500">
                 {item.category}{item.subcategory ? ` / ${item.subcategory}` : ''}
               </span>
-              <span className="text-[10px] text-slate-400">• HSN: {item.itemHSN}</span>
+              <span className="text-[11px] text-slate-400">• HSN: {item.itemHSN}</span>
             </div>
             <h3 className="text-base font-black text-slate-900 mt-1">
               {item.itemName}
@@ -344,7 +344,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               <span className="text-sm font-black text-blue-700">
                 {formatCurrency(item.salePrice)}
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">
+              <span className="text-[11px] text-slate-500 font-medium">
                 ({item.salePriceTaxMode === 'with' ? 'Incl. GST' : 'Excl. GST'} @ {item.gstTaxSlab}%)
               </span>
             </div>
@@ -400,14 +400,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <Building className="h-3.5 w-3.5 text-slate-400" />
                     {b.name}
                   </span>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                  <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
                     {b.shortCode}
                   </span>
                 </div>
 
                 <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 flex items-center justify-between gap-2">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                       Physical Location
                     </span>
                     {loc ? (
@@ -423,12 +423,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                       Stock
                     </span>
                     <span className="text-sm font-black font-mono text-slate-900">
                       {qty}{' '}
-                      <span className="text-[10px] font-semibold text-slate-500">
+                      <span className="text-[11px] font-semibold text-slate-500">
                         {item.unit}
                       </span>
                     </span>
@@ -446,7 +446,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         {!isSales && (
           <div className="p-3.5 rounded-xl border border-slate-200 bg-blue-50/40 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
                 Total Purchased
               </span>
               <ShoppingBag className="h-4 w-4 text-blue-600" />
@@ -455,16 +455,16 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               <span className="text-xl font-black text-blue-950 font-mono">
                 {summaryStats.totalPurchased}
               </span>
-              <span className="text-[10px] font-bold text-blue-700">{item.unit}</span>
+              <span className="text-[11px] font-bold text-blue-700">{item.unit}</span>
             </div>
-            <span className="text-[10px] text-blue-700 mt-0.5 block">Lifetime procurement</span>
+            <span className="text-[11px] text-blue-700 mt-0.5 block">Lifetime procurement</span>
           </div>
         )}
 
         {/* Total Sold */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-emerald-50/40 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
               Total Sold
             </span>
             <Receipt className="h-4 w-4 text-emerald-600" />
@@ -473,15 +473,15 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <span className="text-xl font-black text-emerald-950 font-mono">
               {summaryStats.totalSold}
             </span>
-            <span className="text-[10px] font-bold text-emerald-700">{item.unit}</span>
+            <span className="text-[11px] font-bold text-emerald-700">{item.unit}</span>
           </div>
-          <span className="text-[10px] text-emerald-700 mt-0.5 block">Lifetime sales billing</span>
+          <span className="text-[11px] text-emerald-700 mt-0.5 block">Lifetime sales billing</span>
         </div>
 
         {/* Current Combined Stock */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Combined Stock
             </span>
             <Building className="h-4 w-4 text-blue-600" />
@@ -490,10 +490,10 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <span className="text-xl font-black text-slate-900 font-mono">
               {summaryStats.combinedStock}
             </span>
-            <span className="text-[10px] font-semibold text-slate-500">{item.unit}</span>
+            <span className="text-[11px] font-semibold text-slate-500">{item.unit}</span>
             <span
               className={cn(
-                'text-[9px] font-bold px-1.5 py-0.2 rounded-full border',
+                'text-[11px] font-bold px-1.5 py-0.2 rounded-full border',
                 summaryStats.stockStatus === 'in-stock'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : summaryStats.stockStatus === 'low-stock'
@@ -508,14 +508,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                 : 'Out'}
             </span>
           </div>
-          <span className="text-[10px] text-slate-500 mt-0.5 block">All 3 branches total</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">All 3 branches total</span>
         </div>
 
         {/* Most Frequent Vendor */}
         {!isSales && (
           <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Top Vendor
               </span>
               <Users className="h-4 w-4 text-purple-600" />
@@ -523,14 +523,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topVendor}>
               {summaryStats.topVendor}
             </div>
-            <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Most frequent supplier</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Most frequent supplier</span>
           </div>
         )}
 
         {/* Most Frequent Customer */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Top Customer
             </span>
             <User className="h-4 w-4 text-indigo-600" />
@@ -538,7 +538,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
           <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topCustomer}>
             {summaryStats.topCustomer}
           </div>
-          <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Most frequent client</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Most frequent client</span>
         </div>
       </div>
 
@@ -683,7 +683,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       {subTab === 'purchases' && !isSales && (
         <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">PO Number</th>
                 <th className="py-2.5 px-3.5">Vendor</th>
@@ -745,7 +745,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                       >
                         {record.qtyReceived}
                       </span>{' '}
-                      <span className="text-[10px] text-slate-500 font-sans">{item.unit}</span>
+                      <span className="text-[11px] text-slate-500 font-sans">{item.unit}</span>
                     </td>
 
                     {/* Purchase Price */}
@@ -765,7 +765,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <td className="py-2.5 px-3 text-center">
                       <span
                         className={cn(
-                          'text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                          'text-[11px] font-bold px-2 py-0.5 rounded-full border',
                           record.status === 'Received'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : record.status === 'Partially Received'
@@ -811,7 +811,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       {subTab === 'sales' && (
         <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">Sale No.</th>
                 <th className="py-2.5 px-3">Date & Time</th>
@@ -857,7 +857,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">
                       <div>{formatDate(record.date)}</div>
                       {record.time && (
-                        <div className="text-[10px] text-slate-400 font-mono">{record.time}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{record.time}</div>
                       )}
                     </td>
 
@@ -865,14 +865,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <td className="py-2.5 px-3.5">
                       <div className="font-semibold text-slate-900">{record.customerName}</div>
                       {record.customerPhone && (
-                        <div className="text-[10px] text-slate-400 font-mono">{record.customerPhone}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{record.customerPhone}</div>
                       )}
                     </td>
 
                     {/* Qty Sold */}
                     <td className="py-2.5 px-3 text-center font-mono">
                       <span className="font-extrabold text-slate-900 text-sm">{record.quantitySold}</span>{' '}
-                      <span className="text-[10px] text-slate-500 font-sans">{item.unit}</span>
+                      <span className="text-[11px] text-slate-500 font-sans">{item.unit}</span>
                     </td>
 
                     {/* Price Billed (Highlight if overridden vs master catalog salePrice) */}
@@ -882,7 +882,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                       </div>
                       {record.isPriceOverridden && (
                         <span
-                          className="inline-block text-[9px] font-bold px-1 rounded bg-amber-100 text-amber-800"
+                          className="inline-block text-[11px] font-bold px-1 rounded bg-amber-100 text-amber-800"
                           title={`Overridden from master catalog price ₹${item.salePrice}`}
                         >
                           Override
@@ -901,13 +901,13 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     {/* Type / Voided Badge */}
                     <td className="py-2.5 px-3 text-center">
                       {record.isVoided ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
                           Voided
                         </span>
                       ) : (
                         <span
                           className={cn(
-                            'text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                            'text-[11px] font-bold px-2 py-0.5 rounded-full border',
                             record.transactionType === 'Cash'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-blue-50 text-blue-700 border-blue-200'
@@ -950,7 +950,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       {subTab === 'adjustments' && (
         <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">Timestamp</th>
                 <th className="py-2.5 px-3 text-center">Branch</th>
@@ -980,7 +980,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                       {/* Timestamp */}
                       <td className="py-2.5 px-3.5 text-slate-700 font-mono text-[11px] whitespace-nowrap">
                         {formatDate(record.timestamp)}
-                        <span className="block text-[10px] text-slate-400">
+                        <span className="block text-[11px] text-slate-400">
                           {new Date(record.timestamp).toLocaleTimeString('en-IN', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -1010,7 +1010,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                         <span className="text-slate-500">{record.previousQuantity}</span>
                         <span className="text-slate-300 mx-1">→</span>
                         <span className="font-bold text-slate-900">{record.newQuantity}</span>{' '}
-                        <span className="text-[10px] text-slate-400 font-sans">{item.unit}</span>
+                        <span className="text-[11px] text-slate-400 font-sans">{item.unit}</span>
                       </td>
 
                       {/* Reason */}

@@ -140,7 +140,7 @@ export const EnquiryView: React.FC = () => {
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   Enquiries
                 </h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
                   {enquiries.length} Total
                 </span>
               </div>
@@ -184,7 +184,7 @@ export const EnquiryView: React.FC = () => {
                 {unresolvedNewItemRequests.length > 0 && (
                   <span
                     className={cn(
-                      'px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold',
+                      'px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold',
                       activeTab === 'new-item-requests'
                         ? 'bg-white text-purple-700'
                         : 'bg-purple-200 text-purple-800'
@@ -258,7 +258,7 @@ export const EnquiryView: React.FC = () => {
 
           {/* Status Filter Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1">
               <Filter className="h-3 w-3" />
               Status:
             </span>
@@ -328,7 +328,7 @@ export const EnquiryView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4 w-16">Photo</th>
                     <th className="py-3.5 px-4">Requested Item Name / Details</th>
                     <th className="py-3.5 px-4">Customer</th>
@@ -374,7 +374,7 @@ export const EnquiryView: React.FC = () => {
                             <div className="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
                               {enq.itemName}
                             </div>
-                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                               {enq.enquiryNumber} • {enq.date} {enq.time}
                             </div>
                             {enq.notes && (
@@ -429,7 +429,7 @@ export const EnquiryView: React.FC = () => {
 
                           {/* 7. Status */}
                           <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold">
                               <Sparkles className="h-3 w-3" />
                               Awaiting Catalog
                             </span>
@@ -466,7 +466,7 @@ export const EnquiryView: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <th className="py-3.5 px-4">Enquiry No</th>
                   <th className="py-3.5 px-4">Customer</th>
                   <th className="py-3.5 px-4">Item</th>
@@ -525,7 +525,7 @@ export const EnquiryView: React.FC = () => {
                           <span className="font-mono font-bold text-blue-700 group-hover:underline">
                             {enq.enquiryNumber}
                           </span>
-                          <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                          <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
                             {enq.date} {enq.time}
                           </div>
                         </td>
@@ -559,17 +559,17 @@ export const EnquiryView: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                 {enq.isNewItemRequest && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-bold">
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold">
                                     <Sparkles className="h-2.5 w-2.5" />
                                     New Item Request
                                   </span>
                                 )}
                                 {enq.itemCode ? (
-                                  <span className="text-[10px] text-slate-400 font-mono">
+                                  <span className="text-[11px] text-slate-400 font-mono">
                                     {enq.itemCode}
                                   </span>
                                 ) : enq.isNewItemRequest && !enq.itemId ? (
-                                  <span className="text-[10px] text-amber-600 font-medium">
+                                  <span className="text-[11px] text-amber-600 font-medium">
                                     (Pending Catalog)
                                   </span>
                                 ) : null}
@@ -585,15 +585,15 @@ export const EnquiryView: React.FC = () => {
                           </div>
                           <div className="mt-0.5">
                             {enq.isNewItemRequest && !enq.itemId ? (
-                              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                              <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
                                 Not in Catalog
                               </span>
                             ) : hasSufficientStock ? (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
                                 Stock: {currentStock}
                               </span>
                             ) : (
-                              <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                              <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
                                 Shortage (Have {currentStock})
                               </span>
                             )}
@@ -626,17 +626,17 @@ export const EnquiryView: React.FC = () => {
                         {/* 7. Status Badge */}
                         <td className="py-3.5 px-4">
                           {enq.status === 'Converted' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
                               <CheckCircle2 className="h-3 w-3" />
                               Converted
                             </span>
                           ) : enq.status === 'Cancelled' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">
                               <XCircle className="h-3 w-3" />
                               Cancelled
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold">
                               <Clock className="h-3 w-3" />
                               Follow-up
                             </span>

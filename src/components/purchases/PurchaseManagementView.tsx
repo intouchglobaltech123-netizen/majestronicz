@@ -219,7 +219,7 @@ export const PurchaseManagementView: React.FC = () => {
         >
           <ShoppingBag className="h-4 w-4" />
           <span>Purchase Orders</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
             activeTab === 'orders' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
           }`}>
             {purchaseOrders.length}
@@ -236,7 +236,7 @@ export const PurchaseManagementView: React.FC = () => {
         >
           <Building2 className="h-4 w-4" />
           <span>Suppliers</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
             activeTab === 'vendors' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
           }`}>
             {vendors.length}

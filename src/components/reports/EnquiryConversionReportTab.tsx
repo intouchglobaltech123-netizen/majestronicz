@@ -192,7 +192,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
             Total Leads
           </span>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{metrics.total}</p>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Logged enquiries</span>
+          <span className="text-[11px] text-slate-400 mt-0.5 block">Logged enquiries</span>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -200,7 +200,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
             Converted
           </span>
           <p className="text-2xl font-extrabold text-emerald-700 mt-1">{metrics.converted}</p>
-          <span className="text-[10px] text-emerald-600 mt-0.5 block">To Estimate / Sale</span>
+          <span className="text-[11px] text-emerald-600 mt-0.5 block">To Estimate / Sale</span>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -208,7 +208,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
             Follow-Up
           </span>
           <p className="text-2xl font-extrabold text-amber-700 mt-1">{metrics.followUps}</p>
-          <span className="text-[10px] text-amber-600 mt-0.5 block">Active negotiations</span>
+          <span className="text-[11px] text-amber-600 mt-0.5 block">Active negotiations</span>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -216,7 +216,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
             Cancelled / Lost
           </span>
           <p className="text-2xl font-extrabold text-rose-700 mt-1">{metrics.cancelled}</p>
-          <span className="text-[10px] text-rose-600 mt-0.5 block">Declined leads</span>
+          <span className="text-[11px] text-rose-600 mt-0.5 block">Declined leads</span>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -226,7 +226,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <p className="text-2xl font-extrabold text-blue-700 mt-1">
             {metrics.conversionRate.toFixed(1)}%
           </p>
-          <span className="text-[10px] text-blue-600 mt-0.5 block">Converted / Total</span>
+          <span className="text-[11px] text-blue-600 mt-0.5 block">Converted / Total</span>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -236,7 +236,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <p className="text-2xl font-extrabold text-purple-700 mt-1">
             {metrics.avgDaysToConvert} <span className="text-xs font-medium text-slate-500">days</span>
           </p>
-          <span className="text-[10px] text-purple-600 mt-0.5 block">Avg days to convert</span>
+          <span className="text-[11px] text-purple-600 mt-0.5 block">Avg days to convert</span>
         </div>
       </div>
 
@@ -318,7 +318,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-3 px-4">Customer & Enquiry</th>
                   <th className="py-3 px-3">Item Requested</th>
                   <th className="py-3 px-3 text-center">Quantity</th>
@@ -336,13 +336,13 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{linkedEnquiry?.customerName || 'Customer'}</div>
-                        <span className="font-mono text-[10px] text-slate-500">
+                        <span className="font-mono text-[11px] text-slate-500">
                           {linkedEnquiry?.enquiryNumber || p.enquiryId}
                         </span>
                       </td>
                       <td className="py-3 px-3">
                         <div className="font-bold text-slate-900">{linkedEnquiry?.itemName || 'Item'}</div>
-                        <span className="text-[10px] text-slate-400">{linkedEnquiry?.unit || 'PCS'}</span>
+                        <span className="text-[11px] text-slate-400">{linkedEnquiry?.unit || 'PCS'}</span>
                       </td>
                       <td className="py-3 px-3 text-center font-extrabold text-blue-700">
                         {p.quantityNeeded}
@@ -374,7 +374,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
                       <td className="py-3 px-4 text-right">
                         <span
                           className={cn(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold',
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold',
                             p.status === 'Stock Arrived'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               : 'bg-amber-100 text-amber-800 border border-amber-200'

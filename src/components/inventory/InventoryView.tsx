@@ -347,7 +347,7 @@ export const InventoryView: React.FC = () => {
               </h1>
               <span
                 className={cn(
-                  'text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border',
+                  'text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border',
                   isAllBranches
                     ? 'bg-blue-50 text-blue-700 border-blue-200'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -441,7 +441,7 @@ export const InventoryView: React.FC = () => {
           <span>Regular Items</span>
           <span
             className={cn(
-              'px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+              'px-1.5 py-0.5 rounded-full text-[11px] font-bold',
               activeInventoryTab === 'items' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
             )}
           >
@@ -463,7 +463,7 @@ export const InventoryView: React.FC = () => {
           <span>Combos & Bundles</span>
           <span
             className={cn(
-              'px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+              'px-1.5 py-0.5 rounded-full text-[11px] font-bold',
               activeInventoryTab === 'combos' ? 'bg-purple-700 text-white' : 'bg-slate-100 text-slate-600'
             )}
           >
@@ -482,7 +482,7 @@ export const InventoryView: React.FC = () => {
                 <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"><IndianRupee className="h-4 w-4" /></div>
               </div>
               <p className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Capital tied up at purchase cost</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Capital tied up at purchase cost</span>
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50/60 to-white shadow-2xs">
               <div className="flex items-center justify-between">
@@ -490,7 +490,7 @@ export const InventoryView: React.FC = () => {
                 <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600"><TrendingUp className="h-4 w-4" /></div>
               </div>
               <p className="text-2xl font-black text-emerald-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">If sold at listed sale price</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">If sold at listed sale price</span>
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-violet-50/60 to-white shadow-2xs">
               <div className="flex items-center justify-between">
@@ -498,7 +498,7 @@ export const InventoryView: React.FC = () => {
                 <div className="h-8 w-8 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center text-violet-600"><Percent className="h-4 w-4" /></div>
               </div>
               <p className="text-2xl font-black text-violet-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
             </div>
             <div
               onClick={() => setMovementFilter(movementFilter === 'not-moving' ? 'all' : 'not-moving')}
@@ -510,7 +510,7 @@ export const InventoryView: React.FC = () => {
                 <div className="h-8 w-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600"><AlertOctagon className="h-4 w-4" /></div>
               </div>
               <p className="text-2xl font-black text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
-              <span className="text-[10px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
+              <span className="text-[11px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
             </div>
           </div>
 
@@ -534,7 +534,7 @@ export const InventoryView: React.FC = () => {
             <Boxes className="h-4 w-4 text-slate-400" />
           </div>
           <p className="text-3xl font-black text-slate-900 mt-1">{metrics.totalSkus}</p>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Cataloged items</span>
+          <span className="text-[11px] text-slate-400 mt-0.5 block">Cataloged items</span>
         </div>
 
         {/* Healthy / In Stock */}
@@ -550,7 +550,7 @@ export const InventoryView: React.FC = () => {
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-3xl font-black text-emerald-700 mt-1">{metrics.inStock}</p>
-          <span className="text-[10px] text-emerald-600 mt-0.5 block">&gt; Threshold stock</span>
+          <span className="text-[11px] text-emerald-600 mt-0.5 block">&gt; Threshold stock</span>
         </div>
 
         {/* Low Stock */}
@@ -566,7 +566,7 @@ export const InventoryView: React.FC = () => {
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <p className="text-3xl font-black text-amber-700 mt-1">{metrics.lowStock}</p>
-          <span className="text-[10px] text-amber-600 mt-0.5 block">&le; Threshold alert</span>
+          <span className="text-[11px] text-amber-600 mt-0.5 block">&le; Threshold alert</span>
         </div>
 
         {/* Out of Stock */}
@@ -582,7 +582,7 @@ export const InventoryView: React.FC = () => {
             <XCircle className="h-4 w-4 text-rose-600" />
           </div>
           <p className="text-3xl font-black text-rose-700 mt-1">{metrics.outOfStock}</p>
-          <span className="text-[10px] text-rose-600 mt-0.5 block">0 units on hand</span>
+          <span className="text-[11px] text-rose-600 mt-0.5 block">0 units on hand</span>
         </div>
 
         {/* Not Moving / Dead Stock Card */}
@@ -600,7 +600,7 @@ export const InventoryView: React.FC = () => {
             <AlertOctagon className="h-4 w-4 text-rose-600" />
           </div>
           <p className="text-3xl font-black text-rose-800 mt-1">{metrics.notMovingCount}</p>
-          <span className="text-[10px] text-rose-600 mt-0.5 block">
+          <span className="text-[11px] text-rose-600 mt-0.5 block">
             {inventorySettings.deadStockThresholdDays}+ days or never sold
           </span>
         </div>
@@ -614,7 +614,7 @@ export const InventoryView: React.FC = () => {
           <p className="text-3xl font-black text-blue-700 mt-1">
             {metrics.totalUnits.toLocaleString('en-IN')}
           </p>
-          <span className="text-[10px] text-slate-500 mt-0.5 block">
+          <span className="text-[11px] text-slate-500 mt-0.5 block">
             {isAllBranches ? 'Across all 3 branches' : 'This branch only'}
           </span>
         </div>
@@ -685,7 +685,7 @@ export const InventoryView: React.FC = () => {
               <span>Not Moving</span>
               <span
                 className={cn(
-                  'px-1.5 py-0.2 rounded-full text-[10px] font-extrabold',
+                  'px-1.5 py-0.2 rounded-full text-[11px] font-extrabold',
                   movementFilter === 'not-moving' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
                 )}
               >
@@ -710,7 +710,7 @@ export const InventoryView: React.FC = () => {
               <span>Active</span>
               <span
                 className={cn(
-                  'px-1.5 py-0.2 rounded-full text-[10px] font-extrabold',
+                  'px-1.5 py-0.2 rounded-full text-[11px] font-extrabold',
                   movementFilter === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                 )}
               >
@@ -774,7 +774,7 @@ export const InventoryView: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+              <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3.5 px-4">Item Details</th>
                 <th className="py-3.5 px-3">Category</th>
                 <th className="py-3.5 px-3">Location</th>
@@ -827,11 +827,11 @@ export const InventoryView: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{item.itemName}</div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                             {item.itemCode}
                           </span>
-                          <span className="text-[10px] text-slate-400">HSN: {item.itemHSN}</span>
-                          <span className="text-[10px] text-slate-400">• Unit: {item.unit}</span>
+                          <span className="text-[11px] text-slate-400">HSN: {item.itemHSN}</span>
+                          <span className="text-[11px] text-slate-400">• Unit: {item.unit}</span>
                         </div>
                       </td>
 
@@ -849,12 +849,12 @@ export const InventoryView: React.FC = () => {
                             title="Click to view/edit branch rack locations"
                             className="text-left group hover:bg-slate-100 p-1 rounded-lg transition-colors"
                           >
-                            <div className="flex flex-col gap-0.5 text-[10px]">
+                            <div className="flex flex-col gap-0.5 text-[11px]">
                               {BRANCHES.map((b) => {
                                 const loc = branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id)?.location;
                                 return (
                                   <div key={b.id} className="flex items-center gap-1">
-                                    <span className="font-bold text-[9px] text-slate-400 w-6 uppercase">{b.shortCode}:</span>
+                                    <span className="font-bold text-[11px] text-slate-400 w-6 uppercase">{b.shortCode}:</span>
                                     {loc ? (
                                       <span className="font-mono font-bold text-slate-700">{loc}</span>
                                     ) : (
@@ -948,7 +948,7 @@ export const InventoryView: React.FC = () => {
                           <td className="py-3.5 px-3 text-center bg-blue-50/40">
                             <span className="font-extrabold text-sm text-blue-900">
                               {stockData.currentStock}{' '}
-                              <span className="text-[10px] font-normal text-slate-500">
+                              <span className="text-[11px] font-normal text-slate-500">
                                 {item.unit}
                               </span>
                             </span>
@@ -963,7 +963,7 @@ export const InventoryView: React.FC = () => {
                             )}
                           >
                             {stockData.currentStock}{' '}
-                            <span className="text-[10px] font-normal text-slate-500">{item.unit}</span>
+                            <span className="text-[11px] font-normal text-slate-500">{item.unit}</span>
                           </span>
                         </td>
                       )}
@@ -984,23 +984,23 @@ export const InventoryView: React.FC = () => {
                       {/* Computed Status */}
                       <td className="py-3.5 px-3 text-center">
                         {isOut ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                             <XCircle className="h-3 w-3" />
                             Out of Stock
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                             <AlertTriangle className="h-3 w-3" />
                             Low Stock
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             <CheckCircle2 className="h-3 w-3" />
                             In Stock
                           </span>
                         )}
                         {isAllBranches && stockData.hasImbalance && !isOut && (
-                          <span className="block text-[9px] font-bold text-purple-700 mt-0.5">
+                          <span className="block text-[11px] font-bold text-purple-700 mt-0.5">
                             Branch Imbalance
                           </span>
                         )}
@@ -1017,11 +1017,11 @@ export const InventoryView: React.FC = () => {
                           if (!saleInfo.hasSales) {
                             return (
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                                   <AlertOctagon className="h-3 w-3 text-rose-600 shrink-0" />
                                   <span>Not Moving</span>
                                 </span>
-                                <span className="text-[10px] text-slate-400 italic">Never Sold</span>
+                                <span className="text-[11px] text-slate-400 italic">Never Sold</span>
                               </div>
                             );
                           }
@@ -1029,14 +1029,14 @@ export const InventoryView: React.FC = () => {
                           if (saleInfo.isDeadStock) {
                             return (
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                                   <AlertOctagon className="h-3 w-3 text-rose-600 shrink-0" />
                                   <span>Not Moving</span>
                                 </span>
-                                <span className="text-[10px] font-bold text-rose-700 font-mono">
+                                <span className="text-[11px] font-bold text-rose-700 font-mono">
                                   {saleInfo.daysSinceLastSale}d ago
                                 </span>
-                                <span className="text-[9px] text-slate-400 font-mono">
+                                <span className="text-[11px] text-slate-400 font-mono">
                                   {formatDateShort(saleInfo.lastSaleDate)}
                                 </span>
                               </div>
@@ -1045,11 +1045,11 @@ export const InventoryView: React.FC = () => {
 
                           return (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
                                 <span>Active ({saleInfo.daysSinceLastSale === 0 ? 'Today' : `${saleInfo.daysSinceLastSale}d`})</span>
                               </span>
-                              <span className="text-[9px] text-slate-400 font-mono">
+                              <span className="text-[11px] text-slate-400 font-mono">
                                 {formatDateShort(saleInfo.lastSaleDate)}
                               </span>
                             </div>
@@ -1158,7 +1158,7 @@ export const InventoryView: React.FC = () => {
                 <Sparkles className="h-4 w-4 text-purple-600" />
               </div>
               <p className="text-3xl font-black text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -1167,7 +1167,7 @@ export const InventoryView: React.FC = () => {
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               </div>
               <p className="text-3xl font-black text-emerald-700 mt-1">{comboMetrics.inStock}</p>
-              <span className="text-[10px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
+              <span className="text-[11px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -1176,7 +1176,7 @@ export const InventoryView: React.FC = () => {
                 <XCircle className="h-4 w-4 text-rose-600" />
               </div>
               <p className="text-3xl font-black text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
-              <span className="text-[10px] text-rose-600 mt-0.5 block">Component shortage at branch</span>
+              <span className="text-[11px] text-rose-600 mt-0.5 block">Component shortage at branch</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -1185,7 +1185,7 @@ export const InventoryView: React.FC = () => {
                 <Package className="h-4 w-4 text-purple-600" />
               </div>
               <p className="text-3xl font-black text-purple-700 mt-1">{comboMetrics.totalAvailableKits}</p>
-              <span className="text-[10px] text-purple-600 mt-0.5 block">Sum of assembleable kits</span>
+              <span className="text-[11px] text-purple-600 mt-0.5 block">Sum of assembleable kits</span>
             </div>
           </div>
 
@@ -1211,7 +1211,7 @@ export const InventoryView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-3 w-10 text-center"></th>
                     <th className="py-3 px-4 w-12 text-center">#</th>
                     <th className="py-3 px-4 min-w-[220px]">Combo Name & Code</th>
@@ -1283,11 +1283,11 @@ export const InventoryView: React.FC = () => {
                                 <div>
                                   <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                                     <span>{combo.comboName}</span>
-                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                                    <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
                                       Combo
                                     </span>
                                   </div>
-                                  <span className="font-mono text-[10px] text-purple-700 font-bold">
+                                  <span className="font-mono text-[11px] text-purple-700 font-bold">
                                     {combo.comboCode}
                                   </span>
                                 </div>
@@ -1298,7 +1298,7 @@ export const InventoryView: React.FC = () => {
                                 {combo.components.length} components
                               </span>
                               {isOutOfStock && bottleneckItemName && (
-                                <p className="text-[10px] text-rose-600 font-bold truncate max-w-xs mt-0.5">
+                                <p className="text-[11px] text-rose-600 font-bold truncate max-w-xs mt-0.5">
                                   Shortage: {bottleneckItemName}
                                 </p>
                               )}
@@ -1308,7 +1308,7 @@ export const InventoryView: React.FC = () => {
                                 {formatCurrency(combo.comboPrice)}
                               </span>
                               {separatePrice > combo.comboPrice && (
-                                <span className="block text-[10px] text-slate-400">
+                                <span className="block text-[11px] text-slate-400">
                                   vs {formatCurrency(separatePrice)} sep.
                                 </span>
                               )}
@@ -1321,7 +1321,7 @@ export const InventoryView: React.FC = () => {
                               >
                                 {avail}
                               </span>
-                              <span className="text-[10px] font-normal text-slate-400 ml-1">kits</span>
+                              <span className="text-[11px] font-normal text-slate-400 ml-1">kits</span>
                             </td>
                             <td className="py-3 px-4 text-center">
                               {avail > 0 ? (
@@ -1358,7 +1358,7 @@ export const InventoryView: React.FC = () => {
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs border-collapse">
                                       <thead>
-                                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                                           <th className="py-2.5 px-3 w-8 text-center">#</th>
                                           <th className="py-2.5 px-3">Component Item</th>
                                           <th className="py-2.5 px-3">SKU / Code</th>
@@ -1404,7 +1404,7 @@ export const InventoryView: React.FC = () => {
                                                   <div>
                                                     <div>{item?.itemName || comp.itemId}</div>
                                                     {item?.category && (
-                                                      <span className="text-[10px] text-slate-400 font-normal">
+                                                      <span className="text-[11px] text-slate-400 font-normal">
                                                         {item.category}
                                                       </span>
                                                     )}
@@ -1441,17 +1441,17 @@ export const InventoryView: React.FC = () => {
                                               </td>
                                               <td className="py-2.5 px-3 text-center">
                                                 {isDepleted ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
                                                     <AlertTriangle className="h-3 w-3 text-rose-600" />
                                                     <span>Depleted (Shortage)</span>
                                                   </span>
                                                 ) : isBottleneck ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                                                     <AlertOctagon className="h-3 w-3 text-amber-600" />
                                                     <span>Limiting Bottleneck</span>
                                                   </span>
                                                 ) : (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                                     <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                                     <span>Sufficient Stock</span>
                                                   </span>

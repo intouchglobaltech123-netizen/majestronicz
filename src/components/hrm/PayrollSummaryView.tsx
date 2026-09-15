@@ -171,7 +171,7 @@ export const PayrollSummaryView: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
               Select Pay Period
             </label>
             <input
@@ -184,7 +184,7 @@ export const PayrollSummaryView: React.FC = () => {
 
           {currentUser.role !== 'Manager' && (
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Branch Scope
               </label>
               <select
@@ -204,7 +204,7 @@ export const PayrollSummaryView: React.FC = () => {
 
           {/* Standard Hours Pill */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
               Standard Baseline
             </label>
             <div className="flex items-center gap-1.5">

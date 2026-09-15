@@ -107,7 +107,7 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
               <div key={b.id} className="p-3.5 rounded-xl border border-slate-200 bg-white">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-bold text-slate-800">{b.name}</span>
-                  <span className="text-[10px] uppercase font-semibold text-slate-400">
+                  <span className="text-[11px] uppercase font-semibold text-slate-400">
                     {b.shortCode} • Stock: {getBranchStock(item.id, b.id)?.quantity ?? 0} {item.unit}
                   </span>
                 </div>

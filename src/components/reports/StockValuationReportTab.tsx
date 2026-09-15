@@ -242,7 +242,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <p className="text-2xl font-extrabold text-blue-700 mt-1">
             ₹{valuationData.activePurchaseValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">
+          <span className="text-[11px] text-slate-400 mt-0.5 block">
             Asset value at cost price
           </span>
         </div>
@@ -254,7 +254,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <p className="text-2xl font-extrabold text-slate-900 mt-1">
             ₹{valuationData.activeRetailValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">
+          <span className="text-[11px] text-slate-400 mt-0.5 block">
             Catalog sale value
           </span>
         </div>
@@ -266,7 +266,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <p className="text-2xl font-extrabold text-emerald-700 mt-1">
             ₹{valuationData.activeMargin.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
-          <span className="text-[10px] text-emerald-600 mt-0.5 block">
+          <span className="text-[11px] text-emerald-600 mt-0.5 block">
             {valuationData.activeRetailValue > 0
               ? `${((valuationData.activeMargin / valuationData.activeRetailValue) * 100).toFixed(1)}% gross margin`
               : '0% margin'}
@@ -288,7 +288,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
               {valuationData.activeOutOfStock} Out
             </span>
           </div>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">
+          <span className="text-[11px] text-slate-400 mt-0.5 block">
             {valuationData.activeInStock} healthy items
           </span>
         </div>
@@ -318,7 +318,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-900">{b.name}</span>
-                      <span className="text-[10px] text-slate-400 block">{b.location}</span>
+                      <span className="text-[11px] text-slate-400 block">{b.location}</span>
                     </div>
                     <span className="text-xs font-extrabold text-blue-700">{share.toFixed(1)}%</span>
                   </div>
@@ -332,7 +332,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-200/60">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
                     <span className="text-amber-700 font-semibold">{val.lowStockCount} Low</span>
                     <span className="text-rose-700 font-semibold">{val.outOfStockCount} Out</span>
                     <span className="text-emerald-700 font-semibold">{val.inStockCount} Healthy</span>
@@ -405,7 +405,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3 px-4">Item Details</th>
                 <th className="py-3 px-3">Category</th>
                 <th className="py-3 px-3 text-right">Physical Stock</th>
@@ -428,11 +428,11 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                   <tr key={r.item.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-4">
                       <div className="font-bold text-slate-900">{r.item.itemName}</div>
-                      <span className="font-mono text-[10px] text-slate-500">{r.item.itemCode}</span>
+                      <span className="font-mono text-[11px] text-slate-500">{r.item.itemCode}</span>
                     </td>
                     <td className="py-3 px-3 text-slate-600 font-medium">{r.item.category}</td>
                     <td className="py-3 px-3 text-right font-extrabold text-slate-900">
-                      {r.quantity} <span className="text-[10px] font-normal text-slate-400">{r.item.unit}</span>
+                      {r.quantity} <span className="text-[11px] font-normal text-slate-400">{r.item.unit}</span>
                     </td>
                     <td className="py-3 px-3 text-right text-slate-700 font-semibold">
                       ₹{r.unitCost.toLocaleString('en-IN')}
@@ -448,15 +448,15 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                     </td>
                     <td className="py-3 px-3 text-center">
                       {r.status === 'out-of-stock' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                           <XCircle className="h-3 w-3" /> Out
                         </span>
                       ) : r.status === 'low-stock' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                           <AlertTriangle className="h-3 w-3" /> Low
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           <CheckCircle2 className="h-3 w-3" /> Healthy
                         </span>
                       )}

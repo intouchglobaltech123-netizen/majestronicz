@@ -113,11 +113,11 @@ export const Sidebar: React.FC = () => {
                 <p className="text-[11px] font-bold text-slate-900 truncate">
                   {isAllBranches ? 'All Branches' : currentBranchData?.name}
                 </p>
-                <span className="text-[9px] uppercase font-semibold text-blue-700 bg-blue-50 px-1 rounded border border-blue-200">
+                <span className="text-[11px] uppercase font-semibold text-blue-700 bg-blue-50 px-1 rounded border border-blue-200">
                   {isAllBranches ? 'All Branches' : 'Branch'}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 truncate">
+              <p className="text-[11px] text-slate-500 truncate">
                 {isAllBranches ? 'Erode • Coimbatore • Chennai' : currentBranchData?.location}
               </p>
             </div>
@@ -155,7 +155,7 @@ export const Sidebar: React.FC = () => {
                 {!collapsed && item.badge && (
                   <span
                     className={cn(
-                      'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
+                      'ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
                       isActive
                         ? 'bg-white/20 text-white border-white/30'
                         : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
@@ -186,7 +186,7 @@ export const Sidebar: React.FC = () => {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
-              <p className="text-[10px] text-slate-500 truncate">
+              <p className="text-[11px] text-slate-500 truncate">
                 {currentUser.role === 'CEO'
                   ? 'CEO • All Branches'
                   : currentUser.role === 'Manager'
@@ -201,7 +201,7 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
         {!collapsed && (
-          <p className="text-center text-[10px] text-slate-400 pt-2">
+          <p className="text-center text-[11px] text-slate-400 pt-2">
             Press <kbd className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-slate-600">?</kbd> for shortcuts
           </p>
         )}

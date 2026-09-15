@@ -265,7 +265,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
           style={{ maxWidth: '95vw' }}
         >
           {/* Header Row */}
-          <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-2 shrink-0">
+          <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-2 shrink-0">
             <span className="col-span-6">Item / Combo Description</span>
             <span className="col-span-3 text-right">Price</span>
             <span className="col-span-3 text-right">Availability ({targetBranch.shortCode || targetBranch.name})</span>
@@ -283,12 +283,12 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                 {/* SECTION 1: PRODUCTS */}
                 {filteredProducts.length > 0 && (
                   <div>
-                    <div className="bg-slate-100/90 px-3 py-1 border-b border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
+                    <div className="bg-slate-100/90 px-3 py-1 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
                       <div className="flex items-center gap-1.5">
                         <Package className="h-3 w-3 text-blue-600" />
                         <span>Products ({filteredProducts.length})</span>
                       </div>
-                      <span className="text-[9px] text-slate-400 font-normal">Catalog inventory</span>
+                      <span className="text-[11px] text-slate-400 font-normal">Catalog inventory</span>
                     </div>
 
                     {filteredProducts.map((item, pIdx) => {
@@ -354,7 +354,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                               </p>
                               <div
                                 className={cn(
-                                  'flex items-center gap-1.5 mt-0.5 text-[10px]',
+                                  'flex items-center gap-1.5 mt-0.5 text-[11px]',
                                   isLocked ? 'text-rose-700/80' : 'text-slate-500'
                                 )}
                               >
@@ -390,7 +390,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                             </p>
                             <span
                               className={cn(
-                                'text-[9px] block',
+                                'text-[11px] block',
                                 isLocked ? 'text-rose-600' : 'text-slate-400'
                               )}
                             >
@@ -402,7 +402,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                           <div className="col-span-3 text-right shrink-0">
                             <span
                               className={cn(
-                                'inline-block px-1.5 py-0.5 rounded text-[10px] font-bold',
+                                'inline-block px-1.5 py-0.5 rounded text-[11px] font-bold',
                                 isOutOfStock
                                   ? 'bg-rose-100 text-rose-800 border border-rose-300'
                                   : isLowStock
@@ -415,7 +415,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                                 : `Stock: ${stockQty} · ${rackLoc ? `Rack ${rackLoc}` : item.unit || 'PCS'}`}
                             </span>
                             {rackLoc && (
-                              <span className="block text-[9px] font-mono text-slate-500 mt-0.5">
+                              <span className="block text-[11px] font-mono text-slate-500 mt-0.5">
                                 Rack: {rackLoc}
                               </span>
                             )}
@@ -429,12 +429,12 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                 {/* SECTION 2: COMBOS */}
                 {includeCombos && filteredCombos.length > 0 && (
                   <div>
-                    <div className="bg-purple-50 px-3 py-1 border-y border-purple-200 text-[10px] font-black text-purple-800 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
+                    <div className="bg-purple-50 px-3 py-1 border-y border-purple-200 text-[11px] font-black text-purple-800 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
                       <div className="flex items-center gap-1.5">
                         <Layers className="h-3 w-3 text-purple-600" />
                         <span>Combos & Bundles ({filteredCombos.length})</span>
                       </div>
-                      <span className="text-[9px] text-purple-600 font-normal">Live computed availability</span>
+                      <span className="text-[11px] text-purple-600 font-normal">Live computed availability</span>
                     </div>
 
                     {filteredCombos.map((combo, cIdx) => {
@@ -500,13 +500,13 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                                 >
                                   {combo.comboName}
                                 </span>
-                                <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                                <span className="px-1.5 py-0.2 rounded text-[11px] font-bold uppercase bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
                                   Combo
                                 </span>
                               </div>
                               <div
                                 className={cn(
-                                  'flex items-center gap-1.5 mt-0.5 text-[10px]',
+                                  'flex items-center gap-1.5 mt-0.5 text-[11px]',
                                   isLocked ? 'text-rose-700/80' : 'text-slate-500'
                                 )}
                               >
@@ -536,7 +536,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                             >
                               {formatCurrency(combo.comboPrice)}
                             </p>
-                            <span className="text-[9px] text-slate-400 block">
+                            <span className="text-[11px] text-slate-400 block">
                               Bundle Price (Pre-Tax)
                             </span>
                           </div>
@@ -545,7 +545,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                           <div className="col-span-3 text-right shrink-0">
                             <span
                               className={cn(
-                                'inline-block px-1.5 py-0.5 rounded text-[10px] font-bold font-mono',
+                                'inline-block px-1.5 py-0.5 rounded text-[11px] font-bold font-mono',
                                 isOutOfStock
                                   ? 'bg-rose-100 text-rose-800 border border-rose-300'
                                   : 'bg-purple-100 text-purple-800 border border-purple-200'
@@ -553,7 +553,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                             >
                               {isOutOfStock ? '0 Available' : `Stock: ${availQty} Kits`}
                             </span>
-                            <span className="block text-[8px] text-slate-400 mt-0.5">
+                            <span className="block text-[11px] text-slate-400 mt-0.5">
                               Live component stock
                             </span>
                           </div>

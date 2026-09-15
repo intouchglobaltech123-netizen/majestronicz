@@ -335,7 +335,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
               <label className="text-xs font-bold text-slate-700">
                 Item Requirement Mode <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[10px] text-slate-400 font-medium">
+              <span className="text-[11px] text-slate-400 font-medium">
                 {itemMode === 'existing' ? 'Master Catalog Item' : 'New Item Request'}
               </span>
             </div>
@@ -579,7 +579,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
                   Follow-up Reminder Schedule <span className="text-rose-500">*</span>
                 </span>
               </div>
-              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
+              <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
                 Notification Bell Alert
               </span>
             </div>

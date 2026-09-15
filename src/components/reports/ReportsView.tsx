@@ -125,7 +125,7 @@ export const ReportsView: React.FC = () => {
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 Reports
               </h1>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                 Live Analytics
               </span>
             </div>
@@ -212,7 +212,7 @@ export const ReportsView: React.FC = () => {
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-400">From</span>
+            <span className="text-[11px] uppercase font-bold text-slate-400">From</span>
             <input
               type="date"
               value={startDate}
@@ -227,7 +227,7 @@ export const ReportsView: React.FC = () => {
           <span className="text-slate-400 font-bold">to</span>
 
           <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-400">To</span>
+            <span className="text-[11px] uppercase font-bold text-slate-400">To</span>
             <input
               type="date"
               value={endDate}
@@ -246,22 +246,22 @@ export const ReportsView: React.FC = () => {
         <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
           <p className="text-xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
-          <span className="text-[10px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
+          <span className="text-[11px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
           <p className="text-xl font-black text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
-          <span className="text-[10px] text-slate-400">On taxable invoices</span>
+          <span className="text-[11px] text-slate-400">On taxable invoices</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>
           <p className="text-xl font-black text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
-          <span className="text-[10px] text-slate-400">Customer dues (current)</span>
+          <span className="text-[11px] text-slate-400">Customer dues (current)</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Pay</span>
           <p className="text-xl font-black text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
-          <span className="text-[10px] text-slate-400">Supplier dues (current)</span>
+          <span className="text-[11px] text-slate-400">Supplier dues (current)</span>
         </div>
       </div>
 

@@ -39,7 +39,7 @@ export const StaffAccountsSection: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+            <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
               <th className="py-3 px-4">Staff</th>
               <th className="py-3 px-4">Role</th>
               <th className="py-3 px-4">Branch</th>
@@ -60,7 +60,7 @@ export const StaffAccountsSection: React.FC = () => {
                       </div>
                       <div>
                         <div className="font-bold text-slate-900">{u.name}</div>
-                        {u.isSystem && <div className="text-[10px] text-amber-600 font-semibold">Owner account</div>}
+                        {u.isSystem && <div className="text-[11px] text-amber-600 font-semibold">Owner account</div>}
                       </div>
                     </div>
                   </td>
@@ -68,12 +68,12 @@ export const StaffAccountsSection: React.FC = () => {
                   <td className="py-3 px-4 text-slate-600">{u.role === 'Manager' ? branchName(u.assignedBranchId) : '—'}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-col gap-1">
-                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit', u.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200')}>
+                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border w-fit', u.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200')}>
                         {u.status === 'active' ? <CheckCircle2 className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
                         {u.status === 'active' ? 'Active' : 'Disabled'}
                       </span>
                       {u.mustResetPin && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 w-fit">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 w-fit">
                           <KeyRound className="h-3 w-3" /> PIN reset pending
                         </span>
                       )}

@@ -70,7 +70,7 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full border tracking-wider ${
+                    className={`text-[11px] uppercase font-black px-2.5 py-0.5 rounded-full border tracking-wider ${
                       isOverdue
                         ? 'bg-rose-50 text-rose-700 border-rose-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'

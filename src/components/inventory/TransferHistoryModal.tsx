@@ -116,7 +116,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Inter-Branch Transfer Batches</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   {stockTransfers.length} Batches
                 </span>
               </div>
@@ -249,7 +249,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           <Calendar className="h-3 w-3 text-slate-400" />
                           {formatTimestamp(transfer.timestamp)}
                         </span>
-                        <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                        <span className="flex items-center gap-1 text-[11px] text-slate-400">
                           <User className="h-3 w-3 text-slate-400" />
                           {transfer.transferredBy}
                         </span>
@@ -264,7 +264,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             setCurrentView('challans');
                           }}
                           title="View linked Delivery Challan"
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors flex items-center gap-1"
+                          className="px-2 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors flex items-center gap-1"
                         >
                           <Truck className="h-3 w-3" />
                           <span>{transfer.challanNumber}</span>
@@ -284,7 +284,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       <div className="border border-slate-200 rounded-xl overflow-hidden">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                            <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
                               <th className="py-2.5 px-3 w-10 text-center">#</th>
                               <th className="py-2.5 px-3">Item Details</th>
                               <th className="py-2.5 px-3 w-28 font-mono">Code</th>
@@ -301,7 +301,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 <td className="py-2 px-3">
                                   <div className="font-bold text-slate-900">{item.itemName}</div>
                                   {item.itemHSN && (
-                                    <span className="text-[10px] text-slate-400">HSN: {item.itemHSN}</span>
+                                    <span className="text-[11px] text-slate-400">HSN: {item.itemHSN}</span>
                                   )}
                                 </td>
                                 <td className="py-2 px-3">
@@ -322,13 +322,13 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-50/80 border-t border-slate-200 font-bold text-xs text-slate-700">
-                              <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[10px]">
+                              <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[11px]">
                                 Total Quantity Transferred:
                               </td>
                               <td className="py-2.5 px-3 text-right font-mono font-black text-sm text-slate-900">
                                 {transfer.totalQuantity}
                               </td>
-                              <td className="py-2.5 px-3 text-slate-500 uppercase text-[10px]">Units</td>
+                              <td className="py-2.5 px-3 text-slate-500 uppercase text-[11px]">Units</td>
                             </tr>
                           </tfoot>
                         </table>

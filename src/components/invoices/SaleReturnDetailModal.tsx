@@ -160,7 +160,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
             {/* Customer Details */}
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 CUSTOMER DETAILS
               </span>
               <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
@@ -182,7 +182,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
             {/* Original Sale Reference */}
             <div className="md:border-l md:border-slate-200 md:pl-4 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                   ORIGINAL SALE INFORMATION
                 </span>
                 <div className="flex items-center justify-between">
@@ -228,7 +228,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
 
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-100 border-y border-slate-300 font-bold uppercase text-[10px] text-slate-700">
+                <tr className="bg-slate-100 border-y border-slate-300 font-bold uppercase text-[11px] text-slate-700">
                   <th className="py-2.5 px-3 text-center w-10">#</th>
                   <th className="py-2.5 px-3 text-left">Item Description</th>
                   <th className="py-2.5 px-3 text-center w-24">Qty Returned</th>
@@ -285,7 +285,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                 Stock adjustment audit logs recorded.
               </p>
               <div className="pt-2 border-t border-emerald-200/80">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
                   REFUND IN WORDS
                 </span>
                 <p className="font-medium text-slate-800 italic">

@@ -374,7 +374,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                     <Navigation className="h-3.5 w-3.5 text-blue-600" />
                     <span>Geolocation Capture</span>
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold ${
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded border font-bold ${
                     isFetchingLocation
                       ? 'bg-amber-50 text-amber-700 border-amber-200'
                       : 'bg-emerald-50 text-emerald-700 border-emerald-200'

@@ -56,7 +56,7 @@ export const ThresholdEditModal: React.FC<Props> = ({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <div className="text-xs font-bold text-slate-900">{item.itemName}</div>
-            <div className="font-mono text-[10px] text-slate-500 mt-0.5">{item.itemCode} • {item.unit}</div>
+            <div className="font-mono text-[11px] text-slate-500 mt-0.5">{item.itemCode} • {item.unit}</div>
           </div>
 
           <div>

@@ -181,7 +181,7 @@ export const ReturnsListView: React.FC<Props> = ({
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
               Returns & Refunds Log ({filteredReturns.length})
             </span>
-            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300 font-bold">
+            <span className="text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300 font-bold">
               Restoration Verified
             </span>
           </div>
@@ -193,7 +193,7 @@ export const ReturnsListView: React.FC<Props> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3.5 px-4">Original Sale No.</th>
                 <th className="py-3.5 px-4">Date of Return</th>
                 <th className="py-3.5 px-4">Customer</th>
@@ -253,7 +253,7 @@ export const ReturnsListView: React.FC<Props> = ({
                           </span>
                           <span
                             className={cn(
-                              'text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded border',
+                              'text-[11px] font-extrabold uppercase px-1.5 py-0.2 rounded border',
                               isFullReturn
                                 ? 'bg-rose-50 text-rose-700 border-rose-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -262,7 +262,7 @@ export const ReturnsListView: React.FC<Props> = ({
                             {isFullReturn ? 'Full' : 'Partial'}
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-400 block font-sans mt-0.5">
+                        <span className="text-[11px] text-slate-400 block font-sans mt-0.5">
                           Sale: {formatCurrency(inv.grandTotal)}
                         </span>
                       </td>
@@ -273,7 +273,7 @@ export const ReturnsListView: React.FC<Props> = ({
                           <Calendar className="h-3.5 w-3.5 text-slate-400" />
                           <span>{returnDateStr}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 pl-4.5">{returnTimeStr}</span>
+                        <span className="text-[11px] text-slate-400 pl-4.5">{returnTimeStr}</span>
                       </td>
 
                       {/* 3. Customer */}
@@ -298,7 +298,7 @@ export const ReturnsListView: React.FC<Props> = ({
                             <span className="font-semibold text-slate-900 line-clamp-1">
                               {returns[0].itemName}
                             </span>
-                            <span className="text-[10px] font-mono text-amber-800 font-bold bg-amber-50 px-1 rounded border border-amber-200 mt-0.5 inline-block">
+                            <span className="text-[11px] font-mono text-amber-800 font-bold bg-amber-50 px-1 rounded border border-amber-200 mt-0.5 inline-block">
                               {returns[0].returnedQuantity} unit{returns[0].returnedQuantity === 1 ? '' : 's'}
                             </span>
                           </div>
@@ -307,7 +307,7 @@ export const ReturnsListView: React.FC<Props> = ({
                             <span className="font-semibold text-slate-900">
                               {returns.length} items returned
                             </span>
-                            <div className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                            <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
                               {returns.map((r) => `${r.returnedQuantity}x ${r.itemName}`).join(', ')}
                             </div>
                           </div>
@@ -319,7 +319,7 @@ export const ReturnsListView: React.FC<Props> = ({
                         <span className="font-black text-sm text-rose-700 block">
                           {formatCurrency(inv.totalReturnedAmount || 0)}
                         </span>
-                        <span className="text-[10px] text-slate-400">Refund value</span>
+                        <span className="text-[11px] text-slate-400">Refund value</span>
                       </td>
 
                       {/* 6. Branch */}

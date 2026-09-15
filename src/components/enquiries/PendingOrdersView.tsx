@@ -96,7 +96,7 @@ export const PendingOrdersView: React.FC = () => {
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   Pending Orders
                 </h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
                   {branchScopedOrders.length} Total
                 </span>
               </div>
@@ -127,13 +127,13 @@ export const PendingOrdersView: React.FC = () => {
               : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
           }`}
         >
-          <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+          <span className={`text-[11px] font-bold uppercase tracking-wider block ${
             statusFilter === 'ALL' ? 'text-slate-300' : 'text-slate-500'
           }`}>
             All Orders
           </span>
           <div className="text-2xl font-black font-mono mt-0.5">{branchScopedOrders.length}</div>
-          <span className={`text-[10px] ${statusFilter === 'ALL' ? 'text-slate-400' : 'text-slate-400'}`}>
+          <span className={`text-[11px] ${statusFilter === 'ALL' ? 'text-slate-400' : 'text-slate-400'}`}>
             Total backlog
           </span>
         </button>
@@ -148,7 +148,7 @@ export const PendingOrdersView: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
               statusFilter === 'Waiting' ? 'text-amber-100' : 'text-amber-800'
             }`}>
               Awaiting Stock
@@ -156,7 +156,7 @@ export const PendingOrdersView: React.FC = () => {
             <AlertCircle className={`h-3.5 w-3.5 ${statusFilter === 'Waiting' ? 'text-white' : 'text-amber-600'}`} />
           </div>
           <div className="text-2xl font-black font-mono mt-0.5">{waitingCount}</div>
-          <span className={`text-[10px] ${statusFilter === 'Waiting' ? 'text-amber-200' : 'text-amber-700'}`}>
+          <span className={`text-[11px] ${statusFilter === 'Waiting' ? 'text-amber-200' : 'text-amber-700'}`}>
             Pending restock
           </span>
         </button>
@@ -171,7 +171,7 @@ export const PendingOrdersView: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
               statusFilter === 'Stock Arrived' ? 'text-emerald-100' : 'text-emerald-800'
             }`}>
               Stock Arrived
@@ -179,7 +179,7 @@ export const PendingOrdersView: React.FC = () => {
             <PackageCheck className={`h-3.5 w-3.5 ${statusFilter === 'Stock Arrived' ? 'text-white' : 'text-emerald-600'}`} />
           </div>
           <div className="text-2xl font-black font-mono mt-0.5">{stockArrivedCount}</div>
-          <span className={`text-[10px] ${statusFilter === 'Stock Arrived' ? 'text-emerald-200' : 'text-emerald-700'}`}>
+          <span className={`text-[11px] ${statusFilter === 'Stock Arrived' ? 'text-emerald-200' : 'text-emerald-700'}`}>
             Ready to fulfill
           </span>
         </button>
@@ -194,7 +194,7 @@ export const PendingOrdersView: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
               statusFilter === 'Fulfilled' ? 'text-blue-100' : 'text-blue-800'
             }`}>
               Fulfilled
@@ -202,7 +202,7 @@ export const PendingOrdersView: React.FC = () => {
             <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === 'Fulfilled' ? 'text-white' : 'text-blue-600'}`} />
           </div>
           <div className="text-2xl font-black font-mono mt-0.5">{fulfilledCount}</div>
-          <span className={`text-[10px] ${statusFilter === 'Fulfilled' ? 'text-blue-200' : 'text-blue-700'}`}>
+          <span className={`text-[11px] ${statusFilter === 'Fulfilled' ? 'text-blue-200' : 'text-blue-700'}`}>
             Converted to sale
           </span>
         </button>
@@ -217,7 +217,7 @@ export const PendingOrdersView: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
               statusFilter === 'Cancelled' ? 'text-rose-100' : 'text-rose-800'
             }`}>
               Cancelled
@@ -225,7 +225,7 @@ export const PendingOrdersView: React.FC = () => {
             <XCircle className={`h-3.5 w-3.5 ${statusFilter === 'Cancelled' ? 'text-white' : 'text-rose-600'}`} />
           </div>
           <div className="text-2xl font-black font-mono mt-0.5">{cancelledCount}</div>
-          <span className={`text-[10px] ${statusFilter === 'Cancelled' ? 'text-rose-200' : 'text-rose-700'}`}>
+          <span className={`text-[11px] ${statusFilter === 'Cancelled' ? 'text-rose-200' : 'text-rose-700'}`}>
             Lost / Dropped
           </span>
         </button>

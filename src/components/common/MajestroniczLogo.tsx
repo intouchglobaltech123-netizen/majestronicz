@@ -40,7 +40,7 @@ export const MajestroniczLogo: React.FC<Props> = ({ collapsed = false }) => {
             <span className="font-extrabold text-base tracking-tight text-slate-900">
               Majestronicz
             </span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-[11px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
               ERP
             </span>
           </div>
