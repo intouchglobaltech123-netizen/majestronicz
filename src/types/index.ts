@@ -56,7 +56,7 @@ export const FLAG_LABELS: Record<string, string> = {
 
 // Keep in sync with backend/src/lib/auth.ts (ALL_VIEWS / ALL_CAPS).
 export const ALL_VIEWS: string[] = [
-  'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
+  'dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
   'hrm', 'reports', 'ai-assistant', 'access',
 ];
@@ -68,7 +68,7 @@ export const ALL_CAPABILITIES: Capability[] = [
 ];
 
 export const VIEW_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard', items: 'Items Master', customers: 'Customers', enquiries: 'Enquiries',
+  dashboard: 'Dashboard', items: 'Items Master', customers: 'Customers', parties: 'Parties', enquiries: 'Enquiries',
   'pending-orders': 'Pending Orders', estimates: 'Quotes', challans: 'Delivery Challan',
   inventory: 'Inventory', invoices: 'Sales', barcodes: 'Barcode', 'cash-register': 'Cash Register',
   purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', 'ai-assistant': 'Beta AI', access: 'Access Control',

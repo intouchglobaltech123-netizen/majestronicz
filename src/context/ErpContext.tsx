@@ -83,6 +83,7 @@ export type ActiveNavView =
   | 'items'
   | 'inventory'
   | 'customers'
+  | 'parties'
   | 'enquiries'
   | 'pending-orders'
   | 'estimates'
@@ -803,10 +804,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Built-in fallback (used before the backend matrix loads / if absent).
   const DEFAULT_ROLE_VIEWS: Record<Role, ActiveNavView[]> = {
-    CEO: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant', 'access'],
-    Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
-    Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
-    Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
+    CEO: ['dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant', 'access'],
+    Manager: ['dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
+    Billing: ['items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
+    Purchase: ['items', 'inventory', 'purchases', 'parties', 'enquiries', 'pending-orders'],
     Sales: ['items', 'enquiries'],
   };
 

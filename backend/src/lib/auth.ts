@@ -53,16 +53,16 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
 
 // Sidebar modules (views). Drives what each role can navigate to.
 export const ALL_VIEWS = [
-  'dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates',
+  'dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
   'hrm', 'reports', 'ai-assistant', 'access',
 ];
 
 export const DEFAULT_ROLE_VIEWS: Record<Role, string[]> = {
   CEO: [...ALL_VIEWS],
-  Manager: ['dashboard', 'items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
-  Billing: ['items', 'customers', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
-  Purchase: ['items', 'inventory', 'purchases', 'enquiries', 'pending-orders'],
+  Manager: ['dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases', 'hrm', 'reports', 'ai-assistant'],
+  Billing: ['items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates', 'challans', 'inventory', 'invoices', 'barcodes', 'cash-register'],
+  Purchase: ['items', 'inventory', 'purchases', 'parties', 'enquiries', 'pending-orders'],
   Sales: ['items', 'enquiries'],
 };
 
