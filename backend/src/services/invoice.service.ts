@@ -275,6 +275,31 @@ export function processReturn(
     const newLogs: any[] = [];
     const returnRecords: any[] = [];
 
+    // Server-authoritative refund per unit = the customer's actual per-unit
+    // contribution to the bill: line value (after LINE discount, incl. tax)
+    // minus this line's proportional share of the OVERALL discount. This makes
+    // returns reflect discounts instead of refunding the raw undiscounted price.
+    const invItems: any[] = (inv.items as any[]) || [];
+    const subtotalTaxable =
+      Number(inv.subtotal) || invItems.reduce((s, i) => s + (Number(i.taxableAmount) || 0), 0);
+    const overallDisc = Number(inv.overallDiscountAmount) || 0;
+    const perUnitRefund = (itemId: string, taxRate: number, fallbackUnitPrice: number): number => {
+      const li = invItems.find((i) => (i.itemId || i.id) === itemId);
+      if (!li) {
+        // No stored line — fall back to unit price + tax (legacy behavior).
+        return Math.round(fallbackUnitPrice * (1 + (Number(taxRate) || 0) / 100) * 100) / 100;
+      }
+      const q = Number(li.quantity) || 1;
+      const lineTaxable = Number(li.taxableAmount) || 0;
+      const lineNetWithTax =
+        Number(li.totalAmount) || lineTaxable + (Number(li.totalTax) || 0);
+      const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
+      const perUnit = (lineNetWithTax - overallShare) / q;
+      return Math.max(0, Math.round(perUnit * 100) / 100);
+    };
+    const refundFor = (line: any): number =>
+      Math.round(perUnitRefund(line.itemId, line.taxRate, line.unitPrice) * line.returnQty * 100) / 100;
+
     for (const line of validLines) {
       if (line.isCombo && line.comboComponents?.length) {
         for (const comp of line.comboComponents) {
@@ -293,7 +318,7 @@ export function processReturn(
         returnRecords.push({
           id: rid('ret'), itemId: line.itemId, itemCode: line.itemCode, itemName: line.itemName,
           returnedQuantity: line.returnQty, unitPrice: line.unitPrice, taxRate: line.taxRate,
-          refundAmount: line.refundAmount, returnedAt: ts, reason, notes, processedBy: actor,
+          refundAmount: refundFor(line), returnedAt: ts, reason, notes, processedBy: actor,
           isCombo: true, comboId: line.comboId, comboComponents: line.comboComponents,
         });
       } else {
@@ -309,7 +334,7 @@ export function processReturn(
         returnRecords.push({
           id: rid('ret'), itemId: line.itemId, itemCode: line.itemCode, itemName: line.itemName,
           returnedQuantity: line.returnQty, unitPrice: line.unitPrice, taxRate: line.taxRate,
-          refundAmount: line.refundAmount, returnedAt: ts, reason, notes, processedBy: actor,
+          refundAmount: refundFor(line), returnedAt: ts, reason, notes, processedBy: actor,
         });
       }
     }

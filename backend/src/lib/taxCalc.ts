@@ -23,19 +23,24 @@ export function calculateLineTax(
   const grossAmount = r2(qty * price);
   let discountAmount = 0;
   if (dVal > 0) {
-    discountAmount = discountType === '%' ? r2((grossAmount * dVal) / 100) : Math.min(grossAmount, r2(dVal));
+    // Cap percentage discount at 100% so it can never exceed the gross value.
+    discountAmount = discountType === '%' ? r2((grossAmount * Math.min(100, dVal)) / 100) : Math.min(grossAmount, r2(dVal));
   }
   const taxableAmount = Math.max(0, r2(grossAmount - discountAmount));
 
   let totalTax = 0;
-  let halfTax = 0;
+  let cgstAmount = 0;
+  let sgstAmount = 0;
   if (withGst && rate > 0) {
     totalTax = r2((taxableAmount * rate) / 100);
-    halfTax = r2(totalTax / 2);
+    // Split so the two halves ALWAYS sum exactly to totalTax (SGST rounded
+    // half, CGST the residual) — avoids odd-paisa CGST+SGST != totalTax.
+    sgstAmount = r2(totalTax / 2);
+    cgstAmount = r2(totalTax - sgstAmount);
   }
   const totalAmount = withGst ? r2(taxableAmount + totalTax) : taxableAmount;
 
-  return { taxableAmount, discountAmount, cgstAmount: halfTax, sgstAmount: halfTax, totalTax, totalAmount };
+  return { taxableAmount, discountAmount, cgstAmount, sgstAmount, totalTax, totalAmount };
 }
 
 export function calculateInvoiceTotals(

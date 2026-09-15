@@ -32,7 +32,9 @@ export function calculateLineTax(
   let discountAmount = 0;
   if (dVal > 0) {
     if (discountType === '%') {
-      discountAmount = Math.round(((grossAmount * dVal) / 100) * 100) / 100;
+      // Cap percentage discount at 100% so it can never exceed the gross value.
+      const pct = Math.min(100, dVal);
+      discountAmount = Math.round(((grossAmount * pct) / 100) * 100) / 100;
     } else {
       discountAmount = Math.min(grossAmount, Math.round(dVal * 100) / 100);
     }
@@ -41,11 +43,16 @@ export function calculateLineTax(
   const taxableAmount = Math.max(0, Math.round((grossAmount - discountAmount) * 100) / 100);
 
   let totalTax = 0;
-  let halfTax = 0;
+  let cgstAmount = 0;
+  let sgstAmount = 0;
 
   if (withGst && rate > 0) {
     totalTax = Math.round(((taxableAmount * rate) / 100) * 100) / 100;
-    halfTax = Math.round((totalTax / 2) * 100) / 100;
+    // Split so the two halves ALWAYS sum exactly to totalTax (avoids the
+    // odd-paisa case where round(t/2)*2 != t). SGST takes the rounded half,
+    // CGST takes the residual.
+    sgstAmount = Math.round((totalTax / 2) * 100) / 100;
+    cgstAmount = Math.round((totalTax - sgstAmount) * 100) / 100;
   }
 
   const totalAmount = withGst
@@ -55,8 +62,8 @@ export function calculateLineTax(
   return {
     taxableAmount,
     discountAmount,
-    cgstAmount: halfTax,
-    sgstAmount: halfTax,
+    cgstAmount,
+    sgstAmount,
     totalTax,
     totalAmount,
   };

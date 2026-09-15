@@ -5,6 +5,30 @@ import {
 } from '../lib/auth.js';
 
 const CONFIG_KEY = 'accessMatrix';
+const MIGRATIONS_KEY = 'accessMatrixMigrations';
+
+/**
+ * One-time, tracked, ADDITIVE migrations for the stored access matrix. When a
+ * new view/capability ships, existing DB matrices (seeded before it existed)
+ * won't contain it, so roles never gain it. Each migration is applied exactly
+ * once (tracked in AppConfig) and only ADDS the specifically-intended grant —
+ * it never re-adds on later restarts, so a CEO's deliberate removal sticks.
+ */
+const MATRIX_MIGRATIONS: { id: string; apply: (m: AccessMatrix) => void }[] = [
+  {
+    // Parties directory shipped after initial matrix seed — grant it to the
+    // roles whose defaults include it (Manager, Billing, Purchase). CEO always
+    // has everything already.
+    id: '2026-09-parties-view',
+    apply: (m) => {
+      for (const role of ['Manager', 'Billing', 'Purchase'] as Role[]) {
+        if (m[role] && !m[role].views.includes('parties')) {
+          m[role].views.push('parties');
+        }
+      }
+    },
+  },
+];
 
 /** Load the matrix from AppConfig into the in-memory cache (called at startup). */
 export async function loadAccessMatrix(): Promise<AccessMatrix> {
@@ -24,6 +48,29 @@ export async function ensureAccessMatrix(): Promise<AccessMatrix> {
     return def;
   }
   setLiveMatrix(row.value as AccessMatrix);
+  return getLiveMatrix();
+}
+
+/**
+ * Apply any pending additive matrix migrations exactly once. Call at startup
+ * AFTER ensureAccessMatrix so the row exists.
+ */
+export async function migrateAccessMatrix(): Promise<AccessMatrix> {
+  const markerRow = await prisma.appConfig.findUnique({ where: { key: MIGRATIONS_KEY } });
+  const applied: string[] = Array.isArray(markerRow?.value) ? (markerRow!.value as string[]) : [];
+  const pending = MATRIX_MIGRATIONS.filter((mig) => !applied.includes(mig.id));
+  if (pending.length === 0) return getLiveMatrix();
+
+  const row = await prisma.appConfig.findUnique({ where: { key: CONFIG_KEY } });
+  const matrix = (row?.value as AccessMatrix) || buildDefaultMatrix();
+  for (const mig of pending) mig.apply(matrix);
+
+  const newApplied = [...applied, ...pending.map((p) => p.id)];
+  await prisma.$transaction([
+    prisma.appConfig.upsert({ where: { key: CONFIG_KEY }, create: { key: CONFIG_KEY, value: matrix as any }, update: { value: matrix as any } }),
+    prisma.appConfig.upsert({ where: { key: MIGRATIONS_KEY }, create: { key: MIGRATIONS_KEY, value: newApplied as any }, update: { value: newApplied as any } }),
+  ]);
+  setLiveMatrix(matrix);
   return getLiveMatrix();
 }
 

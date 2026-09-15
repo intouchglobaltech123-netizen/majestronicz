@@ -107,8 +107,9 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
         {/* Filters & Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Branch Filter if multi-branch */}
-          {currentUser.role !== 'Manager' && (
+          {/* Branch Filter — hidden for branch-locked roles (Manager, Purchase)
+              so they can't view other branches' POs via this internal filter. */}
+          {currentUser.role !== 'Manager' && currentUser.role !== 'Purchase' && (
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value as BranchScope)}

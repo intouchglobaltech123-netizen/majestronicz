@@ -155,6 +155,18 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   {formatCurrency(payrollRecord.computedPay)}
                 </td>
               </tr>
+              {!!payrollRecord.incentiveEarned && payrollRecord.incentiveEarned !== 0 && (
+                <tr className="bg-emerald-50/40">
+                  <td className="py-2.5 px-3">
+                    <span className="font-semibold text-slate-900">Sales Incentive</span>
+                    <p className="text-[11px] text-slate-500 italic mt-0.5">Earned on attributed sales (net of returns)</p>
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-slate-500">Auto-computed</td>
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                    +{formatCurrency(payrollRecord.incentiveEarned)}
+                  </td>
+                </tr>
+              )}
               {payrollRecord.manualAdjustment !== 0 && (
                 <tr className={payrollRecord.manualAdjustment > 0 ? 'bg-emerald-50/40' : 'bg-rose-50/40'}>
                   <td className="py-2.5 px-3">

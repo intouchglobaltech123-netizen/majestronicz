@@ -8,13 +8,20 @@ import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSes
  * redundant write storm on page load.
  */
 function useDbSync<T>(path: string, data: T, enabled: boolean) {
-  const skipFirst = useRef(true);
+  // Track the last value we've seen/synced. Only PUT when the value ACTUALLY
+  // changes (a genuine edit) — never when a bootstrap/live-refresh re-hydration
+  // hands back the same config with a new object reference. This stops the
+  // spurious write-back storm (and its 403/500 console spam) on every refresh.
+  const lastSynced = useRef<string | null>(null);
   useEffect(() => {
     if (!enabled) return;
-    if (skipFirst.current) {
-      skipFirst.current = false;
+    const serialized = JSON.stringify(data ?? null);
+    if (lastSynced.current === null) {
+      lastSynced.current = serialized; // baseline the first observed value; no write
       return;
     }
+    if (serialized === lastSynced.current) return; // unchanged — skip
+    lastSynced.current = serialized;
     apiPut(path, data).catch((e) => console.error(`DB sync failed for ${path}:`, e));
   }, [data, enabled, path]);
 }
@@ -474,6 +481,15 @@ interface ErpContextType {
 
 const ErpContext = createContext<ErpContextType | null>(null);
 
+// Roles pinned to a single branch (cannot view/act across branches). Manager
+// and Purchase are branch-locked; CEO/Billing/Sales are not.
+const BRANCH_LOCKED_ROLES: Role[] = ['Manager', 'Purchase'];
+/** The branch a user is locked to, or null if the role may span all branches. */
+function lockedBranchFor(user: { role: Role; assignedBranchId?: string }): BranchId | null {
+  if (!BRANCH_LOCKED_ROLES.includes(user.role)) return null;
+  return (user.assignedBranchId as BranchId) || (user.role === 'Manager' ? 'coimbatore' : 'erode-hq');
+}
+
 export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserSession>(() => {
     const session = getTokenSession();
@@ -630,21 +646,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
+    const locked = lockedBranchFor(currentUser);
+    if (locked) return locked; // branch-locked roles ignore any saved scope
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed: StorageState = JSON.parse(saved);
-        if (parsed.currentBranch) {
-          if (currentUser.role === 'Manager') {
-            return currentUser.assignedBranchId || 'coimbatore';
-          }
-          return parsed.currentBranch;
-        }
+        if (parsed.currentBranch) return parsed.currentBranch;
       }
     } catch (e) {
       console.error('Failed to load currentBranch from storage:', e);
     }
-    return currentUser.role === 'Manager' ? (currentUser.assignedBranchId || 'coimbatore') : 'all';
+    return 'all';
   });
 
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
@@ -743,19 +756,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // role commits a change, silently refresh so it reflects here immediately.
   // Debounced so bursts collapse into one refresh (smooth, no flicker/splash).
   useEffect(() => {
-    if (isBootstrapping) return;
+    // Only subscribe while a session is active. Tying this to isAuthenticated
+    // means logout tears the stream down and login re-opens it fresh — so a
+    // debounced live-refresh can never fire /api/bootstrap without a token
+    // during the logged-out/login-transition window (which 401'd and bounced
+    // the just-submitted login back to the PIN screen — R03-02).
+    if (isBootstrapping || !isAuthenticated) return;
     const es = new EventSource(`${API_BASE}/api/events`);
     let timer: ReturnType<typeof setTimeout> | null = null;
     let refreshing = false;
+    let closed = false;
 
     const scheduleRefresh = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
-        if (refreshing) return;
+        // Guard against a refresh landing after teardown / logout.
+        if (refreshing || closed || !getTokenSession()) return;
         refreshing = true;
         try {
           const data = await apiGet<any>('/api/bootstrap');
-          hydrateState(data);
+          if (!closed) hydrateState(data);
         } catch (e) {
           console.error('Live refresh failed:', e);
         } finally {
@@ -769,24 +789,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       /* EventSource auto-reconnects; nothing to do */
     };
     return () => {
+      closed = true;
       if (timer) clearTimeout(timer);
       es.close();
     };
-  }, [isBootstrapping]);
+  }, [isBootstrapping, isAuthenticated]);
 
   // Data collections persist via granular per-operation endpoints (see the
   // mutation functions below) — concurrency-safe, no full-collection replace.
   // Only app-config singletons (low-frequency, admin-only) still sync by key.
+  // These PUTs require the config:write capability — gate the sync on it so
+  // roles without it (Sales/Billing/Purchase) never fire an unauthorized write
+  // during bootstrap/live-refresh (was spamming API 403s — R03-03).
   const dbReady = !isBootstrapping;
-  useDbSync('/api/config/categories', categories, dbReady);
-  useDbSync('/api/config/subcategoriesByCategory', subcategoriesByCategory, dbReady);
-  useDbSync('/api/config/categoryPrefixMap', categoryPrefixMap, dbReady);
-  useDbSync('/api/config/subcategoryPrefixMap', subcategoryPrefixMap, dbReady);
-  useDbSync('/api/config/unitsList', unitsList, dbReady);
-  useDbSync('/api/config/gstSlabsList', gstSlabsList, dbReady);
-  useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, dbReady);
-  useDbSync('/api/config/loyaltySettings', loyaltySettings, dbReady);
-  useDbSync('/api/config/payrollSettings', payrollSettings, dbReady);
+  const canSyncConfig =
+    dbReady &&
+    (currentUser.role === 'CEO' || !!accessMatrix?.[currentUser.role]?.caps?.includes('config:write'));
+  useDbSync('/api/config/categories', categories, canSyncConfig);
+  useDbSync('/api/config/subcategoriesByCategory', subcategoriesByCategory, canSyncConfig);
+  useDbSync('/api/config/categoryPrefixMap', categoryPrefixMap, canSyncConfig);
+  useDbSync('/api/config/subcategoryPrefixMap', subcategoryPrefixMap, canSyncConfig);
+  useDbSync('/api/config/unitsList', unitsList, canSyncConfig);
+  useDbSync('/api/config/gstSlabsList', gstSlabsList, canSyncConfig);
+  useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, canSyncConfig);
+  useDbSync('/api/config/loyaltySettings', loyaltySettings, canSyncConfig);
+  useDbSync('/api/config/payrollSettings', payrollSettings, canSyncConfig);
 
   // Persist ONLY non-sensitive per-session UI state to localStorage (active
   // branch, current view). User identity & credentials live in signed tokens & Postgres.
@@ -886,11 +913,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentView(target);
       }
     }
-    if (currentUser.role === 'Manager') {
-      const managerBranch = currentUser.assignedBranchId || 'coimbatore';
-      if (currentBranch !== managerBranch) {
-        setCurrentBranch(managerBranch);
-      }
+    const locked = lockedBranchFor(currentUser);
+    if (locked && currentBranch !== locked) {
+      setCurrentBranch(locked);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, currentView, currentBranch, accessMatrix]);
@@ -898,9 +923,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isAllBranches = currentBranch === 'all';
   const currentBranchData = isAllBranches ? undefined : BRANCHES.find((b) => b.id === currentBranch);
 
-  // Accessible branches based on role
-  const accessibleBranches = currentUser.role === 'Manager'
-    ? BRANCHES.filter((b) => b.id === (currentUser.assignedBranchId || 'coimbatore'))
+  // Accessible branches based on role — branch-locked roles (Manager, Purchase)
+  // see only their own branch in the top-bar selector.
+  const lockedBranch = lockedBranchFor(currentUser);
+  const accessibleBranches = lockedBranch
+    ? BRANCHES.filter((b) => b.id === lockedBranch)
     : BRANCHES;
 
   // Role permissions — derived from the dynamic capability matrix.

@@ -50,6 +50,13 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const linesWithReturnState = useMemo(() => {
     if (!invoice) return [];
 
+    // Refund the customer's ACTUAL per-unit contribution: the line value after
+    // its line discount (incl. GST) minus this line's proportional share of the
+    // overall discount — so returns reflect discounts, not the raw list price.
+    const subtotalTaxable =
+      invoice.subtotal || invoice.items.reduce((s, i) => s + (i.taxableAmount || 0), 0);
+    const overallDisc = invoice.overallDiscountAmount || 0;
+
     return invoice.items.map((item) => {
       const itemId = item.itemId || item.id;
       const alreadyReturned = (invoice.returns || [])
@@ -59,10 +66,13 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       const maxReturnable = Math.max(0, item.quantity - alreadyReturned);
       const currentReturnQty = Math.min(maxReturnable, returnQuantities[itemId] || 0);
 
-      // Refund calculation including GST if applicable
-      const baseRefund = currentReturnQty * item.unitPrice;
-      const taxRefund = invoice.withGst ? (baseRefund * (item.taxRate || 0)) / 100 : 0;
-      const totalRefund = baseRefund + taxRefund;
+      const q = item.quantity || 1;
+      const lineTaxable = item.taxableAmount || 0;
+      const lineNetWithTax =
+        item.totalAmount || lineTaxable + (item.totalTax || 0);
+      const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
+      const perUnitRefund = Math.max(0, Math.round(((lineNetWithTax - overallShare) / q) * 100) / 100);
+      const totalRefund = Math.round(perUnitRefund * currentReturnQty * 100) / 100;
 
       return {
         ...item,
@@ -70,6 +80,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         alreadyReturned,
         maxReturnable,
         currentReturnQty,
+        perUnitRefund,
         totalRefund,
       };
     });

@@ -13,7 +13,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, getCustomerOutstandingSummary } from '../../types';
+import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { CustomerFormModal } from '../customers/CustomerFormModal';
 import { CustomerDetailModal } from '../customers/CustomerDetailModal';
@@ -123,7 +123,16 @@ export const PartiesView: React.FC = () => {
       });
   }, [parties, filter, search]);
 
-  const totalReceivable = parties.reduce((s, p) => s + p.toCollect, 0);
+  // Headline receivable uses the SAME single finance-truth as the dashboard &
+  // Customers page (sum of every non-voided invoice's due), so the numbers
+  // reconcile. Per-customer rows only attribute dues to a matched customer
+  // record; any remainder is receivable on invoices not linked to a party.
+  const totalReceivable = useMemo(
+    () => invoices.filter((i) => !i.isVoided).reduce((s, i) => s + computeInvoiceFinance(i).due, 0),
+    [invoices]
+  );
+  const attributedReceivable = parties.reduce((s, p) => s + p.toCollect, 0);
+  const unassignedReceivable = Math.max(0, totalReceivable - attributedReceivable);
   const totalPayable = parties.reduce((s, p) => s + p.toPay, 0);
   const customerCount = parties.filter((p) => p.kind === 'customer').length;
   const supplierCount = parties.filter((p) => p.kind === 'supplier').length;
@@ -192,7 +201,11 @@ export const PartiesView: React.FC = () => {
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total To Collect</p>
             <p className="text-2xl font-black font-mono text-emerald-700 truncate mt-0.5">{formatCurrency(totalReceivable)}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Receivable from customers</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {unassignedReceivable > 0.5
+                ? `${formatCurrency(unassignedReceivable)} on unlinked bills`
+                : 'Receivable from customers'}
+            </p>
           </div>
         </div>
         <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/50 shadow-2xs flex items-center gap-3.5">

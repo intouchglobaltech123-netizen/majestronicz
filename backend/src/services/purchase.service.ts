@@ -11,8 +11,17 @@ const poSnapshot = async (tx: any) => ({
   branchStocks: await tx.branchStock.findMany(),
 });
 
+/** Branch-locked roles (non-CEO with an assigned branch) may only act on their
+ * own branch's POs — server-side enforcement mirroring the billing guard. */
+function assertBranchAllowed(reqUser: any, branchId: string) {
+  if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && branchId !== reqUser.assignedBranchId) {
+    throw new AppError('FORBIDDEN', `You are only authorized for branch ${reqUser.assignedBranchId}`, 403);
+  }
+}
+
 /** Create (server-assigned PO number) or edit a purchase order; link pending order. */
-export function savePurchaseOrder(poData: any, _actor: string) {
+export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
+  assertBranchAllowed(reqUser, poData.branchId);
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const ts = nowIso();
     let saved: any;
@@ -65,11 +74,13 @@ export function receivePurchaseOrderStock(
   poId: string,
   receipts: { itemId: string; quantityReceived: number; location?: string }[],
   notes: string | undefined,
-  actor: string
+  actor: string,
+  reqUser?: any
 ) {
   return serializableTx(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId);
 
     const valid = (receipts || []).filter((r) => r.quantityReceived > 0);
     if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);

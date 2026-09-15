@@ -35,13 +35,16 @@ export async function getBootstrap(user?: SessionUser | null) {
     };
   }
 
-  // Purchase role: Items, Inventory, Vendors, Purchase Orders, Enquiries
+  // Purchase role: Items, Inventory, Vendors, Purchase Orders, Enquiries.
+  // Branch-locked: only the user's assigned branch's POs / pending orders are
+  // delivered (server-side enforcement, not just UI — see R03-01).
   if (role === 'Purchase') {
+    const branchScope = user.assignedBranchId ? { branchId: user.assignedBranchId } : {};
     const [vendors, purchaseOrders, enquiries, pendingOrders] = await Promise.all([
       prisma.vendor.findMany(),
-      prisma.purchaseOrder.findMany(),
-      prisma.enquiry.findMany(),
-      prisma.pendingOrder.findMany(),
+      prisma.purchaseOrder.findMany({ where: branchScope }),
+      prisma.enquiry.findMany({ where: branchScope }),
+      prisma.pendingOrder.findMany({ where: branchScope }),
     ]);
     return {
       items, branchStocks, combos, stockAdjustmentLogs: [], estimates: [], challans: [], invoices: [],

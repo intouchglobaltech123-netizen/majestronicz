@@ -58,8 +58,9 @@ app.listen(port, async () => {
     // config, so this must run before the ensure* calls below).
     const { ensureSeedData } = await import('./services/reseed.service.js');
     if (await ensureSeedData()) console.log('Fresh database seeded with starter dataset.');
-    const { ensureAccessMatrix } = await import('./services/access.service.js');
+    const { ensureAccessMatrix, migrateAccessMatrix } = await import('./services/access.service.js');
     await ensureAccessMatrix();
+    await migrateAccessMatrix();
     console.log('Access-control matrix loaded.');
     const { ensureUsers, migrateUserPins } = await import('./services/user.service.js');
     await ensureUsers();

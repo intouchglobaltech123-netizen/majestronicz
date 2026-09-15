@@ -63,7 +63,15 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     }
     let remaining = amountNum;
     const out: PaymentAllocation[] = [];
-    for (const o of outstanding) {
+    // "Oldest first": settle earliest-dated bills before newer ones, regardless
+    // of the order the caller passed the outstanding list in.
+    const oldestFirst = [...outstanding].sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      if (da !== db) return da < db ? -1 : 1;
+      return (a.refNumber || '').localeCompare(b.refNumber || '');
+    });
+    for (const o of oldestFirst) {
       if (remaining <= 0) break;
       const take = Math.min(remaining, o.balanceDue);
       if (take > 0) {
