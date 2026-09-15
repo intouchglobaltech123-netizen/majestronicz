@@ -65,7 +65,11 @@ export const AdjustStockModal: React.FC<Props> = ({
     if (item) {
       setLocation(getBranchStock(item.id, activeB)?.location || '');
     }
-  }, [isOpen, targetBranchId, currentBranch, item, getBranchStock]);
+    // Reset ONCE per open / item / target-branch — not on the item or
+    // getBranchStock reference changing (which happens on every background
+    // live-sync re-bootstrap and was wiping the quantity/notes mid-entry).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, targetBranchId, item?.id]);
 
   const handleBranchChange = (branchId: BranchId) => {
     setSelectedBranch(branchId);

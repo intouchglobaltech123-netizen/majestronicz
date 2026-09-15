@@ -106,7 +106,12 @@ export const TransferStockModal: React.FC<Props> = ({
       setNotes('');
       setAutoGenerateChallan(true);
     }
-  }, [isOpen, preselectedItem, defaultFromBranch, defaultToBranch, currentBranch, managerBranch, items]);
+    // Seed the batch ONCE per open (per preselected item) — NOT on the items
+    // array / preselectedItem / branch references changing, which happen on every
+    // background live-sync re-bootstrap and were deleting added rows and wiping
+    // the remarks field mid-entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preselectedItem?.id]);
 
   if (!isOpen) return null;
 

@@ -21,7 +21,10 @@ export const ThresholdEditModal: React.FC<Props> = ({
     if (item) {
       setThreshold(item.reorderThreshold ?? 10);
     }
-  }, [item, isOpen]);
+    // Seed once per opened item — not on the item reference changing
+    // (live-sync re-bootstrap), which would reset the field mid-entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, isOpen]);
 
   if (!isOpen || !item) return null;
 

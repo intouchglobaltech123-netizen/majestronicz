@@ -4,7 +4,6 @@ import { Item, BranchId, BRANCHES } from '../../types';
 import {
   Layers,
   ArrowRightLeft,
-  ShieldAlert,
   History,
   Search,
   AlertTriangle,
@@ -393,22 +392,6 @@ export const InventoryView: React.FC = () => {
               >
                 <ArrowRightLeft className="h-4 w-4 text-blue-600" />
                 <span>Transfer Stock</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (items.length > 0) {
-                    setAdjustItem({
-                      item: items[0],
-                      branchId: currentBranch !== 'all' ? currentBranch : 'erode-hq',
-                    });
-                  }
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <ShieldAlert className="h-4 w-4" />
-                <span>Adjust Stock</span>
               </button>
             </>
           )}

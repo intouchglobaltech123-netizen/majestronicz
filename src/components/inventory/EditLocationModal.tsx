@@ -33,7 +33,10 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
         'chennai': getBranchStock(item.id, 'chennai')?.location || '',
       });
     }
-  }, [item, isOpen, getBranchStock]);
+    // Seed once per opened item — not on the item/getBranchStock reference
+    // changing (live-sync re-bootstrap), which would wipe edits mid-typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, isOpen]);
 
   if (!isOpen || !item) return null;
 

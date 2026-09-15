@@ -74,8 +74,11 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   // Low Stock Alert Threshold (per-item master)
   const [reorderThreshold, setReorderThreshold] = useState<number | ''>(10);
 
+  // Populate the form ONCE per opened item. Keyed on item id + open state (NOT
+  // the item object reference or subcategoriesByCategory), so a background
+  // live-sync re-bootstrap does not re-run this and wipe in-progress edits.
   useEffect(() => {
-    if (item) {
+    if (isOpen && item) {
       setItemName(item.itemName);
       setItemHSN(item.itemHSN);
       setCategory(item.category);
@@ -96,10 +99,18 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setGstTaxSlab(item.gstTaxSlab);
       setReorderThreshold(item.reorderThreshold ?? 10);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, isOpen]);
+
+  // Set the active tab only when the modal opens or the requested tab changes —
+  // never on a background re-render, which previously snapped the user back to
+  // the initial tab after a few seconds.
+  useEffect(() => {
     if (isOpen && initialTab) {
       setActiveTab(initialTab);
     }
-  }, [item, subcategoriesByCategory, isOpen, initialTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialTab]);
 
   if (!isOpen || !item) return null;
 
@@ -187,8 +198,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
               <ItemImage
                 src={imageUrl || item.imageUrl}
                 alt={item.itemName}
-                className="h-11 w-11 rounded-xl shadow-xs"
-                iconClassName="h-5 w-5"
+                className="h-16 w-16 rounded-xl shadow-xs object-cover"
+                iconClassName="h-7 w-7"
               />
             </button>
             <div>
