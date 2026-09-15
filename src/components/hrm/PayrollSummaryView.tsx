@@ -155,7 +155,7 @@ export const PayrollSummaryView: React.FC = () => {
     setIsDisbursing(true);
     try {
       await markPayrollPaid(
-        markPaidTarget.record.id,
+        markPaidTarget.record,
         markPaidTarget.mode,
         markPaidTarget.reference.trim() || undefined
       );

@@ -86,12 +86,55 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
   });
 }
 
-export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string) {
+export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any) {
   return prisma.$transaction(async (tx: any) => {
-    await tx.payrollRecord.updateMany({
-      where: { id: payrollId },
-      data: { status: 'Paid', paidAt: nowIso(), paymentMode, paymentReference: paymentReference ?? null, updatedAt: nowIso() },
-    });
+    const ts = nowIso();
+    // Match an existing persisted record: first by id, else by employee+month
+    // (computed rows carry a synthetic "calc-…" id with no DB row yet).
+    let existing = payrollId ? await tx.payrollRecord.findUnique({ where: { id: payrollId } }) : null;
+    if (!existing && record?.employeeId && record?.month) {
+      existing = await tx.payrollRecord.findFirst({ where: { employeeId: record.employeeId, month: record.month } });
+    }
+
+    if (existing) {
+      await tx.payrollRecord.update({
+        where: { id: existing.id },
+        data: { status: 'Paid', paidAt: ts, paymentMode, paymentReference: paymentReference ?? null, updatedAt: ts },
+      });
+    } else if (record?.employeeId && record?.month) {
+      // No persisted record yet — create one straight into Paid state using the
+      // client's computed figures so the disbursement actually sticks.
+      await tx.payrollRecord.create({
+        data: {
+          id: rid('pay'),
+          employeeId: record.employeeId,
+          employeeName: record.employeeName ?? '',
+          designation: record.designation ?? '',
+          branchId: record.branchId ?? '',
+          month: record.month,
+          monthlySalary: Number(record.monthlySalary) || 0,
+          standardHoursPerMonth: Number(record.standardHoursPerMonth) || 0,
+          hourlyRate: Number(record.hourlyRate) || 0,
+          totalDaysPresent: Number(record.totalDaysPresent) || 0,
+          totalHoursWorked: Number(record.totalHoursWorked) || 0,
+          computedPay: Number(record.computedPay) || 0,
+          manualAdjustment: Number(record.manualAdjustment) || 0,
+          adjustmentReason: record.adjustmentReason ?? null,
+          finalPayable: Number(record.finalPayable) || 0,
+          status: 'Paid',
+          paidAt: ts,
+          paymentMode,
+          paymentReference: paymentReference ?? null,
+          updatedAt: ts,
+        },
+      });
+    } else {
+      // Legacy fallback: best-effort update by id.
+      await tx.payrollRecord.updateMany({
+        where: { id: payrollId },
+        data: { status: 'Paid', paidAt: ts, paymentMode, paymentReference: paymentReference ?? null, updatedAt: ts },
+      });
+    }
     return snap(tx);
   });
 }

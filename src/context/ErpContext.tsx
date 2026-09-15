@@ -406,10 +406,10 @@ interface ErpContextType {
     reason?: string
   ) => void;
   markPayrollPaid: (
-    payrollId: string,
+    record: PayrollRecord,
     paymentMode: 'Cash' | 'Bank Transfer',
     paymentReference?: string
-  ) => void;
+  ) => Promise<void>;
   canViewHrm: boolean;
   canEditSalaries: boolean;
   canMarkPayrollPaid: boolean;
@@ -3713,30 +3713,47 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success(`Adjustment of ₹${adjustment > 0 ? '+' : ''}${adjustment} applied`);
   };
 
-  const markPayrollPaid = (
-    payrollId: string,
+  const markPayrollPaid = async (
+    record: PayrollRecord,
     paymentMode: 'Cash' | 'Bank Transfer',
     paymentReference?: string
   ) => {
-    setPayrollRecords((prev) =>
-      prev.map((p) => {
-        if (p.id === payrollId) {
-          return {
-            ...p,
-            status: 'Paid',
-            paidAt: new Date().toISOString(),
-            paymentMode,
-            paymentReference,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return p;
-      })
-    );
-    persist(apiPost('/api/hrm/payroll-paid', { payrollId, paymentMode, paymentReference }));
+    const now = new Date().toISOString();
+    // Optimistic upsert: computed rows (id "calc-…") have no persisted record
+    // yet, so match by employee+month and create one if missing — otherwise the
+    // status never flips to Paid and the Pay button stays clickable.
+    setPayrollRecords((prev) => {
+      const idx = prev.findIndex(
+        (p) => p.id === record.id || (p.employeeId === record.employeeId && p.month === record.month)
+      );
+      const paid: PayrollRecord = {
+        ...record,
+        status: 'Paid',
+        paidAt: now,
+        paymentMode,
+        paymentReference,
+        updatedAt: now,
+      };
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...prev[idx], ...paid };
+        return next;
+      }
+      return [paid, ...prev];
+    });
     toast.success('Payroll disbursement marked as Paid', {
       description: `Mode: ${paymentMode} ${paymentReference ? `(${paymentReference})` : ''}`,
     });
+    // Await so the caller's submit-guard stays locked until the server responds
+    // (backend upserts by employee+month and returns authoritative records).
+    await persist(
+      apiPost('/api/hrm/payroll-paid', {
+        payrollId: record.id,
+        paymentMode,
+        paymentReference,
+        record,
+      })
+    );
   };
 
   const resetToDemoData = async () => {
