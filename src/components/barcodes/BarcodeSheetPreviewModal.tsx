@@ -77,8 +77,8 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   const activePageLabels = pages[currentPage - 1] || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+    <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
+      <div id="barcode-print-modal" className="bg-white border border-slate-200 rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Control Bar (Hidden when printing) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2">
@@ -231,16 +231,55 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
         </div>
 
         {/* PRINT-ONLY CONTAINER (Rendered during window.print()) */}
-        <div className="hidden print:block w-full text-black bg-white">
+        <div id="barcode-print-root" className="hidden print:block w-full text-black bg-white">
           <style>{`
             @media print {
               @page {
                 size: A4 portrait;
                 margin: 8mm;
               }
-              body {
+              html, body {
+                background: #fff !important;
                 print-color-adjust: exact;
                 -webkit-print-color-adjust: exact;
+              }
+              /* Isolate the label sheet: hide the entire app behind the modal,
+                 then reveal ONLY the barcode print root. Without this the browser
+                 prints the underlying page content instead of the labels. */
+              body * {
+                visibility: hidden !important;
+              }
+              #barcode-print-root,
+              #barcode-print-root * {
+                visibility: visible !important;
+              }
+              /* Kept in normal flow (NOT fixed) so multi-page label sheets
+                 paginate correctly; ancestor clipping is reset below. */
+              #barcode-print-root {
+                display: block !important;
+                position: static !important;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+              }
+              /* Neutralize the modal overlay/container clipping in print so the
+                 full multi-page sheet can flow. */
+              #barcode-print-overlay,
+              #barcode-print-modal {
+                position: static !important;
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                background: #fff !important;
               }
               .barcode-print-page {
                 page-break-after: always;
