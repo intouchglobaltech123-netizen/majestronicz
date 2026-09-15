@@ -65,6 +65,8 @@ interface Props {
   onSavedEstimate?: (estimate: Estimate) => void;
   onPreviewEstimatePdf?: (estimate: Estimate) => void;
   onCancel?: () => void;
+  /** Save the current document as a work-in-progress draft (not committed). */
+  onSaveDraft?: (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => void;
 }
 
 export const InvoiceForm: React.FC<Props> = ({
@@ -79,6 +81,7 @@ export const InvoiceForm: React.FC<Props> = ({
   onSavedEstimate,
   onPreviewEstimatePdf,
   onCancel,
+  onSaveDraft,
 }) => {
   const {
     currentBranch,
@@ -557,20 +560,6 @@ export const InvoiceForm: React.FC<Props> = ({
   }, [selectedBranch, date, documentType, initialInvoice, initialEstimate, getNextInvoiceNumber, getNextEstimateNumber]);
 
   // Mode switcher handler
-  const handleSwitchDocumentType = (newType: 'Invoice' | 'Quotation') => {
-    if (newType === documentType) return;
-    setDocumentType(newType);
-    if (!initialInvoice && !initialEstimate) {
-      if (newType === 'Quotation') {
-        const generated = getNextEstimateNumber(selectedBranch, date);
-        setInvoiceNumber(generated);
-      } else {
-        const generated = getNextInvoiceNumber(selectedBranch, date);
-        setInvoiceNumber(generated);
-      }
-    }
-  };
-
   // Ensure at least one row exists
   useEffect(() => {
     if (
@@ -1213,6 +1202,25 @@ export const InvoiceForm: React.FC<Props> = ({
     }
   };
 
+  const handleSaveDraft = () => {
+    if (!onSaveDraft) return;
+    if (documentType === 'Quotation') {
+      const est = assembleEstimateObject();
+      if (!est) return;
+      onSaveDraft(est, 'Quotation');
+      toast.success('Quotation saved to drafts', {
+        description: 'Find it under "Saved Quotes" to resume or finalize later.',
+      });
+    } else {
+      const inv = assembleInvoiceObject();
+      if (!inv) return;
+      onSaveDraft(inv, 'Invoice');
+      toast.success('Sale saved to drafts', {
+        description: 'Find it under "Saved Sales" to resume or finalize later.',
+      });
+    }
+  };
+
   const handlePreview = () => {
     if (documentType === 'Quotation') {
       const est = assembleEstimateObject();
@@ -1313,34 +1321,23 @@ export const InvoiceForm: React.FC<Props> = ({
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left: Document Mode Toggle & Bill Type */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Document Type Toggle: Invoice vs Quotation */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
-            <button
-              type="button"
-              onClick={() => handleSwitchDocumentType('Invoice')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                documentType === 'Invoice'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Receipt className="h-3.5 w-3.5" />
-              <span>Tax Invoice</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSwitchDocumentType('Quotation')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                documentType === 'Quotation'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
+          {/* Document Mode Tile — reflects the current mode chosen via the
+              "+ New Sale" / "+ New Quote" buttons on the Sales page. Read-only
+              here to avoid duplicating that switch. */}
+          <div
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 border',
+              documentType === 'Quotation'
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
+            )}
+          >
+            {documentType === 'Quotation' ? (
               <FileText className="h-3.5 w-3.5" />
-              <span>Quotation</span>
-            </button>
+            ) : (
+              <Receipt className="h-3.5 w-3.5" />
+            )}
+            <span>{documentType === 'Quotation' ? 'Quotation' : 'Tax Invoice'}</span>
           </div>
 
           {/* If Invoice: show Bill Type (Cash Sale / Credit Bill) */}
@@ -1408,6 +1405,18 @@ export const InvoiceForm: React.FC<Props> = ({
             <Printer className="h-3.5 w-3.5 text-slate-500" />
             <span>Preview PDF</span>
           </button>
+
+          {onSaveDraft && (
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
+              title="Park this as a draft to finish later (does not commit stock or a final number)"
+            >
+              <Save className="h-3.5 w-3.5 text-amber-600" />
+              <span>Save Draft</span>
+            </button>
+          )}
 
           <button
             type="button"

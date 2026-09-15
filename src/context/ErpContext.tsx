@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 
 /**
@@ -487,7 +487,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  const [currentView, setCurrentView] = useState<ActiveNavView>(() => {
+  const [currentView, setCurrentViewRaw] = useState<ActiveNavView>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -504,6 +504,40 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return currentUser.role === 'Billing' ? 'items' : 'dashboard';
   });
+
+  // Wrap view changes so each in-app navigation pushes a browser history
+  // entry. This makes the browser Back button move between in-app views
+  // instead of exiting the SPA entirely. A matching popstate listener (below)
+  // syncs currentView when the user presses Back/Forward.
+  const setCurrentView = useCallback((view: ActiveNavView) => {
+    setCurrentViewRaw(view);
+    try {
+      if (window.history.state?.view !== view) {
+        window.history.pushState({ view }, '');
+      }
+    } catch {
+      /* history API unavailable — navigation still works, just no Back sync */
+    }
+  }, []);
+
+  useEffect(() => {
+    // Seed a baseline history entry for the initial view so the first Back
+    // press has an in-app target rather than leaving the app.
+    try {
+      if (!window.history.state?.view) {
+        window.history.replaceState({ view: currentView }, '');
+      }
+    } catch {
+      /* ignore */
+    }
+    const onPop = (e: PopStateEvent) => {
+      const view = (e.state as { view?: ActiveNavView } | null)?.view;
+      if (view) setCurrentViewRaw(view);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [items, setItems] = useState<Item[]>([]);
   const [combos, setCombos] = useState<ComboItem[]>([]);

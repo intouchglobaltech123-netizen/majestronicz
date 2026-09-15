@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
@@ -25,6 +26,9 @@ import {
   Copy,
   Trash2,
   Split,
+  Save,
+  PlayCircle,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -45,10 +49,27 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     estimateToConvert,
     setEstimateToConvert,
     voidInvoice,
+    currentUser,
   } = useErp();
 
-  // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History), 'returns' (Returns), 'new' (Form)
-  const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new'>(initialTab);
+  // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
+  // 'returns' (Returns), 'new' (Form), 'draft-sales'/'draft-quotes' (saved drafts)
+  const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new' | 'draft-sales' | 'draft-quotes'>(initialTab);
+
+  // Stable per-user key for scoping local drafts.
+  const draftUserKey = currentUser.userId || currentUser.name || currentUser.role;
+
+  // Work-in-progress drafts (per-user, browser-local)
+  const [drafts, setDrafts] = useState<SalesDraft[]>(() => loadDrafts(draftUserKey));
+  // Which draft (if any) is currently being resumed in the form — deleted on finalize.
+  const [resumedDraftId, setResumedDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDrafts(loadDrafts(draftUserKey));
+  }, [draftUserKey]);
+
+  const draftSales = useMemo(() => drafts.filter((d) => d.kind === 'Invoice'), [drafts]);
+  const draftQuotes = useMemo(() => drafts.filter((d) => d.kind === 'Quotation'), [drafts]);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
   const [convertedEstimate, setConvertedEstimate] = useState<Estimate | null>(null);
@@ -201,7 +222,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     });
   }, [estimates, branchFilter, isAllBranches, currentBranch, estimateSearchQuery]);
 
+  // Once a resumed draft is finalized (committed), remove it from the draft store.
+  const clearResumedDraft = () => {
+    if (resumedDraftId) {
+      setDrafts(removeDraft(draftUserKey, resumedDraftId));
+      setResumedDraftId(null);
+    }
+  };
+
   const handleSaved = (savedInvoice: Invoice) => {
+    clearResumedDraft();
     setEditingInvoice(null);
     setEditingEstimate(null);
     setConvertedEstimate(null);
@@ -212,6 +242,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   };
 
   const handleSavedEstimate = (savedEstimate: Estimate) => {
+    clearResumedDraft();
     setEditingInvoice(null);
     setEditingEstimate(null);
     setConvertedEstimate(null);
@@ -221,7 +252,56 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     setPreviewEstimate(savedEstimate);
   };
 
+  // Save the current in-form document as a draft (parked, not committed).
+  const handleSaveDraft = (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => {
+    const draftId = resumedDraftId || newDraftId();
+    const draft: SalesDraft = {
+      draftId,
+      kind,
+      savedAt: new Date().toISOString(),
+      customerName: doc.customerName || 'Unnamed',
+      number: kind === 'Quotation' ? (doc as Estimate).estimateNumber : (doc as Invoice).invoiceNumber,
+      grandTotal: doc.grandTotal || 0,
+      branchId: doc.branchId,
+      data: doc,
+    };
+    setDrafts(upsertDraft(draftUserKey, draft));
+    setResumedDraftId(null);
+    setEditingInvoice(null);
+    setEditingEstimate(null);
+    setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setActiveTab(kind === 'Quotation' ? 'draft-quotes' : 'draft-sales');
+  };
+
+  // Reopen a saved draft into the form to finish/finalize it.
+  const handleResumeDraft = (draft: SalesDraft) => {
+    if (draft.kind === 'Quotation') {
+      setEditingEstimate(draft.data as Estimate);
+      setEditingInvoice(null);
+      setInitialDocumentType('Quotation');
+    } else {
+      setEditingInvoice(draft.data as Invoice);
+      setEditingEstimate(null);
+      setInitialDocumentType('Invoice');
+    }
+    setConvertedEstimate(null);
+    setDuplicateSourceInvoice(null);
+    setDuplicateSourceEstimate(null);
+    setResumedDraftId(draft.draftId);
+    setFormInstanceId((prev) => prev + 1);
+    setActiveTab('new');
+  };
+
+  const handleDeleteDraft = (draftId: string) => {
+    setDrafts(removeDraft(draftUserKey, draftId));
+    if (resumedDraftId === draftId) setResumedDraftId(null);
+    toast.success('Draft deleted');
+  };
+
   const handleStartBlank = (docType: 'Invoice' | 'Quotation' = 'Invoice') => {
+    setResumedDraftId(null);
     setEditingInvoice(null);
     setEditingEstimate(null);
     setConvertedEstimate(null);
@@ -388,6 +468,34 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Returns ({returnedInvoicesCount})</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('draft-sales')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                activeTab === 'draft-sales'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>Saved Sales ({draftSales.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('draft-quotes')}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                activeTab === 'draft-quotes'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>Saved Quotes ({draftQuotes.length})</span>
+            </button>
           </div>
 
           {/* Persistent Creation Buttons: ALWAYS visible from ALL tabs */}
@@ -438,6 +546,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           initialDocumentType={initialDocumentType}
           onSaved={handleSaved}
           onSavedEstimate={handleSavedEstimate}
+          onSaveDraft={handleSaveDraft}
           onPreviewPdf={(inv) => setPreviewInvoice(inv)}
           onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
           onCancel={() => {
@@ -451,6 +560,22 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               setActiveTab('ledger');
             }
           }}
+        />
+      ) : activeTab === 'draft-sales' ? (
+        <DraftList
+          kind="Invoice"
+          drafts={draftSales}
+          onResume={handleResumeDraft}
+          onDelete={handleDeleteDraft}
+          onCreate={() => handleStartBlank('Invoice')}
+        />
+      ) : activeTab === 'draft-quotes' ? (
+        <DraftList
+          kind="Quotation"
+          drafts={draftQuotes}
+          onResume={handleResumeDraft}
+          onDelete={handleDeleteDraft}
+          onCreate={() => handleStartBlank('Quotation')}
         />
       ) : activeTab === 'returns' ? (
         /* DEDICATED RETURNS TAB VIEW */
@@ -1169,6 +1294,122 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---- Saved Drafts list (work-in-progress sales / quotes) ----
+
+interface DraftListProps {
+  kind: 'Invoice' | 'Quotation';
+  drafts: SalesDraft[];
+  onResume: (draft: SalesDraft) => void;
+  onDelete: (draftId: string) => void;
+  onCreate: () => void;
+}
+
+const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete, onCreate }) => {
+  const isQuote = kind === 'Quotation';
+  const label = isQuote ? 'Quote' : 'Sale';
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Save className={cn('h-4 w-4', isQuote ? 'text-purple-600' : 'text-blue-600')} />
+          <h3 className="text-sm font-bold text-slate-800">
+            Saved {isQuote ? 'Quotes' : 'Sales'} (Drafts)
+          </h3>
+        </div>
+        <p className="text-[11px] text-slate-400">
+          Parked, not yet finalized. Resume to commit stock &amp; issue a final number.
+        </p>
+      </div>
+
+      {drafts.length === 0 ? (
+        <div className="py-12 text-center text-slate-400">
+          <Save className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+          <p className="font-bold text-sm text-slate-700">No saved {isQuote ? 'quotes' : 'sales'} yet</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Use <strong>Save Draft</strong> inside a New {label} to park work here.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={onCreate}
+              className={cn(
+                'px-4 py-2 rounded-xl font-bold text-xs shadow-xs text-white transition-colors cursor-pointer',
+                isQuote ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
+              )}
+            >
+              + New {label}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <th className="py-3 px-4">{label} No (Provisional)</th>
+                <th className="py-3 px-4">Customer</th>
+                <th className="py-3 px-4">Branch</th>
+                <th className="py-3 px-4">Saved</th>
+                <th className="py-3 px-4 text-right">Amount</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-800">
+              {drafts.map((d) => (
+                <tr key={d.draftId} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4 font-mono font-bold text-slate-700">{d.number || '—'}</td>
+                  <td className="py-3 px-4 font-bold text-slate-900">{d.customerName}</td>
+                  <td className="py-3 px-4 uppercase font-mono text-[11px] text-slate-600">
+                    {BRANCHES.find((b) => b.id === d.branchId)?.shortCode || d.branchId}
+                  </td>
+                  <td className="py-3 px-4 text-slate-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-slate-400" />
+                      {new Date(d.savedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-black text-slate-900">
+                    {formatCurrency(d.grandTotal)}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onResume(d)}
+                        title={`Resume this ${label.toLowerCase()} draft`}
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer',
+                          isQuote
+                            ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                        )}
+                      >
+                        <PlayCircle className="h-3.5 w-3.5" />
+                        <span>Resume</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Delete this saved ${label.toLowerCase()} draft?`)) onDelete(d.draftId);
+                        }}
+                        title="Delete draft"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

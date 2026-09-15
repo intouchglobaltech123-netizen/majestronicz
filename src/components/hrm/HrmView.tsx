@@ -9,11 +9,13 @@ import {
   CheckCircle2,
   Percent,
   UserX,
+  Wallet,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { EmployeeMasterView } from './EmployeeMasterView';
 import { AttendanceLogView } from './AttendanceLogView';
 import { PayrollSummaryView } from './PayrollSummaryView';
+import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
 import { formatCurrency } from '../../lib/utils';
@@ -26,7 +28,7 @@ export const HrmView: React.FC = () => {
     canViewHrm,
   } = useErp();
 
-  const [activeTab, setActiveTab] = useState<'attendance' | 'payroll' | 'employees'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'payroll' | 'employees' | 'salary'>('attendance');
   const [isKioskModalOpen, setIsKioskModalOpen] = useState(false);
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
 
@@ -249,6 +251,18 @@ export const HrmView: React.FC = () => {
             {employees.length}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('salary')}
+          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'salary'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Wallet className="h-4 w-4" />
+          <span>Salary Details</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -256,6 +270,8 @@ export const HrmView: React.FC = () => {
         <AttendanceLogView />
       ) : activeTab === 'payroll' ? (
         <PayrollSummaryView />
+      ) : activeTab === 'salary' ? (
+        <SalaryDetailsView />
       ) : (
         <EmployeeMasterView />
       )}

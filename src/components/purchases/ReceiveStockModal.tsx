@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   PackageCheck,
@@ -29,9 +29,19 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
 
+  // Track which PO/open-session we've already seeded inputs for, so that a
+  // background live-sync re-bootstrap (which replaces the purchaseOrder object
+  // reference) does NOT wipe the quantity/notes the user is currently typing.
+  const seededKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (purchaseOrder) {
-      // Default each item's receive input to its remaining quantity
+    if (isOpen && purchaseOrder) {
+      const key = purchaseOrder.id;
+      // Only seed defaults the first time this PO opens; ignore later
+      // reference changes from live-sync while the modal stays open.
+      if (seededKeyRef.current === key) return;
+      seededKeyRef.current = key;
+
       const initial: Record<string, number> = {};
       const initialLocs: Record<string, string> = {};
       purchaseOrder.items.forEach((item) => {
@@ -43,12 +53,17 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
       setReceivingNotes('');
-    } else {
+    } else if (!isOpen) {
+      // Reset the guard when the modal closes so re-opening seeds fresh.
+      seededKeyRef.current = null;
       setQuantitiesToReceive({});
       setLocationsToAssign({});
       setReceivingNotes('');
     }
-  }, [purchaseOrder, isOpen, getBranchStock]);
+    // Intentionally keyed on the PO id + open state only (not the object
+    // reference or getBranchStock), to survive live-sync re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchaseOrder?.id, isOpen]);
 
   if (!isOpen || !purchaseOrder) return null;
 
