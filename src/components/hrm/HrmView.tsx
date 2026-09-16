@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import {
   Users,
   Clock,
-  Calendar,
   DollarSign,
   Camera,
   Plus,
   CheckCircle2,
   Percent,
   UserX,
-  Wallet,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { EmployeeMasterView } from './EmployeeMasterView';
@@ -18,6 +16,7 @@ import { PayrollSummaryView } from './PayrollSummaryView';
 import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
+import { ResponsiveTabs } from '../common/ResponsiveTabs';
 import { formatCurrency } from '../../lib/utils';
 
 export const HrmView: React.FC = () => {
@@ -199,71 +198,17 @@ export const HrmView: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-6">
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'attendance'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          <span>Attendance Log</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            activeTab === 'attendance' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-          }`}>
-            {attendanceRecords.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('payroll')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'payroll'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <DollarSign className="h-4 w-4" />
-          <span>Payroll</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            activeTab === 'payroll' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-          }`}>
-            {activeStaff.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'employees'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          <span>Employees</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            activeTab === 'employees' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-          }`}>
-            {employees.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('salary')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'salary'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Wallet className="h-4 w-4" />
-          <span>Salary Details</span>
-        </button>
-      </div>
+      {/* Sub-Navigation Tabs (dropdown on mobile) */}
+      <ResponsiveTabs
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as typeof activeTab)}
+        items={[
+          { id: 'attendance', label: 'Attendance Log', count: attendanceRecords.length },
+          { id: 'payroll', label: 'Payroll', count: activeStaff.length },
+          { id: 'employees', label: 'Employees', count: employees.length },
+          { id: 'salary', label: 'Salary Details' },
+        ]}
+      />
 
       {/* Active Tab View */}
       {activeTab === 'attendance' ? (

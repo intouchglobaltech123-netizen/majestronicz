@@ -40,8 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     currentUser,
     currentView,
     setCurrentView,
-    currentBranchData,
-    isAllBranches,
     canAccessView,
   } = useErp();
 
@@ -153,25 +151,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
           </div>
         )}
 
-        {/* Current branch indicator (hidden when collapsed on desktop) */}
-        {showLabels && (
-          <div className="mt-4 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
-            <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold text-slate-900 truncate">
-                  {isAllBranches ? 'All Branches' : currentBranchData?.name}
-                </p>
-                <span className="text-[11px] uppercase font-semibold text-blue-700 bg-blue-50 px-1 rounded border border-blue-200">
-                  {isAllBranches ? 'All Branches' : 'Branch'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 truncate">
-                {isAllBranches ? 'Erode • Coimbatore • Chennai' : currentBranchData?.location}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Main Navigation (scrollbar hidden) */}
@@ -222,37 +201,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
           })}
       </div>
 
-      {/* User Session / Role Card (logout moved to the top bar) */}
-      <div className={cn('border-t border-slate-200 bg-slate-50/70', showLabels ? 'p-3' : 'p-2')}>
+      {/* Compact user footer — name + role icon only (clean, professional) */}
+      <div className={cn('border-t border-slate-200', showLabels ? 'px-3 py-3' : 'p-2')}>
         {!showLabels ? (
-          <div className="h-9 w-9 mx-auto rounded-lg bg-white border border-slate-200 flex items-center justify-center" title={`${currentUser.name} · ${currentUser.role}`}>
+          <div className="h-9 w-9 mx-auto rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center" title={`${currentUser.name} · ${currentUser.role}`}>
             <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
           </div>
         ) : (
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
               <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
-              <p className="text-[11px] text-slate-500 truncate">
-                {currentUser.role === 'CEO'
-                  ? 'CEO • All Branches'
-                  : currentUser.role === 'Manager'
-                  ? `Manager • ${currentUser.assignedBranchId || 'Coimbatore'}`
-                  : currentUser.role === 'Billing'
-                  ? 'Billing Staff'
-                  : currentUser.role === 'Purchase'
-                  ? 'Purchase Desk'
-                  : 'Sales Executive'}
-              </p>
-            </div>
+            <p className="text-xs font-bold text-slate-800 truncate min-w-0 flex-1">{currentUser.name}</p>
           </div>
-        )}
-        {showLabels && (
-          <p className="hidden lg:block text-center text-[11px] text-slate-400 pt-2">
-            Press <kbd className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-slate-600">?</kbd> for shortcuts
-          </p>
         )}
       </div>
       </aside>

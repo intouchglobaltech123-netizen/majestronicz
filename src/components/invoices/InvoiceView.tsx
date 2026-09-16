@@ -444,8 +444,19 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             <span>Convert from Quote</span>
           </button>
 
-          {/* Primary View Switcher (Tabs Only) */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          {/* Primary View Switcher — dropdown on mobile, pills on >= sm */}
+          <select
+            value={['ledger', 'estimates', 'returns', 'draft-sales', 'draft-quotes'].includes(activeTab) ? activeTab : 'ledger'}
+            onChange={(e) => setActiveTab(e.target.value as typeof activeTab)}
+            className="sm:hidden w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+          >
+            <option value="ledger">Sales Ledger ({invoices.length})</option>
+            <option value="estimates">Quotation History ({estimates.length})</option>
+            <option value="returns">Returns ({returnedInvoicesCount})</option>
+            <option value="draft-sales">Saved Sales ({draftSales.length})</option>
+            <option value="draft-quotes">Saved Quotes ({draftQuotes.length})</option>
+          </select>
+          <div className="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab('ledger')}

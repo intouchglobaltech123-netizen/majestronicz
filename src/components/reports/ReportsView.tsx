@@ -265,8 +265,17 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Report Module Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {/* Report Module Tabs — dropdown on mobile, cards on >= sm */}
+      <select
+        value={activeTab}
+        onChange={(e) => setActiveTab(e.target.value as ReportTabType)}
+        className="sm:hidden w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+      >
+        {tabs.map((tab) => (
+          <option key={tab.id} value={tab.id}>{tab.label}</option>
+        ))}
+      </select>
+      <div className="hidden sm:flex items-center gap-2 overflow-x-auto pb-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
