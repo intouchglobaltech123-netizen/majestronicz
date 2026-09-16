@@ -180,7 +180,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Transfer Batches List */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-4 sm:p-6 space-y-4">
           {filteredTransfers.length === 0 ? (
             <div className="py-12 text-center text-slate-500">
               <Package className="h-10 w-10 mx-auto text-slate-300 mb-2" />

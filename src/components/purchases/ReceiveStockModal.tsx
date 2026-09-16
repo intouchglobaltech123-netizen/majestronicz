@@ -177,7 +177,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         </div>
 
         {/* Scrollable Line Items Table */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
             <table className="w-full text-left border-collapse text-sm">
               <thead>

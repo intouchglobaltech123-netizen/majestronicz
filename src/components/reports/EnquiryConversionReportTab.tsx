@@ -186,7 +186,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Leads

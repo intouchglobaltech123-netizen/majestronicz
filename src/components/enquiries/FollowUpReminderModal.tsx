@@ -128,13 +128,13 @@ export const FollowUpReminderModal: React.FC<Props> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* Quick Date Presets */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
               Quick Presets
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               {quickPresets.map((preset) => (
                 <button
                   key={preset.label}

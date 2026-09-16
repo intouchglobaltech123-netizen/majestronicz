@@ -18,12 +18,18 @@ import {
   Maximize2,
   Minimize2,
   LogOut,
+  Menu,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 
-export const TopBar: React.FC = () => {
+interface TopBarProps {
+  /** Opens the mobile navigation drawer (< lg). */
+  onOpenNav?: () => void;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
   const {
     currentBranch,
     isAllBranches,
@@ -148,16 +154,26 @@ export const TopBar: React.FC = () => {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-      {/* Left: Global Branch Switcher */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
+    <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-xs">
+      {/* Left: Hamburger (mobile) + Global Branch Switcher */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Mobile nav toggle */}
+        <button
+          type="button"
+          onClick={onOpenNav}
+          aria-label="Open menu"
+          className="lg:hidden h-9 w-9 shrink-0 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 flex items-center justify-center"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
           <MapPin className="h-3.5 w-3.5 text-blue-600" />
           <span>Branch:</span>
         </div>
 
         {/* Branch Selector Dropdown (was segmented pills) */}
-        <div className="w-56">
+        <div className="w-36 sm:w-56 min-w-0">
           <UniversalDropdown
             value={isAllBranches ? 'all' : currentBranch}
             onChange={(v) => switchBranch(v as BranchScope)}
@@ -173,14 +189,14 @@ export const TopBar: React.FC = () => {
       </div>
 
       {/* Right: Notifications Bell & Role Profile */}
-      <div className="flex items-center gap-3">
-        {/* Fullscreen toggle */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Fullscreen toggle (desktop only) */}
         <button
           type="button"
           onClick={toggleFullscreen}
           aria-label="Toggle full screen"
           title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-          className="h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition-all shadow-xs"
+          className="hidden sm:flex h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 items-center justify-center transition-all shadow-xs"
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </button>
@@ -485,7 +501,7 @@ export const TopBar: React.FC = () => {
               <Lock className="h-4 w-4 text-slate-600" />
             )}
           </div>
-          <div className="text-left">
+          <div className="hidden sm:block text-left">
             <span className="text-xs font-bold block leading-tight">{currentUser.role}</span>
             <span className="text-[11px] text-slate-500 block leading-tight group-hover:text-rose-600">
               Logout

@@ -340,7 +340,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 type="button"
                 onClick={() => setItemMode('existing')}

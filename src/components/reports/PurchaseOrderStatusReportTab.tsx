@@ -205,7 +205,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
       ) : (
         <>
           {/* Summary Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Ordered Value
@@ -265,7 +265,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <span className="text-[11px] text-slate-400 font-medium">Procurement funnel</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 space-y-1">
                 <span className="text-[11px] font-bold uppercase text-blue-700">Ordered (Pending)</span>
                 <div className="text-xl font-extrabold text-blue-900">{metrics.statusCounts.Ordered}</div>

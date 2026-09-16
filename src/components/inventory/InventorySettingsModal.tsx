@@ -76,7 +76,7 @@ export const InventorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => 
             </p>
 
             {/* Presets */}
-            <div className="grid grid-cols-5 gap-1.5 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 mb-3">
               {PRESET_DAYS.map((days) => (
                 <button
                   key={days}

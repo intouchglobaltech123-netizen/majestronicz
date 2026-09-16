@@ -422,7 +422,7 @@ export const TransferStockModal: React.FC<Props> = ({
                               selectedBranchId={fromBranch}
                               lockOutOfStock={false}
                               placeholder="Search catalog item by name or code..."
-                              dropdownWidth="w-[480px]"
+                              dropdownWidth="w-[480px] max-w-[calc(100vw-2rem)]"
                               inputClassName={cn(
                                 'w-full px-3 py-1.5 rounded-lg bg-slate-50 border text-xs font-semibold focus:outline-none transition-all',
                                 isDuplicate || !row.itemId

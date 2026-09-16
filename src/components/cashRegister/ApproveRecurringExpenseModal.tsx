@@ -82,7 +82,7 @@ export const ApproveRecurringExpenseModal: React.FC<Props> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* Target Register Summary */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
             <div className="flex items-center justify-between">
@@ -142,7 +142,7 @@ export const ApproveRecurringExpenseModal: React.FC<Props> = ({
             <label className="text-xs font-bold text-slate-700">
               Payment Mode *
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentMode('Cash')}

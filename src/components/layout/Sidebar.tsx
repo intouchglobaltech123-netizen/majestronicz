@@ -21,13 +21,21 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { cn } from '../../lib/utils';
 
 const COLLAPSE_KEY = 'majestronicz_sidebar_collapsed';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  /** Whether the off-canvas drawer is open on mobile (< lg). */
+  mobileOpen?: boolean;
+  /** Close the mobile drawer. */
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose }) => {
   const {
     currentUser,
     currentView,
@@ -43,6 +51,21 @@ export const Sidebar: React.FC = () => {
   useEffect(() => {
     try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
   }, [collapsed]);
+
+  // Track whether we're on a mobile viewport (< lg). The desktop-only "collapse"
+  // preference must NOT hide labels in the mobile drawer.
+  const [isMobile, setIsMobile] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // On mobile the drawer always shows full labels; collapse only applies on desktop.
+  const showLabels = isMobile || !collapsed;
 
   const navItems: {
     id: ActiveNavView;
@@ -72,15 +95,39 @@ export const Sidebar: React.FC = () => {
   const RoleIcon = currentUser.role === 'CEO' ? ShieldCheck : currentUser.role === 'Manager' ? Building2 : Lock;
 
   return (
-    <aside
-      className={cn(
-        'relative bg-white border-r border-slate-200 flex flex-col h-screen select-none shrink-0 shadow-xs z-20 transition-[width] duration-200',
-        collapsed ? 'w-20' : 'w-68'
-      )}
-    >
+    <>
+      {/* Mobile backdrop (only when the drawer is open on < lg) */}
+      <div
+        className={cn(
+          'fixed inset-0 bg-slate-900/40 z-30 lg:hidden transition-opacity duration-200',
+          mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <aside
+        className={cn(
+          'bg-white border-r border-slate-200 flex flex-col h-screen select-none shadow-xs',
+          // Mobile: fixed off-canvas drawer that slides in/out.
+          'fixed inset-y-0 left-0 z-40 w-72 transition-transform duration-200',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          // Desktop: static in-flow column; width follows the collapse pref.
+          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:transition-[width]',
+          collapsed ? 'lg:w-20' : 'lg:w-68'
+        )}
+      >
       {/* Brand Header + collapse toggle (kept inside the sidebar, always aligned) */}
-      <div className={cn('border-b border-slate-200', collapsed ? 'p-3' : 'p-5')}>
-        {collapsed ? (
+      <div className={cn('border-b border-slate-200', showLabels ? 'p-5' : 'p-3')}>
+        {/* Mobile close button */}
+        <button
+          onClick={onClose}
+          aria-label="Close menu"
+          className="lg:hidden absolute top-3 right-3 h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-800 flex items-center justify-center"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        {!showLabels ? (
           <div className="flex flex-col items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm">M</div>
             <button
@@ -99,15 +146,15 @@ export const Sidebar: React.FC = () => {
               onClick={() => setCollapsed(true)}
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
-              className="h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-colors shrink-0"
+              className="hidden lg:flex h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 items-center justify-center transition-colors shrink-0"
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* Current branch indicator (hidden when collapsed) */}
-        {!collapsed && (
+        {/* Current branch indicator (hidden when collapsed on desktop) */}
+        {showLabels && (
           <div className="mt-4 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
             <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
             <div className="min-w-0 flex-1">
@@ -137,11 +184,11 @@ export const Sidebar: React.FC = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setCurrentView(item.id)}
-                title={collapsed ? item.label : undefined}
+                onClick={() => { setCurrentView(item.id); onClose?.(); }}
+                title={!showLabels ? item.label : undefined}
                 className={cn(
                   'relative w-full flex items-center rounded-xl text-sm font-medium transition-all group',
-                  collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5 text-left',
+                  !showLabels ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5 text-left',
                   isActive
                     ? 'bg-blue-600 text-white shadow-xs font-semibold'
                     : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -153,8 +200,8 @@ export const Sidebar: React.FC = () => {
                     isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'
                   )}
                 />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-                {!collapsed && item.badge && (
+                {showLabels && <span className="truncate">{item.label}</span>}
+                {showLabels && item.badge && (
                   <span
                     className={cn(
                       'ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
@@ -166,8 +213,8 @@ export const Sidebar: React.FC = () => {
                     {item.badge}
                   </span>
                 )}
-                {/* Beta dot indicator when collapsed */}
-                {collapsed && item.badge && (
+                {/* Beta dot indicator when collapsed (desktop) */}
+                {!showLabels && item.badge && (
                   <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-fuchsia-500 border border-white" />
                 )}
               </button>
@@ -176,8 +223,8 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* User Session / Role Card (logout moved to the top bar) */}
-      <div className={cn('border-t border-slate-200 bg-slate-50/70', collapsed ? 'p-2' : 'p-3')}>
-        {collapsed ? (
+      <div className={cn('border-t border-slate-200 bg-slate-50/70', showLabels ? 'p-3' : 'p-2')}>
+        {!showLabels ? (
           <div className="h-9 w-9 mx-auto rounded-lg bg-white border border-slate-200 flex items-center justify-center" title={`${currentUser.name} · ${currentUser.role}`}>
             <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
           </div>
@@ -202,12 +249,13 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
-        {!collapsed && (
-          <p className="text-center text-[11px] text-slate-400 pt-2">
+        {showLabels && (
+          <p className="hidden lg:block text-center text-[11px] text-slate-400 pt-2">
             Press <kbd className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-slate-600">?</kbd> for shortcuts
           </p>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };

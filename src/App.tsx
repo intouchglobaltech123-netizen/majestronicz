@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
@@ -23,19 +23,26 @@ import { Toaster } from 'sonner';
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
+  // Mobile off-canvas nav drawer. On desktop (lg+) the sidebar is always in-flow.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Close the drawer whenever the active view changes (e.g. tapping a nav item).
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [currentView]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* Left Navigation Shell */}
-      <Sidebar />
+      {/* Left Navigation Shell (off-canvas drawer on mobile) */}
+      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
         {/* Global Top Bar with Location Scope Switcher */}
-        <TopBar />
+        <TopBar onOpenNav={() => setMobileNavOpen(true)} />
 
         {/* Scrollable Content Body */}
-        <main className="flex-1 overflow-y-auto bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
           {currentView === 'dashboard' ? (
             <DashboardView />
           ) : currentView === 'customers' ? (

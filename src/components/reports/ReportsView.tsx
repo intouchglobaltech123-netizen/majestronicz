@@ -113,7 +113,7 @@ export const ReportsView: React.FC = () => {
   }, [invoices, purchaseOrders, branchScope, startDate, endDate]);
 
   return (
-    <div className="p-6 space-y-6 w-full">
+    <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
@@ -242,7 +242,7 @@ export const ReportsView: React.FC = () => {
       </div>
 
       {/* At-a-glance summary (reflects selected range + branch) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
           <p className="text-xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>

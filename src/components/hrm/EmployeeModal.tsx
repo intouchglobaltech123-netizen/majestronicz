@@ -158,7 +158,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {/* Full Name */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
@@ -176,7 +176,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Designation & Status */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                 Designation / Role <span className="text-rose-500">*</span>
@@ -207,7 +207,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Branch & Attendance PIN */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                 Branch Assignment <span className="text-rose-500">*</span>
@@ -276,7 +276,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Phone & Joined Date */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                 Contact Phone

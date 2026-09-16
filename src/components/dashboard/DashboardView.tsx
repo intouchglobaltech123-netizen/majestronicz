@@ -254,7 +254,7 @@ export const DashboardView: React.FC = () => {
       </div>
 
       {/* ---- Money KPI row ---- */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
           icon={IndianRupee} tone="blue" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
@@ -433,7 +433,7 @@ export const DashboardView: React.FC = () => {
                   { v: aging.d60plus, c: 'bg-rose-600' },
                 ].map((s, i) => s.v > 0 && <div key={i} className={s.c} style={{ width: `${(s.v / aging.total) * 100}%` }} title={formatCurrency(s.v)} />)}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: '0–30 days', v: aging.current, dot: 'bg-emerald-500', tone: 'text-emerald-700' },
                   { label: '31–60 days', v: aging.d30, dot: 'bg-amber-400', tone: 'text-amber-700' },

@@ -172,7 +172,7 @@ export const AdjustStockModal: React.FC<Props> = ({
               Stock Location / Branch <span className="text-rose-500">*</span>
             </label>
             {currentUser.role === 'CEO' ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {BRANCHES.map((b) => (
                   <button
                     key={b.id}
@@ -227,7 +227,7 @@ export const AdjustStockModal: React.FC<Props> = ({
             <label className="text-xs font-bold text-slate-700 block mb-1.5">
               Adjustment Action <span className="text-rose-500">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setAdjustmentType('add')}

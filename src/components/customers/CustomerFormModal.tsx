@@ -135,7 +135,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               Customer Type <span className="text-rose-500">*</span>
               {!customerType && <span className="text-amber-600 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setCustomerType('Retail')}

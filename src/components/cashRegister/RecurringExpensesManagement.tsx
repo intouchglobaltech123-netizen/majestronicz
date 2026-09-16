@@ -459,7 +459,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
               {/* Template Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
@@ -609,7 +609,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 <label className="text-xs font-bold text-slate-700">
                   Default Payment Mode *
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormPaymentMode('Cash')}

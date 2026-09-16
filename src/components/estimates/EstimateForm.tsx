@@ -507,7 +507,7 @@ export const EstimateForm: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Linked Enquiry Notification Banner */}
         {sourceEnquiryNumber && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900">
@@ -799,7 +799,7 @@ export const EstimateForm: React.FC<Props> = ({
                         selectedBranchId={selectedBranch}
                         lockOutOfStock={true}
                         placeholder="Search product or combo..."
-                        dropdownWidth="w-[480px]"
+                        dropdownWidth="w-[480px] max-w-[calc(100vw-2rem)]"
                         inputClassName="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:border-blue-600 bg-white"
                       />
                       {row.isCombo && (

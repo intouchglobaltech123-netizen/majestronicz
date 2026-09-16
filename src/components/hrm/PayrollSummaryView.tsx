@@ -467,7 +467,7 @@ export const PayrollSummaryView: React.FC = () => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleSaveAdjustment} className="p-6 space-y-4">
+            <form onSubmit={handleSaveAdjustment} className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                   Adjustment Amount (₹)
@@ -547,12 +547,12 @@ export const PayrollSummaryView: React.FC = () => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleConfirmPaid} className="p-6 space-y-4">
+            <form onSubmit={handleConfirmPaid} className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                   Disbursement Payment Mode
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(['Bank Transfer', 'Cash'] as const).map((m) => (
                     <button
                       type="button"

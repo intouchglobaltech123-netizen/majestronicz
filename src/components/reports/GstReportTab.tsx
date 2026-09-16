@@ -125,7 +125,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
         {kpis.map((k) => (
           <div key={k.label} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{k.label}</span>

@@ -1880,7 +1880,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         selectedBranchId={selectedBranch}
                         lockOutOfStock={true}
                         placeholder="Type or search product or combo..."
-                        dropdownWidth="w-[520px]"
+                        dropdownWidth="w-[520px] max-w-[calc(100vw-2rem)]"
                         inputClassName="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                       />
                       {item.isCombo && (

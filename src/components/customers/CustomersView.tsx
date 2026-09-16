@@ -213,7 +213,7 @@ export const CustomersView: React.FC = () => {
       ) : (
         <>
           {/* KPI Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* Total Customers */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">

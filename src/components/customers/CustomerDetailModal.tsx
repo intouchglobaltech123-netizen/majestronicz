@@ -372,7 +372,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           )}
 
           {/* Purchase History Ledger */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">

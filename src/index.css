@@ -31,6 +31,20 @@
   background: #94a3b8;
 }
 
+/* ---- Responsive tables (mobile + tablet) ----
+   On <=1024px, let every data table scroll horizontally inside its own box
+   instead of overflowing the page or being clipped. The table element becomes
+   a scroll container while its rows/cells keep table layout. Print tables and
+   any table that opts out with .no-responsive-scroll are excluded. */
+@media screen and (max-width: 1024px) {
+  table:not(.no-responsive-scroll) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* Light Theme Card Panels */
 .card-clean {
   background: #ffffff;

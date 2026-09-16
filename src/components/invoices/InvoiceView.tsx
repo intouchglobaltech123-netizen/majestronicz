@@ -414,7 +414,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   ).length;
 
   return (
-    <div className="p-6 space-y-6 w-full">
+    <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner & Module Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -1248,7 +1248,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       {/* Void Confirmation Modal */}
       {voidModalInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-4 sm:p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold shrink-0">
                 <AlertTriangle className="h-5 w-5" />

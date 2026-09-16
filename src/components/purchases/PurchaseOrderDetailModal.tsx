@@ -383,7 +383,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* KPI Summary Banner */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Total Value */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">

@@ -332,7 +332,7 @@ export const InventoryView: React.FC = () => {
   const isBillingUser = currentUser.role === 'Billing';
 
   return (
-    <div className="p-6 space-y-6 w-full">
+    <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
@@ -458,7 +458,7 @@ export const InventoryView: React.FC = () => {
       {activeInventoryTab === 'items' && (
         <>
           {/* Inventory Worth — money locked in stock */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
             <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/60 to-white shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Value (Cost)</span>
@@ -498,7 +498,7 @@ export const InventoryView: React.FC = () => {
           </div>
 
           {/* KPI Metric Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Total Items */}
         <div
           onClick={() => {
@@ -1134,7 +1134,7 @@ export const InventoryView: React.FC = () => {
           </div>
 
           {/* Combos KPI Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>

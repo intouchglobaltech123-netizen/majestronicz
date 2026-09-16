@@ -45,7 +45,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 bg-white">
+        <div className="p-4 sm:p-6 space-y-6 bg-white">
           {/* Static Pricing Header Reminder */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
             <div>

@@ -169,7 +169,7 @@ export const LoyaltySettingsTab: React.FC = () => {
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                 Reward Discount Type
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setDiscountType('percentage')}

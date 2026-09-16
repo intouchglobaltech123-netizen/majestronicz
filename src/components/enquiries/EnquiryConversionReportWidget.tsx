@@ -43,7 +43,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Total Enquiries */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">

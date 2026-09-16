@@ -313,7 +313,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
           </div>
 
           {/* Signatures */}
-          <div className="pt-8 border-t border-slate-300 grid grid-cols-2 gap-12 text-xs">
+          <div className="pt-8 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-12 text-xs">
             <div>
               <p className="font-bold text-slate-800 mb-1">Return & Refund Terms:</p>
               <ul className="list-disc list-inside text-[11px] text-slate-500 space-y-0.5">

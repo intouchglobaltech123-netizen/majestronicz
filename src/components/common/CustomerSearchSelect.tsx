@@ -509,7 +509,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {/* Inline Quick Add Customer Modal */}
       {isQuickAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -541,7 +541,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   Customer Type <span className="text-rose-500">*</span>
                   {!newType && <span className="text-amber-600 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewType('Retail')}
@@ -656,7 +656,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {/* Organization Purchase History Modal */}
       {isHistoryModalOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-700">
@@ -684,7 +684,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             </div>
 
             {/* Quick summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-2.5">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Orders</span>
                 <span className="text-lg font-extrabold text-slate-900">{selectedCustomerInvoices.length}</span>

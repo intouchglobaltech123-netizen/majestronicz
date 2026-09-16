@@ -311,7 +311,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Info Banner: Zero Independent Stock */}
           <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl flex items-start gap-2.5 text-xs text-purple-900">
             <Info className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
@@ -489,7 +489,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                         selectedBranchId={currentBranch}
                         lockOutOfStock={false}
                         placeholder="Search product from catalog..."
-                        dropdownWidth="w-[440px]"
+                        dropdownWidth="w-[440px] max-w-[calc(100vw-2rem)]"
                         inputClassName="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600"
                       />
                       {item && (

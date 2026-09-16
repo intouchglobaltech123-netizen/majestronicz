@@ -40,7 +40,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   disabled = false,
   className = '',
   inputClassName = '',
-  dropdownWidth = 'w-[520px] sm:w-[580px]',
+  dropdownWidth = 'w-[520px] sm:w-[580px] max-w-[calc(100vw-2rem)]',
   showClearButton = true,
   onClear,
   autoFocus = false,
