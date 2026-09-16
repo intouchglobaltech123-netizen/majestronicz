@@ -30,7 +30,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   // Compute SGST & CGST breakdown pairs per distinct GST rate using shared tax calculation
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!estimate || !estimate.withGst) return [];
-    return calculateTaxBreakdown(estimate.items);
+    return calculateTaxBreakdown(estimate.items, estimate.overallDiscountAmount || 0, estimate.subtotal || 0);
   }, [estimate]);
 
   if (!isOpen || !estimate) return null;

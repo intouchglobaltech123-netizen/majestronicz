@@ -233,15 +233,15 @@ export const PendingOrderList: React.FC<Props> = ({
 
                     {/* 7. Status (Single clean badge) */}
                     <td className="py-3.5 px-4">
-                      {po.status === 'Stock Arrived' || canFulfillNow ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] shadow-2xs">
-                          <Sparkles className="h-3 w-3 text-emerald-600" />
-                          Stock Arrived
-                        </span>
-                      ) : po.status === 'Fulfilled' ? (
+                      {po.status === 'Fulfilled' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold">
                           <CheckCircle2 className="h-3 w-3" />
                           Fulfilled
+                        </span>
+                      ) : po.status !== 'Cancelled' && (po.status === 'Stock Arrived' || canFulfillNow) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] shadow-2xs">
+                          <Sparkles className="h-3 w-3 text-emerald-600" />
+                          Stock Arrived
                         </span>
                       ) : po.status === 'Cancelled' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">

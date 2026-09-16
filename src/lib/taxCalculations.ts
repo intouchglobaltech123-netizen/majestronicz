@@ -73,7 +73,9 @@ export function calculateLineTax(
  * Generates GST Breakdown rows (CGST + SGST pairs) from an array of items having taxable amounts and GST rates.
  */
 export function calculateTaxBreakdown(
-  items: Array<{ taxableAmount: number; gstRate?: number; taxRate?: number }>
+  items: Array<{ taxableAmount: number; gstRate?: number; taxRate?: number }>,
+  overallDiscountAmount = 0,
+  subtotal = 0
 ): GstBreakdownRow[] {
   const rateMap = new Map<number, number>();
 
@@ -86,11 +88,17 @@ export function calculateTaxBreakdown(
     }
   });
 
+  // Scale each rate's taxable + tax by the overall-discount ratio so GST is
+  // shown on the DISCOUNTED value — keeping the rate breakdown consistent with
+  // the summary panel (which also charges GST net of the overall discount).
+  const base = subtotal || Array.from(rateMap.values()).reduce((s, v) => s + v, 0);
+  const netRatio = overallDiscountAmount > 0 && base > 0 ? Math.max(0, (base - overallDiscountAmount) / base) : 1;
+
   const rows: GstBreakdownRow[] = [];
   const sortedRates = Array.from(rateMap.keys()).sort((a, b) => a - b);
 
   sortedRates.forEach((rate) => {
-    const taxable = rateMap.get(rate) || 0;
+    const taxable = Math.round((rateMap.get(rate) || 0) * netRatio * 100) / 100;
     const halfRate = rate / 2;
     // Split by residual (SGST rounded half, CGST the remainder) so SGST+CGST
     // always equals the total tax for this rate — matching the summary panel.

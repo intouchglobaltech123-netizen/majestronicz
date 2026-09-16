@@ -4,6 +4,7 @@ import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSp
 import { formatCurrency, cn } from '../../lib/utils';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
 import { CollapsibleFilters } from '../common/CollapsibleFilters';
+import { calculateInvoiceTotals } from '../../lib/taxCalculations';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
@@ -1405,7 +1406,22 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
-              {drafts.map((d) => (
+              {drafts.map((d) => {
+                // Recompute the card total with CURRENT tax logic so it always
+                // matches what Resume will show (avoids a stale stored total
+                // when the money rules changed after the draft was saved).
+                const doc = d.data as any;
+                const recomputedTotal = doc?.items
+                  ? calculateInvoiceTotals(
+                      doc.items,
+                      !!doc.withGst,
+                      doc.overallDiscountType || '%',
+                      doc.overallDiscountValue || 0,
+                      doc.shippingCharges || 0,
+                      doc.roundOffEnabled ?? true
+                    ).grandTotal
+                  : d.grandTotal;
+                return (
                 <tr key={d.draftId} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4 font-mono font-bold text-slate-700">{d.number || '—'}</td>
                   <td className="py-3 px-4 font-bold text-slate-900">{d.customerName}</td>
@@ -1419,7 +1435,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right font-mono font-black text-slate-900">
-                    {formatCurrency(d.grandTotal)}
+                    {formatCurrency(recomputedTotal)}
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
@@ -1450,7 +1466,8 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

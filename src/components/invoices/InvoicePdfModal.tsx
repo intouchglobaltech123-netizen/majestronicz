@@ -33,7 +33,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   // Compute SGST & CGST breakdown pairs per distinct GST rate
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!invoice || !invoice.withGst) return [];
-    return calculateTaxBreakdown(invoice.items);
+    return calculateTaxBreakdown(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0);
   }, [invoice]);
 
   if (!isOpen || !invoice) return null;

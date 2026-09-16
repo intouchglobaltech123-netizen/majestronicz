@@ -135,19 +135,22 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
   };
 
   const statusBadge = () => {
-    if (pendingOrder.status === 'Stock Arrived' || canFulfillNow) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs shadow-2xs">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-          Stock Arrived
-        </span>
-      );
-    }
+    // Terminal states (Fulfilled / Cancelled) take precedence over the
+    // "stock is available" hint — a completed order must never read "Stock
+    // Arrived" just because stock happens to be on hand.
     if (pendingOrder.status === 'Fulfilled') {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-bold text-xs">
           <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
           Fulfilled
+        </span>
+      );
+    }
+    if (pendingOrder.status !== 'Cancelled' && (pendingOrder.status === 'Stock Arrived' || canFulfillNow)) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs shadow-2xs">
+          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+          Stock Arrived
         </span>
       );
     }
