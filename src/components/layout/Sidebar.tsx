@@ -153,8 +153,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
       </div>
 
-      {/* Main Navigation (scrollbar hidden) */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* Main Navigation (thin scrollbar visible) */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {navItems
           .filter((item) => item.visible)
           .map((item) => {
