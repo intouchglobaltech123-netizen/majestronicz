@@ -209,7 +209,7 @@ export const ItemMasterView: React.FC = () => {
         </div>
 
         {/* Quick Branch Switcher */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
           <span className="text-[11px] uppercase font-bold text-slate-500 px-2">Branch:</span>
           {currentUser.role === 'CEO' && (
             <button
@@ -373,7 +373,7 @@ export const ItemMasterView: React.FC = () => {
 
               {/* Sort Controls & Action */}
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
                   <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 ml-1.5" />
                   <button
                     onClick={() => {

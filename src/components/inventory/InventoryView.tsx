@@ -634,7 +634,7 @@ export const InventoryView: React.FC = () => {
           </select>
 
           {/* Movement Filter Toggle (Not Moving / Active) */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
+          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
             <button
               type="button"
               onClick={() => {
@@ -703,7 +703,7 @@ export const InventoryView: React.FC = () => {
           </div>
 
           {/* Status Pills */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
+          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
             <button
               onClick={() => setStatusFilter('all')}
               className={cn(

@@ -413,7 +413,7 @@ export const SalesReportTab: React.FC<Props> = ({
               </div>
 
               {/* Metric Toggle: By Revenue vs By Quantity */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setTopItemsMetric('revenue')}

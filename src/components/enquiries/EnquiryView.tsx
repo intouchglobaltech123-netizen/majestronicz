@@ -155,7 +155,7 @@ export const EnquiryView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {/* Manager / CEO Only: View Switcher */}
           {canApproveCatalogRequests && (
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
@@ -257,7 +257,7 @@ export const EnquiryView: React.FC = () => {
           </div>
 
           {/* Status Filter Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1">
               <Filter className="h-3 w-3" />
               Status:

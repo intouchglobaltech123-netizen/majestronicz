@@ -242,7 +242,7 @@ export const PartiesView: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
           />
         </div>
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
+        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
           {([['all', 'All'], ['customers', 'Customers'], ['suppliers', 'Suppliers']] as const).map(([val, label]) => (
             <button
               key={val}

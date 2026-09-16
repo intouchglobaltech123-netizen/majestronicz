@@ -3,6 +3,7 @@ import { useErp } from '../../context/ErpContext';
 import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
+import { CollapsibleFilters } from '../common/CollapsibleFilters';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
@@ -456,7 +457,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             <option value="draft-sales">Saved Sales ({draftSales.length})</option>
             <option value="draft-quotes">Saved Quotes ({draftQuotes.length})</option>
           </select>
-          <div className="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="hidden sm:flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab('ledger')}
@@ -781,19 +782,28 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         <div className="space-y-4">
           {/* Quick Filter Bar */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              {/* Search Box */}
-              <div className="relative flex-1 max-w-md w-full">
-                <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search sale by Customer, Invoice No, Phone, or Item..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
-                />
-              </div>
+            {/* Search Box — always visible */}
+            <div className="relative w-full lg:max-w-md">
+              <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search sale by Customer, Invoice No, Phone, or Item..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
+              />
+            </div>
 
+            {/* Date + branch/mode/status — collapse behind a Filters toggle on mobile */}
+            <CollapsibleFilters
+              activeCount={
+                (startDate || endDate ? 1 : 0) +
+                (modeFilter !== 'ALL' ? 1 : 0) +
+                (statusFilter !== 'ALL' ? 1 : 0) +
+                (isAllBranches && branchFilter !== 'ALL' ? 1 : 0)
+              }
+            >
+              <div className="space-y-3">
               {/* Date Range Filters */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
@@ -815,7 +825,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   />
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600">
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600">
                   <button
                     onClick={() => applyDatePreset('month')}
                     className="px-2 py-0.5 rounded hover:bg-white transition-colors"
@@ -836,7 +846,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   </button>
                 </div>
               </div>
-            </div>
 
             {/* Sub-Filters: Branch, Payment Mode, Status */}
             <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -866,7 +875,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 )}
 
                 {/* Payment Mode Pills */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
                   <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Mode:</span>
                   {(['ALL', 'Cash', 'HDFC', 'GPay', 'COD-Credit'] as const).map((m) => (
                     <button
@@ -885,7 +894,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 </div>
 
                 {/* Status Pills */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
                   <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Status:</span>
                   {(['ALL', 'Paid', 'Partial', 'Credit', 'Voided'] as const).map((s) => (
                     <button
@@ -920,6 +929,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 )}
               </div>
             </div>
+              </div>
+            </CollapsibleFilters>
           </div>
 
           {/* SALES LEDGER TABLE */}

@@ -110,7 +110,7 @@ export const EstimateView: React.FC = () => {
 
         {/* Tab Switcher & Quick Add */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               onClick={() => {
                 setDuplicateSourceEstimate(null);

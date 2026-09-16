@@ -190,7 +190,7 @@ export const DailyCashRegisterView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {/* Sub-view switcher for CEO / Manager */}
           {canManageItems && (
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 type="button"
                 onClick={() => setActiveSubView('register')}
