@@ -105,7 +105,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
                       )}
                     </div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-black text-slate-900">{qty}</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-900">{qty}</span>
                       <span className="text-xs font-semibold text-slate-600">{item.unit}</span>
                     </div>
                     <div className="pt-1">
@@ -143,7 +143,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
               </div>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black text-blue-700 font-mono">
+              <span className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
                 {BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0)}
               </span>
               <span className="text-xs font-bold text-blue-900">{item.unit}</span>

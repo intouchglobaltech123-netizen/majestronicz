@@ -210,7 +210,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Ordered Value
               </span>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
                 ₹{metrics.totalValueOrdered.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -222,7 +222,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">
                 Goods Inward (Received)
               </span>
-              <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
                 ₹{metrics.totalValueReceived.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-emerald-600 mt-0.5 block">
@@ -234,7 +234,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 block">
                 Fulfillment Rate
               </span>
-              <p className="text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
                 {metrics.completionRate.toFixed(1)}%
               </p>
               <span className="text-[11px] text-blue-600 mt-0.5 block">
@@ -246,7 +246,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700 block">
                 Overdue Purchase Orders
               </span>
-              <p className="text-2xl font-extrabold text-rose-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-rose-700 mt-1">
                 {metrics.overdueList.length}
               </p>
               <span className="text-[11px] text-rose-600 mt-0.5 block">

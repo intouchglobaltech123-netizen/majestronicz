@@ -581,7 +581,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     </span>
                     <span className="text-[11px] text-slate-400">Excludes taxes (Vendor PO)</span>
                   </div>
-                  <div className="text-2xl font-black text-blue-700 font-mono">
+                  <div className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
                     {formatCurrency(totalAmount)}
                   </div>
                 </div>

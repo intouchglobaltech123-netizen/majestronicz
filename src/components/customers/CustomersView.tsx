@@ -219,7 +219,7 @@ export const CustomersView: React.FC = () => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Customers
               </span>
-              <div className="text-2xl font-black text-slate-900 mt-1">{totalCustomers}</div>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalCustomers}</div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Unique verified phones</span>
             </div>
 
@@ -231,7 +231,7 @@ export const CustomersView: React.FC = () => {
                 </span>
                 <AlertCircle className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="text-2xl font-black text-amber-950 mt-1 font-mono">
+              <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1 font-mono">
                 {formatCurrency(totalOutstandingDues)}
               </div>
               <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
@@ -252,7 +252,7 @@ export const CustomersView: React.FC = () => {
                 </span>
                 <Sparkles className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="text-2xl font-black text-amber-950 mt-1">
+              <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1">
                 {milestoneReadyCount}{' '}
                 <span className="text-xs font-bold text-amber-700">customers</span>
               </div>
@@ -267,7 +267,7 @@ export const CustomersView: React.FC = () => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Customer Sales
               </span>
-              <div className="text-2xl font-black text-slate-900 mt-1">
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
                 {formatCurrency(totalSalesRevenue)}
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -280,7 +280,7 @@ export const CustomersView: React.FC = () => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Average Frequency
               </span>
-              <div className="text-2xl font-black text-slate-900 mt-1">
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
                 {avgPurchases} <span className="text-xs font-bold text-slate-500">bills / cust</span>
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -296,7 +296,7 @@ export const CustomersView: React.FC = () => {
                 </span>
                 <Building2 className="h-4 w-4 text-purple-600" />
               </div>
-              <div className="text-2xl font-black text-purple-950 mt-1">
+              <div className="text-xl sm:text-2xl font-black text-purple-950 mt-1">
                 {orgCount} <span className="text-xs font-bold text-purple-700">orgs</span>
               </div>
               <span className="text-[11px] text-purple-800 mt-0.5 block">

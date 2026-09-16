@@ -226,7 +226,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Total Operating Sales
               </span>
-              <p className="text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
                 ₹{pnlData.consolidated.totalSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -238,7 +238,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Total Branch Expenses
               </span>
-              <p className="text-2xl font-extrabold text-rose-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-rose-700 mt-1">
                 ₹{pnlData.consolidated.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -253,7 +253,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
               <div className="flex items-baseline gap-2 mt-1">
                 <p
                   className={cn(
-                    'text-2xl font-extrabold',
+                    'text-xl sm:text-2xl font-extrabold',
                     pnlData.consolidated.netPosition >= 0 ? 'text-emerald-700' : 'text-rose-700'
                   )}
                 >

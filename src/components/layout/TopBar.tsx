@@ -223,9 +223,10 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
             )}
           </button>
 
-          {/* Interactive Notifications Popover */}
+          {/* Interactive Notifications Popover — full-width sheet on mobile,
+              anchored dropdown on >= sm */}
           {isNotificationsOpen && (
-            <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed left-3 right-3 top-[4.25rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Popover Header */}
               <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">

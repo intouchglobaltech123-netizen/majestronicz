@@ -79,7 +79,7 @@ export const LoyaltySettingsTab: React.FC = () => {
           </span>
         </div>
 
-        <div className="text-2xl font-black tracking-tight">{currentRuleText}</div>
+        <div className="text-xl sm:text-2xl font-black tracking-tight">{currentRuleText}</div>
 
         <p className="text-xs text-amber-100/90 leading-relaxed max-w-2xl">
           Rules apply globally across all branches in real-time. When a customer reaches this

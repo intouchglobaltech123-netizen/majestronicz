@@ -298,7 +298,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Revenue
               </span>
-              <p className="text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
                 ₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -310,7 +310,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Billed Invoices
               </span>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">{summary.invoiceCount}</p>
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">{summary.invoiceCount}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Completed sale records</span>
             </div>
 
@@ -318,7 +318,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Average Order Value
               </span>
-              <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
                 ₹{summary.averageInvoice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Average ticket size</span>
@@ -328,7 +328,7 @@ export const SalesReportTab: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 GST Tax Collected
               </span>
-              <p className="text-2xl font-extrabold text-slate-800 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">
                 ₹{summary.totalTax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">CGST + SGST remittance</span>
@@ -342,7 +342,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 </span>
                 <Sparkles className="h-4 w-4 text-amber-600" />
               </div>
-              <p className="text-2xl font-extrabold text-amber-950 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-amber-950 mt-1">
                 {summary.loyaltyRewardCount}{' '}
                 <span className="text-xs text-amber-700 font-bold">bills</span>
               </p>

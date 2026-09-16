@@ -156,7 +156,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {formatCurrency(openingAmount)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -193,7 +193,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-emerald-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-emerald-700 tracking-tight">
               +{formatCurrency(cashSales)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -215,7 +215,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-rose-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-rose-700 tracking-tight">
               -{formatCurrency(totalExpenses)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -237,7 +237,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-indigo-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-indigo-900 tracking-tight">
               {formatCurrency(creditTotal)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -259,7 +259,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-purple-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">
               {formatCurrency(bankDigitalTotal)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">

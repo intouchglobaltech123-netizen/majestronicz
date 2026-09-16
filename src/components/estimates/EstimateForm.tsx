@@ -1041,7 +1041,7 @@ export const EstimateForm: React.FC<Props> = ({
                   {withGst ? 'With GST (CGST+SGST)' : 'Without GST'}
                 </span>
               </div>
-              <div className="text-2xl font-black font-mono">
+              <div className="text-xl sm:text-2xl font-black font-mono">
                 {formatCurrency(totals.grandTotal)}
               </div>
             </div>

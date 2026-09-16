@@ -388,7 +388,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
 
             <div className="text-right font-mono">
-              <div className="text-2xl font-black text-emerald-700">
+              <div className="text-xl sm:text-2xl font-black text-emerald-700">
                 {formatCurrency(totalRefundAmount)}
               </div>
               <span className="text-[11px] text-slate-400">

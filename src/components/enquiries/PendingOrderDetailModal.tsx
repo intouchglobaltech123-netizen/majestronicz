@@ -222,7 +222,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                 <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">
                   Pending Stock Replenishment Order
                 </span>
-                <h2 className="text-2xl font-black font-mono text-purple-700">
+                <h2 className="text-xl sm:text-2xl font-black font-mono text-purple-700">
                   {pendingOrder.orderNumber}
                 </h2>
                 <div className="text-xs text-slate-600 font-mono space-y-0.5">

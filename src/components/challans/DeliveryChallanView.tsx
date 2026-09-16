@@ -121,22 +121,22 @@ export const DeliveryChallanView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Challans</span>
-          <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.count}</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{challanStats.count}</p>
           <span className="text-[11px] text-slate-400">Dispatch notes issued</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
-          <p className="text-2xl font-black text-blue-700 mt-1">{challanStats.monthCount}</p>
+          <p className="text-xl sm:text-2xl font-black text-blue-700 mt-1">{challanStats.monthCount}</p>
           <span className="text-[11px] text-slate-400">Dispatched this month</span>
         </div>
         <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Units Dispatched</span>
-          <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
           <span className="text-[11px] text-slate-400">Across all challans</span>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recipients</span>
-          <p className="text-2xl font-black text-slate-900 mt-1">{challanStats.recipients}</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{challanStats.recipients}</p>
           <span className="text-[11px] text-slate-400">Unique delivery parties</span>
         </div>
       </div>

@@ -199,7 +199,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                 <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">
                   Customer Requirement Record
                 </span>
-                <h2 className="text-2xl font-black font-mono text-blue-700">
+                <h2 className="text-xl sm:text-2xl font-black font-mono text-blue-700">
                   {enquiry.enquiryNumber}
                 </h2>
                 <div className="text-xs text-slate-600 font-mono space-y-0.5">

@@ -200,7 +200,7 @@ export const PartiesView: React.FC = () => {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total To Collect</p>
-            <p className="text-2xl font-black font-mono text-emerald-700 truncate mt-0.5">{formatCurrency(totalReceivable)}</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-700 truncate mt-0.5">{formatCurrency(totalReceivable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {unassignedReceivable > 0.5
                 ? `${formatCurrency(unassignedReceivable)} on unlinked bills`
@@ -214,7 +214,7 @@ export const PartiesView: React.FC = () => {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total To Pay</p>
-            <p className="text-2xl font-black font-mono text-rose-700 truncate mt-0.5">{formatCurrency(totalPayable)}</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-rose-700 truncate mt-0.5">{formatCurrency(totalPayable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Payable to suppliers</p>
           </div>
         </div>
@@ -224,7 +224,7 @@ export const PartiesView: React.FC = () => {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Parties</p>
-            <p className="text-2xl font-black font-mono text-slate-900 truncate mt-0.5">{parties.length}</p>
+            <p className="text-xl sm:text-2xl font-black font-mono text-slate-900 truncate mt-0.5">{parties.length}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">{customerCount} customers · {supplierCount} suppliers</p>
           </div>
         </div>

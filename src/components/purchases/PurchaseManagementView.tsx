@@ -65,7 +65,7 @@ export const PurchaseManagementView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
               Purchases
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -107,7 +107,7 @@ export const PurchaseManagementView: React.FC = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To Pay (Suppliers)</p>
-            <p className="text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Outstanding supplier dues</p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export const PurchaseManagementView: React.FC = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Purchases This Month</p>
-            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Ordered value this month</p>
           </div>
         </div>
@@ -133,7 +133,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Open Purchase Orders
             </p>
-            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
               {formatCurrency(activeOrdersValue)}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -159,7 +159,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Overdue Shipments
             </p>
-            <p className={`text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${
+            <p className={`text-lg sm:text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${
               overdueOrders.length > 0 ? 'text-rose-700' : 'text-slate-900'
             }`}>
               {overdueOrders.length}
@@ -179,7 +179,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Units Inward Pending
             </p>
-            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
               {pendingUnitsInward} units
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -197,7 +197,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Suppliers
             </p>
-            <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
               {vendors.length} Suppliers
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">

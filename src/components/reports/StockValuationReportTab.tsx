@@ -239,7 +239,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Purchase Cost
           </span>
-          <p className="text-2xl font-extrabold text-blue-700 mt-1">
+          <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
             ₹{valuationData.activePurchaseValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
           <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -251,7 +251,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Retail Value
           </span>
-          <p className="text-2xl font-extrabold text-slate-900 mt-1">
+          <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
             ₹{valuationData.activeRetailValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
           <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -263,7 +263,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Potential Margin
           </span>
-          <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+          <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
             ₹{valuationData.activeMargin.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </p>
           <span className="text-[11px] text-emerald-600 mt-0.5 block">

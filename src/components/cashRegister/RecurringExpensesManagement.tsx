@@ -172,7 +172,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Total Scheduled Amounts</span>
-            <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 mt-1 block">
               {stats.totalTemplates}
             </span>
             <span className="text-[11px] text-slate-400">Configured expenses</span>
@@ -185,7 +185,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Monthly Commitment</span>
-            <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 mt-1 block">
               {formatCurrency(stats.monthlyCommitment)}
             </span>
             <span className="text-[11px] text-slate-400">Sum of defaults</span>
@@ -198,7 +198,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Approved for {currentMonthKey}</span>
-            <span className="text-2xl font-black font-mono text-emerald-700 mt-1 block">
+            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-700 mt-1 block">
               {stats.approvedCount} / {stats.totalTemplates}
             </span>
             <span className="text-[11px] text-emerald-600 font-medium">Logged in Cash Register</span>
@@ -211,7 +211,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Action Due / Overdue</span>
-            <span className={`text-2xl font-black font-mono mt-1 block ${
+            <span className={`text-xl sm:text-2xl font-black font-mono mt-1 block ${
               stats.pendingActionCount > 0 ? 'text-amber-700' : 'text-slate-900'
             }`}>
               {stats.pendingActionCount}

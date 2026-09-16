@@ -2607,7 +2607,7 @@ export const InvoiceForm: React.FC<Props> = ({
               )}>
                 Grand Total
               </span>
-              <span className="text-2xl font-black font-mono">
+              <span className="text-xl sm:text-2xl font-black font-mono">
                 {formatCurrency(totals.grandTotal)}
               </span>
             </div>

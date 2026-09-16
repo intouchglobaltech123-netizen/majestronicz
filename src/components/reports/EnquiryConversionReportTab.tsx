@@ -191,7 +191,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Leads
           </span>
-          <p className="text-2xl font-extrabold text-slate-900 mt-1">{metrics.total}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">{metrics.total}</p>
           <span className="text-[11px] text-slate-400 mt-0.5 block">Logged enquiries</span>
         </div>
 
@@ -199,7 +199,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">
             Converted
           </span>
-          <p className="text-2xl font-extrabold text-emerald-700 mt-1">{metrics.converted}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">{metrics.converted}</p>
           <span className="text-[11px] text-emerald-600 mt-0.5 block">To Estimate / Sale</span>
         </div>
 
@@ -207,7 +207,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 block">
             Follow-Up
           </span>
-          <p className="text-2xl font-extrabold text-amber-700 mt-1">{metrics.followUps}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">{metrics.followUps}</p>
           <span className="text-[11px] text-amber-600 mt-0.5 block">Active negotiations</span>
         </div>
 
@@ -215,7 +215,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700 block">
             Cancelled / Lost
           </span>
-          <p className="text-2xl font-extrabold text-rose-700 mt-1">{metrics.cancelled}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-rose-700 mt-1">{metrics.cancelled}</p>
           <span className="text-[11px] text-rose-600 mt-0.5 block">Declined leads</span>
         </div>
 
@@ -223,7 +223,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 block">
             Conversion Rate
           </span>
-          <p className="text-2xl font-extrabold text-blue-700 mt-1">
+          <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
             {metrics.conversionRate.toFixed(1)}%
           </p>
           <span className="text-[11px] text-blue-600 mt-0.5 block">Converted / Total</span>
@@ -233,7 +233,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 block">
             Avg Velocity
           </span>
-          <p className="text-2xl font-extrabold text-purple-700 mt-1">
+          <p className="text-xl sm:text-2xl font-extrabold text-purple-700 mt-1">
             {metrics.avgDaysToConvert} <span className="text-xs font-medium text-slate-500">days</span>
           </p>
           <span className="text-[11px] text-purple-600 mt-0.5 block">Avg days to convert</span>

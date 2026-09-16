@@ -214,7 +214,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Payroll Cost
               </span>
-              <p className="text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
                 ₹{summary.totalLiability.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -226,7 +226,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Productive Hours Logged
               </span>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
                 {summary.totalHoursWorked.toFixed(1)} <span className="text-sm font-normal text-slate-500">hrs</span>
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -238,7 +238,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">
                 Disbursed / Paid
               </span>
-              <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
                 {summary.paidCount}
               </p>
               <span className="text-[11px] text-emerald-600 mt-0.5 block">
@@ -250,7 +250,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 block">
                 Pending Approval / Draft
               </span>
-              <p className="text-2xl font-extrabold text-amber-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">
                 {summary.draftCount}
               </p>
               <span className="text-[11px] text-amber-600 mt-0.5 block">

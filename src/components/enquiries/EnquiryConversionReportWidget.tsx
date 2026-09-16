@@ -49,7 +49,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
             Total Enquiries
           </span>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-slate-900">{total}</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-slate-900">{total}</div>
           <span className="text-[11px] text-slate-400">All branches logged</span>
         </div>
 
@@ -61,7 +61,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             </span>
             <Clock className="h-3.5 w-3.5 text-amber-600" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-amber-900">{followUps}</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-amber-900">{followUps}</div>
           <span className="text-[11px] text-amber-700 font-medium">Open buyer queries</span>
         </div>
 
@@ -73,7 +73,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             </span>
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-emerald-900">{converted}</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-emerald-900">{converted}</div>
           <span className="text-[11px] text-emerald-700 font-medium">Billed / Invoiced</span>
         </div>
 
@@ -85,7 +85,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             </span>
             <XCircle className="h-3.5 w-3.5 text-rose-600" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-rose-900">{cancelled}</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-rose-900">{cancelled}</div>
           <span className="text-[11px] text-rose-700 font-medium">Lost / Dropped</span>
         </div>
 
@@ -97,7 +97,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             </span>
             <Sparkles className="h-3.5 w-3.5 text-blue-600" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-blue-900">{conversionRate}%</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-blue-900">{conversionRate}%</div>
           <div className="text-[11px] text-blue-700 font-semibold">{converted} converted / {total} enquiries</div>
           <div className="w-full bg-blue-200 rounded-full h-1.5 overflow-hidden">
             <div
@@ -115,7 +115,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             </span>
             <PackageX className="h-3.5 w-3.5 text-purple-600" />
           </div>
-          <div className="text-2xl lg:text-3xl font-black font-mono text-purple-900">
+          <div className="text-lg sm:text-2xl lg:text-3xl font-black font-mono text-purple-900">
             {waitingOrders}
             {stockArrivedOrders > 0 && (
               <span className="text-xs font-bold text-emerald-700 ml-1.5 font-sans bg-emerald-100 px-1 rounded">

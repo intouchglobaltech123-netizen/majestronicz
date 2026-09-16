@@ -341,7 +341,7 @@ export const InventoryView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Inventory
               </h1>
               <span
@@ -464,7 +464,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Value (Cost)</span>
                 <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"><IndianRupee className="h-4 w-4" /></div>
               </div>
-              <p className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Capital tied up at purchase cost</span>
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50/60 to-white shadow-2xs">
@@ -472,7 +472,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Retail Value</span>
                 <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600"><TrendingUp className="h-4 w-4" /></div>
               </div>
-              <p className="text-2xl font-black text-emerald-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">If sold at listed sale price</span>
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-violet-50/60 to-white shadow-2xs">
@@ -480,7 +480,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Potential Margin</span>
                 <div className="h-8 w-8 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center text-violet-600"><Percent className="h-4 w-4" /></div>
               </div>
-              <p className="text-2xl font-black text-violet-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
+              <p className="text-xl sm:text-2xl font-black text-violet-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
             </div>
             <div
@@ -492,7 +492,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Locked in Dead Stock</span>
                 <div className="h-8 w-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600"><AlertOctagon className="h-4 w-4" /></div>
               </div>
-              <p className="text-2xl font-black text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
               <span className="text-[11px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
             </div>
           </div>
@@ -516,7 +516,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Items</span>
             <Boxes className="h-4 w-4 text-slate-400" />
           </div>
-          <p className="text-3xl font-black text-slate-900 mt-1">{metrics.totalSkus}</p>
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-slate-900 mt-1">{metrics.totalSkus}</p>
           <span className="text-[11px] text-slate-400 mt-0.5 block">Cataloged items</span>
         </div>
 
@@ -532,7 +532,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">In Stock</span>
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
-          <p className="text-3xl font-black text-emerald-700 mt-1">{metrics.inStock}</p>
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{metrics.inStock}</p>
           <span className="text-[11px] text-emerald-600 mt-0.5 block">&gt; Threshold stock</span>
         </div>
 
@@ -548,7 +548,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Low Stock</span>
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
-          <p className="text-3xl font-black text-amber-700 mt-1">{metrics.lowStock}</p>
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-amber-700 mt-1">{metrics.lowStock}</p>
           <span className="text-[11px] text-amber-600 mt-0.5 block">&le; Threshold alert</span>
         </div>
 
@@ -564,7 +564,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Out of Stock</span>
             <XCircle className="h-4 w-4 text-rose-600" />
           </div>
-          <p className="text-3xl font-black text-rose-700 mt-1">{metrics.outOfStock}</p>
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-rose-700 mt-1">{metrics.outOfStock}</p>
           <span className="text-[11px] text-rose-600 mt-0.5 block">0 units on hand</span>
         </div>
 
@@ -582,7 +582,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">Dead Stock</span>
             <AlertOctagon className="h-4 w-4 text-rose-600" />
           </div>
-          <p className="text-3xl font-black text-rose-800 mt-1">{metrics.notMovingCount}</p>
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-rose-800 mt-1">{metrics.notMovingCount}</p>
           <span className="text-[11px] text-rose-600 mt-0.5 block">
             {inventorySettings.deadStockThresholdDays}+ days or never sold
           </span>
@@ -594,7 +594,7 @@ export const InventoryView: React.FC = () => {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Units on Hand</span>
             <Building className="h-4 w-4 text-blue-600" />
           </div>
-          <p className="text-3xl font-black text-blue-700 mt-1">
+          <p className="text-xl sm:text-2xl sm:text-3xl font-black text-blue-700 mt-1">
             {metrics.totalUnits.toLocaleString('en-IN')}
           </p>
           <span className="text-[11px] text-slate-500 mt-0.5 block">
@@ -1140,7 +1140,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>
                 <Sparkles className="h-4 w-4 text-purple-600" />
               </div>
-              <p className="text-3xl font-black text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-black text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
             </div>
 
@@ -1149,7 +1149,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">In Stock Combos</span>
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               </div>
-              <p className="text-3xl font-black text-emerald-700 mt-1">{comboMetrics.inStock}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{comboMetrics.inStock}</p>
               <span className="text-[11px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
             </div>
 
@@ -1158,7 +1158,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Unavailable</span>
                 <XCircle className="h-4 w-4 text-rose-600" />
               </div>
-              <p className="text-3xl font-black text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-black text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
               <span className="text-[11px] text-rose-600 mt-0.5 block">Component shortage at branch</span>
             </div>
 
@@ -1167,7 +1167,7 @@ export const InventoryView: React.FC = () => {
                 <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Total Units Ready</span>
                 <Package className="h-4 w-4 text-purple-600" />
               </div>
-              <p className="text-3xl font-black text-purple-700 mt-1">{comboMetrics.totalAvailableKits}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-black text-purple-700 mt-1">{comboMetrics.totalAvailableKits}</p>
               <span className="text-[11px] text-purple-600 mt-0.5 block">Sum of assembleable kits</span>
             </div>
           </div>

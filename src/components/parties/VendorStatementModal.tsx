@@ -91,7 +91,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
         <div className={`px-6 py-3 border-b flex items-center justify-between gap-3 shrink-0 ${totalPayable > 0 ? 'bg-rose-50/60 border-rose-100' : 'bg-emerald-50/50 border-emerald-100'}`}>
           <div>
             <p className={`text-[11px] font-bold uppercase tracking-wider ${totalPayable > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>To Pay</p>
-            <p className={`text-2xl font-black font-mono ${totalPayable > 0 ? 'text-rose-800' : 'text-emerald-700'}`}>
+            <p className={`text-xl sm:text-2xl font-black font-mono ${totalPayable > 0 ? 'text-rose-800' : 'text-emerald-700'}`}>
               {totalPayable > 0 ? formatCurrency(totalPayable) : 'Settled'}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">{unpaidPOs.length} unpaid bill(s)</p>

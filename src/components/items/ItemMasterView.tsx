@@ -192,7 +192,7 @@ export const ItemMasterView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
               </h1>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -251,7 +251,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'Total Combos' : 'Total Items'}
             </span>
-            <div className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos' ? combos.length : stats.totalItems}
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -268,7 +268,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'In-Stock Combos' : 'Avg. Sale Price'}
             </span>
-            <div className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos'
                 ? combos.filter((c) => getComboAvailability(c, currentBranch) > 0).length
                 : formatCurrency(stats.avgPrice)}
@@ -289,7 +289,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {isAllBranches ? 'Total Available Stock' : `Stock (${currentBranchData?.name})`}
             </span>
-            <div className="text-3xl lg:text-4xl font-black text-blue-700 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-blue-700 tracking-tight font-mono mt-1">
               {stats.totalStockInScope} Units
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
