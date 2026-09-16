@@ -108,6 +108,7 @@ export function saveCustomer(data: any) {
   return prisma.$transaction(async (tx: any) => {
     const phone = cleanPhone(data.phone);
     if (!phone) throw new AppError('PHONE_REQUIRED', 'Phone number is required', 400);
+    if (phone.length !== 10) throw new AppError('INVALID_PHONE', 'Enter a valid 10-digit phone number', 400);
     if (!data.name?.trim()) throw new AppError('NAME_REQUIRED', 'Customer name is required', 400);
 
     const all = await tx.customer.findMany();

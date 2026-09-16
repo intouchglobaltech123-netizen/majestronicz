@@ -1354,7 +1354,9 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
           </h3>
         </div>
         <p className="text-[11px] text-slate-400">
-          Parked, not yet finalized. Resume to commit stock &amp; issue a final number.
+          {isQuote
+            ? 'Parked, not yet finalized. Resume to review and issue the quotation (no stock impact).'
+            : 'Parked, not yet finalized. Resume to commit stock & issue a final invoice number.'}
         </p>
       </div>
 

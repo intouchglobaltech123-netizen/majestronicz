@@ -69,6 +69,16 @@ export function calculateInvoiceTotals(
   }
   const shipping = Math.max(0, Number(shippingCharges) || 0);
   const netTaxable = Math.max(0, subtotal - overallDiscountAmount);
+
+  // GST on the DISCOUNTED taxable value: scale line taxes by the discount ratio;
+  // CGST/SGST split by residual so the halves sum exactly to the total.
+  if (withGst && overallDiscountAmount > 0 && subtotal > 0) {
+    const netRatio = netTaxable / subtotal;
+    totalTax = r2(totalTax * netRatio);
+    totalSgst = r2(totalTax / 2);
+    totalCgst = r2(totalTax - totalSgst);
+  }
+
   const unroundedTotal = netTaxable + (withGst ? totalTax : 0) + shipping;
 
   let grandTotal = unroundedTotal, roundOff = 0;

@@ -499,6 +499,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: session.name,
         pin: '',
         assignedBranchId: session.assignedBranchId as BranchId | undefined,
+        userId: session.userId,
       };
     }
     return {
@@ -730,6 +731,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name: session.name,
             pin: '',
             assignedBranchId: session.assignedBranchId as BranchId | undefined,
+            userId: session.userId,
           });
           setIsAuthenticated(true);
           const data = await apiGet<any>('/api/bootstrap');

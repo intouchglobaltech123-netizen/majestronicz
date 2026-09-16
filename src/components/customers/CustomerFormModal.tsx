@@ -59,6 +59,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setErrorMessage('Phone number is required');
       return;
     }
+    // Normalize like the backend (strip 91 / leading 0) then require 10 digits.
+    let normalizedPhone = cleanPhone;
+    if (normalizedPhone.length === 12 && normalizedPhone.startsWith('91')) normalizedPhone = normalizedPhone.slice(2);
+    if (normalizedPhone.length === 11 && normalizedPhone.startsWith('0')) normalizedPhone = normalizedPhone.slice(1);
+    if (normalizedPhone.length !== 10) {
+      setErrorMessage('Enter a valid 10-digit phone number');
+      return;
+    }
     if (!cleanName) {
       setErrorMessage('Customer name is required');
       return;

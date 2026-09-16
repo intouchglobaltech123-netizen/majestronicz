@@ -92,14 +92,18 @@ export function calculateTaxBreakdown(
   sortedRates.forEach((rate) => {
     const taxable = rateMap.get(rate) || 0;
     const halfRate = rate / 2;
-    const halfTax = Math.round(((taxable * halfRate) / 100) * 100) / 100;
+    // Split by residual (SGST rounded half, CGST the remainder) so SGST+CGST
+    // always equals the total tax for this rate — matching the summary panel.
+    const totalTax = Math.round(((taxable * rate) / 100) * 100) / 100;
+    const sgst = Math.round((totalTax / 2) * 100) / 100;
+    const cgst = Math.round((totalTax - sgst) * 100) / 100;
 
     // SGST
     rows.push({
       taxType: 'SGST',
       rate: halfRate,
       taxableAmount: taxable,
-      taxAmount: halfTax,
+      taxAmount: sgst,
     });
 
     // CGST
@@ -107,7 +111,7 @@ export function calculateTaxBreakdown(
       taxType: 'CGST',
       rate: halfRate,
       taxableAmount: taxable,
-      taxAmount: halfTax,
+      taxAmount: cgst,
     });
   });
 
@@ -177,6 +181,17 @@ export function calculateInvoiceTotals(
 
   // Net taxable subtotal after overall discount
   const netTaxable = Math.max(0, subtotal - overallDiscountAmount);
+
+  // GST is charged on the DISCOUNTED taxable value (Section 15): scale the line
+  // taxes down by the overall-discount ratio. CGST/SGST split by residual so
+  // the two halves always sum exactly to the total tax.
+  if (withGst && overallDiscountAmount > 0 && subtotal > 0) {
+    const netRatio = netTaxable / subtotal;
+    totalTax = Math.round(totalTax * netRatio * 100) / 100;
+    totalSgst = Math.round((totalTax / 2) * 100) / 100;
+    totalCgst = Math.round((totalTax - totalSgst) * 100) / 100;
+  }
+
   const unroundedTotal = netTaxable + (withGst ? totalTax : 0) + shipping;
 
   let grandTotal = unroundedTotal;
