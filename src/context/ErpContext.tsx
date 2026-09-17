@@ -1652,16 +1652,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Insufficient stock for transfer');
     }
 
-    const toStockRow = branchStocks.find((s) => s.itemId === itemId && s.branchId === toBranch);
-    const toPrevQty = toStockRow?.quantity ?? 0;
     const now = new Date().toISOString();
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
 
-    // 1. Atomic branch stock update: decrement fromBranch and increment toBranch
+    // 1. Dispatch: debit the source only. The destination is credited when the
+    // receiving branch confirms intake via receiveStockTransfer (in-transit flow).
     setBranchStocks((prev) => {
-      let updated = [...prev];
-
-      // Decrement source
+      const updated = [...prev];
       const fromIdx = updated.findIndex((s) => s.itemId === itemId && s.branchId === fromBranch);
       if (fromIdx >= 0) {
         updated[fromIdx] = {
@@ -1678,25 +1675,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedAt: now,
         });
       }
-
-      // Increment destination
-      const toIdx = updated.findIndex((s) => s.itemId === itemId && s.branchId === toBranch);
-      if (toIdx >= 0) {
-        updated[toIdx] = {
-          ...updated[toIdx],
-          quantity: updated[toIdx].quantity + quantity,
-          updatedAt: now,
-        };
-      } else {
-        updated.push({
-          itemId,
-          branchId: toBranch,
-          quantity,
-          minStockAlert: targetItem.reorderThreshold ?? 10,
-          updatedAt: now,
-        });
-      }
-
       return updated;
     });
 
@@ -1749,8 +1727,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setChallans((prev) => [newChallan, ...prev]);
     }
 
-    // 3. Create Paired StockAdjustmentLog records with shared transferRef
+    // 3. Record the in-transit transfer so it shows in history and can be received.
     const userLabel = `${currentUser.name} (${currentUser.role})`;
+    const newTransfer: StockTransfer = {
+      id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
+      items: [{ itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, itemHSN: targetItem.itemHSN, quantity, unit: targetItem.unit }],
+      totalQuantity: quantity, notes: notes?.trim() || undefined, transferredBy: userLabel, timestamp: now, challanNumber: generatedChallanNo,
+      status: 'in_transit',
+    };
+    setStockTransfers((prev) => [newTransfer, ...prev]);
+
+    // Only the dispatch ("out") log is written now; the "in" log lands on receipt.
     const logFrom: StockAdjustmentLog = {
       id: `adj-${Date.now()}-out`,
       itemId,
@@ -1761,36 +1748,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quantityChange: -quantity,
       newQuantity: fromPrevQty - quantity,
       reason: 'Inter-branch Transfer',
-      notes: `Transferred to ${toBranchName}${notes ? ` • ${notes}` : ''}`,
+      notes: `Dispatched to ${toBranchName} (in transit)${notes ? ` • ${notes}` : ''}`,
       adjustedBy: userLabel,
       timestamp: now,
       transferRef,
       linkedChallanNumber: generatedChallanNo,
     };
 
-    const logTo: StockAdjustmentLog = {
-      id: `adj-${Date.now()}-in`,
-      itemId,
-      itemName: targetItem.itemName,
-      itemCode: targetItem.itemCode,
-      branchId: toBranch,
-      previousQuantity: toPrevQty,
-      quantityChange: quantity,
-      newQuantity: toPrevQty + quantity,
-      reason: 'Inter-branch Transfer',
-      notes: `Received from ${fromBranchName}${notes ? ` • ${notes}` : ''}`,
-      adjustedBy: userLabel,
-      timestamp: now,
-      transferRef,
-      linkedChallanNumber: generatedChallanNo,
-    };
-
-    setStockAdjustmentLogs((prev) => [logFrom, logTo, ...prev]);
+    setStockAdjustmentLogs((prev) => [logFrom, ...prev]);
 
     persist(apiPost('/api/stock/transfer', { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor: actorLabel() }));
 
-    toast.success(`Inter-branch transfer completed`, {
-      description: `${quantity} × ${targetItem.itemName} (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo} generated` : ''}`,
+    toast.success(`Stock dispatched — awaiting receipt`, {
+      description: `${quantity} × ${targetItem.itemName} sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
     });
 
     return { transferRef, challanNumber: generatedChallanNo };

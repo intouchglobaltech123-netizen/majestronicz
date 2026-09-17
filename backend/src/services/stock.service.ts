@@ -221,20 +221,14 @@ export function transferStock(
     const fromPrevQty = fromRow?.quantity ?? 0;
     if (fromPrevQty < quantity) throw new AppError('INSUFFICIENT_STOCK', `Insufficient stock in ${branchName(fromBranch)}`, 409);
 
-    const toRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId, branchId: toBranch } } });
-    const toPrevQty = toRow?.quantity ?? 0;
     const ts = nowIso();
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
 
+    // Dispatch: debit source only. Destination is credited on Receive (in-transit flow).
     await tx.branchStock.upsert({
       where: { itemId_branchId: { itemId, branchId: fromBranch } },
       create: { itemId, branchId: fromBranch, quantity: 0, minStockAlert: item.reorderThreshold ?? 10, updatedAt: ts },
       update: { quantity: Math.max(0, fromPrevQty - quantity), updatedAt: ts },
-    });
-    await tx.branchStock.upsert({
-      where: { itemId_branchId: { itemId, branchId: toBranch } },
-      create: { itemId, branchId: toBranch, quantity, minStockAlert: item.reorderThreshold ?? 10, updatedAt: ts },
-      update: { quantity: toPrevQty + quantity, updatedAt: ts },
     });
 
     const todayStr = ts.split('T')[0];
@@ -268,21 +262,25 @@ export function transferStock(
       });
     }
 
-    await tx.stockAdjustmentLog.createMany({
-      data: [
-        {
-          id: rid('adj') + '-out', itemId, itemName: item.itemName, itemCode: item.itemCode, branchId: fromBranch,
-          previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity,
-          reason: 'Inter-branch Transfer', notes: `Transferred to ${branchName(toBranch)}${notes ? ` • ${notes}` : ''}`,
-          adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: generatedChallanNo ?? null,
-        },
-        {
-          id: rid('adj') + '-in', itemId, itemName: item.itemName, itemCode: item.itemCode, branchId: toBranch,
-          previousQuantity: toPrevQty, quantityChange: quantity, newQuantity: toPrevQty + quantity,
-          reason: 'Inter-branch Transfer', notes: `Received from ${branchName(fromBranch)}${notes ? ` • ${notes}` : ''}`,
-          adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: generatedChallanNo ?? null,
-        },
-      ],
+    // Record the in-transit transfer so it appears in history and can be received.
+    await tx.stockTransfer.create({
+      data: {
+        id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
+        items: [{ itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, itemHSN: item.itemHSN, quantity, unit: item.unit }],
+        totalQuantity: quantity,
+        notes: notes?.trim() || null, transferredBy: actor, timestamp: ts, challanNumber: generatedChallanNo ?? null,
+        status: 'in_transit',
+      },
+    });
+
+    // Only the dispatch ("out") log is written now; the "in" log lands on receipt.
+    await tx.stockAdjustmentLog.create({
+      data: {
+        id: rid('adj') + '-out', itemId, itemName: item.itemName, itemCode: item.itemCode, branchId: fromBranch,
+        previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity,
+        reason: 'Inter-branch Transfer', notes: `Dispatched to ${branchName(toBranch)} (in transit)${notes ? ` • ${notes}` : ''}`,
+        adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: generatedChallanNo ?? null,
+      },
     });
 
     return { ...(await stockSnapshot(tx)), transferRef, challanNumber: generatedChallanNo };
