@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -31,10 +31,25 @@ import {
   Save,
   PlayCircle,
   Clock,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type SaleStatusType = 'ALL' | 'Paid' | 'Partial' | 'Credit' | 'Voided';
+
+// One open billing draft in the multi-tab bar (Vyapar-style). Each tab keeps its
+// own live InvoiceForm mounted so switching never loses in-progress work.
+interface BillTab {
+  id: string;
+  label: string;
+  documentType: 'Invoice' | 'Quotation';
+  editingInvoice: Invoice | null;
+  editingEstimate: Estimate | null;
+  convertedEstimate: Estimate | null;
+  duplicateSourceInvoice: Invoice | null;
+  duplicateSourceEstimate: Estimate | null;
+  resumedDraftId: string | null;
+}
 
 interface Props {
   initialTab?: 'ledger' | 'estimates' | 'returns';
@@ -65,8 +80,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Work-in-progress drafts (per-user, browser-local)
   const [drafts, setDrafts] = useState<SalesDraft[]>(() => loadDrafts(draftUserKey));
-  // Which draft (if any) is currently being resumed in the form — deleted on finalize.
-  const [resumedDraftId, setResumedDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     setDrafts(loadDrafts(draftUserKey));
@@ -74,19 +87,60 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   const draftSales = useMemo(() => drafts.filter((d) => d.kind === 'Invoice'), [drafts]);
   const draftQuotes = useMemo(() => drafts.filter((d) => d.kind === 'Quotation'), [drafts]);
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-  const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
-  const [convertedEstimate, setConvertedEstimate] = useState<Estimate | null>(null);
-  const [duplicateSourceInvoice, setDuplicateSourceInvoice] = useState<Invoice | null>(null);
-  const [duplicateSourceEstimate, setDuplicateSourceEstimate] = useState<Estimate | null>(null);
-  const [initialDocumentType, setInitialDocumentType] = useState<'Invoice' | 'Quotation'>('Invoice');
+  // Multi-tab billing: several sale/quotation drafts open concurrently.
+  const [openBills, setOpenBills] = useState<BillTab[]>([]);
+  const [activeBillId, setActiveBillId] = useState<string | null>(null);
+  const billSeqRef = useRef(0);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
   const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<Invoice | null>(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [estimateSearchQuery, setEstimateSearchQuery] = useState('');
-  const [formInstanceId, setFormInstanceId] = useState(0);
+
+  // ---- Multi-tab billing helpers -------------------------------------------
+  const makeBillId = () => `bill-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  // Open a new billing tab from a seed and focus it.
+  const openBillTab = (seed: Partial<BillTab> & { documentType: 'Invoice' | 'Quotation'; label?: string }) => {
+    const id = makeBillId();
+    const isNew = !seed.editingInvoice && !seed.editingEstimate && !seed.convertedEstimate &&
+      !seed.duplicateSourceInvoice && !seed.duplicateSourceEstimate && !seed.resumedDraftId;
+    let label = seed.label;
+    if (!label) {
+      if (isNew) {
+        billSeqRef.current += 1;
+        label = `${seed.documentType === 'Quotation' ? 'Quote' : 'Sale'} ${billSeqRef.current}`;
+      } else {
+        label = seed.documentType === 'Quotation' ? 'Quotation' : 'Sale';
+      }
+    }
+    const tab: BillTab = {
+      id, label, documentType: seed.documentType,
+      editingInvoice: seed.editingInvoice ?? null,
+      editingEstimate: seed.editingEstimate ?? null,
+      convertedEstimate: seed.convertedEstimate ?? null,
+      duplicateSourceInvoice: seed.duplicateSourceInvoice ?? null,
+      duplicateSourceEstimate: seed.duplicateSourceEstimate ?? null,
+      resumedDraftId: seed.resumedDraftId ?? null,
+    };
+    setOpenBills((prev) => [...prev, tab]);
+    setActiveBillId(id);
+    setActiveTab('new');
+    return id;
+  };
+
+  // Close a tab; fall back to the ledger when nothing is left open.
+  const closeBillTab = (id: string, fallbackTab: 'ledger' | 'estimates' = 'ledger') => {
+    const next = openBills.filter((t) => t.id !== id);
+    setOpenBills(next);
+    if (next.length === 0) {
+      setActiveBillId(null);
+      setActiveTab(fallbackTab);
+    } else if (activeBillId === id) {
+      setActiveBillId(next[next.length - 1].id);
+    }
+  };
 
   // Sync with initialTab prop when changed by router
   useEffect(() => {
@@ -99,36 +153,22 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const [voidModalInvoice, setVoidModalInvoice] = useState<Invoice | null>(null);
   const [voidReason, setVoidReason] = useState('Customer cancellation / Order return');
 
-  // If redirected with an estimate to convert, automatically switch to New Sale tab
+  // If redirected with an estimate to convert, open a new Sale tab for it.
   useEffect(() => {
     if (estimateToConvert) {
-      setConvertedEstimate(estimateToConvert);
-      setEditingInvoice(null);
-      setEditingEstimate(null);
-      setDuplicateSourceInvoice(null);
-      setDuplicateSourceEstimate(null);
-      setInitialDocumentType('Invoice');
-      setFormInstanceId((prev) => prev + 1);
-      setActiveTab('new');
+      openBillTab({ documentType: 'Invoice', convertedEstimate: estimateToConvert, label: `Convert ${estimateToConvert.estimateNumber}` });
       setEstimateToConvert(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estimateToConvert, setEstimateToConvert]);
 
-  // If handed a pre-filled quotation (e.g. from an enquiry), open the form in
-  // Quotation mode — NOT as an invoice conversion.
+  // If handed a pre-filled quotation (e.g. from an enquiry), open a new Quote tab.
   useEffect(() => {
     if (quoteToPrefill) {
-      setEditingEstimate(quoteToPrefill);
-      setEditingInvoice(null);
-      setConvertedEstimate(null);
-      setDuplicateSourceInvoice(null);
-      setDuplicateSourceEstimate(null);
-      setResumedDraftId(null);
-      setInitialDocumentType('Quotation');
-      setFormInstanceId((prev) => prev + 1);
-      setActiveTab('new');
+      openBillTab({ documentType: 'Quotation', editingEstimate: quoteToPrefill, label: 'Quotation' });
       setQuoteToPrefill(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteToPrefill, setQuoteToPrefill]);
 
   // Filters State
@@ -244,38 +284,21 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   }, [estimates, branchFilter, isAllBranches, currentBranch, estimateSearchQuery]);
 
   // Once a resumed draft is finalized (committed), remove it from the draft store.
-  const clearResumedDraft = () => {
-    if (resumedDraftId) {
-      setDrafts(removeDraft(draftUserKey, resumedDraftId));
-      setResumedDraftId(null);
-    }
-  };
-
-  const handleSaved = (savedInvoice: Invoice) => {
-    clearResumedDraft();
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setActiveTab('ledger');
+  const handleSaved = (tab: BillTab, savedInvoice: Invoice) => {
+    if (tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, tab.resumedDraftId));
     setPreviewInvoice(savedInvoice);
+    closeBillTab(tab.id, 'ledger');
   };
 
-  const handleSavedEstimate = (savedEstimate: Estimate) => {
-    clearResumedDraft();
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setActiveTab('estimates');
+  const handleSavedEstimate = (tab: BillTab, savedEstimate: Estimate) => {
+    if (tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, tab.resumedDraftId));
     setPreviewEstimate(savedEstimate);
+    closeBillTab(tab.id, 'estimates');
   };
 
   // Save the current in-form document as a draft (parked, not committed).
-  const handleSaveDraft = (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => {
-    const draftId = resumedDraftId || newDraftId();
+  const handleSaveDraft = (tab: BillTab, doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => {
+    const draftId = tab.resumedDraftId || newDraftId();
     const draft: SalesDraft = {
       draftId,
       kind,
@@ -287,50 +310,25 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       data: doc,
     };
     setDrafts(upsertDraft(draftUserKey, draft));
-    setResumedDraftId(null);
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setActiveTab(kind === 'Quotation' ? 'draft-quotes' : 'draft-sales');
+    closeBillTab(tab.id, kind === 'Quotation' ? 'estimates' : 'ledger');
   };
 
-  // Reopen a saved draft into the form to finish/finalize it.
+  // Reopen a saved draft into a new billing tab to finish/finalize it.
   const handleResumeDraft = (draft: SalesDraft) => {
     if (draft.kind === 'Quotation') {
-      setEditingEstimate(draft.data as Estimate);
-      setEditingInvoice(null);
-      setInitialDocumentType('Quotation');
+      openBillTab({ documentType: 'Quotation', editingEstimate: draft.data as Estimate, resumedDraftId: draft.draftId, label: draft.customerName || 'Quotation' });
     } else {
-      setEditingInvoice(draft.data as Invoice);
-      setEditingEstimate(null);
-      setInitialDocumentType('Invoice');
+      openBillTab({ documentType: 'Invoice', editingInvoice: draft.data as Invoice, resumedDraftId: draft.draftId, label: draft.customerName || 'Sale' });
     }
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setResumedDraftId(draft.draftId);
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
   };
 
   const handleDeleteDraft = (draftId: string) => {
     setDrafts(removeDraft(draftUserKey, draftId));
-    if (resumedDraftId === draftId) setResumedDraftId(null);
     toast.success('Draft deleted');
   };
 
   const handleStartBlank = (docType: 'Invoice' | 'Quotation' = 'Invoice') => {
-    setResumedDraftId(null);
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setInitialDocumentType(docType);
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    openBillTab({ documentType: docType });
   };
 
   const handleEdit = (invoice: Invoice) => {
@@ -338,25 +336,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       toast.error('Cannot edit a voided sale.');
       return;
     }
-    setEditingInvoice(invoice);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setInitialDocumentType('Invoice');
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    // If this invoice is already open in a tab, focus it instead of duplicating.
+    const existing = openBills.find((t) => t.editingInvoice?.id === invoice.id);
+    if (existing) { setActiveBillId(existing.id); setActiveTab('new'); return; }
+    openBillTab({ documentType: 'Invoice', editingInvoice: invoice, label: invoice.invoiceNumber });
   };
 
   const handleEditEstimate = (estimate: Estimate) => {
-    setEditingEstimate(estimate);
-    setEditingInvoice(null);
-    setConvertedEstimate(null);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setInitialDocumentType('Quotation');
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    const existing = openBills.find((t) => t.editingEstimate?.id === estimate.id);
+    if (existing) { setActiveBillId(existing.id); setActiveTab('new'); return; }
+    openBillTab({ documentType: 'Quotation', editingEstimate: estimate, label: estimate.estimateNumber });
   };
 
   const handleDuplicate = (invoice: Invoice) => {
@@ -364,36 +353,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       toast.error('Cannot duplicate a voided sale.');
       return;
     }
-    setDuplicateSourceInvoice(invoice);
-    setDuplicateSourceEstimate(null);
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setInitialDocumentType('Invoice');
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    openBillTab({ documentType: 'Invoice', duplicateSourceInvoice: invoice, label: `Copy of ${invoice.invoiceNumber}` });
   };
 
   const handleDuplicateEstimate = (estimate: Estimate) => {
-    setDuplicateSourceEstimate(estimate);
-    setDuplicateSourceInvoice(null);
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(null);
-    setInitialDocumentType('Quotation');
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    openBillTab({ documentType: 'Quotation', duplicateSourceEstimate: estimate, label: `Copy of ${estimate.estimateNumber}` });
   };
 
   const handleSelectEstimateToConvert = (est: Estimate) => {
-    setEditingInvoice(null);
-    setEditingEstimate(null);
-    setConvertedEstimate(est);
-    setDuplicateSourceInvoice(null);
-    setDuplicateSourceEstimate(null);
-    setInitialDocumentType('Invoice');
-    setFormInstanceId((prev) => prev + 1);
-    setActiveTab('new');
+    openBillTab({ documentType: 'Invoice', convertedEstimate: est, label: `Convert ${est.estimateNumber}` });
     setIsConvertModalOpen(false);
   };
 
@@ -452,6 +420,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             onChange={(e) => setActiveTab(e.target.value as typeof activeTab)}
             className="sm:hidden w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
           >
+            {openBills.length > 0 && <option value="new">Open Bills ({openBills.length})</option>}
             <option value="ledger">Sales Ledger ({invoices.length})</option>
             <option value="estimates">Quotation History ({estimates.length})</option>
             <option value="returns">Returns ({returnedInvoicesCount})</option>
@@ -459,6 +428,22 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             <option value="draft-quotes">Saved Quotes ({draftQuotes.length})</option>
           </select>
           <div className="hidden sm:flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            {openBills.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { if (!activeBillId) setActiveBillId(openBills[openBills.length - 1].id); setActiveTab('new'); }}
+                className={cn(
+                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                  activeTab === 'new'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-blue-700 hover:text-blue-900'
+                )}
+                title="Return to your open bills"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                <span>Open Bills ({openBills.length})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setActiveTab('ledger')}
@@ -537,11 +522,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               onClick={() => handleStartBlank('Invoice')}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                activeTab === 'new' && initialDocumentType === 'Invoice' && !editingInvoice && !convertedEstimate && !duplicateSourceInvoice
-                  ? 'bg-blue-700 ring-2 ring-blue-300 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+                'bg-blue-600 hover:bg-blue-700 text-white'
               )}
-              title="Create a new Sales Invoice (Tax Invoice or Cash/Credit Bill)"
+              title="Open a new Sales Invoice tab (you can keep several bills open at once)"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Sale</span>
@@ -552,11 +535,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               onClick={() => handleStartBlank('Quotation')}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                activeTab === 'new' && initialDocumentType === 'Quotation' && !editingEstimate && !duplicateSourceEstimate
-                  ? 'bg-purple-700 ring-2 ring-purple-300 text-white'
-                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+                'bg-purple-600 hover:bg-purple-700 text-white'
               )}
-              title="Create a new Commercial Quotation / Proforma"
+              title="Open a new Quotation tab"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Quote</span>
@@ -567,32 +548,73 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       {/* VIEW CONTENT */}
       {activeTab === 'new' ? (
-        /* CREATION / EDITING FORM */
-        <InvoiceForm
-          key={`invoice-form-${formInstanceId}-${initialDocumentType}`}
-          initialInvoice={editingInvoice}
-          initialEstimate={editingEstimate}
-          convertedFromEstimate={convertedEstimate}
-          duplicateSourceInvoice={duplicateSourceInvoice}
-          duplicateSourceEstimate={duplicateSourceEstimate}
-          initialDocumentType={initialDocumentType}
-          onSaved={handleSaved}
-          onSavedEstimate={handleSavedEstimate}
-          onSaveDraft={handleSaveDraft}
-          onPreviewPdf={(inv) => setPreviewInvoice(inv)}
-          onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
-          onCancel={() => {
-            setDuplicateSourceInvoice(null);
-            setDuplicateSourceEstimate(null);
-            setEditingInvoice(null);
-            setEditingEstimate(null);
-            if (initialDocumentType === 'Quotation' || editingEstimate || duplicateSourceEstimate) {
-              setActiveTab('estimates');
-            } else {
-              setActiveTab('ledger');
-            }
-          }}
-        />
+        /* MULTI-TAB BILLING — several sale/quotation drafts open at once */
+        <div className="space-y-3">
+          {/* Vyapar-style bill tab strip */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {openBills.map((tab) => {
+              const isActive = tab.id === activeBillId;
+              const isQuote = tab.documentType === 'Quotation';
+              return (
+                <div
+                  key={tab.id}
+                  onClick={() => setActiveBillId(tab.id)}
+                  className={cn(
+                    'group flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors shrink-0',
+                    isActive
+                      ? isQuote
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  )}
+                >
+                  {isQuote ? <FileText className="h-3.5 w-3.5 shrink-0" /> : <Receipt className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="max-w-[150px] truncate">{tab.label}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
+                    className={cn(
+                      'p-0.5 rounded-md transition-colors',
+                      isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100'
+                    )}
+                    title="Close this bill"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => handleStartBlank('Invoice')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-300 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors"
+              title="Open another bill in a new tab"
+            >
+              <Plus className="h-3.5 w-3.5" /> New tab
+            </button>
+          </div>
+
+          {/* Every open form stays mounted; only the active tab is shown so each
+              in-progress bill keeps its state when you switch between them. */}
+          {openBills.map((tab) => (
+            <div key={tab.id} className={tab.id === activeBillId ? '' : 'hidden'}>
+              <InvoiceForm
+                initialInvoice={tab.editingInvoice}
+                initialEstimate={tab.editingEstimate}
+                convertedFromEstimate={tab.convertedEstimate}
+                duplicateSourceInvoice={tab.duplicateSourceInvoice}
+                duplicateSourceEstimate={tab.duplicateSourceEstimate}
+                initialDocumentType={tab.documentType}
+                onSaved={(inv) => handleSaved(tab, inv)}
+                onSavedEstimate={(est) => handleSavedEstimate(tab, est)}
+                onSaveDraft={(doc, kind) => handleSaveDraft(tab, doc, kind)}
+                onPreviewPdf={(inv) => setPreviewInvoice(inv)}
+                onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
+                onCancel={() => closeBillTab(tab.id, tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
+              />
+            </div>
+          ))}
+        </div>
       ) : activeTab === 'draft-sales' ? (
         <DraftList
           kind="Invoice"
