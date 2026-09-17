@@ -79,7 +79,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
               Drawer Physical Cash (Closing Balance)
             </h2>
-            <div className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-blue-600 mt-1">
+            <div className="text-3xl lg:text-4xl font-bold tracking-tight text-blue-600 mt-1">
               {formatCurrency(closingBalance)}
             </div>
 

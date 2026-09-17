@@ -251,7 +251,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'Total Combos' : 'Total Items'}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos' ? combos.length : stats.totalItems}
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -268,7 +268,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'In-Stock Combos' : 'Avg. Sale Price'}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos'
                 ? combos.filter((c) => getComboAvailability(c, currentBranch) > 0).length
                 : formatCurrency(stats.avgPrice)}
@@ -289,7 +289,7 @@ export const ItemMasterView: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500">
               {isAllBranches ? 'Total Available Stock' : `Stock (${currentBranchData?.name})`}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-700 tracking-tight font-mono mt-1">
+            <div className="text-2xl lg:text-3xl font-bold text-blue-700 tracking-tight font-mono mt-1">
               {stats.totalStockInScope} Units
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">

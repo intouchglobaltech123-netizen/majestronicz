@@ -772,28 +772,35 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
         </div>
       </div>
 
-      {/* Image zoom lightbox */}
+      {/* Image preview — contained card, not a full-screen blow-up */}
       {zoomImage && (imageUrl || item.imageUrl) && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
           onClick={() => setZoomImage(false)}
         >
-          <img
-            src={imageUrl || item.imageUrl}
-            alt={item.itemName}
-            className="max-h-[85vh] max-w-[90vw] rounded-xl shadow-2xl object-contain bg-white"
+          <div
+            className="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            onClick={() => setZoomImage(false)}
-            className="absolute top-5 right-5 h-10 w-10 rounded-full bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center shadow-lg"
-            aria-label="Close"
           >
-            <X className="h-5 w-5" />
-          </button>
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-xs font-semibold bg-black/40 px-3 py-1.5 rounded-full">
-            {item.itemName} · {item.itemCode}
+            <div className="flex items-center justify-center bg-slate-50 p-4">
+              <img
+                src={imageUrl || item.imageUrl}
+                alt={item.itemName}
+                className="max-h-[55vh] max-w-full object-contain rounded-lg"
+              />
+            </div>
+            <div className="px-4 py-3 border-t border-slate-200">
+              <p className="text-sm font-bold text-slate-900 truncate">{item.itemName}</p>
+              <p className="text-xs text-slate-500 font-mono">{item.itemCode}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setZoomImage(false)}
+              className="absolute top-2.5 right-2.5 h-8 w-8 rounded-full bg-white/90 hover:bg-white text-slate-600 flex items-center justify-center shadow-md"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
