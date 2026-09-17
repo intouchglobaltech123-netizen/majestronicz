@@ -63,7 +63,7 @@ export const SalaryDetailsView: React.FC = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
       {/* Employee list */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col max-h-[70vh]">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col max-h-[70vh]">
         <div className="p-3 border-b border-slate-100">
           <div className="relative">
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -118,7 +118,7 @@ export const SalaryDetailsView: React.FC = () => {
           standardHours={standardHours}
         />
       ) : (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 shadow-2xs flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
+        <div className="bg-white rounded-xl border border-dashed border-slate-300 shadow-2xs flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
           <UserRound className="h-12 w-12 text-slate-300 mb-3" />
           <p className="text-base font-bold text-slate-700">Select an employee</p>
           <p className="text-xs text-slate-400 mt-1">
@@ -225,12 +225,12 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 flex items-center gap-4">
-        <div className="h-14 w-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-lg font-black shrink-0">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 flex items-center gap-4">
+        <div className="h-14 w-14 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-bold shrink-0">
           {employee.name.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-black text-slate-900 truncate">{employee.name}</h3>
+          <h3 className="text-lg font-bold text-slate-900 truncate">{employee.name}</h3>
           <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-0.5 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />{employee.designation}</span>
             <span>•</span>
@@ -301,13 +301,13 @@ const KpiCard: React.FC<{
   value: string;
   hint?: string;
 }> = ({ icon, tone, label, value, hint }) => (
-  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
     <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>
       {icon}
     </div>
     <div className="min-w-0 flex-1">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 truncate">{label}</p>
-      <p className="text-xl lg:text-2xl font-black text-slate-900 truncate font-mono mt-0.5">{value}</p>
+      <p className="text-xl lg:text-2xl font-bold text-slate-900 truncate font-mono mt-0.5">{value}</p>
       {hint && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{hint}</p>}
     </div>
   </div>

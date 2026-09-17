@@ -202,7 +202,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Header Bar */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -866,7 +866,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     handleFileUpload(e.dataTransfer.files);
                   }}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 rounded-2xl p-6 text-center cursor-pointer transition-all bg-white"
+                  className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 rounded-xl p-6 text-center cursor-pointer transition-all bg-white"
                 >
                   <Upload className="h-8 w-8 mx-auto text-slate-400 mb-2" />
                   <p className="text-xs font-bold text-slate-700">
@@ -909,7 +909,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         ) : (
                           <div className="flex flex-col items-center justify-center text-rose-600">
                             <FileText className="h-7 w-7" />
-                            <span className="text-[11px] font-black uppercase tracking-wider font-mono">
+                            <span className="text-[11px] font-bold uppercase tracking-wider font-mono">
                               PDF
                             </span>
                           </div>
@@ -1086,7 +1086,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
           onClick={() => setPreviewImage(null)}
         >
           <div
-            className="bg-white rounded-2xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl"
+            className="bg-white rounded-xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">

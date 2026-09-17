@@ -44,7 +44,7 @@ export const AiAssistantView: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-sm">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-sm">
             <Sparkles className="h-5 w-5 text-white" />
           </div>
           <div>

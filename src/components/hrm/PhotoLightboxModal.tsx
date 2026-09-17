@@ -29,7 +29,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col text-white">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col text-white">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
           <div>

@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
         </button>
         {!showLabels ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm">M</div>
+            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm">M</div>
             <button
               onClick={() => setCollapsed(false)}
               title="Expand sidebar"

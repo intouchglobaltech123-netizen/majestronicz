@@ -59,7 +59,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -94,7 +94,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
         <div className={`px-6 py-3 border-b flex items-center justify-between gap-3 shrink-0 ${totalPayable > 0 ? 'bg-rose-50/60 border-rose-100' : 'bg-emerald-50/50 border-emerald-100'}`}>
           <div>
             <p className={`text-[11px] font-bold uppercase tracking-wider ${totalPayable > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>To Pay</p>
-            <p className={`text-xl sm:text-2xl font-black font-mono ${totalPayable > 0 ? 'text-rose-800' : 'text-emerald-700'}`}>
+            <p className={`text-xl sm:text-2xl font-bold font-mono ${totalPayable > 0 ? 'text-rose-800' : 'text-emerald-700'}`}>
               {totalPayable > 0 ? formatCurrency(totalPayable) : 'Settled'}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">{unpaidPOs.length} unpaid bill(s)</p>
@@ -170,7 +170,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono font-black text-rose-700 text-sm">{formatCurrency(p.amount)}</span>
+                      <span className="font-mono font-bold text-rose-700 text-sm">{formatCurrency(p.amount)}</span>
                       {canRecordPayment && (
                         <button
                           onClick={() => { if (confirm(`Delete payment ${p.receiptNumber}? This restores the bill balances.`)) deletePayment(p.id); }}

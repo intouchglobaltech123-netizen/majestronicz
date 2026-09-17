@@ -41,7 +41,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -133,7 +133,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
                 <div className="flex items-center gap-3 pl-4 shrink-0 text-right">
                   <div>
                     <span className="text-[11px] uppercase font-semibold text-slate-400 block">Total</span>
-                    <span className="font-mono font-black text-sm text-slate-900">
+                    <span className="font-mono font-bold text-sm text-slate-900">
                       {formatCurrency(est.grandTotal)}
                     </span>
                   </div>

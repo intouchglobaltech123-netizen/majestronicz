@@ -295,7 +295,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
-        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]">
           {/* Header */}
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70 shrink-0">
             <div className="flex items-center gap-2.5">
@@ -581,7 +581,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     </span>
                     <span className="text-[11px] text-slate-400">Excludes taxes (Vendor PO)</span>
                   </div>
-                  <div className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
+                  <div className="text-xl sm:text-2xl font-bold text-blue-700 font-mono">
                     {formatCurrency(totalAmount)}
                   </div>
                 </div>

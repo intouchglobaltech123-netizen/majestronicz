@@ -115,7 +115,7 @@ export const ReportsView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
             <BarChart3 className="h-6 w-6" />
@@ -204,7 +204,7 @@ export const ReportsView: React.FC = () => {
       </div>
 
       {/* Date Range Precision Inputs */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 text-slate-600 font-semibold">
           <Calendar className="h-4 w-4 text-blue-600" />
           <span>Active Filter Date Window:</span>
@@ -243,24 +243,24 @@ export const ReportsView: React.FC = () => {
 
       {/* At-a-glance summary (reflects selected range + branch) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
-          <p className="text-xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
           <span className="text-[11px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
         </div>
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
-          <p className="text-xl font-black text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
+          <p className="text-xl font-bold text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
           <span className="text-[11px] text-slate-400">On taxable invoices</span>
         </div>
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>
-          <p className="text-xl font-black text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
+          <p className="text-xl font-bold text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
           <span className="text-[11px] text-slate-400">Customer dues (current)</span>
         </div>
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-rose-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Pay</span>
-          <p className="text-xl font-black text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
+          <p className="text-xl font-bold text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
           <span className="text-[11px] text-slate-400">Supplier dues (current)</span>
         </div>
       </div>
@@ -285,7 +285,7 @@ export const ReportsView: React.FC = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all shrink-0 border',
+                'flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition-all shrink-0 border',
                 isActive
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-500/20'
                   : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200'

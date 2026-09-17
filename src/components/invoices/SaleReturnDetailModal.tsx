@@ -70,7 +70,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Header Bar (Hidden in Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden shrink-0">
           <div className="flex items-center gap-2.5">
@@ -137,7 +137,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
               </div>
 
               <div className="text-right">
-                <div className="inline-block bg-amber-600 text-white px-3.5 py-1 rounded-sm text-sm font-black tracking-widest uppercase mb-2">
+                <div className="inline-block bg-amber-600 text-white px-3.5 py-1 rounded-sm text-sm font-bold tracking-widest uppercase mb-2">
                   SALES RETURN VOUCHER
                 </div>
                 <div className="text-xs space-y-1 font-mono">
@@ -257,7 +257,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                     <td className="py-2.5 px-3 text-center font-mono text-slate-600">
                       {ret.taxRate}%
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                       {formatCurrency(ret.refundAmount)}
                     </td>
                     <td className="py-2.5 px-3 text-slate-600 text-[11px]">

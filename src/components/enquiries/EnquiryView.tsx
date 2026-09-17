@@ -229,7 +229,7 @@ export const EnquiryView: React.FC = () => {
       {/* ENQUIRIES TABLE & FILTERS */}
       <div className="space-y-4">
         {/* Filters Bar */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
           {/* Search Input */}
           <div className="relative flex-1 max-w-md w-full">
             <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -305,7 +305,7 @@ export const EnquiryView: React.FC = () => {
       {activeTab === 'new-item-requests' && canApproveCatalogRequests ? (
         /* ================= NEW ITEM REQUESTS QUEUE ================= */
         <div className="space-y-4">
-          <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
                 <Sparkles className="h-5 w-5" />
@@ -324,7 +324,7 @@ export const EnquiryView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -399,7 +399,7 @@ export const EnquiryView: React.FC = () => {
 
                           {/* 4. Qty Needed */}
                           <td className="py-3.5 px-4">
-                            <span className="font-mono font-black text-sm text-purple-900">
+                            <span className="font-mono font-bold text-sm text-purple-900">
                               {enq.quantity} {enq.unit}
                             </span>
                           </td>
@@ -461,7 +461,7 @@ export const EnquiryView: React.FC = () => {
         </div>
       ) : (
         /* ================= ALL ENQUIRIES VIEW ================= */
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           {/* ENQUIRIES DATA TABLE */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">

@@ -196,7 +196,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner with CSV Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <PieChart className="h-5 w-5 text-blue-600" />
@@ -211,7 +211,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
       </div>
 
       {!hasAnyActivity ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No transactions recorded for this period</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
@@ -222,7 +222,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
         <>
           {/* Top Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+            <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Total Operating Sales
               </span>
@@ -234,7 +234,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
               </span>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+            <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Total Branch Expenses
               </span>
@@ -246,7 +246,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
               </span>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+            <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Net Operating Position
               </span>
@@ -277,7 +277,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
           </div>
 
           {/* Side-by-Side Multi-Branch P&L Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-blue-600" />
@@ -380,7 +380,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     {branchScope === 'all' && (
                       <td
                         className={cn(
-                          'py-3.5 px-4 text-right font-black text-sm bg-blue-50/30',
+                          'py-3.5 px-4 text-right font-bold text-sm bg-blue-50/30',
                           pnlData.consolidated.netPosition >= 0 ? 'text-emerald-800' : 'text-rose-800'
                         )}
                       >
@@ -414,7 +414,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
           </div>
 
           {/* Operating Expense Categories Breakdown */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <WalletCards className="h-4 w-4 text-blue-600" />

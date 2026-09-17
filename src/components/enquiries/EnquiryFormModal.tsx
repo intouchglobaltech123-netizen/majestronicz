@@ -218,7 +218,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -487,7 +487,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
             </>
           ) : (
             /* MODE B: NEW ITEM — NOT IN CATALOG */
-            <div className="p-4.5 rounded-2xl bg-purple-50/50 border border-purple-200 space-y-4">
+            <div className="p-4.5 rounded-xl bg-purple-50/50 border border-purple-200 space-y-4">
               {/* Informational banner */}
               <div className="flex items-start gap-2.5 text-xs text-purple-950">
                 <Sparkles className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />

@@ -123,13 +123,13 @@ export const ShopifyView: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-400">
+        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">
           Checking Shopify connection…
         </div>
       ) : !status?.configured ? (
         <SetupGuide />
       ) : !status.connected ? (
-        <div className="bg-white rounded-2xl border border-rose-200 shadow-xs p-5">
+        <div className="bg-white rounded-xl border border-rose-200 shadow-xs p-5">
           <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
             <XCircle className="h-5 w-5" /> Not connected
           </div>
@@ -141,7 +141,7 @@ export const ShopifyView: React.FC = () => {
       ) : (
         <>
           {/* Connected banner + actions */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center">
                 <Store className="h-5 w-5" />
@@ -182,7 +182,7 @@ export const ShopifyView: React.FC = () => {
           </div>
 
           {/* Product sync */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/60 flex items-center justify-center">
                 <Boxes className="h-5 w-5" />
@@ -203,7 +203,7 @@ export const ShopifyView: React.FC = () => {
           </div>
 
           {/* Orders table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
               <PackageCheck className="h-4 w-4 text-emerald-600" />
               <h3 className="text-sm font-bold text-slate-800">Recent Orders ({orders.length})</h3>
@@ -239,7 +239,7 @@ export const ShopifyView: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-black text-slate-900">{formatCurrency(o.total)}</td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(o.total)}</td>
                         <td className="py-3 px-4 text-center">
                           {o.alreadyImported ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
@@ -275,17 +275,17 @@ const TONES: Record<string, string> = {
   slate: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 const MetricCard: React.FC<{ icon: React.ReactNode; tone: string; label: string; value: string }> = ({ icon, tone, label, value }) => (
-  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3">
+  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>{icon}</div>
     <div className="min-w-0">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">{label}</p>
-      <p className="text-base font-black text-slate-900 truncate">{value}</p>
+      <p className="text-base font-bold text-slate-900 truncate">{value}</p>
     </div>
   </div>
 );
 
 const SetupGuide: React.FC = () => (
-  <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+  <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-3">
     <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
       <Link2 className="h-5 w-5 text-blue-600" /> Connect your Shopify store
     </div>

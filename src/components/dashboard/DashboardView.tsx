@@ -226,13 +226,13 @@ export const DashboardView: React.FC = () => {
   return (
     <div ref={rootRef} className="p-6 space-y-5 w-full">
       {/* Header */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
             {isAllBranches ? <Layers className="h-6 w-6" /> : <Building className="h-6 w-6" />}
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               {isAllBranches ? 'Business Overview — All Branches' : `${currentBranchData?.name} Dashboard`}
             </h1>
             <p className="text-xs text-slate-600 mt-0.5">
@@ -274,7 +274,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Charts row ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sales trend (14 days) */}
-        <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="lg:col-span-2 p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900">Sales — Last {trendDays} Days</h3>
@@ -313,7 +313,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Payment mode split */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <h3 className="text-sm font-extrabold text-slate-900 mb-1">Payment Modes</h3>
           <p className="text-[11px] text-slate-500 mb-4">This month · by collection</p>
           {modeSplit.rows.length === 0 ? (
@@ -343,7 +343,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Top products + Recent sales ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top products */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Trophy className="h-4 w-4 text-amber-500" /> Top Products</h3>
             <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
@@ -359,7 +359,7 @@ export const DashboardView: React.FC = () => {
                 const val = topMetric === 'revenue' ? p.revenue : p.qty;
                 return (
                   <div key={p.name} className="flex items-center gap-3">
-                    <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0',
+                    <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0',
                       idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}>{idx + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
@@ -378,7 +378,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Recent sales */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Receipt className="h-4 w-4 text-blue-500" /> Recent Sales</h3>
             <button onClick={() => setCurrentView('invoices')} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">View all <ChevronRight className="h-3 w-3" /></button>
@@ -396,7 +396,7 @@ export const DashboardView: React.FC = () => {
                       <p className="text-[11px] text-slate-500 truncate">{i.date} · {i.customerName}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-black text-slate-900 font-mono">{formatCurrency(netRevenue(i))}</p>
+                      <p className="text-xs font-bold text-slate-900 font-mono">{formatCurrency(netRevenue(i))}</p>
                       {due > 0 ? <p className="text-[11px] font-bold text-amber-600">Due {formatCurrency(due)}</p> : <p className="text-[11px] font-semibold text-emerald-600">Paid</p>}
                     </div>
                   </div>
@@ -410,7 +410,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Receivables aging + Top salespeople ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Receivables aging */}
-        <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="lg:col-span-2 p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><ArrowDownCircle className="h-4 w-4 text-amber-500" /> Receivables Aging</h3>
@@ -442,20 +442,20 @@ export const DashboardView: React.FC = () => {
                 ].map((b) => (
                   <div key={b.label} className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className={`h-2 w-2 rounded-full ${b.dot}`} />{b.label}</span>
-                    <p className={`text-sm font-black font-mono mt-1 ${b.tone}`}>{formatCurrency(b.v)}</p>
+                    <p className={`text-sm font-bold font-mono mt-1 ${b.tone}`}>{formatCurrency(b.v)}</p>
                   </div>
                 ))}
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
                 <span className="text-slate-500">Total to collect</span>
-                <span className="font-black font-mono text-slate-900">{formatCurrency(aging.total)}</span>
+                <span className="font-bold font-mono text-slate-900">{formatCurrency(aging.total)}</span>
               </div>
             </>
           )}
         </div>
 
         {/* Top salespeople */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5 mb-1"><Trophy className="h-4 w-4 text-amber-500" /> Top Salespeople</h3>
           <p className="text-[11px] text-slate-500 mb-4">This month · by attributed sales</p>
           {topSalespeople.rows.length === 0 ? (
@@ -464,7 +464,7 @@ export const DashboardView: React.FC = () => {
             <div className="space-y-3">
               {topSalespeople.rows.map((p, idx) => (
                 <div key={p.name} className="flex items-center gap-3">
-                  <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0', idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}>{idx + 1}</span>
+                  <span className={cn('h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0', idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}>{idx + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold text-slate-800 truncate">{p.name}</span>
@@ -494,7 +494,7 @@ export const DashboardView: React.FC = () => {
 
       {/* ---- Branch breakdown (all-branches only) ---- */}
       {isAllBranches && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-200 bg-slate-50/60">
             <h2 className="text-base font-extrabold text-slate-900">Branch Performance</h2>
             <p className="text-xs text-slate-500">This month's sales &amp; stock per branch · click a row to focus</p>
@@ -551,24 +551,18 @@ const TONES: Record<string, string> = {
   cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700', slate: 'bg-slate-100 border-slate-200 text-slate-600',
   amber: 'bg-amber-50 border-amber-200 text-amber-700',
 };
-const ACCENT: Record<string, string> = {
-  blue: 'before:bg-blue-500', indigo: 'before:bg-indigo-500', emerald: 'before:bg-emerald-500',
-  rose: 'before:bg-rose-500', cyan: 'before:bg-cyan-500', slate: 'before:bg-slate-400', amber: 'before:bg-amber-500',
-};
-
 const KpiCard: React.FC<{
   label: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>;
   tone: string; delta?: number; deltaLabel?: string; onClick?: () => void; accent?: boolean;
 }> = ({ label, value, sub, icon: Icon, tone, delta, deltaLabel, onClick, accent }) => (
   <button onClick={onClick} className={cn(
-    'relative overflow-hidden text-left p-4 pt-[18px] rounded-2xl bg-white border shadow-xs transition-all hover:shadow-md hover:-translate-y-0.5',
-    'before:absolute before:top-0 before:left-0 before:right-0 before:h-1', ACCENT[tone] || 'before:bg-slate-300',
+    'text-left p-4 rounded-xl bg-white border shadow-2xs transition-all hover:shadow-xs hover:border-slate-300',
     accent ? 'border-slate-300' : 'border-slate-200')}>
     <div className="flex items-center justify-between">
       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
       <div className={cn('h-7 w-7 rounded-lg border flex items-center justify-center', TONES[tone])}><Icon className="h-3.5 w-3.5" /></div>
     </div>
-    <div className="mt-2 text-lg lg:text-xl font-black text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
+    <div className="mt-2 text-lg lg:text-xl font-bold text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
     <div className="mt-0.5 flex items-center gap-1.5">
       {typeof delta === 'number' && (
         <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>
@@ -585,11 +579,11 @@ const HealthCard: React.FC<{
   label: string; count: number; unit: string; tone: string; hint: string;
   icon: React.ComponentType<{ className?: string }>; onClick?: () => void;
 }> = ({ label, count, unit, tone, hint, icon: Icon, onClick }) => (
-  <button onClick={onClick} className="text-left p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-3.5">
+  <button onClick={onClick} className="text-left p-4 rounded-xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-3.5">
     <div className={cn('h-11 w-11 rounded-xl border flex items-center justify-center shrink-0', TONES[tone])}><Icon className="h-5 w-5" /></div>
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
-        <span className="text-xl font-black text-slate-900">{count}</span>
+        <span className="text-xl font-bold text-slate-900">{count}</span>
         <span className="text-xs text-slate-500 font-semibold">{unit}</span>
       </div>
       <p className="text-xs font-bold text-slate-700">{label}</p>

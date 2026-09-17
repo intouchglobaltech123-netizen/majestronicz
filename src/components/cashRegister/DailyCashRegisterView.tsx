@@ -150,7 +150,7 @@ export const DailyCashRegisterView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner Header */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
             <WalletCards className="h-6 w-6" />
@@ -216,7 +216,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 <Calendar className="h-3.5 w-3.5" />
                 <span>Scheduled Amounts</span>
                 {pendingRecurringCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 text-[11px] font-black rounded-full bg-amber-500 text-white">
+                  <span className="ml-0.5 px-1.5 py-0.2 text-[11px] font-bold rounded-full bg-amber-500 text-white">
                     {pendingRecurringCount}
                   </span>
                 )}
@@ -291,7 +291,7 @@ export const DailyCashRegisterView: React.FC = () => {
           />
 
           {/* Date & Branch Filter Bar */}
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               {/* Date Picker Input */}
               <div className="flex items-center gap-2">
@@ -406,7 +406,7 @@ export const DailyCashRegisterView: React.FC = () => {
 
       {/* Closed Day Information Box */}
       {currentRegister.isClosed && (
-        <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-slate-500 shrink-0" />
             <div>

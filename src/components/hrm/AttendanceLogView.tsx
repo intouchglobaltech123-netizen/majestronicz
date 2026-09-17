@@ -104,7 +104,7 @@ export const AttendanceLogView: React.FC = () => {
       <TodayAttendanceBoard />
 
       {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         {/* Month Selector & Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div>
@@ -176,7 +176,7 @@ export const AttendanceLogView: React.FC = () => {
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Recorded Shifts</p>
-            <p className="text-lg font-black text-slate-900 font-mono">{totalShifts} Days Present</p>
+            <p className="text-lg font-bold text-slate-900 font-mono">{totalShifts} Days Present</p>
           </div>
         </div>
 
@@ -186,7 +186,7 @@ export const AttendanceLogView: React.FC = () => {
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Hours Worked</p>
-            <p className="text-lg font-black text-slate-900 font-mono">{totalHours.toFixed(1)} hrs</p>
+            <p className="text-lg font-bold text-slate-900 font-mono">{totalHours.toFixed(1)} hrs</p>
           </div>
         </div>
 
@@ -196,13 +196,13 @@ export const AttendanceLogView: React.FC = () => {
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Average Shift</p>
-            <p className="text-lg font-black text-slate-900 font-mono">{averageHoursPerShift} hrs/day</p>
+            <p className="text-lg font-bold text-slate-900 font-mono">{averageHoursPerShift} hrs/day</p>
           </div>
         </div>
       </div>
 
       {/* Attendance Log Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>

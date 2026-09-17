@@ -74,7 +74,7 @@ export const HrmView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               Attendance
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -108,31 +108,31 @@ export const HrmView: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Attendance rate today */}
-        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${attendanceRate >= 80 ? 'bg-emerald-50/50 border-emerald-200' : attendanceRate >= 50 ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${attendanceRate >= 80 ? 'bg-emerald-50/50 border-emerald-200' : attendanceRate >= 50 ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
           <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
             <Percent className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Attendance Today</p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{attendanceRate}%</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">{attendanceRate}%</p>
             <p className="text-[11px] text-slate-500 mt-0.5">{presentToday}/{activeStaff.length} present</p>
           </div>
         </div>
 
         {/* Absent today */}
-        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${absentToday > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${absentToday > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
           <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
             <UserX className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Not Clocked In</p>
-            <p className={`text-lg sm:text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${absentToday > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{absentToday}</p>
+            <p className={`text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 ${absentToday > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{absentToday}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">{absentToday > 0 ? 'Yet to check in today' : 'Everyone is in'}</p>
           </div>
         </div>
 
         {/* Active Staff */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60 font-bold">
             <Users className="h-5 w-5" />
           </div>
@@ -140,7 +140,7 @@ export const HrmView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Enrolled Staff
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {activeStaff.length} Employees
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">Across 3 branches</p>
@@ -148,7 +148,7 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Today's Check-Ins */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60 font-bold">
             <CheckCircle2 className="h-5 w-5" />
           </div>
@@ -156,7 +156,7 @@ export const HrmView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Today's Attendance
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-emerald-700 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-emerald-700 truncate font-mono mt-0.5">
               {todayCheckIns.length} Checked In
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -166,7 +166,7 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Monthly Hours Worked */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60 font-bold">
             <Clock className="h-5 w-5" />
           </div>
@@ -174,7 +174,7 @@ export const HrmView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Labor Hours (Sep)
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {monthLaborHours.toFixed(1)} hrs
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">Sum of verified shifts</p>
@@ -182,7 +182,7 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Monthly Payroll */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/60 font-bold">
             <DollarSign className="h-5 w-5" />
           </div>
@@ -190,7 +190,7 @@ export const HrmView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Payroll Expense
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {formatCurrency(Math.round(monthPayrollExpense))}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">Attendance computed net pay</p>

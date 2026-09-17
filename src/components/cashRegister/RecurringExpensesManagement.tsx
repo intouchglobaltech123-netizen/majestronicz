@@ -169,10 +169,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     <div className="space-y-6">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Total Scheduled Amounts</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 mt-1 block">
+            <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 mt-1 block">
               {stats.totalTemplates}
             </span>
             <span className="text-[11px] text-slate-400">Configured expenses</span>
@@ -182,10 +182,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Monthly Commitment</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 mt-1 block">
+            <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 mt-1 block">
               {formatCurrency(stats.monthlyCommitment)}
             </span>
             <span className="text-[11px] text-slate-400">Sum of defaults</span>
@@ -195,10 +195,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Approved for {currentMonthKey}</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-700 mt-1 block">
+            <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 mt-1 block">
               {stats.approvedCount} / {stats.totalTemplates}
             </span>
             <span className="text-[11px] text-emerald-600 font-medium">Logged in Cash Register</span>
@@ -208,10 +208,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Action Due / Overdue</span>
-            <span className={`text-xl sm:text-2xl font-black font-mono mt-1 block ${
+            <span className={`text-xl sm:text-2xl font-bold font-mono mt-1 block ${
               stats.pendingActionCount > 0 ? 'text-amber-700' : 'text-slate-900'
             }`}>
               {stats.pendingActionCount}
@@ -229,7 +229,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       </div>
 
       {/* Action & Filter Toolbar */}
-      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
             <Building className="h-3.5 w-3.5 text-blue-600" />
@@ -262,7 +262,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       </div>
 
       {/* Templates Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-sm font-extrabold text-slate-900">
@@ -330,7 +330,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 text-sm">
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
                         {formatCurrency(template.defaultAmount)}
                       </td>
 
@@ -433,7 +433,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       {/* Add / Edit Scheduled Amount Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">

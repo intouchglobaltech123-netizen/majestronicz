@@ -65,7 +65,7 @@ export const PurchaseManagementView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               Purchases
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -101,31 +101,31 @@ export const PurchaseManagementView: React.FC = () => {
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* To Pay (payables) */}
-        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${totalPayable > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${totalPayable > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
           <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
             <Wallet className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To Pay (Suppliers)</p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Outstanding supplier dues</p>
           </div>
         </div>
 
         {/* This month spend */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200/60">
             <IndianRupee className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Purchases This Month</p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Ordered value this month</p>
           </div>
         </div>
 
         {/* Active POs */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60">
             <ShoppingBag className="h-5 w-5" />
           </div>
@@ -133,7 +133,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Open Purchase Orders
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {formatCurrency(activeOrdersValue)}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -143,7 +143,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Overdue Shipments */}
-        <div className={`p-4 rounded-2xl border shadow-2xs flex items-center gap-3.5 ${
+        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${
           overdueOrders.length > 0
             ? 'bg-rose-50/60 border-rose-200'
             : 'bg-white border-slate-200'
@@ -159,7 +159,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Overdue Shipments
             </p>
-            <p className={`text-lg sm:text-2xl lg:text-3xl font-black truncate font-mono mt-0.5 ${
+            <p className={`text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 ${
               overdueOrders.length > 0 ? 'text-rose-700' : 'text-slate-900'
             }`}>
               {overdueOrders.length}
@@ -171,7 +171,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Inward Units Pending */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
             <PackageCheck className="h-5 w-5" />
           </div>
@@ -179,7 +179,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Units Inward Pending
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {pendingUnitsInward} units
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -189,7 +189,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Registered Suppliers */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/60">
             <Building2 className="h-5 w-5" />
           </div>
@@ -197,7 +197,7 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Suppliers
             </p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 truncate font-mono mt-0.5">
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {vendors.length} Suppliers
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">

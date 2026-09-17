@@ -219,7 +219,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
   return (
     <div className="space-y-6">
       {/* Top Header with CSV Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <Boxes className="h-5 w-5 text-blue-600" />
@@ -296,7 +296,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
 
       {/* Branch-Wise Valuation Breakdown (When "All Branches") */}
       {branchScope === 'all' && (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Building className="h-4 w-4 text-blue-600" />
@@ -345,7 +345,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       )}
 
       {/* Item-level Valuation Schedule */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
           <div className="relative w-full sm:w-72">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

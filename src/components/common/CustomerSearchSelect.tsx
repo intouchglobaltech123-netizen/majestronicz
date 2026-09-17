@@ -374,7 +374,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 
       {/* Dropdown Popup */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-80 flex flex-col">
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-80 flex flex-col">
           {/* Search Header inside dropdown */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
             <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
@@ -509,7 +509,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {/* Inline Quick Add Customer Modal */}
       {isQuickAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -659,7 +659,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-700">
+                <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
                   <Building2 className="h-6 w-6" />
                 </div>
                 <div>
@@ -696,7 +696,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
                 <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Balance Due</span>
                 <span className={cn(
-                  "text-lg font-black font-mono block",
+                  "text-lg font-bold font-mono block",
                   selectedCustomerOutstanding.totalOutstanding > 0 ? "text-amber-900" : "text-emerald-700"
                 )}>
                   {formatCurrency(selectedCustomerOutstanding.totalOutstanding)}
@@ -711,7 +711,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             </div>
 
             {/* Invoices List */}
-            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-100 rounded-2xl p-2 bg-slate-50/40">
+            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-100 rounded-xl p-2 bg-slate-50/40">
               {selectedCustomerInvoices.length > 0 ? (
                 selectedCustomerInvoices.map((inv) => (
                   <div

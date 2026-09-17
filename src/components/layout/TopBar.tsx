@@ -230,7 +230,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           >
             <Bell className="h-4 w-4" />
             {totalAlertCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-600 text-white font-mono font-black text-[11px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
+              <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-600 text-white font-mono font-bold text-[11px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
                 {totalAlertCount}
               </span>
             )}
@@ -239,7 +239,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           {/* Interactive Notifications Popover — full-width sheet on mobile,
               anchored dropdown on >= sm */}
           {isNotificationsOpen && (
-            <div className="fixed left-3 right-3 top-[4.25rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed left-3 right-3 top-[4.25rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Popover Header */}
               <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -530,8 +530,8 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
       {/* Logout confirmation */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowLogoutConfirm(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
+          <div className="w-full max-w-sm rounded-xl bg-white border border-slate-200 shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="h-12 w-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
               <LogOut className="h-6 w-6" />
             </div>
             <h2 className="text-base font-extrabold text-slate-900">Sign out?</h2>

@@ -185,14 +185,14 @@ export const ItemMasterView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner: Catalog Pricing & Stock Callout */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
             {isAllBranches ? <Layers className="h-5 w-5" /> : <Building className="h-5 w-5" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
               </h1>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -246,12 +246,12 @@ export const ItemMasterView: React.FC = () => {
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'Total Combos' : 'Total Items'}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos' ? combos.length : stats.totalItems}
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -263,12 +263,12 @@ export const ItemMasterView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'In-Stock Combos' : 'Avg. Sale Price'}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight font-mono mt-1">
               {activeMainTab === 'combos'
                 ? combos.filter((c) => getComboAvailability(c, currentBranch) > 0).length
                 : formatCurrency(stats.avgPrice)}
@@ -284,12 +284,12 @@ export const ItemMasterView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {isAllBranches ? 'Total Available Stock' : `Stock (${currentBranchData?.name})`}
             </span>
-            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-black text-blue-700 tracking-tight font-mono mt-1">
+            <div className="text-xl sm:text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-700 tracking-tight font-mono mt-1">
               {stats.totalStockInScope} Units
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -308,7 +308,7 @@ export const ItemMasterView: React.FC = () => {
           type="button"
           onClick={() => setActiveMainTab('products')}
           className={cn(
-            'flex items-center gap-2 px-5 py-3 text-xs font-black border-b-2 transition-all cursor-pointer',
+            'flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer',
             activeMainTab === 'products'
               ? 'border-blue-600 text-blue-700 bg-white shadow-2xs rounded-t-xl'
               : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/60 rounded-t-xl'
@@ -332,7 +332,7 @@ export const ItemMasterView: React.FC = () => {
           type="button"
           onClick={() => setActiveMainTab('combos')}
           className={cn(
-            'flex items-center gap-2 px-5 py-3 text-xs font-black border-b-2 transition-all cursor-pointer',
+            'flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer',
             activeMainTab === 'combos'
               ? 'border-purple-600 text-purple-700 bg-white shadow-2xs rounded-t-xl'
               : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/60 rounded-t-xl'
@@ -357,7 +357,7 @@ export const ItemMasterView: React.FC = () => {
       {activeMainTab === 'products' && (
         <>
           {/* Action Bar: Search, Category Filter Pills, & Add Item */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search bar */}
               <div className="relative flex-1 max-w-md">
@@ -455,7 +455,7 @@ export const ItemMasterView: React.FC = () => {
           </div>
 
           {/* Main Item Master Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -574,7 +574,7 @@ export const ItemMasterView: React.FC = () => {
                           <td className="py-3.5 px-4">
                             <div>
                               <div className="flex items-baseline gap-1.5">
-                                <span className="font-black text-sm text-slate-900">
+                                <span className="font-bold text-sm text-slate-900">
                                   {formatCurrency(item.salePrice)}
                                 </span>
                                 <span className="text-[11px] text-slate-500">
@@ -615,7 +615,7 @@ export const ItemMasterView: React.FC = () => {
                           <td className="py-3.5 px-4 bg-blue-50/40 border-x border-blue-100">
                             <div className="flex flex-col">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-black text-sm text-slate-900">
+                                <span className="font-bold text-sm text-slate-900">
                                   {qty} {item.unit}
                                 </span>
                                 <span className="text-slate-300 text-xs font-normal">·</span>
@@ -738,7 +738,7 @@ export const ItemMasterView: React.FC = () => {
       {activeMainTab === 'combos' && (
         <>
           {/* Action Bar for Combos */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search bar */}
               <div className="relative flex-1 max-w-md">
@@ -788,7 +788,7 @@ export const ItemMasterView: React.FC = () => {
           </div>
 
           {/* Combos Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
@@ -938,7 +938,7 @@ export const ItemMasterView: React.FC = () => {
 
                           {/* Pricing & Savings */}
                           <td className="py-3.5 px-4 text-right">
-                            <div className="font-mono font-black text-slate-900 text-sm">
+                            <div className="font-mono font-bold text-slate-900 text-sm">
                               {formatCurrency(combo.comboPrice)}
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center justify-end gap-1.5 mt-0.5">

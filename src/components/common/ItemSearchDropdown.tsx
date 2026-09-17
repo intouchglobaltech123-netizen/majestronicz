@@ -283,7 +283,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                 {/* SECTION 1: PRODUCTS */}
                 {filteredProducts.length > 0 && (
                   <div>
-                    <div className="bg-slate-100/90 px-3 py-1 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
+                    <div className="bg-slate-100/90 px-3 py-1 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
                       <div className="flex items-center gap-1.5">
                         <Package className="h-3 w-3 text-blue-600" />
                         <span>Products ({filteredProducts.length})</span>
@@ -429,7 +429,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                 {/* SECTION 2: COMBOS */}
                 {includeCombos && filteredCombos.length > 0 && (
                   <div>
-                    <div className="bg-purple-50 px-3 py-1 border-y border-purple-200 text-[11px] font-black text-purple-800 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
+                    <div className="bg-purple-50 px-3 py-1 border-y border-purple-200 text-[11px] font-bold text-purple-800 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10">
                       <div className="flex items-center gap-1.5">
                         <Layers className="h-3 w-3 text-purple-600" />
                         <span>Combos & Bundles ({filteredCombos.length})</span>

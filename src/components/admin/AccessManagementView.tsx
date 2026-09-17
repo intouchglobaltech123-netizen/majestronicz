@@ -55,7 +55,7 @@ export const AccessManagementView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="h-12 w-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
             <ShieldCheck className="h-6 w-6" />
@@ -87,7 +87,7 @@ export const AccessManagementView: React.FC = () => {
       </div>
 
       {/* CEO locked card */}
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 flex items-center gap-3">
+      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 flex items-center gap-3">
         <Lock className="h-4 w-4 text-amber-600" />
         <p className="text-xs font-semibold text-amber-800">
           CEO ({roleName('CEO')}) always retains full access and cannot be restricted.
@@ -129,7 +129,7 @@ export const AccessManagementView: React.FC = () => {
         );
 
         const Section = ({ icon: Icon, title, hint, children }: { icon: React.ComponentType<{ className?: string }>; title: string; hint?: string; children: React.ReactNode }) => (
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
             <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
               <Icon className="h-4 w-4 text-slate-500" />
               <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{title}</span>
@@ -142,7 +142,7 @@ export const AccessManagementView: React.FC = () => {
         return (
           <div className="space-y-5">
             {/* Role picker */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Editing role</span>
               </div>

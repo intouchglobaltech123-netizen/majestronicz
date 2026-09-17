@@ -207,13 +207,13 @@ export const PartiesView: React.FC = () => {
 
       {/* KPI summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 shadow-2xs flex items-center gap-3.5">
+        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/60">
             <ArrowDownLeft className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total To Collect</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-700 truncate mt-0.5">{formatCurrency(totalReceivable)}</p>
+            <p className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 truncate mt-0.5">{formatCurrency(totalReceivable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {unassignedReceivable > 0.5
                 ? `${formatCurrency(unassignedReceivable)} on unlinked bills`
@@ -221,30 +221,30 @@ export const PartiesView: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/50 shadow-2xs flex items-center gap-3.5">
+        <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/50 shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200/60">
             <ArrowUpRight className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total To Pay</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-rose-700 truncate mt-0.5">{formatCurrency(totalPayable)}</p>
+            <p className="text-xl sm:text-2xl font-bold font-mono text-rose-700 truncate mt-0.5">{formatCurrency(totalPayable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Payable to suppliers</p>
           </div>
         </div>
-        <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs flex items-center gap-3.5">
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs flex items-center gap-3.5">
           <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200/60">
             <Users className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Parties</p>
-            <p className="text-xl sm:text-2xl font-black font-mono text-slate-900 truncate mt-0.5">{parties.length}</p>
+            <p className="text-xl sm:text-2xl font-bold font-mono text-slate-900 truncate mt-0.5">{parties.length}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">{customerCount} customers · {supplierCount} suppliers</p>
           </div>
         </div>
       </div>
 
       {/* Search + filter */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
@@ -271,7 +271,7 @@ export const PartiesView: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
@@ -343,7 +343,7 @@ export const PartiesView: React.FC = () => {
                       <td className="py-3.5 px-4 text-right">
                         {balance > 0 ? (
                           <div>
-                            <span className={`font-black font-mono text-sm ${isCustomer ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            <span className={`font-bold font-mono text-sm ${isCustomer ? 'text-emerald-700' : 'text-rose-700'}`}>
                               {formatCurrency(balance)}
                             </span>
                             <div className={`text-[11px] font-semibold ${isCustomer ? 'text-emerald-600' : 'text-rose-600'}`}>

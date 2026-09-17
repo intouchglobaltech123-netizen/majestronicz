@@ -101,7 +101,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2.5">
@@ -148,7 +148,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 type="button"
                 onClick={() => setCustomerType('Retail')}
                 className={cn(
-                  'p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  'p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer',
                   customerType === 'Retail'
                     ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-100 text-blue-950 shadow-xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -177,7 +177,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 type="button"
                 onClick={() => setCustomerType('Organization')}
                 className={cn(
-                  'p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  'p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer',
                   customerType === 'Organization'
                     ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-100 text-purple-950 shadow-xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'

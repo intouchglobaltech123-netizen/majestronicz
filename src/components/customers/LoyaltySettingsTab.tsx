@@ -79,7 +79,7 @@ export const LoyaltySettingsTab: React.FC = () => {
           </span>
         </div>
 
-        <div className="text-xl sm:text-2xl font-black tracking-tight">{currentRuleText}</div>
+        <div className="text-xl sm:text-2xl font-bold tracking-tight">{currentRuleText}</div>
 
         <p className="text-xs text-amber-100/90 leading-relaxed max-w-2xl">
           Rules apply globally across all branches in real-time. When a customer reaches this
@@ -89,7 +89,7 @@ export const LoyaltySettingsTab: React.FC = () => {
 
       {/* Permission Warning for Billing Role */}
       {!canManageLoyalty && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-3 text-xs">
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-3 text-xs">
           <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
           <span>
             <strong>View Only:</strong> Only CEO Sathish Kumar or Branch Managers have permission to
@@ -117,7 +117,7 @@ export const LoyaltySettingsTab: React.FC = () => {
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Program Status Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div>
               <span className="text-xs font-bold text-slate-900 block">
                 Enable Customer Loyalty Engine
@@ -229,7 +229,7 @@ export const LoyaltySettingsTab: React.FC = () => {
             </div>
 
             {/* Example Preview Card */}
-            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-1.5 flex flex-col justify-center">
+            <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-1.5 flex flex-col justify-center">
               <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
                 <Zap className="h-3.5 w-3.5 text-blue-600" />
                 Live Example

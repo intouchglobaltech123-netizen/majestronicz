@@ -167,7 +167,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -409,7 +409,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
 
             <div className="text-right font-mono">
-              <div className="text-xl sm:text-2xl font-black text-emerald-700">
+              <div className="text-xl sm:text-2xl font-bold text-emerald-700">
                 {formatCurrency(totalRefundAmount)}
               </div>
               <span className="text-[11px] text-slate-400">

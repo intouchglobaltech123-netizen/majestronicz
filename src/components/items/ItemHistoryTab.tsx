@@ -318,12 +318,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
   return (
     <div className="space-y-5">
       {/* PRODUCT OVERVIEW & LARGE IMAGE PREVIEW */}
-      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <ItemImage
             src={item.imageUrl}
             alt={item.itemName}
-            className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl shadow-xs border border-slate-200 bg-white"
+            className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl shadow-xs border border-slate-200 bg-white"
             iconClassName="h-8 w-8 text-slate-400"
             fallbackIcon="boxes"
           />
@@ -337,11 +337,11 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               </span>
               <span className="text-[11px] text-slate-400">• HSN: {item.itemHSN}</span>
             </div>
-            <h3 className="text-base font-black text-slate-900 mt-1">
+            <h3 className="text-base font-bold text-slate-900 mt-1">
               {item.itemName}
             </h3>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-sm font-black text-blue-700">
+              <span className="text-sm font-bold text-blue-700">
                 {formatCurrency(item.salePrice)}
               </span>
               <span className="text-[11px] text-slate-500 font-medium">
@@ -371,11 +371,11 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       </div>
 
       {/* BRANCH PHYSICAL SHELF LOCATIONS & STOCK CARD */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-blue-600" />
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
               Branch Stock & Shelf Locations (Rack / Row)
             </h4>
           </div>
@@ -426,7 +426,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                       Stock
                     </span>
-                    <span className="text-sm font-black font-mono text-slate-900">
+                    <span className="text-sm font-bold font-mono text-slate-900">
                       {qty}{' '}
                       <span className="text-[11px] font-semibold text-slate-500">
                         {item.unit}
@@ -452,7 +452,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               <ShoppingBag className="h-4 w-4 text-blue-600" />
             </div>
             <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-xl font-black text-blue-950 font-mono">
+              <span className="text-xl font-bold text-blue-950 font-mono">
                 {summaryStats.totalPurchased}
               </span>
               <span className="text-[11px] font-bold text-blue-700">{item.unit}</span>
@@ -470,7 +470,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <Receipt className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-xl font-black text-emerald-950 font-mono">
+            <span className="text-xl font-bold text-emerald-950 font-mono">
               {summaryStats.totalSold}
             </span>
             <span className="text-[11px] font-bold text-emerald-700">{item.unit}</span>
@@ -487,7 +487,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <Building className="h-4 w-4 text-blue-600" />
           </div>
           <div className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-xl font-black text-slate-900 font-mono">
+            <span className="text-xl font-bold text-slate-900 font-mono">
               {summaryStats.combinedStock}
             </span>
             <span className="text-[11px] font-semibold text-slate-500">{item.unit}</span>
@@ -1039,7 +1039,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       {/* ADJUSTMENT DETAIL POPUP (IF CLICKED) */}
       {selectedAdjustment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-5 space-y-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-md p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="h-5 w-5 text-blue-600" />

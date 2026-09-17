@@ -114,7 +114,7 @@ export const PayrollSummaryView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div className="flex flex-wrap items-center gap-3">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
@@ -179,35 +179,35 @@ export const PayrollSummaryView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
             <DollarSign className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Net Payable</p>
-            <p className="text-xl font-black text-slate-900 font-mono mt-0.5">{formatCurrency(totalGrossPayable)}</p>
+            <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{formatCurrency(totalGrossPayable)}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">{selectedMonth} Payroll Disbursal</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
             <Clock className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Recorded Labor Hours</p>
-            <p className="text-xl font-black text-slate-900 font-mono mt-0.5">{totalHoursWorkedSum.toFixed(1)} hrs</p>
+            <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{totalHoursWorkedSum.toFixed(1)} hrs</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Sum of all verified shift durations</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
             <CreditCard className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Disbursement Status</p>
-            <p className="text-xl font-black text-slate-900 font-mono mt-0.5">
+            <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">
               {paidCount} Paid <span className="text-slate-400 text-sm font-normal">/ {pendingCount} Draft</span>
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">Approved vs Pending Payment</p>
@@ -216,7 +216,7 @@ export const PayrollSummaryView: React.FC = () => {
       </div>
 
       {/* Payroll Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
@@ -342,7 +342,7 @@ export const PayrollSummaryView: React.FC = () => {
                       </td>
 
                       {/* Final Net Payable */}
-                      <td className="py-3.5 px-4 text-right font-mono font-black text-blue-700 text-base">
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-blue-700 text-base">
                         {formatCurrency(row.finalPayable)}
                       </td>
 
@@ -406,7 +406,7 @@ export const PayrollSummaryView: React.FC = () => {
       {/* Manual Adjustment Modal */}
       {adjustmentTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">
                 Adjust Pay: {adjustmentTarget.employee.name}
@@ -483,7 +483,7 @@ export const PayrollSummaryView: React.FC = () => {
       {/* Mark As Paid Modal */}
       {markPaidTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Mark Payroll Disbursed</h3>

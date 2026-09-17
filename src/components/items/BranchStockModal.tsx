@@ -17,7 +17,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col text-slate-900">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col text-slate-900">
         {/* Header */}
         <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
@@ -50,7 +50,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
             <div>
               <span className="text-xs font-semibold text-slate-500 block">Master Static Price:</span>
-              <span className="text-lg font-black text-slate-900">
+              <span className="text-lg font-bold text-slate-900">
                 {formatCurrency(item.salePrice)}
               </span>
               <span className="text-[11px] text-slate-500 ml-1.5">
@@ -105,7 +105,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
                       )}
                     </div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-xl sm:text-2xl font-black text-slate-900">{qty}</span>
+                      <span className="text-xl sm:text-2xl font-bold text-slate-900">{qty}</span>
                       <span className="text-xs font-semibold text-slate-600">{item.unit}</span>
                     </div>
                     <div className="pt-1">
@@ -134,7 +134,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-blue-600" />
               <div>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   Total (All Branches)
                 </h4>
                 <p className="text-[11px] text-slate-500">
@@ -143,7 +143,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
               </div>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
+              <span className="text-xl sm:text-2xl font-bold text-blue-700 font-mono">
                 {BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0)}
               </span>
               <span className="text-xs font-bold text-blue-900">{item.unit}</span>

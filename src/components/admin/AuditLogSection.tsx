@@ -33,7 +33,7 @@ export const AuditLogSection: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
       <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">

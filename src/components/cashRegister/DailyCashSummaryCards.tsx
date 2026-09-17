@@ -79,7 +79,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
               Drawer Physical Cash (Closing Balance)
             </h2>
-            <div className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-blue-600 mt-1">
+            <div className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-blue-600 mt-1">
               {formatCurrency(closingBalance)}
             </div>
 
@@ -98,7 +98,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
                 ₹{cashExpenses.toLocaleString('en-IN')} (Cash Exp)
               </span>
               <span className="text-slate-400 font-bold">=</span>
-              <span className="font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+              <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                 ₹{closingBalance.toLocaleString('en-IN')} In Drawer
               </span>
             </div>
@@ -107,7 +107,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </p>
           </div>
 
-          <div className="hidden lg:flex items-center justify-center p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-blue-600 shrink-0">
+          <div className="hidden lg:flex items-center justify-center p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-blue-600 shrink-0">
             <WalletCards className="w-16 h-16 opacity-80" />
           </div>
         </div>
@@ -148,7 +148,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
       {/* CONSOLIDATED ROW OF 5 AUDIT STAT CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Opening Amount */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Opening Amount</span>
             <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
@@ -156,7 +156,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               {formatCurrency(openingAmount)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -185,7 +185,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
         </div>
 
         {/* Card 2: Cash Sales (Physical Inflow) */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Cash Sales (Drawer Inflow)</span>
             <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
@@ -193,7 +193,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-emerald-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-bold text-emerald-700 tracking-tight">
               +{formatCurrency(cashSales)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -207,7 +207,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
         </div>
 
         {/* Card 3: Total Day Expenses */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Day Expenses</span>
             <div className="h-8 w-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
@@ -215,7 +215,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-rose-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-bold text-rose-700 tracking-tight">
               -{formatCurrency(totalExpenses)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -229,7 +229,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
         </div>
 
         {/* Card 4: COD / Credit Sales */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">COD / Credit Sales</span>
             <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
@@ -237,7 +237,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-indigo-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-bold text-indigo-900 tracking-tight">
               {formatCurrency(creditTotal)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -251,7 +251,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
         </div>
 
         {/* Card 5: Digital / Bank Total */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Digital / Bank Total</span>
             <div className="h-8 w-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
@@ -259,7 +259,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">
+            <div className="text-xl sm:text-2xl font-bold text-purple-700 tracking-tight">
               {formatCurrency(bankDigitalTotal)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">

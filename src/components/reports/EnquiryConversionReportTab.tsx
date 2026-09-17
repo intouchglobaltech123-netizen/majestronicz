@@ -171,7 +171,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Top Header with CSV Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-600" />
@@ -241,7 +241,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
       </div>
 
       {filteredEnquiries.length === 0 ? (
-        <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="p-10 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No enquiries found for this range</h3>
           <p className="text-xs text-slate-400 mt-1">
@@ -250,7 +250,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
         </div>
       ) : (
         /* Enquiry Status Distribution Visual */
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
             Pipeline Conversion Progress
           </h3>
@@ -295,7 +295,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
       )}
 
       {/* Currently Open Pending Orders */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-amber-600" />

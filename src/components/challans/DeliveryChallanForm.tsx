@@ -259,7 +259,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Form Action Header Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-11 w-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
             <Truck className="h-5 w-5" />
@@ -311,7 +311,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
       </div>
 
       {/* Main Form Fields */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
         {/* Recipient & Document Metadata Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           {/* Delivery Challan For (Span 7) */}
@@ -581,7 +581,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                         onChange={(e) =>
                           updateLineItem(row.id, { quantity: Math.max(1, Number(e.target.value) || 1) })
                         }
-                        className="w-full px-2 py-1.5 text-right font-black font-mono rounded-lg border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-blue-600"
+                        className="w-full px-2 py-1.5 text-right font-bold font-mono rounded-lg border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-blue-600"
                       />
                     </td>
 
@@ -622,7 +622,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   <td colSpan={3} className="py-2.5 px-3 text-right text-xs uppercase tracking-wider text-slate-600">
                     Total Quantity:
                   </td>
-                  <td className="py-2.5 px-3 text-right text-sm font-black font-mono text-blue-700">
+                  <td className="py-2.5 px-3 text-right text-sm font-bold font-mono text-blue-700">
                     {totalQuantity}
                   </td>
                   <td className="py-2.5 px-3 text-center text-xs text-blue-700 font-bold">

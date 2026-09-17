@@ -70,7 +70,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
   return (
     <div className="space-y-4">
       {/* Control Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -111,7 +111,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
       </div>
 
       {/* Employee Directory Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>

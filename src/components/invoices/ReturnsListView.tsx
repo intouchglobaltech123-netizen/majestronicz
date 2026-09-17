@@ -90,7 +90,7 @@ export const ReturnsListView: React.FC<Props> = ({
     <div className="space-y-4">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
             <RotateCcw className="h-5 w-5" />
           </div>
@@ -107,7 +107,7 @@ export const ReturnsListView: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200">
             <Receipt className="h-5 w-5" />
           </div>
@@ -124,7 +124,7 @@ export const ReturnsListView: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200">
             <Package className="h-5 w-5" />
           </div>
@@ -143,7 +143,7 @@ export const ReturnsListView: React.FC<Props> = ({
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -175,7 +175,7 @@ export const ReturnsListView: React.FC<Props> = ({
       </div>
 
       {/* Returns Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         <div className="px-6 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
@@ -316,7 +316,7 @@ export const ReturnsListView: React.FC<Props> = ({
 
                       {/* 5. Return Amount */}
                       <td className="py-3.5 px-4 text-right font-mono">
-                        <span className="font-black text-sm text-rose-700 block">
+                        <span className="font-bold text-sm text-rose-700 block">
                           {formatCurrency(inv.totalReturnedAmount || 0)}
                         </span>
                         <span className="text-[11px] text-slate-400">Refund value</span>

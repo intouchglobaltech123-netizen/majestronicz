@@ -146,7 +146,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Header Bar (Matching Sales PDF Modal pattern) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
           <div className="flex items-center flex-wrap gap-2.5">
@@ -181,7 +181,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
 
         {/* Scrollable Printable Document Container */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-4 sm:p-6 space-y-6 print:p-0">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs print:border-none print:shadow-none space-y-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs print:border-none print:shadow-none space-y-6">
             {/* 1. Header with Company Profile & Document Meta */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-slate-200">
               <div className="space-y-2">
@@ -196,10 +196,10 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               </div>
 
               <div className="sm:text-right space-y-1.5 shrink-0 bg-slate-50 sm:bg-transparent p-4 sm:p-0 rounded-xl">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
                   Customer Requirement Record
                 </span>
-                <h2 className="text-xl sm:text-2xl font-black font-mono text-blue-700">
+                <h2 className="text-xl sm:text-2xl font-bold font-mono text-blue-700">
                   {enquiry.enquiryNumber}
                 </h2>
                 <div className="text-xs text-slate-600 font-mono space-y-0.5">
@@ -267,7 +267,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       </span>
                     ) : (
                       <span className={cn(
-                        'text-sm font-black font-mono px-2 py-0.5 rounded border inline-block mt-0.5',
+                        'text-sm font-bold font-mono px-2 py-0.5 rounded border inline-block mt-0.5',
                         hasSufficientStock
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -367,7 +367,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-600">
                         {enquiry.unit}
                       </td>
-                      <td className="py-3.5 px-4 text-center font-mono font-black text-sm text-slate-900">
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-sm text-slate-900">
                         {enquiry.quantity}
                       </td>
                       <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">
@@ -398,7 +398,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             </div>
 
             {/* 4. Related Records Section (Clean, dedicated cross-links) */}
-            <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-100 space-y-3">
+            <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 text-blue-600" />

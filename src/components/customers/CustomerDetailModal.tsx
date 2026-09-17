@@ -126,7 +126,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             <div className="flex items-start gap-3.5">
               <div
                 className={cn(
-                  'w-12 h-12 rounded-2xl text-white flex items-center justify-center font-extrabold text-lg shadow-sm',
+                  'w-12 h-12 rounded-xl text-white flex items-center justify-center font-extrabold text-lg shadow-sm',
                   (currentCustomer.customerType || 'Retail') === 'Organization'
                     ? 'bg-gradient-to-br from-purple-600 to-indigo-700'
                     : 'bg-gradient-to-br from-blue-600 to-indigo-700'
@@ -232,7 +232,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           {/* Quick Metrics & Loyalty Card */}
           <div className="p-6 border-b border-slate-100 bg-white grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Purchase Count */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'Total Orders' : 'Total Purchases'}
               </span>
@@ -248,7 +248,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             </div>
 
             {/* Lifetime Revenue */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Lifetime Revenue
               </span>
@@ -262,7 +262,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
             {/* Outstanding Balance KPI Card */}
             <div className={cn(
-              "p-4 rounded-2xl border transition-all",
+              "p-4 rounded-xl border transition-all",
               outstandingSummary.totalOutstanding > 0
                 ? "bg-amber-50/80 border-amber-200 shadow-2xs"
                 : "bg-slate-50 border-slate-100"
@@ -279,7 +279,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 )}
               </div>
               <div className={cn(
-                "text-xl font-black mt-1 font-mono",
+                "text-xl font-bold mt-1 font-mono",
                 outstandingSummary.totalOutstanding > 0 ? "text-amber-950" : "text-emerald-700"
               )}>
                 {formatCurrency(outstandingSummary.totalOutstanding)}
@@ -296,7 +296,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
             {/* Loyalty Milestone Status or Organization Info */}
             {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 flex flex-col justify-between">
+              <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Building2 className="h-4 w-4 text-purple-600" />
@@ -319,7 +319,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="md:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
+              <div className="md:col-span-2 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-amber-600" />
@@ -427,7 +427,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
             {/* Invoices Table */}
             {filteredInvoices.length > 0 ? (
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -549,7 +549,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 </table>
               </div>
             ) : (
-              <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+              <div className="py-12 text-center bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
                 <Receipt className="h-8 w-8 text-slate-300 mx-auto" />
                 <p className="text-xs font-semibold text-slate-600">
                   {searchInvoiceQuery
@@ -576,7 +576,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <Wallet className="h-4 w-4 text-emerald-600" />
                   <span>Payments Received ({customerPayments.length})</span>
                 </h3>
-                <div className="rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                <div className="rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
                   {customerPayments.map((p) => (
                     <div key={p.id} className="flex items-center justify-between px-4 py-2.5 gap-3 hover:bg-slate-50/60">
                       <div className="flex items-center gap-3 min-w-0">
@@ -593,7 +593,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-black text-emerald-700 font-mono">{formatCurrency(p.amount)}</span>
+                        <span className="text-sm font-bold text-emerald-700 font-mono">{formatCurrency(p.amount)}</span>
                         {canRecordPayment && (
                           <button
                             type="button"

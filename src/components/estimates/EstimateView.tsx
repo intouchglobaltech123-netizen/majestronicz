@@ -162,24 +162,24 @@ export const EstimateView: React.FC = () => {
 
       {/* Quote metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Quotes</span>
-          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{quoteStats.count}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{quoteStats.count}</p>
           <span className="text-[11px] text-slate-400">{isAllBranches ? 'All branches' : currentBranchData?.name}</span>
         </div>
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quoted Value</span>
-          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.totalValue)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.totalValue)}</p>
           <span className="text-[11px] text-slate-400">Across all quotes</span>
         </div>
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50/60 to-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
-          <p className="text-xl sm:text-2xl font-black text-indigo-700 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-indigo-700 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
           <span className="text-[11px] text-slate-400">{quoteStats.monthCount} quote{quoteStats.monthCount === 1 ? '' : 's'}</span>
         </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Avg Quote</span>
-          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.avgValue)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.avgValue)}</p>
           <span className="text-[11px] text-slate-400">Per quotation</span>
         </div>
       </div>
@@ -196,7 +196,7 @@ export const EstimateView: React.FC = () => {
         /* ESTIMATE HISTORY TAB */
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
             <div className="relative flex-1 max-w-md w-full">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -217,7 +217,7 @@ export const EstimateView: React.FC = () => {
           </div>
 
           {/* Estimates Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -289,7 +289,7 @@ export const EstimateView: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-black text-sm text-slate-900">
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-slate-900">
                           {formatCurrency(est.grandTotal)}
                         </td>
                         <td className="py-3.5 px-4 text-right">

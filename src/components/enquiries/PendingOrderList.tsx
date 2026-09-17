@@ -77,7 +77,7 @@ export const PendingOrderList: React.FC<Props> = ({
 
   if (pendingOrders.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 shadow-xs">
         <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-400 mb-2" />
         <p className="font-bold text-slate-700 text-sm">No Pending Orders</p>
         <p className="text-xs text-slate-400 mt-1">
@@ -90,7 +90,7 @@ export const PendingOrderList: React.FC<Props> = ({
   return (
     <div className="space-y-4">
       {/* Table of Pending Orders */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
@@ -147,7 +147,7 @@ export const PendingOrderList: React.FC<Props> = ({
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{po.itemName}</div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs font-mono font-black text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                        <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
                           Need: {po.quantityNeeded} {po.unit}
                         </span>
                         <span className="text-[11px] text-slate-500 font-mono">

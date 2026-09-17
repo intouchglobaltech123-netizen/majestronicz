@@ -80,7 +80,7 @@ export const TodayAttendanceBoard: React.FC = () => {
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
       <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ const Metric: React.FC<{ icon: React.ReactNode; tone: string; label: string; val
     </div>
     <div className="min-w-0">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
-      <p className="text-base font-black text-slate-900 font-mono leading-tight">{value}</p>
+      <p className="text-base font-bold text-slate-900 font-mono leading-tight">{value}</p>
     </div>
   </div>
 );

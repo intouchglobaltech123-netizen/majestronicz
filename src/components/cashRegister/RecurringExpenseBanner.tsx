@@ -48,7 +48,7 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
         return (
           <div
             key={template.id}
-            className={`p-4 sm:p-4.5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all border-l-4 ${
+            className={`p-4 sm:p-4.5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all border-l-4 ${
               isOverdue ? 'border-l-rose-600' : 'border-l-amber-500'
             }`}
           >
@@ -70,7 +70,7 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`text-[11px] uppercase font-black px-2.5 py-0.5 rounded-full border tracking-wider ${
+                    className={`text-[11px] uppercase font-bold px-2.5 py-0.5 rounded-full border tracking-wider ${
                       isOverdue
                         ? 'bg-rose-50 text-rose-700 border-rose-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -85,7 +85,7 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
 
                 <div className="text-xs sm:text-sm font-bold text-slate-900 mt-1 flex items-center gap-1.5 flex-wrap">
                   <span>{template.name}</span>
-                  <span className="font-mono font-black text-rose-600">
+                  <span className="font-mono font-bold text-rose-600">
                     {formatCurrency(template.defaultAmount)}
                   </span>
                   <span className="text-xs font-medium text-slate-500">

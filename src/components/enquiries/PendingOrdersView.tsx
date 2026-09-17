@@ -132,7 +132,7 @@ export const PendingOrdersView: React.FC = () => {
           }`}>
             All Orders
           </span>
-          <div className="text-xl sm:text-2xl font-black font-mono mt-0.5">{branchScopedOrders.length}</div>
+          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{branchScopedOrders.length}</div>
           <span className={`text-[11px] ${statusFilter === 'ALL' ? 'text-slate-400' : 'text-slate-400'}`}>
             Total backlog
           </span>
@@ -155,7 +155,7 @@ export const PendingOrdersView: React.FC = () => {
             </span>
             <AlertCircle className={`h-3.5 w-3.5 ${statusFilter === 'Waiting' ? 'text-white' : 'text-amber-600'}`} />
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono mt-0.5">{waitingCount}</div>
+          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{waitingCount}</div>
           <span className={`text-[11px] ${statusFilter === 'Waiting' ? 'text-amber-200' : 'text-amber-700'}`}>
             Pending restock
           </span>
@@ -178,7 +178,7 @@ export const PendingOrdersView: React.FC = () => {
             </span>
             <PackageCheck className={`h-3.5 w-3.5 ${statusFilter === 'Stock Arrived' ? 'text-white' : 'text-emerald-600'}`} />
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono mt-0.5">{stockArrivedCount}</div>
+          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{stockArrivedCount}</div>
           <span className={`text-[11px] ${statusFilter === 'Stock Arrived' ? 'text-emerald-200' : 'text-emerald-700'}`}>
             Ready to fulfill
           </span>
@@ -201,7 +201,7 @@ export const PendingOrdersView: React.FC = () => {
             </span>
             <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === 'Fulfilled' ? 'text-white' : 'text-blue-600'}`} />
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono mt-0.5">{fulfilledCount}</div>
+          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{fulfilledCount}</div>
           <span className={`text-[11px] ${statusFilter === 'Fulfilled' ? 'text-blue-200' : 'text-blue-700'}`}>
             Converted to sale
           </span>
@@ -224,7 +224,7 @@ export const PendingOrdersView: React.FC = () => {
             </span>
             <XCircle className={`h-3.5 w-3.5 ${statusFilter === 'Cancelled' ? 'text-white' : 'text-rose-600'}`} />
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono mt-0.5">{cancelledCount}</div>
+          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{cancelledCount}</div>
           <span className={`text-[11px] ${statusFilter === 'Cancelled' ? 'text-rose-200' : 'text-rose-700'}`}>
             Lost / Dropped
           </span>
@@ -232,7 +232,7 @@ export const PendingOrdersView: React.FC = () => {
       </div>
 
       {/* Search & Status Filter Bar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative w-full md:w-96">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

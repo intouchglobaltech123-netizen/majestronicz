@@ -33,7 +33,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
   );
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col h-full">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col h-full">
       {/* Table Header */}
       <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -68,7 +68,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
       {/* Table Body */}
       {invoices.length === 0 ? (
         <div className="flex-1 py-12 px-4 text-center flex flex-col items-center justify-center">
-          <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+          <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
             <FileText className="h-6 w-6" />
           </div>
           <h4 className="text-xs font-bold text-slate-700">No Sales Recorded for this Date</h4>
@@ -131,7 +131,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                         {inv.isPartialPayment && (
                           <span
                             title={`Partial Payment collected: ₹${inv.partialAmount} of ₹${inv.grandTotal}. Balance due: ₹${inv.balanceDue}`}
-                            className="px-1.5 py-0.5 rounded font-black font-mono text-[11px] bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs cursor-help"
+                            className="px-1.5 py-0.5 rounded font-bold font-mono text-[11px] bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs cursor-help"
                           >
                             PP
                           </span>

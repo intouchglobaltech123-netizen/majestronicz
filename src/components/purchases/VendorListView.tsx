@@ -66,7 +66,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
   return (
     <div className="space-y-4">
       {/* Control Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
           <input
@@ -90,7 +90,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
       </div>
 
       {/* Vendors Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
@@ -181,7 +181,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
                       {/* Payable */}
                       <td className="py-3.5 px-4 text-right">
                         {payable > 0 ? (
-                          <span className="font-black font-mono text-rose-700 text-sm">{formatCurrency(payable)}</span>
+                          <span className="font-bold font-mono text-rose-700 text-sm">{formatCurrency(payable)}</span>
                         ) : (
                           <span className="text-xs font-semibold text-emerald-600">Settled</span>
                         )}

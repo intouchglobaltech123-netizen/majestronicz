@@ -185,7 +185,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl lg:max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl lg:max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-3.5">
@@ -681,11 +681,11 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     </tbody>
                     <tfoot className="bg-blue-50/70 border-t-2 border-slate-300 font-bold text-slate-900">
                       <tr>
-                        <td colSpan={2} className="py-3 px-4 text-xs font-black text-slate-900 uppercase tracking-wide">
+                        <td colSpan={2} className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wide">
                           Total (All Branches)
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <span className="text-base font-black text-blue-700 font-mono">
+                          <span className="text-base font-bold text-blue-700 font-mono">
                             {BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0)}
                           </span>{' '}
                           <span className="text-[11px] text-blue-700 font-bold">{unit}</span>
@@ -769,7 +769,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
           <img
             src={imageUrl || item.imageUrl}
             alt={item.itemName}
-            className="max-h-[85vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain bg-white"
+            className="max-h-[85vh] max-w-[90vw] rounded-xl shadow-2xl object-contain bg-white"
             onClick={(e) => e.stopPropagation()}
           />
           <button

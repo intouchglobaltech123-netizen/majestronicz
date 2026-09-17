@@ -1351,7 +1351,7 @@ export const InvoiceForm: React.FC<Props> = ({
       )}
 
       {/* Top Banner with Document Mode Switcher & Action Buttons */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left: Document Mode Toggle & Bill Type */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* Document Mode Tile — reflects the current mode chosen via the
@@ -1476,7 +1476,7 @@ export const InvoiceForm: React.FC<Props> = ({
       </div>
 
       {/* Main Invoice Form Header Details Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
         {/* Top Header Row: Branch, Invoice No, Date, Time, State */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Branch Picker */}
@@ -1589,7 +1589,7 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
             <div className="sm:col-span-4">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Incentive Amount</label>
-              <div className="px-3 py-2 rounded-xl bg-white border border-violet-200 text-sm font-black font-mono text-violet-800">
+              <div className="px-3 py-2 rounded-xl bg-white border border-violet-200 text-sm font-bold font-mono text-violet-800">
                 {formatCurrency(salespersonId && incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : 0)}
               </div>
             </div>
@@ -1716,7 +1716,7 @@ export const InvoiceForm: React.FC<Props> = ({
       </div>
 
       {/* LINE ITEMS TABLE CARD */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         {/* Table Header Strip */}
         <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -2054,7 +2054,7 @@ export const InvoiceForm: React.FC<Props> = ({
         <div className="lg:col-span-7 space-y-5">
           {/* PAYMENT MODE & SPLIT PAYMENT (Daily Cash Register Connected) */}
           {documentType === 'Invoice' ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
@@ -2313,7 +2313,7 @@ export const InvoiceForm: React.FC<Props> = ({
               )}
             </div>
           ) : (
-            <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-5 shadow-xs space-y-2">
+            <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-5 shadow-xs space-y-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-purple-600 shrink-0" />
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-purple-950">
@@ -2327,7 +2327,7 @@ export const InvoiceForm: React.FC<Props> = ({
           )}
 
           {/* Terms and Conditions Preset Selector */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700">
                 Terms & Conditions Template
@@ -2349,7 +2349,7 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
 
           {/* Extra Notes & Attachments Accordion */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             <button
               type="button"
               onClick={() => setIsExtraOpen(!isExtraOpen)}
@@ -2432,7 +2432,7 @@ export const InvoiceForm: React.FC<Props> = ({
         </div>
 
         {/* Right Column (Span 5): Calculations & Grand Total Panel */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
           <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
             Invoice Summary
           </h3>
@@ -2608,7 +2608,7 @@ export const InvoiceForm: React.FC<Props> = ({
               )}>
                 Grand Total
               </span>
-              <span className="text-xl sm:text-2xl font-black font-mono">
+              <span className="text-xl sm:text-2xl font-bold font-mono">
                 {formatCurrency(totals.grandTotal)}
               </span>
             </div>

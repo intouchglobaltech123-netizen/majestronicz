@@ -255,7 +255,7 @@ export const SalesReportTab: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Top Header with CSV Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <Receipt className="h-5 w-5 text-blue-600" />
@@ -270,7 +270,7 @@ export const SalesReportTab: React.FC<Props> = ({
       </div>
 
       {filteredInvoices.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No sales invoices found for this range</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
@@ -288,7 +288,7 @@ export const SalesReportTab: React.FC<Props> = ({
             <span className="font-bold text-rose-700">₹{summary.totalReturns.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
             <span className="font-sans text-[11px] text-slate-400">returns</span>
             <span className="text-slate-400 font-bold">=</span>
-            <span className="font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
             <span className="font-sans text-[11px] text-slate-400">net sales</span>
           </div>
 
@@ -353,7 +353,7 @@ export const SalesReportTab: React.FC<Props> = ({
           </div>
 
           {/* Payment Mode Distribution */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-blue-600" />
@@ -403,7 +403,7 @@ export const SalesReportTab: React.FC<Props> = ({
           </div>
 
           {/* Top 10 Selling Items Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-blue-600" />

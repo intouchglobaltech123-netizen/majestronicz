@@ -135,7 +135,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   return (
     <div className="space-y-3">
       {/* Viewfinder or Captured Preview */}
-      <div className="relative w-full aspect-4/3 bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+      <div className="relative w-full aspect-4/3 bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
         {capturedPhoto ? (
           // Captured Preview
           <div className="relative w-full h-full">

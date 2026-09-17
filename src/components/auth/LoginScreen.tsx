@@ -51,7 +51,7 @@ const PinLogin: React.FC<{
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-slate-100 p-4">
-      <div className={`w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-7 ${shake ? 'animate-[shake_0.4s]' : ''}`}>
+      <div className={`w-full max-w-sm rounded-xl bg-white border border-slate-200 shadow-xl p-7 ${shake ? 'animate-[shake_0.4s]' : ''}`}>
         <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}`}</style>
         <div className="flex flex-col items-center gap-2 mb-5">
           <MajestroniczLogo />
@@ -167,9 +167,9 @@ const ForcePinReset: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-slate-100 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-7">
+      <div className="w-full max-w-sm rounded-xl bg-white border border-slate-200 shadow-xl p-7">
         <div className="flex flex-col items-center gap-2 mb-4 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+          <div className="h-12 w-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
             <KeyRound className="h-6 w-6" />
           </div>
           <h2 className="text-base font-extrabold text-slate-900 mt-1">Set your PIN</h2>

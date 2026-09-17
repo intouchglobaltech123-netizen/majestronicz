@@ -130,9 +130,9 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       {/* KPI row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
         {kpis.map((k) => (
-          <div key={k.label} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <div key={k.label} className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{k.label}</span>
-            <div className={cn('text-lg font-black mt-1 font-mono', k.tone)}>{formatCurrency(k.value)}</div>
+            <div className={cn('text-lg font-bold mt-1 font-mono', k.tone)}>{formatCurrency(k.value)}</div>
           </div>
         ))}
       </div>
@@ -154,7 +154,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           {view === 'rate' ? (
             <table className="w-full text-left text-xs border-collapse">

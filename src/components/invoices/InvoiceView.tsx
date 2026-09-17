@@ -619,7 +619,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         /* QUOTATION HISTORY TAB VIEW */
         <div className="space-y-4">
           {/* Quick Filter Bar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
             <div className="relative flex-1 max-w-md w-full">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -642,7 +642,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           </div>
 
           {/* Quotations Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -717,7 +717,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-black text-sm text-slate-900">
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-slate-900">
                           {formatCurrency(est.grandTotal)}
                         </td>
                         <td className="py-3.5 px-4 text-right">
@@ -782,7 +782,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         /* DEFAULT VIEW: SALES LEDGER LIST */
         <div className="space-y-4">
           {/* Quick Filter Bar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
             {/* Search Box — always visible */}
             <div className="relative w-full lg:max-w-md">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -921,7 +921,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 </span>
                 <span className="text-slate-300">•</span>
                 <span className="font-bold text-slate-900">
-                  Net Active: <span className="text-emerald-700 font-black font-mono">{formatCurrency(totalGrossRevenue)}</span>
+                  Net Active: <span className="text-emerald-700 font-bold font-mono">{formatCurrency(totalGrossRevenue)}</span>
                 </span>
                 {voidedCount > 0 && (
                   <span className="text-[11px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold border border-rose-200">
@@ -935,7 +935,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           </div>
 
           {/* SALES LEDGER TABLE */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -1088,7 +1088,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           <td className="py-3.5 px-4 text-right font-mono">
                             <span
                               className={cn(
-                                'font-black text-sm block',
+                                'font-bold text-sm block',
                                 isVoided ? 'line-through text-slate-400' : 'text-slate-900'
                               )}
                             >
@@ -1271,7 +1271,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       {/* Void Confirmation Modal */}
       {voidModalInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-4 sm:p-6 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden p-4 sm:p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold shrink-0">
                 <AlertTriangle className="h-5 w-5" />
@@ -1357,7 +1357,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
   const label = isQuote ? 'Quote' : 'Sale';
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Save className={cn('h-4 w-4', isQuote ? 'text-purple-600' : 'text-blue-600')} />
@@ -1434,7 +1434,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
                       {new Date(d.savedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right font-mono font-black text-slate-900">
+                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                     {formatCurrency(recomputedTotal)}
                   </td>
                   <td className="py-3 px-4 text-right">

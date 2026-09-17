@@ -145,7 +145,7 @@ export const CustomersView: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
               <Users className="h-6 w-6" />
             </div>
             <div>
@@ -161,7 +161,7 @@ export const CustomersView: React.FC = () => {
 
         {/* Tab switcher & Actions */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
             <button
               type="button"
               onClick={() => setActiveTab('directory')}
@@ -200,7 +200,7 @@ export const CustomersView: React.FC = () => {
               setCustomerToEdit(null);
               setIsAddModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="h-4 w-4" />
             <span>Add Customer</span>
@@ -215,23 +215,23 @@ export const CustomersView: React.FC = () => {
           {/* KPI Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* Total Customers */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Customers
               </span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalCustomers}</div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{totalCustomers}</div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Unique verified phones</span>
             </div>
 
             {/* Total Outstanding Dues */}
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                   Total Outstanding Dues
                 </span>
                 <AlertCircle className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1 font-mono">
+              <div className="text-xl sm:text-2xl font-bold text-amber-950 mt-1 font-mono">
                 {formatCurrency(totalOutstandingDues)}
               </div>
               <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
@@ -245,14 +245,14 @@ export const CustomersView: React.FC = () => {
             </div>
 
             {/* Milestone Ready */}
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                   Reward Eligible Now
                 </span>
                 <Sparkles className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1">
+              <div className="text-xl sm:text-2xl font-bold text-amber-950 mt-1">
                 {milestoneReadyCount}{' '}
                 <span className="text-xs font-bold text-amber-700">customers</span>
               </div>
@@ -263,11 +263,11 @@ export const CustomersView: React.FC = () => {
             </div>
 
             {/* Lifetime Revenue */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Customer Sales
               </span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 {formatCurrency(totalSalesRevenue)}
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -276,11 +276,11 @@ export const CustomersView: React.FC = () => {
             </div>
 
             {/* Average Purchases */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Average Frequency
               </span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 {avgPurchases} <span className="text-xs font-bold text-slate-500">bills / cust</span>
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -289,14 +289,14 @@ export const CustomersView: React.FC = () => {
             </div>
 
             {/* Segmentation: Organizations vs Retail */}
-            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-5 shadow-xs">
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-5 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 block">
                   Institutional
                 </span>
                 <Building2 className="h-4 w-4 text-purple-600" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-purple-950 mt-1">
+              <div className="text-xl sm:text-2xl font-bold text-purple-950 mt-1">
                 {orgCount} <span className="text-xs font-bold text-purple-700">orgs</span>
               </div>
               <span className="text-[11px] text-purple-800 mt-0.5 block">
@@ -306,7 +306,7 @@ export const CustomersView: React.FC = () => {
           </div>
 
           {/* Search, Filter & Sort Toolbar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Search input */}
             <div className="relative flex-1 max-w-md">
               <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -406,7 +406,7 @@ export const CustomersView: React.FC = () => {
           </div>
 
           {/* Customers Directory Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             {filteredCustomers.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
@@ -517,7 +517,7 @@ export const CustomersView: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setSelectedCustomerForDetail(cust)}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-300 text-xs font-mono font-black text-amber-900 shadow-2xs transition-colors cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-300 text-xs font-mono font-bold text-amber-900 shadow-2xs transition-colors cursor-pointer"
                                     title="Click to view breakdown of unpaid bills"
                                   >
                                     <AlertCircle className="h-3 w-3 text-amber-600" />

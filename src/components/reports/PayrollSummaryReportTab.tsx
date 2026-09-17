@@ -37,7 +37,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
   // Security check: Only CEO can view Payroll report
   if (currentUser.role !== 'CEO') {
     return (
-      <div className="p-12 text-center bg-white rounded-2xl border border-rose-200 shadow-2xs space-y-2">
+      <div className="p-12 text-center bg-white rounded-xl border border-rose-200 shadow-2xs space-y-2">
         <ShieldAlert className="h-10 w-10 text-rose-600 mx-auto" />
         <h3 className="text-base font-bold text-slate-900">Access Restricted</h3>
         <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -173,7 +173,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
   return (
     <div className="space-y-6">
       {/* Header Banner with Month Selector & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
@@ -210,7 +210,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
       </div>
 
       {filteredRecords.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
           <Clock className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No payroll records generated for {selectedMonth}</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
@@ -272,7 +272,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
 
           {/* Branch-Wise Payroll Allocation (If All Branches) */}
           {branchScope === 'all' && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Building className="h-4 w-4 text-blue-600" />
@@ -318,7 +318,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
           )}
 
           {/* Employee-by-Employee Breakdown Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Staff Compensation Roster ({filteredRecords.length})

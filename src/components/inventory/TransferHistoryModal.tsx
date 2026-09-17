@@ -110,7 +110,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
           <div className="flex items-center gap-3">
@@ -202,7 +202,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               return (
                 <div
                   key={transfer.id}
-                  className="rounded-2xl border border-slate-200 bg-white shadow-2xs hover:shadow-xs transition-all overflow-hidden"
+                  className="rounded-xl border border-slate-200 bg-white shadow-2xs hover:shadow-xs transition-all overflow-hidden"
                 >
                   {/* Batch Summary Header Row */}
                   <div
@@ -320,7 +320,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 text-right">
-                                  <span className="font-mono font-black text-blue-700 text-sm">
+                                  <span className="font-mono font-bold text-blue-700 text-sm">
                                     {item.quantity}
                                   </span>
                                 </td>
@@ -335,7 +335,7 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                               <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[11px]">
                                 Total Quantity Transferred:
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-black text-sm text-slate-900">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-sm text-slate-900">
                                 {transfer.totalQuantity}
                               </td>
                               <td className="py-2.5 px-3 text-slate-500 uppercase text-[11px]">Units</td>

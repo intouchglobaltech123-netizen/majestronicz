@@ -430,7 +430,7 @@ export const EstimateForm: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
       {/* Header Bar */}
       <div className="p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -1041,7 +1041,7 @@ export const EstimateForm: React.FC<Props> = ({
                   {withGst ? 'With GST (CGST+SGST)' : 'Without GST'}
                 </span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono">
+              <div className="text-xl sm:text-2xl font-bold font-mono">
                 {formatCurrency(totals.grandTotal)}
               </div>
             </div>
