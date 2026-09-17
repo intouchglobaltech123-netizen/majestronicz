@@ -452,6 +452,7 @@ interface ErpContextType {
     notes?: string,
     autoGenerateChallan?: boolean
   ) => { transferRef: string; challanNumber?: string };
+  receiveStockTransfer: (transferId: string) => void;
   inventorySettings: InventorySettings;
   updateInventorySettings: (settings: Partial<InventorySettings>) => void;
   getItemLastSaleInfo: (
@@ -1839,15 +1840,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
     const userLabel = `${currentUser.name} (${currentUser.role})`;
 
+    // Dispatch debits the source only; the destination is credited when the
+    // receiving branch confirms intake (receiveStockTransfer).
     setBranchStocks((prev) => {
       const updated = [...prev];
       validatedLines.forEach(({ targetItem, quantity }) => {
         const fromIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === fromBranch);
         if (fromIdx >= 0) updated[fromIdx] = { ...updated[fromIdx], quantity: Math.max(0, updated[fromIdx].quantity - quantity), updatedAt: now };
         else updated.push({ itemId: targetItem.id, branchId: fromBranch, quantity: 0, minStockAlert: targetItem.reorderThreshold ?? 10, updatedAt: now });
-        const toIdx = updated.findIndex((s) => s.itemId === targetItem.id && s.branchId === toBranch);
-        if (toIdx >= 0) updated[toIdx] = { ...updated[toIdx], quantity: updated[toIdx].quantity + quantity, updatedAt: now };
-        else updated.push({ itemId: targetItem.id, branchId: toBranch, quantity, minStockAlert: targetItem.reorderThreshold ?? 10, updatedAt: now });
       });
       return updated;
     });
@@ -1875,23 +1875,60 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
       items: validatedLines.map((l) => ({ itemId: l.targetItem.id, itemName: l.targetItem.itemName, itemCode: l.targetItem.itemCode, itemHSN: l.targetItem.itemHSN, quantity: l.quantity, unit: l.targetItem.unit })),
       totalQuantity: totalTransferQty, notes: notes?.trim() || undefined, transferredBy: userLabel, timestamp: now, challanNumber: generatedChallanNo,
+      status: 'in_transit',
     };
     setStockTransfers((prev) => [newTransfer, ...prev]);
 
+    // Only the dispatch ("out") log is written now; the "in" log lands on receipt.
     const newLogs: StockAdjustmentLog[] = [];
-    validatedLines.forEach(({ targetItem, quantity, fromPrevQty, toPrevQty }, i) => {
-      newLogs.push({ id: `adj-${Date.now()}-${i}-out`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: fromBranch, previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity, reason: 'Inter-branch Transfer', notes: `Transferred to ${toBranchName}${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
-      newLogs.push({ id: `adj-${Date.now()}-${i}-in`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: toBranch, previousQuantity: toPrevQty, quantityChange: quantity, newQuantity: toPrevQty + quantity, reason: 'Inter-branch Transfer', notes: `Received from ${fromBranchName}${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
+    validatedLines.forEach(({ targetItem, quantity, fromPrevQty }, i) => {
+      newLogs.push({ id: `adj-${Date.now()}-${i}-out`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: fromBranch, previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity, reason: 'Inter-branch Transfer', notes: `Dispatched to ${toBranchName} (in transit)${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
     });
     setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
 
     // Persist to backend (authoritative) and reconcile.
     persist(apiPost('/api/stock/transfer-batch', { items: itemsToTransfer, fromBranch, toBranch, notes, autoGenerateChallan, actor: userLabel }));
 
-    toast.success('Inter-branch transfer completed', {
-      description: `${validatedLines.length} item(s) • ${totalTransferQty} units (${fromBranchName} → ${toBranchName})${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
+    toast.success('Stock dispatched — awaiting receipt', {
+      description: `${validatedLines.length} item(s) • ${totalTransferQty} units sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
     });
     return { transferRef, challanNumber: generatedChallanNo };
+  };
+
+  // Confirm receipt of an in-transit transfer: credit destination stock, append
+  // the "in" audit logs, and mark the transfer received. Backend is authoritative.
+  const receiveStockTransfer = (transferId: string) => {
+    const transfer = stockTransfers.find((t) => t.id === transferId);
+    if (!transfer) { toast.error('Transfer not found'); return; }
+    if (transfer.status === 'received') { toast.info('This transfer is already received'); return; }
+
+    const now = new Date().toISOString();
+    const userLabel = `${currentUser.name} (${currentUser.role})`;
+    const fromBranchName = BRANCHES.find((b) => b.id === transfer.fromBranch)?.name || transfer.fromBranch;
+    const toBranchName = BRANCHES.find((b) => b.id === transfer.toBranch)?.name || transfer.toBranch;
+
+    // Optimistic: credit destination stock + audit logs, flip status.
+    setBranchStocks((prev) => {
+      const updated = [...prev];
+      transfer.items.forEach((line) => {
+        const toIdx = updated.findIndex((s) => s.itemId === line.itemId && s.branchId === transfer.toBranch);
+        if (toIdx >= 0) updated[toIdx] = { ...updated[toIdx], quantity: updated[toIdx].quantity + line.quantity, updatedAt: now };
+        else updated.push({ itemId: line.itemId, branchId: transfer.toBranch, quantity: line.quantity, minStockAlert: 10, updatedAt: now });
+      });
+      return updated;
+    });
+
+    const inLogs: StockAdjustmentLog[] = transfer.items.map((line, i) => {
+      const toPrevQty = branchStocks.find((s) => s.itemId === line.itemId && s.branchId === transfer.toBranch)?.quantity ?? 0;
+      return { id: `adj-${Date.now()}-${i}-in`, itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode, branchId: transfer.toBranch, previousQuantity: toPrevQty, quantityChange: line.quantity, newQuantity: toPrevQty + line.quantity, reason: 'Inter-branch Transfer', notes: `Received from ${fromBranchName}`, adjustedBy: userLabel, timestamp: now, transferRef: transfer.transferNumber, linkedChallanNumber: transfer.challanNumber };
+    });
+    setStockAdjustmentLogs((prev) => [...inLogs, ...prev]);
+
+    setStockTransfers((prev) => prev.map((t) => t.id === transferId ? { ...t, status: 'received', receivedAt: now, receivedBy: userLabel } : t));
+
+    persist(apiPost('/api/stock/transfer-receive', { transferId, actor: userLabel }));
+
+    toast.success('Transfer received', { description: `${transfer.totalQuantity} units added to ${toBranchName} stock.` });
   };
 
   // Dead-stock detection: last sale date for an item (client-side derivation).
@@ -4033,6 +4070,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getAuditLog,
         stockTransfers,
         transferStockBatch,
+        receiveStockTransfer,
         inventorySettings,
         updateInventorySettings,
         getItemLastSaleInfo,

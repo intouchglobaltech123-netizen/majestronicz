@@ -946,6 +946,9 @@ export interface StockTransfer {
   transferredBy: string;
   timestamp: string; // ISO string
   challanNumber?: string;
+  status?: 'in_transit' | 'received'; // in_transit until the destination confirms receipt
+  receivedAt?: string;
+  receivedBy?: string;
 }
 
 /**

@@ -16,6 +16,11 @@ export const transferBatch = async (req: Request, res: Response) => {
   res.json(await stock.transferStockBatch(items, fromBranch, toBranch, notes, autoGenerateChallan ?? true, actor));
 };
 
+export const receiveTransfer = async (req: Request, res: Response) => {
+  const { transferId, actor } = req.body;
+  res.json(await stock.receiveStockTransfer(transferId, actor));
+};
+
 export const updateStock = async (req: Request, res: Response) => {
   const { itemId, branchId, quantity, minStockAlert, location } = req.body;
   res.json(await stock.updateBranchStock(itemId, branchId, quantity, minStockAlert, location));

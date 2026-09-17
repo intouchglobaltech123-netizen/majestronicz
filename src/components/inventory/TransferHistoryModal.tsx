@@ -15,6 +15,8 @@ import {
   Calendar,
   User,
   ShieldCheck,
+  PackageCheck,
+  Clock,
 } from 'lucide-react';
 
 interface Props {
@@ -28,7 +30,15 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     challans,
     currentBranch,
     currentUser,
+    receiveStockTransfer,
   } = useErp();
+
+  // The destination branch (or CEO) confirms an in-transit transfer.
+  const canReceive = (toBranch: string) => {
+    if (currentUser.role === 'CEO') return true;
+    const myBranch = currentUser.assignedBranchId || (currentBranch !== 'all' ? currentBranch : undefined);
+    return !!myBranch && myBranch === toBranch;
+  };
 
   const [previewChallan, setPreviewChallan] = useState<DeliveryChallan | null>(null);
 
@@ -237,6 +247,17 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
                             {transfer.items.length} {transfer.items.length === 1 ? 'Item' : 'Items'} • {transfer.totalQuantity} Units
                           </span>
+
+                          {/* Status pill */}
+                          {(transfer.status || 'received') === 'in_transit' ? (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              <Clock className="h-3 w-3" /> In Transit
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <PackageCheck className="h-3 w-3" /> Received
+                            </span>
+                          )}
                         </div>
 
                         {transfer.notes && (
@@ -278,6 +299,22 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         >
                           <Truck className="h-3 w-3" />
                           <span>{transfer.challanNumber}</span>
+                        </button>
+                      )}
+
+                      {/* Receive: destination branch (or CEO) confirms intake */}
+                      {(transfer.status || 'received') === 'in_transit' && canReceive(transfer.toBranch) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            receiveStockTransfer(transfer.id);
+                          }}
+                          title={`Confirm receipt at ${toObj?.name || transfer.toBranch}`}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 text-white border border-emerald-600 hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                        >
+                          <PackageCheck className="h-3.5 w-3.5" />
+                          <span>Receive</span>
                         </button>
                       )}
                     </div>
@@ -343,6 +380,18 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           </tfoot>
                         </table>
                       </div>
+
+                      {(transfer.status || 'received') === 'in_transit' ? (
+                        <p className="mt-2.5 text-[11px] text-amber-700 flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          Stock has left {fromObj?.name || transfer.fromBranch} and is awaiting receipt at {toObj?.name || transfer.toBranch}. Destination stock updates only after Receive.
+                        </p>
+                      ) : transfer.receivedBy ? (
+                        <p className="mt-2.5 text-[11px] text-emerald-700 flex items-center gap-1.5">
+                          <PackageCheck className="h-3.5 w-3.5" />
+                          Received by {transfer.receivedBy}{transfer.receivedAt ? ` • ${formatTimestamp(transfer.receivedAt)}` : ''}
+                        </p>
+                      ) : null}
                     </div>
                   )}
                 </div>

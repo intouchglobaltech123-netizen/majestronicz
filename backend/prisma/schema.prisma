@@ -406,6 +406,9 @@ model StockTransfer {
   transferredBy  String
   timestamp      String
   challanNumber  String?
+  status         String  @default("received") // "in_transit" until the destination branch confirms receipt
+  receivedAt     String?
+  receivedBy     String?
 
   @@index([fromBranch])
   @@index([toBranch])

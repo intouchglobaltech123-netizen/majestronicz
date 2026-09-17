@@ -57,17 +57,13 @@ export function transferStockBatch(
       validated.push({ item, quantity: row.quantity, fromPrevQty, toPrevQty: toRow?.quantity ?? 0 });
     }
 
-    // Move stock
+    // Dispatch: debit the source only. Destination stock is credited later, when
+    // the receiving branch confirms intake via receiveStockTransfer (in-transit flow).
     for (const v of validated) {
       await tx.branchStock.upsert({
         where: { itemId_branchId: { itemId: v.item.id, branchId: fromBranch } },
         create: { itemId: v.item.id, branchId: fromBranch, quantity: 0, minStockAlert: v.item.reorderThreshold ?? 10, updatedAt: ts },
         update: { quantity: Math.max(0, v.fromPrevQty - v.quantity), updatedAt: ts },
-      });
-      await tx.branchStock.upsert({
-        where: { itemId_branchId: { itemId: v.item.id, branchId: toBranch } },
-        create: { itemId: v.item.id, branchId: toBranch, quantity: v.quantity, minStockAlert: v.item.reorderThreshold ?? 10, updatedAt: ts },
-        update: { quantity: v.toPrevQty + v.quantity, updatedAt: ts },
       });
     }
 
@@ -93,33 +89,77 @@ export function transferStockBatch(
       });
     }
 
+    const transferId = `trf-${Date.now()}`;
     await tx.stockTransfer.create({
       data: {
-        id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
+        id: transferId, transferNumber: transferRef, fromBranch, toBranch,
         items: validated.map((v) => ({ itemId: v.item.id, itemName: v.item.itemName, itemCode: v.item.itemCode, itemHSN: v.item.itemHSN, quantity: v.quantity, unit: v.item.unit })),
         totalQuantity: validated.reduce((s, v) => s + v.quantity, 0),
         notes: notes?.trim() || null, transferredBy: actor, timestamp: ts, challanNumber: generatedChallanNo ?? null,
+        status: 'in_transit',
       },
     });
 
+    // Only the dispatch ("out") log is written now; the receiving ("in") log is
+    // created when the destination branch confirms receipt.
     const logs: any[] = [];
     validated.forEach((v, i) => {
       logs.push({
         id: `${rid('adj')}-${i}-out`, itemId: v.item.id, itemName: v.item.itemName, itemCode: v.item.itemCode, branchId: fromBranch,
         previousQuantity: v.fromPrevQty, quantityChange: -v.quantity, newQuantity: v.fromPrevQty - v.quantity,
-        reason: 'Inter-branch Transfer', notes: `Transferred to ${branchName(toBranch)}${notes ? ` • ${notes}` : ''}`,
-        adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: generatedChallanNo ?? null,
-      });
-      logs.push({
-        id: `${rid('adj')}-${i}-in`, itemId: v.item.id, itemName: v.item.itemName, itemCode: v.item.itemCode, branchId: toBranch,
-        previousQuantity: v.toPrevQty, quantityChange: v.quantity, newQuantity: v.toPrevQty + v.quantity,
-        reason: 'Inter-branch Transfer', notes: `Received from ${branchName(fromBranch)}${notes ? ` • ${notes}` : ''}`,
+        reason: 'Inter-branch Transfer', notes: `Dispatched to ${branchName(toBranch)} (in transit)${notes ? ` • ${notes}` : ''}`,
         adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: generatedChallanNo ?? null,
       });
     });
     await tx.stockAdjustmentLog.createMany({ data: logs });
 
     return { ...(await stockSnapshot(tx)), transferRef, challanNumber: generatedChallanNo };
+  });
+}
+
+/**
+ * Confirm receipt of an in-transit transfer at the destination branch: credits
+ * destination stock for every line, writes the paired "in" audit logs, and marks
+ * the transfer received. Idempotent — a transfer already received is a no-op.
+ */
+export function receiveStockTransfer(transferId: string, actor: string) {
+  return serializableTx(async (tx: any) => {
+    const transfer = await tx.stockTransfer.findUnique({ where: { id: transferId } });
+    if (!transfer) throw new AppError('NOT_FOUND', 'Transfer not found', 404);
+    if (transfer.status === 'received') {
+      return { ...(await stockSnapshot(tx)), alreadyReceived: true };
+    }
+
+    const ts = nowIso();
+    const lines: any[] = Array.isArray(transfer.items) ? transfer.items : [];
+    const transferRef = transfer.transferNumber;
+    const logs: any[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const item = await tx.item.findUnique({ where: { id: line.itemId } });
+      const toRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId: line.itemId, branchId: transfer.toBranch } } });
+      const toPrevQty = toRow?.quantity ?? 0;
+      await tx.branchStock.upsert({
+        where: { itemId_branchId: { itemId: line.itemId, branchId: transfer.toBranch } },
+        create: { itemId: line.itemId, branchId: transfer.toBranch, quantity: line.quantity, minStockAlert: item?.reorderThreshold ?? 10, updatedAt: ts },
+        update: { quantity: toPrevQty + line.quantity, updatedAt: ts },
+      });
+      logs.push({
+        id: `${rid('adj')}-${i}-in`, itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode, branchId: transfer.toBranch,
+        previousQuantity: toPrevQty, quantityChange: line.quantity, newQuantity: toPrevQty + line.quantity,
+        reason: 'Inter-branch Transfer', notes: `Received from ${branchName(transfer.fromBranch)}`,
+        adjustedBy: actor, timestamp: ts, transferRef, linkedChallanNumber: transfer.challanNumber ?? null,
+      });
+    }
+    if (logs.length) await tx.stockAdjustmentLog.createMany({ data: logs });
+
+    await tx.stockTransfer.update({
+      where: { id: transferId },
+      data: { status: 'received', receivedAt: ts, receivedBy: actor },
+    });
+
+    return { ...(await stockSnapshot(tx)), received: true };
   });
 }
 
