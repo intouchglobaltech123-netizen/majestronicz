@@ -600,17 +600,25 @@ export const InvoiceForm: React.FC<Props> = ({
     }
   }, [lineItems.length, initialInvoice, initialEstimate, convertedFromEstimate, duplicateSourceInvoice, duplicateSourceEstimate]);
 
+  // #9 Organization customers are billed at wholesale rates. When the selected
+  // customer is an Organization and the item has a wholesale price, use it as
+  // the base price; otherwise fall back to the normal sale price. The item's
+  // tax mode (incl./excl.) is applied consistently to whichever price is used.
+  const isWholesaleCustomer = selectedCustomerObj?.customerType === 'Organization';
+  const getItemPreTaxPrice = (item: Item): number => {
+    const base =
+      isWholesaleCustomer && item.wholesalePrice > 0 ? item.wholesalePrice : item.salePrice;
+    const pre =
+      item.salePriceTaxMode === 'with' ? base / (1 + item.gstTaxSlab / 100) : base;
+    return Math.round(pre * 100) / 100;
+  };
+
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     let newRow: InvoiceLineItem;
 
     if (selectedItem) {
-      const preTaxPrice =
-        selectedItem.salePriceTaxMode === 'with'
-          ? selectedItem.salePrice / (1 + selectedItem.gstTaxSlab / 100)
-          : selectedItem.salePrice;
-
-      const roundedPrice = Math.round(preTaxPrice * 100) / 100;
+      const roundedPrice = getItemPreTaxPrice(selectedItem);
       const calculated = calculateLineTax(1, roundedPrice, selectedItem.gstTaxSlab, withGst);
 
       newRow = {
@@ -655,13 +663,45 @@ export const InvoiceForm: React.FC<Props> = ({
     setLineItems((prev) => [...prev, newRow]);
   };
 
+  // #3 Max sellable quantity for a line at the selected branch.
+  // Combos are limited by how many kits their component stock allows;
+  // plain items by their branch stock. Quotations don't deduct stock, so
+  // they are not clamped. Returns Infinity when no limit applies.
+  const getLineMaxQty = (line: InvoiceLineItem): number => {
+    if (documentType !== 'Invoice') return Infinity;
+    if (line.isCombo && line.comboId) {
+      const combo = combos.find((c) => c.id === line.comboId);
+      return combo ? getComboAvailability(combo, selectedBranch) : Infinity;
+    }
+    if (line.itemId) {
+      const stockRow = branchStocks.find(
+        (s) => s.itemId === line.itemId && s.branchId === selectedBranch
+      );
+      return stockRow?.quantity ?? Infinity;
+    }
+    return Infinity;
+  };
+
   const updateLineItem = (id: string, updates: Partial<InvoiceLineItem>) => {
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
 
         const merged = { ...item, ...updates };
-        const qty = Number(merged.quantity) || 0;
+        let qty = Number(merged.quantity) || 0;
+
+        // Clamp quantity to available stock so a bill can never be raised for
+        // more than exists (e.g. a 5-kit combo can't be billed for 6). #3
+        if (updates.quantity !== undefined) {
+          const maxQty = getLineMaxQty(merged as InvoiceLineItem);
+          if (Number.isFinite(maxQty) && qty > maxQty) {
+            qty = maxQty;
+            merged.quantity = maxQty;
+            toast.warning('Reached available stock limit', {
+              description: `Only ${maxQty} ${merged.isCombo ? 'kit(s)' : 'unit(s)'} of "${merged.itemName}" available at ${BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch'}.`,
+            });
+          }
+        }
         const price = Number(merged.unitPrice) || 0;
         const rate = Number(merged.taxRate) || 0;
         const dType = merged.discountType || '%';
@@ -698,12 +738,7 @@ export const InvoiceForm: React.FC<Props> = ({
       return;
     }
 
-    const preTaxPrice =
-      item.salePriceTaxMode === 'with'
-        ? item.salePrice / (1 + item.gstTaxSlab / 100)
-        : item.salePrice;
-
-    const roundedPrice = Math.round(preTaxPrice * 100) / 100;
+    const roundedPrice = getItemPreTaxPrice(item);
 
     updateLineItem(rowId, {
       itemId: item.id,
@@ -1635,9 +1670,11 @@ export const InvoiceForm: React.FC<Props> = ({
             <div className="relative">
               <input
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="e.g. 9842100000"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-mono"
               />
               <Phone className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

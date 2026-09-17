@@ -30,6 +30,7 @@ interface Props {
 
 export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialTab }) => {
   const {
+    items,
     updateItem,
     getBranchStock,
     canManageItems,
@@ -148,6 +149,16 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
     if (!itemName.trim()) {
       toast.error('Item Name is required');
+      return;
+    }
+
+    // #5 Enforce item-code uniqueness across all other items (exclude self)
+    const finalItemCode = itemCode.trim();
+    const codeExists = items.some(
+      (it) => it.id !== item.id && (it.itemCode || '').trim().toLowerCase() === finalItemCode.toLowerCase()
+    );
+    if (codeExists) {
+      toast.error(`Item code "${finalItemCode}" already exists on another item.`);
       return;
     }
 
@@ -271,7 +282,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 <input
                   type="text"
                   value={itemHSN}
-                  onChange={(e) => setItemHSN(e.target.value)}
+                  inputMode="numeric"
+                  onChange={(e) => setItemHSN(e.target.value.replace(/\D/g, '').slice(0, 8))}
                   className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-blue-600"
                 />
               </div>

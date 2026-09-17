@@ -505,6 +505,26 @@ export const ItemMasterView: React.FC = () => {
                         : undefined;
                       const rackLoc = branchStockRecord?.location?.trim();
 
+                      // Format a raw rack code into a friendly label (Rack A1 → Rack A1)
+                      const formatLoc = (loc: string) => {
+                        const low = loc.toLowerCase();
+                        return low.startsWith('rack') ||
+                          low.startsWith('row') ||
+                          low.startsWith('shelf') ||
+                          low.startsWith('bin')
+                          ? loc
+                          : `Rack ${loc}`;
+                      };
+
+                      // In All-Branches view, gather each branch's location so the
+                      // item's physical location is still visible (#1).
+                      const allBranchLocs = isAllBranches
+                        ? BRANCHES.map((b) => {
+                            const loc = getBranchStock(item.id, b.id)?.location?.trim();
+                            return loc ? { branch: b.name, loc: formatLoc(loc) } : null;
+                          }).filter((x): x is { branch: string; loc: string } => !!x)
+                        : [];
+
                       return (
                         <tr
                           key={item.id}
@@ -633,19 +653,28 @@ export const ItemMasterView: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              {!isAllBranches && (
+                              {!isAllBranches ? (
                                 <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                  <span className="text-slate-400">📍 </span>
                                   {rackLoc ? (
-                                    <span className="font-mono text-slate-700">
-                                      {rackLoc.toLowerCase().startsWith('rack') ||
-                                      rackLoc.toLowerCase().startsWith('row') ||
-                                      rackLoc.toLowerCase().startsWith('shelf') ||
-                                      rackLoc.toLowerCase().startsWith('bin')
-                                        ? rackLoc
-                                        : `Rack ${rackLoc}`}
-                                    </span>
+                                    <span className="font-mono text-slate-700">{formatLoc(rackLoc)}</span>
                                   ) : (
-                                    <span className="text-slate-400 font-mono">—</span>
+                                    <span className="text-slate-400 font-mono">No location set</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                  {allBranchLocs.length > 0 ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      {allBranchLocs.map((l) => (
+                                        <span key={l.branch} className="font-mono text-slate-700">
+                                          <span className="text-slate-400">📍 {l.branch}: </span>
+                                          {l.loc}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 font-mono">📍 No location set</span>
                                   )}
                                 </div>
                               )}

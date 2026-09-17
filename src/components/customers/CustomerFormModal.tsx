@@ -229,9 +229,11 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               <input
                 type="tel"
                 required
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="e.g. 9842100000"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
               />
               <Phone className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

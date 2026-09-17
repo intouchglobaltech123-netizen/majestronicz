@@ -40,6 +40,7 @@ export const AddItemModal: React.FC<Props> = ({
   onItemAdded,
 }) => {
   const {
+    items,
     addItem,
     canManageItems,
     currentUser,
@@ -201,6 +202,15 @@ export const AddItemModal: React.FC<Props> = ({
 
     const finalItemCode = itemCode.trim() || generateItemCode(category, subcategory);
 
+    // #5 Enforce item-code uniqueness — one code can only be created once
+    const codeExists = items.some(
+      (it) => (it.itemCode || '').trim().toLowerCase() === finalItemCode.toLowerCase()
+    );
+    if (codeExists) {
+      toast.error(`Item code "${finalItemCode}" already exists. Use a unique code or Auto Assign.`);
+      return;
+    }
+
     const savedItem = addItem({
       itemName: itemName.trim(),
       itemHSN: itemHSN.trim() || '85371000',
@@ -311,9 +321,10 @@ export const AddItemModal: React.FC<Props> = ({
                 </div>
                 <input
                   type="text"
+                  inputMode="numeric"
                   placeholder="e.g. 85371000"
                   value={itemHSN}
-                  onChange={(e) => setItemHSN(e.target.value)}
+                  onChange={(e) => setItemHSN(e.target.value.replace(/\D/g, '').slice(0, 8))}
                   className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
                 />
 
