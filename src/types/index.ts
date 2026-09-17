@@ -18,6 +18,7 @@ export interface UserSession {
   pin: string;
   assignedBranchId?: BranchId; // Only applicable for Manager
   userId?: string; // staff account id (for PIN reset targeting)
+  employeeId?: string; // linked attendance/payroll employee (for self check-in)
 }
 
 // ---- Dynamic role-based access control (managed by CEO) ----

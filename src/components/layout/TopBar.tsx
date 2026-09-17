@@ -23,6 +23,7 @@ import {
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
+import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
 
 interface TopBarProps {
   /** Opens the mobile navigation drawer (< lg). */
@@ -49,6 +50,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const toggleFullscreen = () => {
@@ -190,6 +192,17 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
 
       {/* Right: Notifications Bell & Role Profile */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* My Attendance — self check-in/out, available to every logged-in role */}
+        <button
+          type="button"
+          onClick={() => setIsSelfAttendanceOpen(true)}
+          title="My Attendance — check in / out"
+          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition-colors"
+        >
+          <Clock className="h-4 w-4" />
+          <span className="hidden md:inline">My Attendance</span>
+        </button>
+
         {/* Fullscreen toggle (desktop only) */}
         <button
           type="button"
@@ -510,6 +523,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           </div>
         </button>
       </div>
+
+      {/* Self attendance (My Attendance) */}
+      <SelfAttendanceModal isOpen={isSelfAttendanceOpen} onClose={() => setIsSelfAttendanceOpen(false)} />
 
       {/* Logout confirmation */}
       {showLogoutConfirm && (

@@ -74,6 +74,56 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
   });
 }
 
+/**
+ * Self check-in/out for the CURRENTLY LOGGED-IN user's own linked employee.
+ * Any authenticated role can call this (no hrm:write needed) but it can only
+ * ever act on their own employeeId — the mode (in/out) is auto-detected.
+ * Returns only that one record (no exposure of other staff).
+ */
+export function selfClock(employeeId: string, photoDataUrl: string, location: any) {
+  return prisma.$transaction(async (tx: any) => {
+    const emp = await tx.employee.findUnique({ where: { id: employeeId } });
+    if (!emp) throw new AppError('NO_PROFILE', 'No attendance profile is linked to your account.', 404);
+    if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Your attendance profile is inactive.', 409);
+
+    const now = new Date();
+    const ist = istParts(now);
+    const today = ist.date;
+    const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
+
+    if (existing?.checkOutTime) {
+      return { action: 'done', record: existing };
+    }
+    if (existing?.checkInTime) {
+      const [inH, inM, inS] = existing.checkInTime.split(':').map(Number);
+      const [outH, outM, outS] = ist.time.split(':').map(Number);
+      const inMinutes = inH * 60 + inM + (inS || 0) / 60;
+      const outMinutes = outH * 60 + outM + (outS || 0) / 60;
+      const diffHours = Math.max(0, parseFloat(((outMinutes - inMinutes) / 60).toFixed(2)));
+      const record = await tx.attendanceRecord.update({
+        where: { id: existing.id },
+        data: { checkOutTime: ist.time, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
+      });
+      return { action: 'out', record };
+    }
+    const record = await tx.attendanceRecord.create({
+      data: {
+        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId, date: today,
+        checkInTime: ist.time, checkInPhoto: photoDataUrl, checkInLocation: location, status: 'Present',
+        createdAt: now.toISOString(), updatedAt: now.toISOString(),
+      },
+    });
+    return { action: 'in', record };
+  });
+}
+
+/** The current user's own attendance record for today (or null). */
+export async function getSelfToday(employeeId: string) {
+  const ist = istParts();
+  const record = await prisma.attendanceRecord.findFirst({ where: { employeeId, date: ist.date } });
+  return { record: record || null, today: ist.date };
+}
+
 export function updatePayrollAdjustment(employeeId: string, month: string, adjustment: number, reason: string | undefined, standardHoursPerMonth: number) {
   return prisma.$transaction(async (tx: any) => {
     const existing = await tx.payrollRecord.findFirst({ where: { employeeId, month } });

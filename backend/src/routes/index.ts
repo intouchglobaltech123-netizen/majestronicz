@@ -24,6 +24,7 @@ import {
   linkLoginToEmployee, unlinkLogin,
 } from '../services/user.service.js';
 import { recordAudit, listAudit } from '../services/audit.service.js';
+import { selfClock, getSelfToday } from '../services/hrm.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
 
@@ -64,7 +65,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   res.json({
     token,
     mustResetPin,
-    user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId, userId: user.userId },
+    user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId, userId: user.userId, employeeId: user.employeeId },
   });
 }));
 
@@ -217,6 +218,24 @@ router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (req
 }));
 
 // ---- Bootstrap + health (bootstrap is scoped by authenticated role) ----
+// ---- Self-attendance: any authenticated user can check in/out as THEMSELVES
+// (their own linked employee only) — no hrm:write needed. ----
+router.get('/attendance/self-today', asyncHandler(async (req, res) => {
+  const u = (req as any).user;
+  if (!u) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  if (!u.employeeId) { res.json({ linked: false, record: null }); return; }
+  res.json({ linked: true, ...(await getSelfToday(u.employeeId)) });
+}));
+router.post('/attendance/self-clock', asyncHandler(async (req, res) => {
+  const u = (req as any).user;
+  if (!u) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  if (!u.employeeId) throw new AppError('NO_PROFILE', 'No attendance profile is linked to your account.', 400);
+  const { photo, location } = req.body;
+  const result = await selfClock(u.employeeId, photo, location);
+  broadcastChange('attendance');
+  res.json(result);
+}));
+
 router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user))));
 router.get('/health', asyncHandler(async (_req, res) => res.json(await system.healthCheck())));
 

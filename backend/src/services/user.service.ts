@@ -42,6 +42,46 @@ export async function ensureUsers(): Promise<void> {
   }
 }
 
+/**
+ * Ensure EVERY active login account has a linked Employee record, so every role
+ * (CEO, Manager, Billing, Purchase, Sales) can self-attend and appears in
+ * attendance/payroll. Idempotent — only creates/links what's missing.
+ */
+export async function provisionUserEmployees(): Promise<number> {
+  const users = await prisma.user.findMany({ where: { status: 'active' } });
+  let linked = 0;
+  for (const u of users) {
+    // Already linked to an existing employee? nothing to do.
+    if (u.employeeId) {
+      const emp = await prisma.employee.findUnique({ where: { id: u.employeeId } });
+      if (emp) continue;
+    }
+    const empId = `emp-user-${u.id}`;
+    const existing = await prisma.employee.findUnique({ where: { id: empId } });
+    if (!existing) {
+      await prisma.employee.create({
+        data: {
+          id: empId,
+          name: u.name,
+          designation: DESIGNATION_BY_ROLE[u.role] || u.role,
+          branchId: u.assignedBranchId || 'erode-hq',
+          monthlySalary: 0, // attendance-enabled; not on hourly payroll by default
+          pin: String(1000 + Math.floor(Math.random() * 9000)),
+          status: 'Active',
+          phone: null,
+          email: null,
+          joinedDate: (u.createdAt || nowIso()).split('T')[0],
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        },
+      });
+    }
+    await prisma.user.update({ where: { id: u.id }, data: { employeeId: empId } });
+    linked++;
+  }
+  return linked;
+}
+
 /** One-time upgrade of any legacy plaintext login PINs to hashed form. */
 export async function migrateUserPins(): Promise<number> {
   const users = await prisma.user.findMany({ select: { id: true, pin: true } });
@@ -68,7 +108,7 @@ export async function authenticateUser(pin: string, branchId?: string): Promise<
   const assignedBranchId =
     role === 'Manager' ? branchId || account.assignedBranchId || 'coimbatore' : account.assignedBranchId || undefined;
   return {
-    user: { role, name: account.name, assignedBranchId: assignedBranchId ?? undefined, userId: account.id, exp: 0 },
+    user: { role, name: account.name, assignedBranchId: assignedBranchId ?? undefined, userId: account.id, employeeId: account.employeeId ?? undefined, exp: 0 },
     mustResetPin: account.mustResetPin,
   };
 }

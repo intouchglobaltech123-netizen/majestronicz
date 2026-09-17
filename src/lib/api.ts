@@ -25,7 +25,7 @@ function authHeaders(base: Record<string, string> = {}): Record<string, string> 
 /** Decode the current token's payload and return it only if unexpired. Used to
  * restore a session across reloads without forcing re-login. The server still
  * cryptographically verifies the token on every request. */
-export function getTokenSession(): { role: string; name: string; assignedBranchId?: string; userId?: string; exp: number } | null {
+export function getTokenSession(): { role: string; name: string; assignedBranchId?: string; userId?: string; employeeId?: string; exp: number } | null {
   if (!authToken) return null;
   try {
     const payload = authToken.split('.')[0];

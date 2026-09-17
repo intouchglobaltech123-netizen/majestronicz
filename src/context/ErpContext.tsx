@@ -500,6 +500,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pin: '',
         assignedBranchId: session.assignedBranchId as BranchId | undefined,
         userId: session.userId,
+        employeeId: session.employeeId,
       };
     }
     return {
@@ -732,6 +733,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             pin: '',
             assignedBranchId: session.assignedBranchId as BranchId | undefined,
             userId: session.userId,
+        employeeId: session.employeeId,
           });
           setIsAuthenticated(true);
           const data = await apiGet<any>('/api/bootstrap');
@@ -1014,13 +1016,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoginError(null);
     try {
       // Branch scope is assigned by the account server-side — not chosen here.
-      const res = await apiPost<{ token: string; mustResetPin?: boolean; user: { role: Role; name: string; assignedBranchId?: BranchId; userId?: string } }>(
+      const res = await apiPost<{ token: string; mustResetPin?: boolean; user: { role: Role; name: string; assignedBranchId?: BranchId; userId?: string; employeeId?: string } }>(
         '/api/auth/login',
         { pin }
       );
       setAuthToken(res.token);
       const assigned = res.user.assignedBranchId;
-      setCurrentUser({ role: res.user.role, name: res.user.name, pin, assignedBranchId: assigned, userId: res.user.userId });
+      setCurrentUser({ role: res.user.role, name: res.user.name, pin, assignedBranchId: assigned, userId: res.user.userId, employeeId: res.user.employeeId });
       setCurrentBranch(res.user.role === 'CEO' ? 'all' : assigned || 'erode-hq');
       setCurrentView(landingViewFor(res.user.role));
       setMustResetPin(Boolean(res.mustResetPin));

@@ -62,10 +62,11 @@ app.listen(port, async () => {
     await ensureAccessMatrix();
     await migrateAccessMatrix();
     console.log('Access-control matrix loaded.');
-    const { ensureUsers, migrateUserPins } = await import('./services/user.service.js');
+    const { ensureUsers, migrateUserPins, provisionUserEmployees } = await import('./services/user.service.js');
     await ensureUsers();
     const migrated = await migrateUserPins();
-    console.log(`Staff accounts ready.${migrated ? ` Secured ${migrated} legacy PIN(s).` : ''}`);
+    const linked = await provisionUserEmployees();
+    console.log(`Staff accounts ready.${migrated ? ` Secured ${migrated} legacy PIN(s).` : ''}${linked ? ` Linked ${linked} attendance profile(s).` : ''}`);
   } catch (e) {
     console.error('Failed during startup init (using defaults):', e);
   }

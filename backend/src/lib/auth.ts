@@ -144,6 +144,7 @@ export interface SessionUser {
   name: string;
   assignedBranchId?: string;
   userId?: string;
+  employeeId?: string;
   exp: number;
 }
 
