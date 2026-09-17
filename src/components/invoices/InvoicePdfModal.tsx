@@ -38,6 +38,14 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   if (!isOpen || !invoice) return null;
 
+  // Per-line item tax is stored pre overall-discount, while the summary GST is
+  // net of the overall discount. Scale each displayed line tax by this ratio so
+  // the line taxes reconcile with the summary total tax. (Display only.)
+  const netRatio =
+    invoice.subtotal > 0
+      ? (invoice.subtotal - invoice.overallDiscountAmount) / invoice.subtotal
+      : 1;
+
   const handlePrint = () => {
     window.print();
   };
@@ -397,7 +405,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       <>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">{item.taxRate}%</td>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                          {item.totalTax.toFixed(2)}
+                          {(item.totalTax * netRatio).toFixed(2)}
                         </td>
                       </>
                     )}

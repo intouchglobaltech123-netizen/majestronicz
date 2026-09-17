@@ -35,6 +35,16 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
 
   if (!isOpen || !estimate) return null;
 
+  // Per-line item tax is stored pre overall-discount, while the summary GST is
+  // net of any overall discount. Scale each displayed line tax by this ratio so
+  // the line taxes reconcile with the summary total tax. (Display only.)
+  const overallDiscountAmount =
+    (estimate as { overallDiscountAmount?: number }).overallDiscountAmount || 0;
+  const netRatio =
+    estimate.subtotal > 0
+      ? (estimate.subtotal - overallDiscountAmount) / estimate.subtotal
+      : 1;
+
   const handlePrint = () => {
     window.print();
   };
@@ -244,7 +254,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                       <>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">{item.gstRate}%</td>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                          {item.totalTax.toFixed(2)}
+                          {(item.totalTax * netRatio).toFixed(2)}
                         </td>
                       </>
                     )}

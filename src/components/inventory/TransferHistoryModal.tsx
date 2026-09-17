@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES } from '../../types';
+import { BranchScope, BRANCHES, DeliveryChallan } from '../../types';
+import { toast } from 'sonner';
+import { DeliveryChallanPdfModal } from '../challans/DeliveryChallanPdfModal';
 import {
   X,
   History,
@@ -23,10 +25,12 @@ interface Props {
 export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const {
     stockTransfers,
+    challans,
     currentBranch,
     currentUser,
-    setCurrentView,
   } = useErp();
+
+  const [previewChallan, setPreviewChallan] = useState<DeliveryChallan | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<BranchScope>(() => {
@@ -260,8 +264,14 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onClose();
-                            setCurrentView('challans');
+                            const matched = challans.find(
+                              (c) => c.challanNumber === transfer.challanNumber
+                            );
+                            if (matched) {
+                              setPreviewChallan(matched);
+                            } else {
+                              toast.error('Linked challan not found');
+                            }
                           }}
                           title="View linked Delivery Challan"
                           className="px-2 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors flex items-center gap-1"
@@ -356,6 +366,12 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </button>
         </div>
       </div>
+
+      <DeliveryChallanPdfModal
+        challan={previewChallan}
+        isOpen={previewChallan !== null}
+        onClose={() => setPreviewChallan(null)}
+      />
     </div>
   );
 };

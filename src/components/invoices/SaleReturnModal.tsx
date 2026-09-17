@@ -86,13 +86,30 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     });
   }, [invoice, returnQuantities]);
 
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Amount already refunded on this invoice from prior returns
+  const totalReturnedAmount = useMemo(() => {
+    return (invoice?.returns || []).reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+  }, [invoice]);
+
+  // Raw (uncapped) sum of the per-line refunds selected in this session
+  const rawTotalRefund = useMemo(() => {
+    return linesWithReturnState.reduce((sum, l) => sum + l.totalRefund, 0);
+  }, [linesWithReturnState]);
+
+  // Cap refunds to the remaining (unreturned) invoice value, then derive a
+  // uniform scale so each displayed per-line refund sums exactly to the summary.
+  const refundScale = useMemo(() => {
+    if (!invoice) return 1;
+    const ceiling = Math.max(0, invoice.grandTotal - totalReturnedAmount);
+    return rawTotalRefund > ceiling && rawTotalRefund > 0 ? ceiling / rawTotalRefund : 1;
+  }, [invoice, rawTotalRefund, totalReturnedAmount]);
+
+  // Summary uses the same scale + rounding as the displayed rows so they reconcile
   const totalRefundAmount = useMemo(() => {
-    const raw = linesWithReturnState.reduce((sum, l) => sum + l.totalRefund, 0);
-    if (!invoice) return raw;
-    // Never let cumulative refunds exceed the invoice's grand total.
-    const ceiling = Math.max(0, (invoice.grandTotal || 0) - (invoice.totalReturnedAmount || 0));
-    return Math.round(Math.min(raw, ceiling) * 100) / 100;
-  }, [linesWithReturnState, invoice]);
+    return linesWithReturnState.reduce((sum, l) => sum + round2(l.totalRefund * refundScale), 0);
+  }, [linesWithReturnState, refundScale]);
 
   const totalUnitsToReturn = useMemo(() => {
     return linesWithReturnState.reduce((sum, l) => sum + l.currentReturnQty, 0);
@@ -316,7 +333,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       </td>
 
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                        {formatCurrency(line.totalRefund)}
+                        {formatCurrency(round2(line.totalRefund * refundScale))}
                       </td>
                     </tr>
                   );

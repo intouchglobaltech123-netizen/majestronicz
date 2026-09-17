@@ -5,3 +5,4 @@ dist-ssr
 *.log
 *.tsbuildinfo
 .DS_Store
+.claude/
