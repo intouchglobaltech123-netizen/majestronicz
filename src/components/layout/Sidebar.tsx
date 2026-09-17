@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   UserCheck,
   Contact,
+  ShoppingCart,
   Building2,
   Lock,
   Truck,
@@ -86,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canAccessView('purchases') },
     { id: 'hrm', label: 'Attendance', icon: Users, visible: canAccessView('hrm') },
     { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
+    { id: 'shopify', label: 'Online Store', icon: ShoppingCart, visible: canAccessView('shopify') },
     { id: 'ai-assistant', label: 'Beta AI', icon: Sparkles, visible: canAccessView('ai-assistant'), badge: 'Beta' },
     { id: 'access', label: 'Access Control', icon: ShieldCheck, visible: canAccessView('access') },
   ];

@@ -25,6 +25,7 @@ import {
 } from '../services/user.service.js';
 import { recordAudit, listAudit } from '../services/audit.service.js';
 import { selfClock, getSelfToday } from '../services/hrm.service.js';
+import { getShopInfo, previewOrders, importOrders, previewProducts, importProducts, handleOrderWebhook } from '../services/shopify.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
 
@@ -234,6 +235,28 @@ router.post('/attendance/self-clock', asyncHandler(async (req, res) => {
   const result = await selfClock(u.employeeId, photo, location);
   broadcastChange('attendance');
   res.json(result);
+}));
+
+// ---- Shopify integration ----
+router.get('/shopify/status', requireCapability('admin'), asyncHandler(async (_req, res) => res.json(await getShopInfo())));
+router.get('/shopify/orders', requireCapability('admin'), asyncHandler(async (req, res) => res.json(await previewOrders(Number(req.query.limit) || 50))));
+router.post('/shopify/import', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await importOrders(Number(req.body?.limit) || 50);
+  broadcastChange('shopify-import');
+  res.json(result);
+}));
+router.get('/shopify/products', requireCapability('admin'), asyncHandler(async (req, res) => res.json(await previewProducts(Number(req.query.limit) || 100))));
+router.post('/shopify/import-products', requireCapability('admin'), asyncHandler(async (req, res) => {
+  const result = await importProducts(Number(req.body?.limit) || 100);
+  broadcastChange('shopify-products');
+  res.json(result);
+}));
+// Auto-sync webhook (Shopify orders/paid). PUBLIC — verified by HMAC, not RBAC.
+router.post('/shopify/webhook/orders', asyncHandler(async (req, res) => {
+  const result = await handleOrderWebhook((req as any).rawBody, req.header('X-Shopify-Hmac-Sha256'), req.body);
+  if (!result.ok) { res.status(401).json({ error: 'invalid hmac' }); return; }
+  if (result.status === 'imported') broadcastChange('shopify-webhook');
+  res.status(200).json({ ok: true });
 }));
 
 router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user))));

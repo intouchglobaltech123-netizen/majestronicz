@@ -59,7 +59,7 @@ export const FLAG_LABELS: Record<string, string> = {
 export const ALL_VIEWS: string[] = [
   'dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
-  'hrm', 'reports', 'ai-assistant', 'access',
+  'hrm', 'reports', 'shopify', 'ai-assistant', 'access',
 ];
 
 export const ALL_CAPABILITIES: Capability[] = [
@@ -72,7 +72,7 @@ export const VIEW_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', items: 'Items Master', customers: 'Customers', parties: 'Parties', enquiries: 'Enquiries',
   'pending-orders': 'Pending Orders', estimates: 'Quotes', challans: 'Delivery Challan',
   inventory: 'Inventory', invoices: 'Sales', barcodes: 'Barcode', 'cash-register': 'Cash Register',
-  purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', 'ai-assistant': 'Beta AI', access: 'Access Control',
+  purchases: 'Purchases', hrm: 'Attendance', reports: 'Reports', shopify: 'Online Store', 'ai-assistant': 'Beta AI', access: 'Access Control',
 };
 
 export const CAP_LABELS: Record<Capability, string> = {
@@ -261,6 +261,8 @@ export interface Invoice {
   sourceEstimateNumber?: string;
   sourceEnquiryId?: string; // If converted from an Enquiry
   sourceEnquiryNumber?: string;
+  sourceChannel?: string; // 'shopify' for imported online orders
+  externalOrderId?: string; // Shopify order id (dedupe)
   createdById?: string;
   createdAt: string;
   updatedAt?: string;

@@ -27,7 +27,8 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '25mb' })); // base64 photos/attachments can be large
+// Keep the raw body around (for Shopify webhook HMAC verification).
+app.use(express.json({ limit: '25mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
 app.use(attachUser); // parse Bearer token → req.user (RBAC enforced per-route)
 app.use('/api', apiRoutes);

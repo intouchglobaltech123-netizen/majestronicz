@@ -16,6 +16,7 @@ import { InventoryView } from './components/inventory/InventoryView';
 import { ReportsView } from './components/reports/ReportsView';
 import { CustomersView } from './components/customers/CustomersView';
 import { PartiesView } from './components/parties/PartiesView';
+import { ShopifyView } from './components/shopify/ShopifyView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
@@ -71,6 +72,8 @@ const AppContent: React.FC = () => {
             <HrmView />
           ) : currentView === 'reports' ? (
             <ReportsView />
+          ) : currentView === 'shopify' ? (
+            <ShopifyView />
           ) : currentView === 'ai-assistant' ? (
             <AiAssistantView />
           ) : currentView === 'access' ? (

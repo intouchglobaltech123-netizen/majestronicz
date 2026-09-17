@@ -169,6 +169,8 @@ model Invoice {
   sourceEstimateNumber      String?
   sourceEnquiryId           String?
   sourceEnquiryNumber       String?
+  sourceChannel             String?  // e.g. 'shopify' for imported online orders
+  externalOrderId           String?  // Shopify order id (dedupe key)
   createdById               String?
   createdAt                 String
   updatedAt                 String?
