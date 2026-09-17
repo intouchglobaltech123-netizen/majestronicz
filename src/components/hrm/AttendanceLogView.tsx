@@ -14,6 +14,7 @@ import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture, BRANCHES, BranchScope } from '../../types';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
+import { TodayAttendanceBoard } from './TodayAttendanceBoard';
 
 export const AttendanceLogView: React.FC = () => {
   const {
@@ -99,6 +100,9 @@ export const AttendanceLogView: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* Live "today" board — all staff check-in/out + location + metrics */}
+      <TodayAttendanceBoard />
+
       {/* Control Bar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         {/* Month Selector & Filters */}

@@ -7,6 +7,18 @@ const snap = async (tx: any) => ({
   payrollRecords: await tx.payrollRecord.findMany(),
 });
 
+// Attendance date/time are recorded in India Standard Time (Asia/Kolkata), not
+// the server's UTC — otherwise check-in/out times show a ~5:30h offset.
+function istParts(now = new Date()): { date: string; time: string } {
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now);
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(now);
+  return { date, time };
+}
+
 export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
@@ -14,8 +26,9 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
     if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Employee profile is inactive', 409);
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const timeStr = customTime || now.toTimeString().split(' ')[0];
+    const ist = istParts(now);
+    const today = ist.date;
+    const timeStr = customTime || ist.time;
 
     const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
     if (existing && existing.checkInTime) {
@@ -39,8 +52,9 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
     if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const timeStr = customTime || now.toTimeString().split(' ')[0];
+    const ist = istParts(now);
+    const today = ist.date;
+    const timeStr = customTime || ist.time;
 
     const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
     if (!existing) throw new AppError('NO_CHECKIN', `No check-in found for ${emp.name} today.`, 409);
@@ -64,6 +78,10 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
   return prisma.$transaction(async (tx: any) => {
     const existing = await tx.payrollRecord.findFirst({ where: { employeeId, month } });
     if (existing) {
+      // A disbursed payroll is locked — its paid amount can't be silently edited.
+      if (existing.status === 'Paid') {
+        throw new AppError('PAYROLL_PAID_LOCKED', 'This payroll is already disbursed (Paid) and cannot be adjusted.', 409);
+      }
       const finalPayable = Math.max(0, Math.round(existing.computedPay + adjustment));
       await tx.payrollRecord.update({
         where: { id: existing.id },

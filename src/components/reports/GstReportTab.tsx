@@ -63,17 +63,20 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
         const cgst = inter ? 0 : li.cgstAmount || tax / 2;
         const sgst = inter ? 0 : li.sgstAmount || tax / 2;
         const igst = inter ? tax : 0;
+        // Derive Total Tax from the components so the displayed CGST+SGST+IGST
+        // always equals Total Tax (legacy lines can have a 0.01 half-split drift).
+        const compTax = cgst + sgst + igst;
 
         const r = rateMap.get(rate) || { rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-        r.taxable += taxable; r.cgst += cgst; r.sgst += sgst; r.igst += igst; r.total += tax;
+        r.taxable += taxable; r.cgst += cgst; r.sgst += sgst; r.igst += igst; r.total += compTax;
         rateMap.set(rate, r);
 
         const hsnKey = li.itemHSN || '—';
         const h = hsnMap.get(hsnKey) || { hsn: hsnKey, qty: 0, taxable: 0, tax: 0, rates: new Set<number>() };
-        h.qty += li.quantity || 0; h.taxable += taxable; h.tax += tax; h.rates.add(rate);
+        h.qty += li.quantity || 0; h.taxable += taxable; h.tax += compTax; h.rates.add(rate);
         hsnMap.set(hsnKey, h);
 
-        totals.taxable += taxable; totals.cgst += cgst; totals.sgst += sgst; totals.igst += igst; totals.total += tax;
+        totals.taxable += taxable; totals.cgst += cgst; totals.sgst += sgst; totals.igst += igst; totals.total += compTax;
       }
     }
     return {

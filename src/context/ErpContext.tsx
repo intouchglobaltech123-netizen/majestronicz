@@ -182,7 +182,7 @@ interface ErpContextType {
 
   // Estimates & Quotations
   estimates: Estimate[];
-  saveEstimate: (estimate: Estimate) => void;
+  saveEstimate: (estimate: Estimate) => Promise<Estimate>;
   deleteEstimate: (estimateId: string) => void;
   getNextEstimateNumber: (branchId: BranchId, date?: string) => string;
 
@@ -1945,7 +1945,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${prefix}${String(nextSeq).padStart(3, '0')}`;
   };
 
-  const saveEstimate = (newEstimate: Estimate) => {
+  const saveEstimate = async (newEstimate: Estimate): Promise<Estimate> => {
+    // Optimistic insert (shows a provisional number instantly).
     setEstimates((prev) => {
       const existingIdx = prev.findIndex((e) => e.id === newEstimate.id);
       if (existingIdx >= 0) {
@@ -1955,10 +1956,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [newEstimate, ...prev];
     });
-    persist(apiPost('/api/catalog/estimate', newEstimate));
-    toast.success(`Estimate ${newEstimate.estimateNumber} saved`, {
-      description: `For ${newEstimate.customerName} (₹${newEstimate.grandTotal.toLocaleString('en-IN')})`,
+    // Await the server so we can surface the AUTHORITATIVE number it assigned
+    // (the estimate number is generated server-side and may differ from the
+    // provisional one under concurrency) — fixes the stale success/preview number.
+    let saved = newEstimate;
+    try {
+      const snap = await apiPost<any>('/api/catalog/estimate', newEstimate);
+      if (snap && Array.isArray(snap.estimates)) {
+        setEstimates(snap.estimates);
+        saved = snap.estimates.find((e: Estimate) => e.id === newEstimate.id) || newEstimate;
+      }
+    } catch (e: any) {
+      toast.error('Could not save estimate to server', { description: e?.message ?? 'Backend error' });
+      return newEstimate;
+    }
+    toast.success(`Quotation ${saved.estimateNumber} saved`, {
+      description: `For ${saved.customerName} (₹${saved.grandTotal.toLocaleString('en-IN')})`,
     });
+    return saved;
   };
 
   const deleteEstimate = (estimateId: string) => {

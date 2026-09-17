@@ -690,7 +690,8 @@ export const InvoiceForm: React.FC<Props> = ({
   const selectMasterItemForRow = (rowId: string, item: Item) => {
     const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === selectedBranch);
     const availableQty = stockRow?.quantity ?? 0;
-    if (availableQty <= 0) {
+    // Quotations don't deduct stock, so they may quote out-of-stock items.
+    if (documentType === 'Invoice' && availableQty <= 0) {
       toast.error('Out of stock at this branch', {
         description: `"${item.itemName}" has 0 available stock at ${BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch'}.`,
       });
@@ -720,7 +721,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
   const selectComboForRow = (rowId: string, combo: ComboItem) => {
     const availQty = getComboAvailability(combo, selectedBranch);
-    if (availQty <= 0) {
+    if (documentType === 'Invoice' && availQty <= 0) {
       toast.error('Combo out of stock at this branch', {
         description: `"${combo.comboName}" currently has 0 available kits at ${BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch'} due to component stock.`,
       });
@@ -778,12 +779,12 @@ export const InvoiceForm: React.FC<Props> = ({
 
     if (matchedItem) {
       const availableQty = branchStocks.find((s) => s.itemId === matchedItem.id && s.branchId === selectedBranch)?.quantity ?? 0;
-      if (availableQty <= 0) {
+      if (documentType === 'Invoice' && availableQty <= 0) {
         toast.error('Out of stock at this branch', { description: `"${matchedItem.itemName}" has 0 available at ${branchLabel}.` });
       } else {
         const existing = lineItems.find((li) => li.itemId === matchedItem.id && !li.isCombo);
         if (existing) {
-          if (existing.quantity + 1 > availableQty) {
+          if (documentType === 'Invoice' && existing.quantity + 1 > availableQty) {
             toast.warning('Reached available stock limit', { description: `Only ${availableQty} unit(s) of "${matchedItem.itemName}" at ${branchLabel}.` });
           } else {
             updateLineItem(existing.id, { quantity: existing.quantity + 1 });
@@ -798,12 +799,12 @@ export const InvoiceForm: React.FC<Props> = ({
       }
     } else if (matchedCombo) {
       const availQty = getComboAvailability(matchedCombo, selectedBranch);
-      if (availQty <= 0) {
+      if (documentType === 'Invoice' && availQty <= 0) {
         toast.error('Combo out of stock at this branch', { description: `"${matchedCombo.comboName}" has 0 available kits at ${branchLabel}.` });
       } else {
         const existing = lineItems.find((li) => li.comboId === matchedCombo.id && li.isCombo);
         if (existing) {
-          if (existing.quantity + 1 > availQty) {
+          if (documentType === 'Invoice' && existing.quantity + 1 > availQty) {
             toast.warning('Reached available combo limit', { description: `Only ${availQty} kit(s) of "${matchedCombo.comboName}" at ${branchLabel}.` });
           } else {
             updateLineItem(existing.id, { quantity: existing.quantity + 1 });
@@ -1216,20 +1217,20 @@ export const InvoiceForm: React.FC<Props> = ({
     return newEstimate;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (documentType === 'Quotation') {
       const est = assembleEstimateObject();
       if (!est) return;
-      saveEstimate(est);
-      toast.success(`Quotation ${est.estimateNumber} saved successfully`);
+      // Use the server-saved estimate (authoritative number) for the preview,
+      // not the provisional one — saveEstimate emits its own success toast.
+      const saved = await saveEstimate(est);
       if (onSavedEstimate) {
-        onSavedEstimate(est);
+        onSavedEstimate(saved);
       }
     } else {
       const inv = assembleInvoiceObject();
       if (!inv) return;
       saveInvoice(inv);
-      toast.success(`Invoice ${inv.invoiceNumber} saved successfully`);
       onSaved(inv);
     }
   };

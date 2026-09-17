@@ -87,8 +87,12 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   }, [invoice, returnQuantities]);
 
   const totalRefundAmount = useMemo(() => {
-    return linesWithReturnState.reduce((sum, l) => sum + l.totalRefund, 0);
-  }, [linesWithReturnState]);
+    const raw = linesWithReturnState.reduce((sum, l) => sum + l.totalRefund, 0);
+    if (!invoice) return raw;
+    // Never let cumulative refunds exceed the invoice's grand total.
+    const ceiling = Math.max(0, (invoice.grandTotal || 0) - (invoice.totalReturnedAmount || 0));
+    return Math.round(Math.min(raw, ceiling) * 100) / 100;
+  }, [linesWithReturnState, invoice]);
 
   const totalUnitsToReturn = useMemo(() => {
     return linesWithReturnState.reduce((sum, l) => sum + l.currentReturnQty, 0);

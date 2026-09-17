@@ -14,7 +14,7 @@ interface Props {
 
 /** Supplier statement — purchase bills (POs), payments made, and payable balance. */
 export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose, onEditVendor }) => {
-  const { purchaseOrders, payments, canRecordPayment, deletePayment, currentBranch } = useErp();
+  const { purchaseOrders, payments, canRecordPayment, deletePayment, currentBranch, isAllBranches } = useErp();
   const [isPayOpen, setIsPayOpen] = useState(false);
 
   const vendorPOs = useMemo(
@@ -22,9 +22,11 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
       vendor
         ? purchaseOrders
             .filter((po) => po.vendorId === vendor.id && po.status !== 'Cancelled')
+            // Branch-scope: locked roles only see their own branch's POs.
+            .filter((po) => isAllBranches || po.branchId === currentBranch)
             .sort((a, b) => (a.date < b.date ? 1 : -1))
         : [],
-    [purchaseOrders, vendor]
+    [purchaseOrders, vendor, isAllBranches, currentBranch]
   );
 
   const unpaidPOs = useMemo(
@@ -47,9 +49,10 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
       vendor
         ? payments
             .filter((p) => p.type === 'out' && p.partyType === 'vendor' && (p.partyId === vendor.id || p.partyName === vendor.vendorName))
+            .filter((p) => isAllBranches || p.branchId === currentBranch)
             .sort((a, b) => (a.date < b.date ? 1 : -1))
         : [],
-    [payments, vendor]
+    [payments, vendor, isAllBranches, currentBranch]
   );
 
   if (!isOpen || !vendor) return null;

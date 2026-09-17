@@ -59,16 +59,21 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
         statusCounts[po.status]++;
       }
 
-      totalValueOrdered += po.totalAmount;
+      // Cancelled orders still show in the status counts but must NOT inflate the
+      // ordered/received value or the fulfillment denominator.
+      const countsTowardValue = po.status !== 'Cancelled';
+      if (countsTowardValue) totalValueOrdered += po.totalAmount;
 
       // Calculate received value from line items
       let poReceivedVal = 0;
-      po.items.forEach((item) => {
-        const qtyReceived = item.receivedQuantity || 0;
-        const lineReceived = qtyReceived * item.purchasePrice;
-        poReceivedVal += lineReceived;
-        totalValueReceived += lineReceived;
-      });
+      if (countsTowardValue) {
+        po.items.forEach((item) => {
+          const qtyReceived = item.receivedQuantity || 0;
+          const lineReceived = qtyReceived * item.purchasePrice;
+          poReceivedVal += lineReceived;
+          totalValueReceived += lineReceived;
+        });
+      }
 
       // Check if overdue: expectedDeliveryDate < today and status is Ordered or Partially Received
       if (

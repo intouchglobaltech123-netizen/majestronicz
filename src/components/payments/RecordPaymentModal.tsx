@@ -40,7 +40,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const { recordPayment } = useErp();
   const totalDue = useMemo(() => outstanding.reduce((t, o) => t + o.balanceDue, 0), [outstanding]);
 
-  const [amount, setAmount] = useState<string>(totalDue > 0 ? String(Math.round(totalDue)) : '');
+  // Prefill the EXACT outstanding (not rounded) so it doesn't invent a
+  // fractional advance/short-payment.
+  const [amount, setAmount] = useState<string>(totalDue > 0 ? String(Math.round(totalDue * 100) / 100) : '');
   const [mode, setMode] = useState('Cash');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reference, setReference] = useState('');

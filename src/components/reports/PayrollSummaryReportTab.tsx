@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { computePayrollRows } from '../../lib/payroll';
 
 interface Props {
   branchScope: BranchScope;
@@ -22,6 +23,10 @@ interface Props {
 export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
   const {
     payrollRecords,
+    employees,
+    attendanceRecords,
+    invoices,
+    payrollSettings,
     currentUser,
     setCurrentView,
   } = useErp();
@@ -42,14 +47,20 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
     );
   }
 
-  // Filter records for selected month and branch
+  // Live payroll rows — SAME computation as the Attendance › Payroll screen, so
+  // the report and the operational payroll agree (was reading only sparse saved
+  // records, which diverged in staff count, hours and liability).
   const filteredRecords = useMemo(() => {
-    return payrollRecords.filter((rec) => {
-      if (selectedMonth && rec.month !== selectedMonth) return false;
-      if (branchScope !== 'all' && rec.branchId !== branchScope) return false;
-      return true;
+    return computePayrollRows({
+      employees,
+      attendanceRecords,
+      invoices,
+      payrollRecords,
+      month: selectedMonth,
+      standardHours: payrollSettings.standardHoursPerMonth || 208,
+      branchScope,
     });
-  }, [payrollRecords, selectedMonth, branchScope]);
+  }, [employees, attendanceRecords, invoices, payrollRecords, selectedMonth, payrollSettings, branchScope]);
 
   // Aggregate Metrics
   const summary = useMemo(() => {

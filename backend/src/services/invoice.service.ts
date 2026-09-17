@@ -297,8 +297,16 @@ export function processReturn(
       const perUnit = (lineNetWithTax - overallShare) / q;
       return Math.max(0, Math.round(perUnit * 100) / 100);
     };
-    const refundFor = (line: any): number =>
+    const rawRefundFor = (line: any): number =>
       Math.round(perUnitRefund(line.itemId, line.taxRate, line.unitPrice) * line.returnQty * 100) / 100;
+
+    // Ceiling: total refunds across ALL returns can never exceed the invoice's
+    // grand total. If historical returns used a different (looser) calc, cap the
+    // remaining refund and scale this batch's lines proportionally to fit.
+    const refundCeiling = Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.totalReturnedAmount) || 0));
+    const rawBatchTotal = validLines.reduce((s: number, l: any) => s + rawRefundFor(l), 0);
+    const refundScale = rawBatchTotal > refundCeiling && rawBatchTotal > 0 ? refundCeiling / rawBatchTotal : 1;
+    const refundFor = (line: any): number => Math.round(rawRefundFor(line) * refundScale * 100) / 100;
 
     for (const line of validLines) {
       if (line.isCombo && line.comboComponents?.length) {

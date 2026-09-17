@@ -8,12 +8,14 @@ import {
   CreditCard,
   Edit,
   X,
+  Lock,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Employee, PayrollRecord, BRANCHES, BranchScope } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { PayslipModal } from './PayslipModal';
 import { PayrollSettingsModal } from './PayrollSettingsModal';
+import { computePayrollRows } from '../../lib/payroll';
 
 export const PayrollSummaryView: React.FC = () => {
   const {
@@ -56,77 +58,21 @@ export const PayrollSummaryView: React.FC = () => {
 
   const standardHours = payrollSettings.standardHoursPerMonth || 208;
 
-  // Filter employees according to branch scope
-  const targetEmployees = employees.filter((emp) => {
-    if (currentUser.role === 'Manager') {
-      const managerBranch = currentUser.assignedBranchId || 'coimbatore';
-      return emp.branchId === managerBranch;
-    }
-    const effectiveScope = branchFilter === 'all' ? null : branchFilter;
-    if (effectiveScope && emp.branchId !== effectiveScope) return false;
-    return true;
-  });
+  // Branch scope for this screen (Manager is locked to their branch).
+  const payrollScope =
+    currentUser.role === 'Manager'
+      ? currentUser.assignedBranchId || 'coimbatore'
+      : branchFilter;
 
-  // Calculate live computed payroll rows for each employee
-  const payrollRows: PayrollRecord[] = targetEmployees.map((emp) => {
-    // 1. Calculate attendance for this month
-    const empAtt = attendanceRecords.filter(
-      (a) => a.employeeId === emp.id && a.date.startsWith(selectedMonth)
-    );
-    const totalDaysPresent = empAtt.length;
-    const totalHoursWorked = empAtt.reduce((sum, a) => sum + (a.hoursWorked || 0), 0);
-
-    // 2. Derive rate & computed pay
-    const hourlyRate = parseFloat((emp.monthlySalary / standardHours).toFixed(2));
-    const computedPay = Math.round(hourlyRate * totalHoursWorked);
-
-    // 3. Find existing saved record (for adjustments, paid status)
-    const existingRec = payrollRecords.find(
-      (p) => p.employeeId === emp.id && p.month === selectedMonth
-    );
-
-    // 2b. Salesperson incentives credited to this employee this month.
-    // Voided bills are excluded (reversed); returns reduce it proportionally.
-    const incentiveEarned = Math.round(
-      invoices
-        .filter((inv) => !inv.isVoided && inv.salespersonId === emp.id && (inv.date || '').startsWith(selectedMonth))
-        .reduce((sum, inv) => {
-          const amt = inv.incentiveAmount || 0;
-          if (!amt) return sum;
-          const gross = inv.grandTotal || 0;
-          const netRatio = gross > 0 ? Math.max(0, gross - (inv.totalReturnedAmount || 0)) / gross : 0;
-          return sum + amt * netRatio;
-        }, 0)
-    );
-
-    const manualAdjustment = existingRec?.manualAdjustment || 0;
-    const adjustmentReason = existingRec?.adjustmentReason;
-    const finalPayable = Math.max(0, computedPay + incentiveEarned + manualAdjustment);
-    const status = existingRec?.status || 'Draft';
-
-    return {
-      id: existingRec?.id || `calc-${emp.id}-${selectedMonth}`,
-      employeeId: emp.id,
-      employeeName: emp.name,
-      designation: emp.designation,
-      branchId: emp.branchId,
-      month: selectedMonth,
-      monthlySalary: emp.monthlySalary,
-      standardHoursPerMonth: standardHours,
-      hourlyRate,
-      totalDaysPresent,
-      totalHoursWorked,
-      computedPay,
-      incentiveEarned,
-      manualAdjustment,
-      adjustmentReason,
-      finalPayable,
-      status,
-      paidAt: existingRec?.paidAt,
-      paymentMode: existingRec?.paymentMode,
-      paymentReference: existingRec?.paymentReference,
-      updatedAt: existingRec?.updatedAt || new Date().toISOString(),
-    };
+  // Live computed payroll rows — shared with the Payroll Report (single truth).
+  const payrollRows: PayrollRecord[] = computePayrollRows({
+    employees,
+    attendanceRecords,
+    invoices,
+    payrollRecords,
+    month: selectedMonth,
+    standardHours,
+    branchScope: payrollScope,
   });
 
   // KPI calculations
@@ -371,7 +317,7 @@ export const PayrollSummaryView: React.FC = () => {
                             <span className="text-slate-300 text-xs">₹0</span>
                           )}
 
-                          {canAdjustPayroll && emp && (
+                          {canAdjustPayroll && emp && row.status !== 'Paid' && (
                             <button
                               type="button"
                               onClick={() =>
@@ -386,6 +332,11 @@ export const PayrollSummaryView: React.FC = () => {
                             >
                               <Edit className="h-3 w-3" />
                             </button>
+                          )}
+                          {row.status === 'Paid' && (
+                            <span title="Disbursed — locked" className="text-slate-300">
+                              <Lock className="h-3 w-3" />
+                            </span>
                           )}
                         </div>
                       </td>

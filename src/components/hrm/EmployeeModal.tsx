@@ -262,7 +262,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               <input
                 type="number"
                 min={0}
-                step={500}
+                step={1}
                 value={monthlySalary}
                 onChange={(e) => setMonthlySalary(Number(e.target.value))}
                 disabled={!canEditSalaries}

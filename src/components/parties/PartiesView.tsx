@@ -48,7 +48,20 @@ export const PartiesView: React.FC = () => {
     purchaseOrders,
     canManageCustomers,
     canManagePurchases,
+    currentBranch,
+    isAllBranches,
   } = useErp();
+
+  // Branch scope: when locked to a branch (e.g. Manager), only that branch's
+  // invoices/POs count toward balances so parties don't expose other branches.
+  const scopedInvoices = useMemo(
+    () => (isAllBranches ? invoices : invoices.filter((i) => i.branchId === currentBranch)),
+    [invoices, isAllBranches, currentBranch]
+  );
+  const scopedPOs = useMemo(
+    () => (isAllBranches ? purchaseOrders : purchaseOrders.filter((p) => p.branchId === currentBranch)),
+    [purchaseOrders, isAllBranches, currentBranch]
+  );
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PartyFilter>('all');
@@ -65,19 +78,19 @@ export const PartiesView: React.FC = () => {
   // Vendor payable = sum of unpaid PO balances (non-cancelled).
   const vendorPayable = useMemo(() => {
     const map = new Map<string, number>();
-    for (const po of purchaseOrders) {
+    for (const po of scopedPOs) {
       if (po.status === 'Cancelled') continue;
       const bal = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
       if (bal <= 0.5) continue;
       map.set(po.vendorId, (map.get(po.vendorId) || 0) + bal);
     }
     return map;
-  }, [purchaseOrders]);
+  }, [scopedPOs]);
 
   const parties: UnifiedParty[] = useMemo(() => {
     const list: UnifiedParty[] = [];
     for (const c of customers) {
-      const toCollect = getCustomerOutstandingSummary(c, invoices).totalOutstanding;
+      const toCollect = getCustomerOutstandingSummary(c, scopedInvoices).totalOutstanding;
       list.push({
         key: `c-${c.id}`,
         kind: 'customer',
@@ -101,7 +114,7 @@ export const PartiesView: React.FC = () => {
       });
     }
     return list;
-  }, [customers, vendors, invoices, vendorPayable]);
+  }, [customers, vendors, scopedInvoices, vendorPayable]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -128,8 +141,8 @@ export const PartiesView: React.FC = () => {
   // reconcile. Per-customer rows only attribute dues to a matched customer
   // record; any remainder is receivable on invoices not linked to a party.
   const totalReceivable = useMemo(
-    () => invoices.filter((i) => !i.isVoided).reduce((s, i) => s + computeInvoiceFinance(i).due, 0),
-    [invoices]
+    () => scopedInvoices.filter((i) => !i.isVoided).reduce((s, i) => s + computeInvoiceFinance(i).due, 0),
+    [scopedInvoices]
   );
   const attributedReceivable = parties.reduce((s, p) => s + p.toCollect, 0);
   const unassignedReceivable = Math.max(0, totalReceivable - attributedReceivable);
