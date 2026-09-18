@@ -117,6 +117,20 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
     },
     subOptions: [
       {
+        id: 'new-quote',
+        label: 'Add Quotation',
+        description: 'New price quotation / estimate draft',
+        icon: FileText,
+        tag: 'Action',
+      },
+      {
+        id: 'new-challan',
+        label: 'Add Delivery Challan',
+        description: 'New dispatch / delivery challan entry',
+        icon: Truck,
+        tag: 'Action',
+      },
+      {
         id: 'ledger',
         label: 'Sales Invoices',
         description: 'Tax invoices, receipts, payment tracking',
@@ -128,6 +142,13 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
         label: 'Quotations & Estimates',
         description: 'Customer price estimates & conversion',
         icon: FileText,
+        tag: 'Tab',
+      },
+      {
+        id: 'challans',
+        label: 'Delivery Challans',
+        description: 'Dispatch challans & delivery records',
+        icon: Truck,
         tag: 'Tab',
       },
       {

@@ -112,17 +112,17 @@ export const DailyCashRegisterView: React.FC = () => {
     );
   }, [invoices, activeBranchId, selectedDate]);
 
-  // Sales Totals — Reconcile Per Split Entry
+  // Sales Totals — Reconcile Per Split Entry with 2-decimal accuracy
   const salesBreakdown = useMemo(() => {
-    return dayInvoices.reduce(
+    const raw = dayInvoices.reduce(
       (acc, inv) => {
         const splits = getInvoicePaymentSplits(inv);
-        const returned = inv.totalReturnedAmount || 0;
-        const netTotal = Math.max(0, inv.grandTotal - returned);
+        const returned = Math.min(inv.grandTotal || 0, inv.totalReturnedAmount || 0);
+        const netTotal = Math.max(0, (inv.grandTotal || 0) - returned);
         const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
 
         splits.forEach((split) => {
-          const amt = split.amount * ratio;
+          const amt = Math.round(split.amount * ratio * 100) / 100;
           if (split.mode === 'HDFC') acc.hdfc += amt;
           else if (split.mode === 'Cash') acc.cash += amt;
           else if (split.mode === 'GPay') acc.gpay += amt;
@@ -134,25 +134,39 @@ export const DailyCashRegisterView: React.FC = () => {
       },
       { hdfc: 0, cash: 0, gpay: 0, codCredit: 0, totalRevenue: 0 }
     );
+    return {
+      hdfc: Math.round(raw.hdfc * 100) / 100,
+      cash: Math.round(raw.cash * 100) / 100,
+      gpay: Math.round(raw.gpay * 100) / 100,
+      codCredit: Math.round(raw.codCredit * 100) / 100,
+      totalRevenue: Math.round(raw.totalRevenue * 100) / 100,
+    };
   }, [dayInvoices]);
 
   // Expenses Totals
   const expenseBreakdown = useMemo(() => {
-    return currentRegister.expenses.reduce(
+    const raw = currentRegister.expenses.reduce(
       (acc, exp) => {
-        acc.cash += exp.cashAmount || 0;
-        acc.gpay += exp.gpayAmount || 0;
-        acc.total += (exp.cashAmount || 0) + (exp.gpayAmount || 0);
+        const cashPart = Math.round((exp.cashAmount || 0) * 100) / 100;
+        const gpayPart = Math.round((exp.gpayAmount || 0) * 100) / 100;
+        acc.cash += cashPart;
+        acc.gpay += gpayPart;
+        acc.total += cashPart + gpayPart;
         return acc;
       },
       { cash: 0, gpay: 0, total: 0 }
     );
+    return {
+      cash: Math.round(raw.cash * 100) / 100,
+      gpay: Math.round(raw.gpay * 100) / 100,
+      total: Math.round(raw.total * 100) / 100,
+    };
   }, [currentRegister.expenses]);
 
   // CLOSING BALANCE FORMULA:
   // Opening Amount + Cash Sales (from Sales section) - Cash Expenses (Cash portion only)
   const closingBalance = useMemo(() => {
-    return currentRegister.openingAmount + salesBreakdown.cash - expenseBreakdown.cash;
+    return Math.round(((currentRegister.openingAmount || 0) + salesBreakdown.cash - expenseBreakdown.cash) * 100) / 100;
   }, [currentRegister.openingAmount, salesBreakdown.cash, expenseBreakdown.cash]);
 
   const activeBranchObj = BRANCHES.find((b) => b.id === activeBranchId) || BRANCHES[0];

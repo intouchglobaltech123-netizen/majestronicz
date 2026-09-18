@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ErpProvider, useErp, WorkspaceTab } from './context/ErpContext';
+import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
-import { WorkspaceTabBar } from './components/layout/WorkspaceTabBar';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ItemMasterView } from './components/items/ItemMasterView';
 import { DeliveryChallanView } from './components/challans/DeliveryChallanView';
@@ -22,55 +21,9 @@ import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
-import { cn } from './lib/utils';
-
-/**
- * Renders the underlying component corresponding to a workspace tab.
- */
-const renderTabContent = (tab: WorkspaceTab) => {
-  switch (tab.view) {
-    case 'dashboard':
-      return <DashboardView />;
-    case 'customers':
-      return <CustomersView />;
-    case 'parties':
-      return <PartiesView />;
-    case 'inventory':
-      return <InventoryView />;
-    case 'enquiries':
-      return <EnquiryView />;
-    case 'pending-orders':
-      return <PendingOrdersView />;
-    case 'estimates':
-      return <InvoiceView initialTab="estimates" />;
-    case 'challans':
-      return <DeliveryChallanView />;
-    case 'invoices':
-      return <InvoiceView initialTab={(tab.subTab as any) || 'ledger'} />;
-    case 'barcodes':
-      return <BarcodeView />;
-    case 'cash-register':
-      return <DailyCashRegisterView />;
-    case 'purchases':
-      return <PurchaseManagementView />;
-    case 'hrm':
-      return <HrmView />;
-    case 'reports':
-      return <ReportsView />;
-    case 'shopify':
-      return <ShopifyView />;
-    case 'ai-assistant':
-      return <AiAssistantView />;
-    case 'access':
-      return <AccessManagementView />;
-    case 'items':
-    default:
-      return <ItemMasterView />;
-  }
-};
 
 const AppContent: React.FC = () => {
-  const { currentView, tabs, activeTabId } = useErp();
+  const { currentView } = useErp();
   // Mobile off-canvas nav drawer. On desktop (lg+) the sidebar is always in-flow.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -89,33 +42,44 @@ const AppContent: React.FC = () => {
         {/* Global Top Bar with Location Scope Switcher */}
         <TopBar onOpenNav={() => setMobileNavOpen(true)} />
 
-        {/* Chrome-Style Workspace Tab Bar */}
-        <WorkspaceTabBar />
-
-        {/* Multi-Tab Workspace Body: Inactive tabs stay mounted (display: none) preserving 100% of user state */}
-        <main className="relative flex-1 min-h-0 overflow-hidden bg-slate-50/50">
-          {tabs.length === 0 ? (
-            <div className="h-full w-full overflow-y-auto overflow-x-hidden">
-              <DashboardView />
-            </div>
+        {/* Scrollable Content Body */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
+          {currentView === 'dashboard' ? (
+            <DashboardView />
+          ) : currentView === 'customers' ? (
+            <CustomersView />
+          ) : currentView === 'parties' ? (
+            <PartiesView />
+          ) : currentView === 'inventory' ? (
+            <InventoryView />
+          ) : currentView === 'enquiries' ? (
+            <EnquiryView />
+          ) : currentView === 'pending-orders' ? (
+            <PendingOrdersView />
+          ) : currentView === 'estimates' ? (
+            <InvoiceView initialTab="estimates" />
+          ) : currentView === 'challans' ? (
+            <DeliveryChallanView />
+          ) : currentView === 'invoices' ? (
+            <InvoiceView />
+          ) : currentView === 'barcodes' ? (
+            <BarcodeView />
+          ) : currentView === 'cash-register' ? (
+            <DailyCashRegisterView />
+          ) : currentView === 'purchases' ? (
+            <PurchaseManagementView />
+          ) : currentView === 'hrm' ? (
+            <HrmView />
+          ) : currentView === 'reports' ? (
+            <ReportsView />
+          ) : currentView === 'shopify' ? (
+            <ShopifyView />
+          ) : currentView === 'ai-assistant' ? (
+            <AiAssistantView />
+          ) : currentView === 'access' ? (
+            <AccessManagementView />
           ) : (
-            tabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <div
-                  key={tab.id}
-                  id={`tab-panel-${tab.id}`}
-                  role="tabpanel"
-                  aria-hidden={!isActive}
-                  className={cn(
-                    'h-full w-full overflow-y-auto overflow-x-hidden',
-                    isActive ? 'block' : 'hidden'
-                  )}
-                >
-                  {renderTabContent(tab)}
-                </div>
-              );
-            })
+            <ItemMasterView />
           )}
         </main>
       </div>

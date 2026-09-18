@@ -10,9 +10,8 @@ import {
   ComboItem,
   cleanCustomerName,
 } from '../../types';
-import { numberToWordsIndian } from '../../lib/numberToWords';
 import { formatCurrency, cn } from '../../lib/utils';
-import { calculateLineTax, calculateTaxBreakdown } from '../../lib/taxCalculations';
+import { calculateLineTax, calculateTaxBreakdown, calculateInvoiceTotals } from '../../lib/taxCalculations';
 import {
   Plus,
   Trash2,
@@ -339,43 +338,16 @@ export const EstimateForm: React.FC<Props> = ({
     );
   };
 
-  // Aggregated Totals Calculation
+  // Aggregated Totals Calculation using standardized tax engine
   const totals = useMemo(() => {
-    let subtotal = 0;
-    let totalTax = 0;
-    let totalCgst = 0;
-    let totalSgst = 0;
-
-    lineItems.forEach((item) => {
-      const taxable = item.quantity * item.unitPrice;
-      subtotal += taxable;
-
-      if (withGst) {
-        const tax = (taxable * item.gstRate) / 100;
-        totalTax += tax;
-        totalCgst += tax / 2;
-        totalSgst += tax / 2;
-      }
-    });
-
-    const grandTotal = withGst ? Math.round(subtotal + totalTax) : Math.round(subtotal);
-    const amountInWords = numberToWordsIndian(grandTotal);
-
-    return {
-      subtotal,
-      totalTax,
-      totalCgst,
-      totalSgst,
-      grandTotal,
-      amountInWords,
-    };
+    return calculateInvoiceTotals(lineItems, withGst);
   }, [lineItems, withGst]);
 
   // GST Rate breakdown pairs for With GST mode
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!withGst) return [];
-    return calculateTaxBreakdown(lineItems);
-  }, [lineItems, withGst]);
+    return calculateTaxBreakdown(lineItems, totals.overallDiscountAmount, totals.subtotal);
+  }, [lineItems, withGst, totals.overallDiscountAmount, totals.subtotal]);
 
   const assembleEstimateObject = (): Estimate | null => {
     if (!customerName.trim()) {

@@ -1082,23 +1082,38 @@ export const computeInvoiceFinance = (
   inv: Pick<Invoice, 'grandTotal' | 'totalReturnedAmount' | 'paymentSplits' | 'paymentMode' | 'isPartialPayment' | 'partialAmount' | 'balanceDue' | 'transactionType'>
 ): InvoiceFinance => {
   const round = (n: number) => Math.round(n * 100) / 100;
-  const gross = inv.grandTotal || 0;
-  const returns = Math.min(gross, inv.totalReturnedAmount || 0);
+  const gross = round(inv.grandTotal || 0);
+  const returns = round(Math.min(gross, inv.totalReturnedAmount || 0));
   const net = round(Math.max(0, gross - returns));
 
   const splits = getInvoicePaymentSplits(inv);
-  const codCredit = splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0);
+  const codCredit = round(splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
+  const nonCreditPaid = round(splits.filter((s) => s.mode !== 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
+
   let received: number;
-  if (splits.length > 1 && codCredit > 0) received = Math.max(0, gross - codCredit);
-  else if (inv.isPartialPayment) received = inv.partialAmount ?? Math.max(0, gross - (inv.balanceDue || 0));
-  else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') received = 0;
-  else if (inv.balanceDue && inv.balanceDue > 0) received = Math.max(0, gross - inv.balanceDue);
-  else received = gross; // paid in full
+  if (splits && splits.length > 0 && codCredit > 0) {
+    received = Math.max(0, gross - codCredit);
+  } else if (inv.isPartialPayment) {
+    received = inv.partialAmount != null ? Number(inv.partialAmount) : (nonCreditPaid > 0 ? nonCreditPaid : Math.max(0, gross - (inv.balanceDue || 0)));
+  } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
+    received = nonCreditPaid > 0 ? nonCreditPaid : 0;
+  } else if (inv.balanceDue != null && inv.balanceDue > 0) {
+    received = Math.max(0, gross - Number(inv.balanceDue));
+  } else if (splits && splits.length > 0 && nonCreditPaid > 0 && Math.abs(nonCreditPaid - gross) < 0.01) {
+    received = gross;
+  } else if (splits && splits.length > 0 && nonCreditPaid > 0) {
+    received = nonCreditPaid;
+  } else {
+    received = gross; // paid in full
+  }
   received = round(Math.min(received, gross));
 
   const netOwed = round(net - received);
   return {
-    gross, returns: round(returns), net, received,
+    gross,
+    returns,
+    net,
+    received,
     due: Math.max(0, netOwed),
     customerCredit: Math.max(0, round(-netOwed)),
   };

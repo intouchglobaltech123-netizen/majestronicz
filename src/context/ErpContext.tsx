@@ -144,70 +144,12 @@ interface StorageState {
   currentView?: ActiveNavView;
 }
 
-export interface WorkspaceTab {
-  id: string;
-  view: ActiveNavView;
-  title: string;
-  subTab?: string;
-  isPinned?: boolean;
-}
-
-export const getViewDefaultTitle = (view: ActiveNavView): string => {
-  switch (view) {
-    case 'dashboard':
-      return 'Dashboard';
-    case 'items':
-      return 'Items & Catalog';
-    case 'parties':
-    case 'customers':
-      return 'Parties';
-    case 'invoices':
-      return 'Sales & Billing';
-    case 'inventory':
-      return 'Inventory';
-    case 'enquiries':
-      return 'Enquiries';
-    case 'pending-orders':
-      return 'Pending Orders';
-    case 'purchases':
-      return 'Purchases';
-    case 'challans':
-      return 'Delivery Challan';
-    case 'barcodes':
-      return 'Barcode Printing';
-    case 'cash-register':
-      return 'Cash Register';
-    case 'hrm':
-      return 'Staff & Attendance';
-    case 'reports':
-      return 'Reports & Statements';
-    case 'shopify':
-      return 'Online Store';
-    case 'ai-assistant':
-      return 'Beta AI';
-    case 'access':
-      return 'Access Control';
-    case 'estimates':
-      return 'Quotations';
-    default:
-      return 'Workspace';
-  }
-};
-
 interface ErpContextType {
   // Navigation View State
   currentView: ActiveNavView;
   setCurrentView: (view: ActiveNavView) => void;
   activeSubTab: ActiveSubTabState | null;
   navigateToTab: (view: ActiveNavView, tab: string) => void;
-
-  // Chrome-style Workspace Tabs
-  tabs: WorkspaceTab[];
-  activeTabId: string;
-  openTab: (view: ActiveNavView, subTab?: string, customTitle?: string) => void;
-  closeTab: (tabId: string) => void;
-  switchTab: (tabId: string) => void;
-  closeOtherTabs: (tabId: string) => void;
 
   // Branch Scope State (controls which branch's STOCK is viewed/edited or 'all' for aggregated)
   currentBranch: BranchScope;
@@ -578,8 +520,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  const WORKSPACE_TABS_KEY = 'majestronicz_workspace_tabs';
-
   const [currentView, setCurrentViewRaw] = useState<ActiveNavView>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -598,154 +538,32 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser.role === 'Billing' ? 'items' : 'dashboard';
   });
 
-  const [tabs, setTabs] = useState<WorkspaceTab[]>(() => {
-    try {
-      const saved = localStorage.getItem(WORKSPACE_TABS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((t: WorkspaceTab) => ({
-            ...t,
-            view: t.view === 'customers' ? 'parties' : t.view,
-            title: t.title || getViewDefaultTitle(t.view === 'customers' ? 'parties' : t.view),
-          }));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load workspace tabs:', e);
-    }
-    const initView = currentUser.role === 'Billing' ? 'items' : 'dashboard';
-    return [
-      {
-        id: initView,
-        view: initView,
-        title: getViewDefaultTitle(initView),
-      },
-    ];
-  });
-
-  const [activeTabId, setActiveTabId] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(WORKSPACE_TABS_KEY + '_active');
-      if (saved) {
-        return saved;
-      }
-    } catch {
-      /* ignore */
-    }
-    return currentUser.role === 'Billing' ? 'items' : 'dashboard';
-  });
-
-  // Keep localStorage updated with tabs and activeTabId
-  useEffect(() => {
-    try {
-      localStorage.setItem(WORKSPACE_TABS_KEY, JSON.stringify(tabs));
-      localStorage.setItem(WORKSPACE_TABS_KEY + '_active', activeTabId);
-    } catch {
-      /* ignore */
-    }
-  }, [tabs, activeTabId]);
-
   const [activeSubTab, setActiveSubTab] = useState<ActiveSubTabState | null>(null);
 
-  // Open or switch to a workspace tab
-  const openTab = useCallback((view: ActiveNavView, subTab?: string, customTitle?: string) => {
-    const targetView: ActiveNavView = view === 'customers' ? 'parties' : view;
-    if (subTab) {
-      setActiveSubTab({ view: targetView, tab: subTab, nonce: Date.now() });
-    }
-
-    setTabs((prevTabs) => {
-      const existingTab = prevTabs.find((t) => t.view === targetView);
-      if (existingTab) {
-        setActiveTabId(existingTab.id);
-        setCurrentViewRaw(targetView);
-        return prevTabs;
-      }
-
-      // Create new tab
-      const newTab: WorkspaceTab = {
-        id: `${targetView}-${Date.now()}`,
-        view: targetView,
-        title: customTitle || getViewDefaultTitle(targetView),
-        subTab,
-      };
-      setActiveTabId(newTab.id);
-      setCurrentViewRaw(targetView);
-      return [...prevTabs, newTab];
-    });
-  }, []);
-
-  const switchTab = useCallback((tabId: string) => {
-    setTabs((prevTabs) => {
-      const target = prevTabs.find((t) => t.id === tabId);
-      if (target) {
-        setActiveTabId(target.id);
-        setCurrentViewRaw(target.view);
-      }
-      return prevTabs;
-    });
-  }, []);
-
-  const closeTab = useCallback((tabId: string) => {
-    setTabs((prevTabs) => {
-      if (prevTabs.length <= 1) {
-        // If closing the only tab, reset to Dashboard
-        const resetView: ActiveNavView = currentUser.role === 'Billing' ? 'items' : 'dashboard';
-        const defaultTab: WorkspaceTab = {
-          id: resetView,
-          view: resetView,
-          title: getViewDefaultTitle(resetView),
-        };
-        setActiveTabId(defaultTab.id);
-        setCurrentViewRaw(resetView);
-        return [defaultTab];
-      }
-
-      const closeIndex = prevTabs.findIndex((t) => t.id === tabId);
-      const nextTabs = prevTabs.filter((t) => t.id !== tabId);
-
-      setActiveTabId((currentActiveId) => {
-        if (currentActiveId === tabId) {
-          const nextActiveIndex = Math.min(closeIndex, nextTabs.length - 1);
-          const newActive = nextTabs[nextActiveIndex];
-          if (newActive) {
-            setCurrentViewRaw(newActive.view);
-            return newActive.id;
-          }
-        }
-        return currentActiveId;
-      });
-
-      return nextTabs;
-    });
-  }, [currentUser.role]);
-
-  const closeOtherTabs = useCallback((tabId: string) => {
-    setTabs((prevTabs) => {
-      const target = prevTabs.find((t) => t.id === tabId);
-      if (!target) return prevTabs;
-      setActiveTabId(target.id);
-      setCurrentViewRaw(target.view);
-      return [target];
-    });
-  }, []);
-
-  // Wrap view changes so each in-app navigation switches or creates a tab
   const setCurrentView = useCallback((view: ActiveNavView) => {
-    openTab(view);
+    const target = view === 'customers' ? 'parties' : view;
+    setCurrentViewRaw(target);
     try {
-      if (window.history.state?.view !== view) {
-        window.history.pushState({ view }, '');
+      if (window.history.state?.view !== target) {
+        window.history.pushState({ view: target }, '');
       }
     } catch {
       /* history API unavailable — navigation still works, just no Back sync */
     }
-  }, [openTab]);
+  }, []);
 
   const navigateToTab = useCallback((view: ActiveNavView, tab: string) => {
-    openTab(view, tab);
-  }, [openTab]);
+    const target = view === 'customers' ? 'parties' : view;
+    setActiveSubTab({ view: target, tab, nonce: Date.now() });
+    setCurrentViewRaw(target);
+    try {
+      if (window.history.state?.view !== target) {
+        window.history.pushState({ view: target }, '');
+      }
+    } catch {
+      /* history API unavailable — navigation still works, just no Back sync */
+    }
+  }, []);
 
   useEffect(() => {
     // Seed a baseline history entry for the initial view so the first Back
@@ -4066,12 +3884,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <ErpContext.Provider
       value={{
-        tabs,
-        activeTabId,
-        openTab,
-        closeTab,
-        switchTab,
-        closeOtherTabs,
         currentView,
         setCurrentView,
         activeSubTab,

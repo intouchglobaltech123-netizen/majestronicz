@@ -88,7 +88,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
   const handleSubOptionClick = useCallback((navView: ActiveNavView, subOptionId: string) => {
     setHoveredNavView(null);
-    navigateToTab(navView, subOptionId);
+    if (subOptionId === 'new-challan') {
+      navigateToTab('challans', 'new');
+    } else if (subOptionId === 'challans') {
+      navigateToTab('challans', 'history');
+    } else {
+      navigateToTab(navView, subOptionId);
+    }
     onClose?.();
   }, [navigateToTab, onClose]);
 

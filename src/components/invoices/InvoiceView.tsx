@@ -136,6 +136,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         setActiveTab(tab);
       } else if (tab === 'new') {
         openBillTab({ documentType: 'Invoice' });
+      } else if (tab === 'new-quote') {
+        openBillTab({ documentType: 'Quotation' });
       }
     }
   }, [activeSubTab]);
