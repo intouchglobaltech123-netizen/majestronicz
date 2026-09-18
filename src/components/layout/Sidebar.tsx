@@ -22,7 +22,6 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
-  ChevronDown,
   X,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
@@ -67,102 +66,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
   // On mobile the drawer always shows full labels; collapse only applies on desktop.
   const showLabels = isMobile || !collapsed;
 
-  type IconType = React.ComponentType<{ className?: string }>;
-  type NavLeaf = { id: ActiveNavView; label: string; icon: IconType; badge?: string };
-
-  // Vyapar-style grouped navigation. A section with one accessible child renders
-  // as a plain link; a section with several renders as an expandable group
-  // (click to expand in the full sidebar, hover flyout when collapsed to icons).
-  const rawSections: { id: string; label: string; icon: IconType; children: NavLeaf[] }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, children: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    ] },
-    { id: 'sales', label: 'Sales', icon: Receipt, children: [
-      { id: 'invoices', label: 'Sales & Quotations', icon: Receipt },
-      { id: 'enquiries', label: 'Enquiries', icon: ClipboardList },
-      { id: 'pending-orders', label: 'Pending Orders', icon: Clock },
-      { id: 'challans', label: 'Delivery Challan', icon: Truck },
-      { id: 'shopify', label: 'Online Store', icon: ShoppingCart },
-    ] },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, children: [
-      { id: 'purchases', label: 'Purchases', icon: ShoppingBag },
-    ] },
-    { id: 'catalog', label: 'Items & Stock', icon: Boxes, children: [
-      { id: 'items', label: 'Items', icon: Boxes },
-      { id: 'inventory', label: 'Inventory', icon: Layers },
-      { id: 'barcodes', label: 'Barcode', icon: Barcode },
-    ] },
-    { id: 'parties', label: 'Parties', icon: Contact, children: [
-      { id: 'customers', label: 'Customers', icon: UserCheck },
-      { id: 'parties', label: 'Suppliers & Parties', icon: Contact },
-    ] },
-    { id: 'finance', label: 'Cash & Reports', icon: WalletCards, children: [
-      { id: 'cash-register', label: 'Cash Register', icon: WalletCards },
-      { id: 'reports', label: 'Reports', icon: BarChart3 },
-    ] },
-    { id: 'team', label: 'Attendance', icon: Users, children: [
-      { id: 'hrm', label: 'Attendance', icon: Users },
-    ] },
-    { id: 'assistant', label: 'Beta AI', icon: Sparkles, children: [
-      { id: 'ai-assistant', label: 'Beta AI', icon: Sparkles, badge: 'Beta' },
-    ] },
-    { id: 'admin', label: 'Access Control', icon: ShieldCheck, children: [
-      { id: 'access', label: 'Access Control', icon: ShieldCheck },
-    ] },
+  const navItems: {
+    id: ActiveNavView;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    visible: boolean;
+    badge?: string;
+  }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canAccessView('dashboard') },
+    { id: 'items', label: 'Items', icon: Boxes, visible: canAccessView('items') },
+    { id: 'customers', label: 'Customers', icon: UserCheck, visible: canAccessView('customers') },
+    { id: 'parties', label: 'Parties', icon: Contact, visible: canAccessView('parties') },
+    { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: canAccessView('enquiries') },
+    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: canAccessView('pending-orders') },
+    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: canAccessView('challans') },
+    { id: 'inventory', label: 'Inventory', icon: Layers, visible: canAccessView('inventory') },
+    { id: 'invoices', label: 'Sales', icon: Receipt, visible: canAccessView('invoices') },
+    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: canAccessView('barcodes') },
+    { id: 'cash-register', label: 'Cash Register', icon: WalletCards, visible: canAccessView('cash-register') },
+    { id: 'purchases', label: 'Purchases', icon: ShoppingBag, visible: canAccessView('purchases') },
+    { id: 'hrm', label: 'Attendance', icon: Users, visible: canAccessView('hrm') },
+    { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
+    { id: 'shopify', label: 'Online Store', icon: ShoppingCart, visible: canAccessView('shopify') },
+    { id: 'ai-assistant', label: 'Beta AI', icon: Sparkles, visible: canAccessView('ai-assistant'), badge: 'Beta' },
+    { id: 'access', label: 'Access Control', icon: ShieldCheck, visible: canAccessView('access') },
   ];
 
-  // Keep only accessible children; drop empty sections.
-  const sections = rawSections
-    .map((s) => ({ ...s, children: s.children.filter((c) => canAccessView(c.id)) }))
-    .filter((s) => s.children.length > 0);
-
-  // Which multi-child groups are expanded. The group holding the active view
-  // starts open; users can toggle any group.
-  const activeGroupId = sections.find((s) => s.children.some((c) => c.id === currentView))?.id;
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(activeGroupId ? [activeGroupId] : [])
-  );
-  useEffect(() => {
-    if (activeGroupId) setExpandedGroups((prev) => (prev.has(activeGroupId) ? prev : new Set(prev).add(activeGroupId)));
-  }, [activeGroupId]);
-
-  const toggleGroup = (id: string) =>
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-
   const RoleIcon = currentUser.role === 'CEO' ? ShieldCheck : currentUser.role === 'Manager' ? Building2 : Lock;
-
-  // A single leaf link (used for standalone sections and inside groups/flyouts).
-  const LeafButton: React.FC<{ leaf: NavLeaf; nested?: boolean; onPick?: () => void }> = ({ leaf, nested, onPick }) => {
-    const Icon = leaf.icon;
-    const isActive = currentView === leaf.id;
-    return (
-      <button
-        onClick={() => { setCurrentView(leaf.id); onPick?.(); onClose?.(); }}
-        className={cn(
-          'relative w-full flex items-center gap-3 rounded-lg text-sm transition-all group text-left',
-          nested ? 'pl-9 pr-3 py-2 font-medium' : 'px-3.5 py-2.5 font-medium',
-          isActive
-            ? 'bg-blue-600 text-white shadow-xs font-semibold'
-            : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-        )}
-      >
-        <Icon className={cn('h-4 w-4 shrink-0 transition-colors', isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700')} />
-        <span className="truncate">{leaf.label}</span>
-        {leaf.badge && (
-          <span className={cn(
-            'ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
-            isActive ? 'bg-white/20 text-white border-white/30' : 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
-          )}>
-            {leaf.badge}
-          </span>
-        )}
-      </button>
-    );
-  };
 
   return (
     <>
@@ -225,90 +155,52 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
       </div>
 
-      {/* Main Navigation — Vyapar-style grouped sections */}
-      <div className={cn('flex-1 px-3 py-4 space-y-1', showLabels ? 'overflow-y-auto' : 'overflow-visible')}>
-        {sections.map((section) => {
-          const single = section.children.length === 1;
-          const groupActive = section.children.some((c) => c.id === currentView);
-
-          // --- Single-child section → plain link -----------------------------
-          if (single) {
-            const leaf = section.children[0];
-            const Icon = leaf.icon;
-            const isActive = currentView === leaf.id;
-            if (!showLabels) {
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => { setCurrentView(leaf.id); onClose?.(); }}
-                  title={leaf.label}
-                  className={cn(
-                    'relative w-full flex items-center justify-center rounded-xl py-2.5 transition-all group',
-                    isActive ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700')} />
-                  {leaf.badge && <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-fuchsia-500 border border-white" />}
-                </button>
-              );
-            }
-            return <LeafButton key={section.id} leaf={leaf} />;
-          }
-
-          const GroupIcon = section.icon;
-
-          // --- Collapsed (icon-only) → hover flyout with sub-items -----------
-          if (!showLabels) {
+      {/* Main Navigation (thin scrollbar visible) */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        {navItems
+          .filter((item) => item.visible)
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = currentView === item.id;
             return (
-              <div key={section.id} className="relative group/fly">
-                <button
-                  title={section.label}
-                  className={cn(
-                    'relative w-full flex items-center justify-center rounded-xl py-2.5 transition-all',
-                    groupActive ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-slate-700 hover:bg-slate-100'
-                  )}
-                >
-                  <GroupIcon className={cn('h-4 w-4 shrink-0', groupActive ? 'text-blue-700' : 'text-slate-500')} />
-                </button>
-                {/* Flyout appears on hover, to the right of the rail */}
-                <div className="absolute left-full top-0 ml-2 hidden group-hover/fly:block z-50 w-56">
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-lg p-1.5">
-                    <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">{section.label}</p>
-                    {section.children.map((leaf) => (
-                      <LeafButton key={leaf.id} leaf={leaf} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          // --- Expanded → accordion group ------------------------------------
-          const isOpen = expandedGroups.has(section.id);
-          return (
-            <div key={section.id}>
               <button
-                onClick={() => toggleGroup(section.id)}
+                key={item.id}
+                onClick={() => { setCurrentView(item.id); onClose?.(); }}
+                title={!showLabels ? item.label : undefined}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group',
-                  groupActive && !isOpen ? 'text-blue-700' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                  'relative w-full flex items-center rounded-xl text-sm font-medium transition-all group',
+                  !showLabels ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5 text-left',
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                 )}
               >
-                <GroupIcon className={cn('h-4 w-4 shrink-0', groupActive ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700')} />
-                <span className="truncate">{section.label}</span>
-                {groupActive && !isOpen && <span className="h-1.5 w-1.5 rounded-full bg-blue-500 ml-1" />}
-                <ChevronDown className={cn('h-4 w-4 ml-auto shrink-0 text-slate-400 transition-transform', isOpen && 'rotate-180')} />
+                <Icon
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-colors',
+                    isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'
+                  )}
+                />
+                {showLabels && <span className="truncate">{item.label}</span>}
+                {showLabels && item.badge && (
+                  <span
+                    className={cn(
+                      'ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
+                      isActive
+                        ? 'bg-white/20 text-white border-white/30'
+                        : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
+                    )}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+                {/* Beta dot indicator when collapsed (desktop) */}
+                {!showLabels && item.badge && (
+                  <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-fuchsia-500 border border-white" />
+                )}
               </button>
-              {isOpen && (
-                <div className="mt-0.5 space-y-0.5">
-                  {section.children.map((leaf) => (
-                    <LeafButton key={leaf.id} leaf={leaf} nested />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
 
       {/* Compact user footer — name + role icon only (clean, professional) */}
