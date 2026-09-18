@@ -110,21 +110,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
   const handleItemMouseEnter = (id: ActiveNavView, e: React.MouseEvent<HTMLElement>) => {
     if (isMobile) return;
+    // Only show hover flyout on devices with fine pointer and hover support
+    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      return;
+    }
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
     const subConfig = NAV_SUB_CONFIG[id];
-    const hasContent = subConfig && (subConfig.primaryAction || subConfig.subOptions.length > 0);
+    const hasContent =
+      subConfig &&
+      (subConfig.primaryAction ||
+        (subConfig.primaryActions && subConfig.primaryActions.length > 0) ||
+        subConfig.subOptions.length > 0);
     if (!hasContent) {
       setHoveredNavView(null);
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const numOptions = subConfig.subOptions.length + (subConfig.primaryAction ? 1 : 0);
-    const approxHeight = 80 + numOptions * 46;
-    const maxTop = Math.max(16, window.innerHeight - approxHeight - 20);
-    const clampedTop = Math.max(16, Math.min(rect.top - 6, maxTop));
+    const primaryCount = subConfig.primaryActions?.length ?? (subConfig.primaryAction ? 1 : 0);
+    const primaryHeight = primaryCount * 42;
+    const subOptionsHeight = subConfig.subOptions.reduce(
+      (acc, opt) => acc + (opt.description ? 52 : 40),
+      0
+    );
+    // Header ~58px, Operations title ~24px, padding & borders ~24px
+    const approxHeight = 58 + primaryHeight + (subConfig.subOptions.length > 0 ? 24 : 0) + subOptionsHeight + 24;
+
+    const viewportHeight = window.innerHeight;
+    const maxAllowedTop = Math.max(16, viewportHeight - approxHeight - 16);
+
+    // If hovering an item in the bottom half of the screen (like Reports), anchor upward relative to the item
+    let targetTop = rect.top - 6;
+    if (targetTop + approxHeight > viewportHeight - 16) {
+      // Anchor bottom-to-bottom with the hovered item, but clamped within viewport bounds
+      const bottomAlignedTop = rect.bottom - approxHeight + 6;
+      targetTop = Math.min(bottomAlignedTop, maxAllowedTop);
+    }
+    const clampedTop = Math.max(16, Math.min(targetTop, maxAllowedTop));
 
     setFlyoutPos({ top: clampedTop, left: rect.right + 8 });
     setHoveredNavView(id);
@@ -193,9 +217,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       <aside
         ref={asideRef}
         className={cn(
-          'bg-white border-r border-slate-200 flex flex-col h-screen select-none shadow-xs',
+          'bg-white border-r border-slate-200 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-xs',
           // Mobile: fixed off-canvas drawer that slides in/out.
-          'fixed inset-y-0 left-0 z-40 w-72 transition-transform duration-200',
+          'fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] transition-transform duration-200',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           // Desktop: static in-flow column; width follows the collapse pref.
           'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:transition-[width]',
@@ -241,7 +265,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
         {/* Main Navigation (thin scrollbar visible) */}
         <div
-          className="flex-1 overflow-y-auto px-3 py-4 space-y-1"
+          className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-12 space-y-1 overscroll-contain"
           onScroll={() => setHoveredNavView(null)}
         >
           {navItems
@@ -383,7 +407,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
         </div>
 
         {/* User footer with Logout */}
-        <div className={cn('border-t border-slate-200 bg-slate-50/60', showLabels ? 'p-3' : 'p-2')}>
+        <div
+          className={cn(
+            'shrink-0 border-t border-slate-200 bg-slate-50/80 mt-auto sticky bottom-0 z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+            showLabels ? 'p-3' : 'p-2'
+          )}
+        >
           {!showLabels ? (
             <div className="flex flex-col items-center gap-2">
               <div
@@ -429,17 +458,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       </aside>
 
       {/* Sleek Desktop Floating Hover-and-Choose Flyout Popover */}
-      {!isMobile && activeFlyoutConfig && (activeFlyoutConfig.primaryAction || activeFlyoutConfig.subOptions.length > 0) && (
+      {!isMobile && activeFlyoutConfig && (activeFlyoutConfig.primaryAction || (activeFlyoutConfig.primaryActions && activeFlyoutConfig.primaryActions.length > 0) || activeFlyoutConfig.subOptions.length > 0) && (
         <div
           onMouseEnter={handleFlyoutMouseEnter}
           onMouseLeave={handleItemMouseLeave}
           style={{
             top: `${flyoutPos.top}px`,
             left: `${flyoutPos.left}px`,
-            maxHeight: 'calc(100vh - 32px)',
+            maxHeight: `calc(100vh - ${flyoutPos.top + 16}px)`,
           }}
           className={cn(
-            'fixed z-50 w-72 bg-white/98 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-2xl p-3 select-none text-slate-800 flex flex-col',
+            'fixed z-50 w-72 bg-white/98 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-2xl p-3 select-none text-slate-800 flex flex-col overflow-hidden',
             'animate-in fade-in-50 zoom-in-95 duration-150',
             "before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3 before:content-['']"
           )}
@@ -499,7 +528,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
           {/* Operations List */}
           {activeFlyoutConfig.subOptions.length > 0 && (
-            <div className="flex-1 overflow-y-auto space-y-1 pr-0.5">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 overscroll-contain">
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-0.5">
                 Operations
               </div>

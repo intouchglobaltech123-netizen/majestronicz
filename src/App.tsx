@@ -33,7 +33,7 @@ const AppContent: React.FC = () => {
   }, [currentView]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
+    <div className="flex h-screen h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Left Navigation Shell (off-canvas drawer on mobile) */}
       <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
