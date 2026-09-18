@@ -52,17 +52,21 @@ export interface NavSubOption {
   tag?: 'Tab' | 'Action' | 'Filter' | 'Preset';
 }
 
+export interface PrimaryActionConfig {
+  id: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  color?: 'blue' | 'purple' | 'emerald' | 'amber' | 'slate';
+}
+
 export interface NavItemSubConfig {
   id: ActiveNavView;
   title: string;
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
   accentColor: string; // Tailwind color name for styling
-  primaryAction?: {
-    id: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-  };
+  primaryAction?: PrimaryActionConfig;
+  primaryActions?: PrimaryActionConfig[];
   subOptions: NavSubOption[];
 }
 
@@ -115,21 +119,27 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
       label: 'Add Sale',
       icon: Plus,
     },
-    subOptions: [
+    primaryActions: [
+      {
+        id: 'new',
+        label: 'Add Sale',
+        icon: Plus,
+        color: 'blue',
+      },
       {
         id: 'new-quote',
-        label: 'Add Quotation',
-        description: 'New price quotation / estimate draft',
-        icon: FileText,
-        tag: 'Action',
+        label: 'Add Quote',
+        icon: Plus,
+        color: 'purple',
       },
       {
         id: 'new-challan',
-        label: 'Add Delivery Challan',
-        description: 'New dispatch / delivery challan entry',
-        icon: Truck,
-        tag: 'Action',
+        label: 'Delivery Challan',
+        icon: Plus,
+        color: 'emerald',
       },
+    ],
+    subOptions: [
       {
         id: 'ledger',
         label: 'Sales Invoices',

@@ -31,6 +31,7 @@ import {
   PlayCircle,
   Clock,
   X,
+  Truck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -67,6 +68,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     voidInvoice,
     currentUser,
     activeSubTab,
+    navigateToTab,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -402,15 +404,23 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>New Sale</span>
+                <span>+ Add Sale</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleStartBlank('Quotation')}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>New Quote</span>
+                <span>+ Add Quote</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToTab('challans', 'new')}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <Truck className="h-3.5 w-3.5" />
+                <span>+ Delivery Challan</span>
               </button>
             </>
           )}
@@ -479,6 +489,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           )}>
             {estimates.length}
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigateToTab('challans', 'history')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+        >
+          <Truck className="h-3.5 w-3.5" />
+          <span>Delivery Challans</span>
         </button>
 
         <button

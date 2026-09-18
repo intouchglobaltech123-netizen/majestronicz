@@ -318,7 +318,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                   {/* Mobile Sub-Options Accordion Drawer */}
                   {isMobile && mobileExpandedNav === item.id && subConfig && (
                     <div className="pl-4 pr-1 py-1 space-y-0.5 mt-1 border-l-2 border-blue-200 ml-5">
-                      {subConfig.primaryAction && (
+                      {subConfig.primaryActions && subConfig.primaryActions.length > 0 ? (
+                        <div className="space-y-1 mb-1.5">
+                          {subConfig.primaryActions.map((act) => {
+                            const ActionIcon = act.icon || Plus;
+                            return (
+                              <button
+                                key={act.id}
+                                type="button"
+                                onClick={() => handleSubOptionClick(item.id, act.id)}
+                                className={cn(
+                                  'w-full py-2 px-2.5 rounded-lg flex items-center gap-2 text-left text-xs font-bold transition-all cursor-pointer text-white shadow-2xs',
+                                  act.color === 'purple'
+                                    ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
+                                    : act.color === 'emerald'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
+                                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                                )}
+                              >
+                                <ActionIcon className="h-3.5 w-3.5 stroke-[2.5]" />
+                                <span>{act.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : subConfig.primaryAction ? (
                         <button
                           type="button"
                           onClick={() => handleSubOptionClick(item.id, subConfig.primaryAction!.id)}
@@ -327,7 +351,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                           <Plus className="h-3.5 w-3.5 text-blue-600" />
                           <span>{subConfig.primaryAction.label}</span>
                         </button>
-                      )}
+                      ) : null}
                       {subConfig.subOptions.map((sub) => {
                         const SubIcon = sub.icon;
                         const isCurrentActive =
@@ -435,8 +459,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
             </div>
           </div>
 
-          {/* Primary Action Button (Vyapar-style e.g. + Add Sale, + Add Product) */}
-          {activeFlyoutConfig.primaryAction && (
+          {/* Primary Action Buttons (Vyapar-style e.g. + Add Sale, + Add Quote, + Delivery Challan) */}
+          {activeFlyoutConfig.primaryActions && activeFlyoutConfig.primaryActions.length > 0 ? (
+            <div className="mb-2 shrink-0 space-y-1.5">
+              {activeFlyoutConfig.primaryActions.map((act) => {
+                const ActionIcon = act.icon || Plus;
+                return (
+                  <button
+                    key={act.id}
+                    type="button"
+                    onClick={() => handleSubOptionClick(activeFlyoutConfig.id, act.id)}
+                    className={cn(
+                      'w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer text-white',
+                      act.color === 'purple'
+                        ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
+                        : act.color === 'emerald'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
+                        : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                    )}
+                  >
+                    <ActionIcon className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <span>{act.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : activeFlyoutConfig.primaryAction ? (
             <div className="mb-2 shrink-0">
               <button
                 type="button"
@@ -447,7 +495,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 <span>{activeFlyoutConfig.primaryAction.label}</span>
               </button>
             </div>
-          )}
+          ) : null}
 
           {/* Operations List */}
           {activeFlyoutConfig.subOptions.length > 0 && (
