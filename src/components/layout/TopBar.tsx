@@ -17,7 +17,6 @@ import {
   Wallet,
   Maximize2,
   Minimize2,
-  LogOut,
   Menu,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
@@ -36,7 +35,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
     isAllBranches,
     switchBranch,
     currentUser,
-    logout,
     reminders,
     pendingOrders,
     enquiries,
@@ -49,7 +47,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -500,13 +497,12 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           )}
         </div>
 
-        {/* Current user + logout (asks for confirmation) */}
-        <button
-          onClick={() => setShowLogoutConfirm(true)}
-          title="Logout"
-          className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-rose-50 text-slate-900 border border-slate-200 hover:border-rose-200 rounded-xl transition-all shadow-xs group"
+        {/* Current user badge */}
+        <div
+          title={`Signed in as ${currentUser.name} (${currentUser.role})`}
+          className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl shadow-2xs select-none"
         >
-          <div className="h-7 w-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 group-hover:bg-blue-200 transition-colors">
+          <div className="h-7 w-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">
             {currentUser.role === 'CEO' ? (
               <ShieldCheck className="h-4 w-4 text-amber-600" />
             ) : currentUser.role === 'Manager' ? (
@@ -516,37 +512,16 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
             )}
           </div>
           <div className="hidden sm:block text-left">
-            <span className="text-xs font-bold block leading-tight">{currentUser.role}</span>
-            <span className="text-[11px] text-slate-500 block leading-tight group-hover:text-rose-600">
-              Logout
+            <span className="text-xs font-bold block leading-tight">{currentUser.name}</span>
+            <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+              {currentUser.role}
             </span>
           </div>
-        </button>
+        </div>
       </div>
 
       {/* Self attendance (My Attendance) */}
       <SelfAttendanceModal isOpen={isSelfAttendanceOpen} onClose={() => setIsSelfAttendanceOpen(false)} />
-
-      {/* Logout confirmation */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowLogoutConfirm(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white border border-slate-200 shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <div className="h-12 w-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <LogOut className="h-6 w-6" />
-            </div>
-            <h2 className="text-base font-extrabold text-slate-900">Sign out?</h2>
-            <p className="text-xs text-slate-500 mt-1">You'll need to enter your PIN again to sign back in.</p>
-            <div className="flex items-center gap-2 mt-5">
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors">
-                Cancel
-              </button>
-              <button onClick={() => { setShowLogoutConfirm(false); logout(); }} className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs">
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

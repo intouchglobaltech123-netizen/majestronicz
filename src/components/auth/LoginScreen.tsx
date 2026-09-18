@@ -54,7 +54,7 @@ const PinLogin: React.FC<{
       <div className={`w-full max-w-sm rounded-xl bg-white border border-slate-200 shadow-xl p-7 ${shake ? 'animate-[shake_0.4s]' : ''}`}>
         <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}`}</style>
         <div className="flex flex-col items-center gap-2 mb-5">
-          <MajestroniczLogo />
+          <MajestroniczLogo variant="stacked" size="lg" />
           <p className="text-xs font-semibold text-slate-500 mt-2">Enter your PIN to sign in</p>
         </div>
 

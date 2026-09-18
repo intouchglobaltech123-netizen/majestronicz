@@ -24,6 +24,7 @@ import {
   Package,
   CalendarCheck,
   Store,
+  LogOut,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { NAV_SUB_CONFIG } from './navSubItems';
@@ -46,7 +47,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     canAccessView,
     activeSubTab,
     navigateToTab,
+    logout,
   } = useErp();
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const asideRef = useRef<HTMLElement | null>(null);
 
@@ -210,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
           </button>
           {!showLabels ? (
             <div className="flex flex-col items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm">M</div>
+              <MajestroniczLogo collapsed={true} />
               <button
                 onClick={() => setCollapsed(false)}
                 title="Expand sidebar"
@@ -354,18 +358,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
             })}
         </div>
 
-        {/* Compact user footer — name + role icon only */}
-        <div className={cn('border-t border-slate-200', showLabels ? 'px-3 py-3' : 'p-2')}>
+        {/* User footer with Logout */}
+        <div className={cn('border-t border-slate-200 bg-slate-50/60', showLabels ? 'p-3' : 'p-2')}>
           {!showLabels ? (
-            <div className="h-9 w-9 mx-auto rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center" title={`${currentUser.name} · ${currentUser.role}`}>
-              <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="h-9 w-9 mx-auto rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-2xs"
+                title={`${currentUser.name} (${currentUser.role})`}
+              >
                 <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
               </div>
-              <p className="text-xs font-bold text-slate-800 truncate min-w-0 flex-1">{currentUser.name}</p>
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(true)}
+                title="Sign out"
+                aria-label="Sign out"
+                className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center transition-colors shrink-0 shadow-2xs cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="h-8 w-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs">
+                  <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-500 font-medium truncate">{currentUser.role}</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(true)}
+                title="Sign out"
+                aria-label="Sign out"
+                className="h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center transition-colors shrink-0 shadow-2xs cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>
@@ -465,6 +498,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Logout confirmation modal */}
+      {showLogoutConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-center animate-in fade-in-50 zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <h2 className="text-base font-extrabold text-slate-900">Sign out?</h2>
+            <p className="text-xs text-slate-500 mt-1">You'll need to enter your PIN again to sign back in.</p>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  logout();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>
