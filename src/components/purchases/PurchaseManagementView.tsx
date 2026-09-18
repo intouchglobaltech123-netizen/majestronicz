@@ -14,7 +14,7 @@ import { PurchaseOrderList } from './PurchaseOrderList';
 import { VendorListView } from './VendorListView';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, cn } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
   const { purchaseOrders, vendors, canManagePurchases, activeSubTab } = useErp();
@@ -111,6 +111,49 @@ export const PurchaseManagementView: React.FC = () => {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveTab('orders')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'orders'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <ShoppingBag className="h-3.5 w-3.5" />
+          <span>Purchase Orders</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeTab === 'orders' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {purchaseOrders.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('vendors')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'vendors'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Building2 className="h-3.5 w-3.5" />
+          <span>Suppliers Directory</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeTab === 'vendors' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {vendors.length}
+          </span>
+        </button>
       </div>
 
       {/* KPI Metric Cards */}

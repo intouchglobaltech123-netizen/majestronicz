@@ -1445,7 +1445,7 @@ export const InvoiceForm: React.FC<Props> = ({
         </div>
 
         {/* Right: Quick Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start md:justify-end w-full md:w-auto">
           {onCancel && (
             <button
               type="button"
@@ -2219,7 +2219,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     {paymentSplits.map((split, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 sm:gap-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 transition-all"
+                        className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 transition-all"
                       >
                         <span className="text-[11px] font-bold text-slate-500 w-16 shrink-0">
                           Split #{index + 1}

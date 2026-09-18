@@ -3,9 +3,6 @@ import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchScope } from '../../types';
 import {
   MapPin,
-  ShieldCheck,
-  Building2,
-  Lock,
   Bell,
   CheckCircle2,
   Clock,
@@ -495,28 +492,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Current user badge */}
-        <div
-          title={`Signed in as ${currentUser.name} (${currentUser.role})`}
-          className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl shadow-2xs select-none"
-        >
-          <div className="h-7 w-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">
-            {currentUser.role === 'CEO' ? (
-              <ShieldCheck className="h-4 w-4 text-amber-600" />
-            ) : currentUser.role === 'Manager' ? (
-              <Building2 className="h-4 w-4 text-blue-600" />
-            ) : (
-              <Lock className="h-4 w-4 text-slate-600" />
-            )}
-          </div>
-          <div className="hidden sm:block text-left">
-            <span className="text-xs font-bold block leading-tight">{currentUser.name}</span>
-            <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-              {currentUser.role}
-            </span>
-          </div>
         </div>
       </div>
 

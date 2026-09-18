@@ -356,12 +356,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       </div>
 
       {/* Segmented Navigation Tabs */}
-      <div className="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-fit flex-wrap">
+      <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab('customers')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
             activeTab === 'customers'
               ? 'bg-white text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
@@ -381,7 +381,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('suppliers')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
             activeTab === 'suppliers'
               ? 'bg-white text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
@@ -401,7 +401,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('all')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
             activeTab === 'all'
               ? 'bg-white text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
@@ -421,7 +421,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('loyalty')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
             activeTab === 'loyalty'
               ? 'bg-white text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'

@@ -266,6 +266,49 @@ export const ItemMasterView: React.FC = () => {
         </div>
       </div>
 
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('products')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeMainTab === 'products'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Package className="h-3.5 w-3.5" />
+          <span>Master Items</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeMainTab === 'products' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {items.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('combos')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeMainTab === 'combos'
+              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          <span>Combo Bundles</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeMainTab === 'combos' ? 'bg-purple-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {combos.length}
+          </span>
+        </button>
+      </div>
+
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
@@ -343,7 +386,7 @@ export const ItemMasterView: React.FC = () => {
               </div>
 
               {/* Sort Controls & Action */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
                   <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 ml-1.5" />
                   <button
@@ -755,7 +798,7 @@ export const ItemMasterView: React.FC = () => {
               </div>
 
               {/* Notice & Add Combo Button */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-between sm:justify-end">
                 <span className="text-[11px] text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 font-medium hidden sm:inline-block">
                   Live availability for <strong>{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
                 </span>

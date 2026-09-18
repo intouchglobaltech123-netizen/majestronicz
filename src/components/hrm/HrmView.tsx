@@ -16,7 +16,7 @@ import { PayrollSummaryView } from './PayrollSummaryView';
 import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, cn } from '../../lib/utils';
 
 export const HrmView: React.FC = () => {
   const {
@@ -129,6 +129,71 @@ export const HrmView: React.FC = () => {
             <span>Enroll Staff</span>
           </button>
         </div>
+      </div>
+
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveTab('attendance')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'attendance'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Clock className="h-3.5 w-3.5" />
+          <span>Staff Attendance</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('payroll')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'payroll'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <DollarSign className="h-3.5 w-3.5" />
+          <span>Payroll Processing</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('employees')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'employees'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Users className="h-3.5 w-3.5" />
+          <span>Staff Directory</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeTab === 'employees' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {employees.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('salary')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'salary'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Percent className="h-3.5 w-3.5" />
+          <span>Salary Structure</span>
+        </button>
       </div>
 
       {/* KPI Cards */}

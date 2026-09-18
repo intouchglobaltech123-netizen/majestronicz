@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits } from '../../types';
-import { getTodayDateString, getYesterdayDateString } from '../../lib/utils';
+import { getTodayDateString, getYesterdayDateString, cn } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
 import { DailyCashExpensesTable } from './DailyCashExpensesTable';
@@ -20,6 +20,8 @@ import {
   History,
   RotateCcw,
   Printer,
+  Wallet,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -269,6 +271,47 @@ export const DailyCashRegisterView: React.FC = () => {
             )
           )}
         </div>
+      </div>
+
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveSubView('register')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeSubView === 'register'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Wallet className="h-3.5 w-3.5" />
+          <span>Daily Cash Drawer</span>
+        </button>
+
+        {canManageItems && (
+          <button
+            type="button"
+            onClick={() => setActiveSubView('recurring')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+              activeSubView === 'recurring'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>Scheduled Expenses</span>
+            {pendingRecurringCount > 0 && (
+              <span className={cn(
+                'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
+                activeSubView === 'recurring' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-800'
+              )}>
+                {pendingRecurringCount} Due
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* SUB-VIEW 1: RECURRING EXPENSE SETUP */}

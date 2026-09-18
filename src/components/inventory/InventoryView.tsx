@@ -389,6 +389,49 @@ export const InventoryView: React.FC = () => {
         </div>
       </div>
 
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveInventoryTab('items')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeInventoryTab === 'items'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Package className="h-3.5 w-3.5" />
+          <span>Regular Items Stock</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeInventoryTab === 'items' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {items.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveInventoryTab('combos')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeInventoryTab === 'combos'
+              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          <span>Combos & Kits Inventory</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeInventoryTab === 'combos' ? 'bg-purple-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {combos.length}
+          </span>
+        </button>
+      </div>
+
       {activeInventoryTab === 'items' && (
         <>
           {/* Inventory Worth — money locked in stock */}

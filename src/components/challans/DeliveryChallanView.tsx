@@ -13,6 +13,7 @@ import {
   Calendar,
   Building,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 export const DeliveryChallanView: React.FC = () => {
   const { challans, deleteChallan, activeSubTab } = useErp();
@@ -93,6 +94,43 @@ export const DeliveryChallanView: React.FC = () => {
               : 'Past delivery challans, printed dispatch slips, and transport logs.'}
           </p>
         </div>
+      </div>
+
+      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={handleStartNew}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'new'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>New Challan</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'history'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Truck className="h-3.5 w-3.5" />
+          <span>Challan History</span>
+          <span className={cn(
+            'px-1.5 py-0.2 rounded-full text-[10px]',
+            activeTab === 'history' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+          )}>
+            {challans.length}
+          </span>
+        </button>
       </div>
 
       {/* Dispatch metrics */}
