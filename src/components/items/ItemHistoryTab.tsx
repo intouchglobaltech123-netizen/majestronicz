@@ -16,10 +16,12 @@ import {
   ShieldAlert,
   MapPin,
   X,
+  ZoomIn,
 } from 'lucide-react';
 import { PurchaseOrderPdfModal } from '../purchases/PurchaseOrderPdfModal';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
 import { ItemImage } from '../common/ItemImage';
+import { ImageViewModal } from '../common/ImageViewModal';
 
 interface ItemHistoryTabProps {
   item: Item;
@@ -57,6 +59,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedAdjustment, setSelectedAdjustment] = useState<StockAdjustmentLog | null>(null);
+  const [fullImageModalOpen, setFullImageModalOpen] = useState(false);
 
   // 1. Raw historical datasets for this item
   const allItemPos = useMemo(() => {
@@ -323,9 +326,11 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
           <ItemImage
             src={item.imageUrl}
             alt={item.itemName}
+            subtitle={`Item Code: ${item.itemCode} • ${formatCurrency(item.salePrice)}`}
             className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl shadow-xs border border-slate-200 bg-white"
             iconClassName="h-8 w-8 text-slate-400"
             fallbackIcon="boxes"
+            previewable
           />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -358,17 +363,28 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         </div>
 
         {item.imageUrl && (
-          <a
-            href={item.imageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs hover:bg-slate-50 transition-colors shrink-0"
+          <button
+            type="button"
+            onClick={() => setFullImageModalOpen(true)}
+            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+            title="Click to view full image in high resolution"
           >
+            <ZoomIn className="h-3.5 w-3.5" />
             <span>View Full Image</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
+          </button>
         )}
       </div>
+
+      {/* Full Image Lightbox Modal */}
+      {item.imageUrl && (
+        <ImageViewModal
+          isOpen={fullImageModalOpen}
+          onClose={() => setFullImageModalOpen(false)}
+          src={item.imageUrl}
+          title={item.itemName}
+          subtitle={`Item Code: ${item.itemCode} • ${formatCurrency(item.salePrice)}`}
+        />
+      )}
 
       {/* BRANCH PHYSICAL SHELF LOCATIONS & STOCK CARD */}
       <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-3">

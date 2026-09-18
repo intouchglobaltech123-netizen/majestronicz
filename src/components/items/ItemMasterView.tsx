@@ -507,9 +507,11 @@ export const ItemMasterView: React.FC = () => {
                               <ItemImage
                                 src={item.imageUrl}
                                 alt={item.itemName}
+                                subtitle={`Code: ${item.itemCode} • ${formatCurrency(item.salePrice)}`}
                                 className="h-9 w-9 rounded-xl shrink-0"
                                 iconClassName="h-4 w-4"
                                 fallbackIcon="boxes"
+                                previewable
                               />
                               <div>
                                 <button
@@ -858,9 +860,11 @@ export const ItemMasterView: React.FC = () => {
                               <ItemImage
                                 src={combo.imageUrl}
                                 alt={combo.comboName}
+                                subtitle={`Combo Code: ${combo.comboCode} • ${formatCurrency(combo.comboPrice)}`}
                                 isCombo={true}
                                 className="h-9 w-9 rounded-xl shrink-0"
                                 iconClassName="h-4 w-4"
+                                previewable
                               />
                               <div>
                                 <div className="font-bold text-slate-900 text-xs flex items-center gap-2">

@@ -1196,6 +1196,7 @@ export const InventoryView: React.FC = () => {
                                   isCombo={true}
                                   className="h-10 w-10 rounded-xl shrink-0"
                                   iconClassName="h-4 w-4"
+                                  previewable
                                 />
                                 <div>
                                   <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
@@ -1317,6 +1318,7 @@ export const InventoryView: React.FC = () => {
                                                     alt={item?.itemName || 'Item'}
                                                     className="h-7 w-7 rounded-lg shrink-0"
                                                     iconClassName="h-3.5 w-3.5"
+                                                    previewable
                                                   />
                                                   <div>
                                                     <div>{item?.itemName || comp.itemId}</div>

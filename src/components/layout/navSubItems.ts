@@ -353,11 +353,45 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
   },
   parties: {
     id: 'parties',
-    title: 'Parties Ledger',
-    subtitle: 'Customers & suppliers directory',
+    title: 'Parties & Customers',
+    subtitle: 'Customers, suppliers & loyalty',
     icon: Contact,
     accentColor: 'indigo',
-    subOptions: [],
+    primaryAction: {
+      id: 'new-customer',
+      label: 'Add Customer',
+      icon: Plus,
+    },
+    subOptions: [
+      {
+        id: 'customers',
+        label: 'Customers Directory',
+        description: 'Customer profiles, dues & sales history',
+        icon: Users,
+        tag: 'Tab',
+      },
+      {
+        id: 'suppliers',
+        label: 'Suppliers Directory',
+        description: 'Registered vendors & payables',
+        icon: Building2,
+        tag: 'Tab',
+      },
+      {
+        id: 'all',
+        label: 'All Parties Ledger',
+        description: 'Unified receivables & payables',
+        icon: Contact,
+        tag: 'Tab',
+      },
+      {
+        id: 'loyalty',
+        label: 'Customer Loyalty Program',
+        description: 'Reward milestones, tiers & rules',
+        icon: Award,
+        tag: 'Tab',
+      },
+    ],
   },
   challans: {
     id: 'challans',

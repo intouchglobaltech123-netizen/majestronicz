@@ -28,6 +28,7 @@ export const DashboardView: React.FC = () => {
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
     employees,
     activeSubTab,
+    navigateToTab,
   } = useErp();
 
   const [trendHover, setTrendHover] = useState<number | null>(null);
@@ -274,7 +275,7 @@ export const DashboardView: React.FC = () => {
         <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`${profit.margin}% margin`}
           icon={Percent} tone="emerald" onClick={() => setCurrentView('reports')} />
         <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
-          icon={ArrowDownCircle} tone="amber" onClick={() => setCurrentView('customers')} accent={money.receivables > 0} />
+          icon={ArrowDownCircle} tone="amber" onClick={() => navigateToTab('parties', 'customers')} accent={money.receivables > 0} />
         <KpiCard label="To Pay" value={formatCurrency(money.payables)} sub="supplier dues"
           icon={ArrowUpCircle} tone="rose" onClick={() => setCurrentView('purchases')} accent={money.payables > 0} />
         <KpiCard label="Cash in Hand" value={formatCurrency(money.cashInHand)} sub="approx · registers"
@@ -428,7 +429,7 @@ export const DashboardView: React.FC = () => {
               <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><ArrowDownCircle className="h-4 w-4 text-amber-500" /> Receivables Aging</h3>
               <p className="text-[11px] text-slate-500">How overdue the money customers owe is</p>
             </div>
-            <button onClick={() => setCurrentView('customers')} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">Collect <ChevronRight className="h-3 w-3" /></button>
+            <button onClick={() => navigateToTab('parties', 'customers')} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 cursor-pointer">Collect <ChevronRight className="h-3 w-3" /></button>
           </div>
           {aging.total <= 0 ? (
             <div className="py-6 text-center">

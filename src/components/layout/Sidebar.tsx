@@ -6,7 +6,6 @@ import {
   Barcode,
   BarChart3,
   ShieldCheck,
-  Contact,
   ShoppingCart,
   Building2,
   Lock,
@@ -150,8 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
   }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canAccessView('dashboard') },
     { id: 'items', label: 'Items', icon: Package, visible: canAccessView('items') },
-    { id: 'customers', label: 'Customers', icon: Users, visible: canAccessView('customers') },
-    { id: 'parties', label: 'Parties', icon: Contact, visible: canAccessView('parties') },
+    { id: 'parties', label: 'Parties', icon: Users, visible: canAccessView('parties') || canAccessView('customers') },
     { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: canAccessView('enquiries') },
     { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: canAccessView('pending-orders') },
     { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: canAccessView('challans') },
@@ -240,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
             .filter((item) => item.visible)
             .map((item) => {
               const Icon = item.icon;
-              const isActive = currentView === item.id;
+              const isActive = currentView === item.id || (item.id === 'parties' && currentView === 'customers');
               const subConfig = NAV_SUB_CONFIG[item.id];
               const hasSubOptions = subConfig && subConfig.subOptions.length > 0;
 
