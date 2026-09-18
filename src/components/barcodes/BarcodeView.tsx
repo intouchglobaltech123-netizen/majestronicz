@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   QueuedBarcodeItem,
@@ -22,7 +22,7 @@ import {
 import { toast } from 'sonner';
 
 export const BarcodeView: React.FC = () => {
-  const { isAllBranches, currentBranchData } = useErp();
+  const { isAllBranches, currentBranchData, activeSubTab } = useErp();
 
   // Settings State
   const [settings, setSettings] = useState<BarcodeSettings>({
@@ -32,6 +32,18 @@ export const BarcodeView: React.FC = () => {
     fontSize: 'medium',
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Synchronize modal triggers when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'barcodes') {
+      const tab = activeSubTab.tab;
+      if (tab === 'settings') {
+        setIsSettingsOpen(true);
+      } else if (tab === 'preview') {
+        setIsPreviewModalOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   // Form State (Lifted so BarcodePreviewCard can reactively render live preview)
   const [itemCode, setItemCode] = useState('');

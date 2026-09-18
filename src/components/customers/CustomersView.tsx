@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Customer, computeInvoiceFinance } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
@@ -31,10 +31,23 @@ export const CustomersView: React.FC = () => {
     selectedCustomerForDetail,
     setSelectedCustomerForDetail,
     getCustomerOutstandingBalance,
+    activeSubTab,
   } = useErp();
 
   // Navigation tab: directory vs loyalty
   const [activeTab, setActiveTab] = useState<'directory' | 'loyalty'>('directory');
+
+  // Synchronize view tab and actions when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'customers') {
+      const tab = activeSubTab.tab;
+      if (tab === 'directory' || tab === 'loyalty') {
+        setActiveTab(tab);
+      } else if (tab === 'new-customer') {
+        setIsAddModalOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');

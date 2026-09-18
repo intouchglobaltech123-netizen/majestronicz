@@ -38,7 +38,7 @@ interface OrderPreview {
 }
 
 export const ShopifyView: React.FC = () => {
-  const { invoices } = useErp();
+  const { invoices, activeSubTab } = useErp();
   const [status, setStatus] = useState<Status | null>(null);
   const [orders, setOrders] = useState<OrderPreview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +64,16 @@ export const ShopifyView: React.FC = () => {
       setImportingProducts(false);
     }
   };
+
+  // Synchronize actions when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'shopify') {
+      const tab = activeSubTab.tab;
+      if (tab === 'import-products') {
+        handleImportProducts();
+      }
+    }
+  }, [activeSubTab]);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);

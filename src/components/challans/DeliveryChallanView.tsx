@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { DeliveryChallan } from '../../types';
 import { DeliveryChallanForm } from './DeliveryChallanForm';
@@ -15,10 +15,23 @@ import {
 } from 'lucide-react';
 
 export const DeliveryChallanView: React.FC = () => {
-  const { challans, deleteChallan } = useErp();
+  const { challans, deleteChallan, activeSubTab } = useErp();
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   const [editingChallan, setEditingChallan] = useState<DeliveryChallan | null>(null);
+
+  // Synchronize view tab when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'challans') {
+      const tab = activeSubTab.tab;
+      if (tab === 'new') {
+        setEditingChallan(null);
+        setActiveTab('new');
+      } else if (tab === 'history') {
+        setActiveTab('history');
+      }
+    }
+  }, [activeSubTab]);
   const [previewChallan, setPreviewChallan] = useState<DeliveryChallan | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 

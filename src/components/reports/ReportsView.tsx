@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance } from '../../types';
 import { formatCurrency } from '../../lib/utils';
@@ -42,10 +42,21 @@ export const ReportsView: React.FC = () => {
     canViewPayrollReport,
     invoices,
     purchaseOrders,
+    activeSubTab,
   } = useErp();
 
   // Active Report Tab
   const [activeTab, setActiveTab] = useState<ReportTabType>('sales');
+
+  // Synchronize report tab when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'reports') {
+      const tab = activeSubTab.tab as ReportTabType;
+      if (tab) {
+        setActiveTab(tab);
+      }
+    }
+  }, [activeSubTab]);
 
   // Universal Date Range state (Default to Current Month September 2026)
   const [startDate, setStartDate] = useState<string>('2026-09-01');

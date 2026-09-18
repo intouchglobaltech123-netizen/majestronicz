@@ -66,6 +66,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     setQuoteToPrefill,
     voidInvoice,
     currentUser,
+    activeSubTab,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -126,6 +127,18 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     setActiveTab('new');
     return id;
   };
+
+  // Synchronize view tab when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'invoices') {
+      const tab = activeSubTab.tab;
+      if (tab === 'ledger' || tab === 'estimates' || tab === 'returns' || tab === 'draft-sales' || tab === 'draft-quotes') {
+        setActiveTab(tab);
+      } else if (tab === 'new') {
+        openBillTab({ documentType: 'Invoice' });
+      }
+    }
+  }, [activeSubTab]);
 
   // Close a tab; fall back to the ledger when nothing is left open.
   const closeBillTab = (id: string, fallbackTab: 'ledger' | 'estimates' = 'ledger') => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, ComboItem, BRANCHES, BranchScope } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -45,9 +45,35 @@ export const ItemMasterView: React.FC = () => {
     getComboBuyingSeparatelyPrice,
     canManageItems,
     currentUser,
+    activeSubTab,
   } = useErp();
 
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'combos'>('products');
+
+  // Respond to secondary nav flyout tab selections
+  useEffect(() => {
+    if (activeSubTab?.view === 'items') {
+      if (activeSubTab.tab === 'products') {
+        setActiveMainTab('products');
+      } else if (activeSubTab.tab === 'combos') {
+        setActiveMainTab('combos');
+      } else if (activeSubTab.tab === 'add-product') {
+        setActiveMainTab('products');
+        if (canManageItems) {
+          setAddModalOpen(true);
+        } else {
+          toast.error('Permission denied: You do not have permission to add items');
+        }
+      } else if (activeSubTab.tab === 'add-combo') {
+        setActiveMainTab('combos');
+        if (canManageItems) {
+          setCreateComboModalOpen(true);
+        } else {
+          toast.error('Permission denied: You do not have permission to create combos');
+        }
+      }
+    }
+  }, [activeSubTab, canManageItems]);
   const [searchQuery, setSearchQuery] = useState('');
   const [comboSearchQuery, setComboSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');

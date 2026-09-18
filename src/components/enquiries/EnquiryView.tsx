@@ -50,11 +50,24 @@ export const EnquiryView: React.FC = () => {
     addFollowUpReminder,
     enquiryActiveTab: activeTab,
     setEnquiryActiveTab: setActiveTab,
+    activeSubTab,
   } = useErp();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [cancellingEnquiry, setCancellingEnquiry] = useState<Enquiry | null>(null);
   const [schedulingReminderEnquiry, setSchedulingReminderEnquiry] = useState<Enquiry | null>(null);
+
+  // Synchronize view tab and actions when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'enquiries') {
+      const tab = activeSubTab.tab;
+      if (tab === 'all' || tab === 'new-item-requests') {
+        setActiveTab(tab);
+      } else if (tab === 'new') {
+        setIsNewModalOpen(true);
+      }
+    }
+  }, [activeSubTab, setActiveTab]);
 
   // Add Item to Catalog Modal state
   const [catalogEnquiry, setCatalogEnquiry] = useState<Enquiry | null>(null);

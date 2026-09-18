@@ -53,6 +53,7 @@ export const InventoryView: React.FC = () => {
     getComboBuyingSeparatelyPrice,
     getTotalStockAcrossBranches,
     getBranchStock,
+    activeSubTab,
   } = useErp();
 
   // Search and Filters
@@ -92,6 +93,24 @@ export const InventoryView: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [thresholdItem, setThresholdItem] = useState<Item | null>(null);
   const [locationModalItem, setLocationModalItem] = useState<{ item: Item; branchId?: BranchId } | null>(null);
+
+  // Synchronize view tab and modals when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'inventory') {
+      const tab = activeSubTab.tab;
+      if (tab === 'items') {
+        setActiveInventoryTab('items');
+      } else if (tab === 'combos') {
+        setActiveInventoryTab('combos');
+      } else if (tab === 'transfer') {
+        setTransferState({});
+      } else if (tab === 'transfer-history') {
+        setIsTransferHistoryOpen(true);
+      } else if (tab === 'audit') {
+        setAllHistoryOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   // Available categories from catalog
   const categories = useMemo(() => {

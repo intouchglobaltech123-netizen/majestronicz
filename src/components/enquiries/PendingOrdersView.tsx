@@ -23,11 +23,22 @@ export const PendingOrdersView: React.FC = () => {
     convertEnquiryToSale,
     pendingOrderFilterQuery,
     setPendingOrderFilterQuery,
+    activeSubTab,
   } = useErp();
 
   // Search query & status filter
   const [searchQuery, setSearchQuery] = useState(pendingOrderFilterQuery || '');
   const [statusFilter, setStatusFilter] = useState<'ALL' | PendingOrderStatus>('ALL');
+
+  // Synchronize status filter when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'pending-orders') {
+      const tab = activeSubTab.tab;
+      if (tab === 'ALL' || tab === 'Draft' || tab === 'Confirmed' || tab === 'Dispatched') {
+        setStatusFilter(tab as any);
+      }
+    }
+  }, [activeSubTab]);
 
   // Sync when navigating from another module via navigateToPendingOrder
   useEffect(() => {

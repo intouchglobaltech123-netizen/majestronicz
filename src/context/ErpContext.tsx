@@ -105,6 +105,12 @@ export type ActiveNavView =
   | 'ai-assistant'
   | 'access';
 
+export interface ActiveSubTabState {
+  view: ActiveNavView;
+  tab: string;
+  nonce: number;
+}
+
 interface StorageState {
   items: Item[];
   branchStocks: BranchStock[];
@@ -142,6 +148,8 @@ interface ErpContextType {
   // Navigation View State
   currentView: ActiveNavView;
   setCurrentView: (view: ActiveNavView) => void;
+  activeSubTab: ActiveSubTabState | null;
+  navigateToTab: (view: ActiveNavView, tab: string) => void;
 
   // Branch Scope State (controls which branch's STOCK is viewed/edited or 'all' for aggregated)
   currentBranch: BranchScope;
@@ -544,6 +552,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       /* history API unavailable — navigation still works, just no Back sync */
     }
   }, []);
+
+  const [activeSubTab, setActiveSubTab] = useState<ActiveSubTabState | null>(null);
+
+  const navigateToTab = useCallback((view: ActiveNavView, tab: string) => {
+    setActiveSubTab({ view, tab, nonce: Date.now() });
+    setCurrentView(view);
+  }, [setCurrentView]);
 
   useEffect(() => {
     // Seed a baseline history entry for the initial view so the first Back
@@ -3866,6 +3881,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentView,
         setCurrentView,
+        activeSubTab,
+        navigateToTab,
         currentBranch,
         isAllBranches,
         currentBranchData,

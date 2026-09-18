@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Clock,
@@ -25,11 +25,26 @@ export const HrmView: React.FC = () => {
     attendanceRecords,
     payrollSettings,
     canViewHrm,
+    activeSubTab,
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'attendance' | 'payroll' | 'employees' | 'salary'>('attendance');
   const [isKioskModalOpen, setIsKioskModalOpen] = useState(false);
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+
+  // Synchronize view tab and actions when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'hrm') {
+      const tab = activeSubTab.tab;
+      if (tab === 'attendance' || tab === 'payroll' || tab === 'employees' || tab === 'salary') {
+        setActiveTab(tab);
+      } else if (tab === 'kiosk') {
+        setIsKioskModalOpen(true);
+      } else if (tab === 'new-employee') {
+        setIsEmployeeModalOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const currentMonthStr = '2026-09';

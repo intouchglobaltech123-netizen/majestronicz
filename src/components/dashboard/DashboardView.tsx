@@ -27,12 +27,29 @@ export const DashboardView: React.FC = () => {
     currentUser, invoices, purchaseOrders, cashRegisters, enquiries, pendingOrders,
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
     employees,
+    activeSubTab,
   } = useErp();
 
   const [trendHover, setTrendHover] = useState<number | null>(null);
   const [topMetric, setTopMetric] = useState<'revenue' | 'qty'>('revenue');
   const [trendDays, setTrendDays] = useState<7 | 14 | 30>(14);
   const rootRef = useRef<HTMLDivElement>(null);
+  const trendRef = useRef<HTMLDivElement>(null);
+  const topProductsRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize dashboard sections when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'dashboard') {
+      const tab = activeSubTab.tab;
+      if (tab === 'overview') {
+        rootRef.current?.closest('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (tab === 'sales-trend') {
+        trendRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (tab === 'top-products') {
+        topProductsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [activeSubTab]);
 
   // One-time smooth "tour" scroll (down then back up) after a fresh login,
   // so the user sees there's more below the fold. Runs once per login.
@@ -274,7 +291,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Charts row ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sales trend (14 days) */}
-        <div className="lg:col-span-2 p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div ref={trendRef} className="lg:col-span-2 p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900">Sales — Last {trendDays} Days</h3>
@@ -343,7 +360,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Top products + Recent sales ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top products */}
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div ref={topProductsRef} className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Trophy className="h-4 w-4 text-amber-500" /> Top Products</h3>
             <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag,
   Building2,
@@ -17,12 +17,27 @@ import { VendorMasterModal } from './VendorMasterModal';
 import { formatCurrency } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
-  const { purchaseOrders, vendors, canManagePurchases } = useErp();
+  const { purchaseOrders, vendors, canManagePurchases, activeSubTab } = useErp();
 
   const [activeTab, setActiveTab] = useState<'orders' | 'vendors'>('orders');
   const [isPoFormOpen, setIsPoFormOpen] = useState(false);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
+
+  // Synchronize view tab and actions when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'purchases') {
+      const tab = activeSubTab.tab;
+      if (tab === 'orders' || tab === 'vendors') {
+        setActiveTab(tab);
+      } else if (tab === 'issue-po') {
+        setSelectedVendorForPo(null);
+        setIsPoFormOpen(true);
+      } else if (tab === 'add-vendor') {
+        setIsVendorModalOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 

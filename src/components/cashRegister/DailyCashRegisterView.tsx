@@ -42,6 +42,7 @@ export const DailyCashRegisterView: React.FC = () => {
     canOverrideOpening,
     canManageItems,
     recurringExpenses,
+    activeSubTab,
   } = useErp();
 
   // Dynamic system dates
@@ -72,6 +73,20 @@ export const DailyCashRegisterView: React.FC = () => {
   // Sub-view: 'register' (Daily Drawer) | 'recurring' (Recurring Expense Templates Setup)
   const [activeSubView, setActiveSubView] = useState<'register' | 'recurring'>('register');
   const [approvingTemplate, setApprovingTemplate] = useState<RecurringExpenseTemplate | null>(null);
+
+  // Synchronize view tab and modals when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'cash-register') {
+      const tab = activeSubTab.tab;
+      if (tab === 'register') {
+        setActiveSubView('register');
+      } else if (tab === 'recurring') {
+        setActiveSubView('recurring');
+      } else if (tab === 'history') {
+        setIsHistoryModalOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   // Pending scheduled expenses count for badge (frequency aware)
   const pendingRecurringCount = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -50,6 +50,7 @@ export const PartiesView: React.FC = () => {
     canManagePurchases,
     currentBranch,
     isAllBranches,
+    activeSubTab,
   } = useErp();
 
   // Branch scope: when locked to a branch (e.g. Manager), only that branch's
@@ -66,6 +67,22 @@ export const PartiesView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PartyFilter>('all');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+
+  // Synchronize view tab and modal triggers when triggered from secondary navbar flyout
+  useEffect(() => {
+    if (activeSubTab?.view === 'parties') {
+      const tab = activeSubTab.tab;
+      if (tab === 'all' || tab === 'customers' || tab === 'suppliers') {
+        setFilter(tab as PartyFilter);
+      } else if (tab === 'new-customer') {
+        setCustomerToEdit(null);
+        setCustomerFormOpen(true);
+      } else if (tab === 'new-supplier') {
+        setVendorToEdit(null);
+        setVendorFormOpen(true);
+      }
+    }
+  }, [activeSubTab]);
 
   // Modals
   const [customerFormOpen, setCustomerFormOpen] = useState(false);
