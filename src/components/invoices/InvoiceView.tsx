@@ -356,9 +356,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     0
   );
   const voidedCount = filteredInvoices.filter((i) => i.isVoided).length;
-  const returnedInvoicesCount = invoices.filter(
-    (i) => (i.returns && i.returns.length > 0) || (i.totalReturnedAmount || 0) > 0
-  ).length;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
@@ -371,155 +368,66 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             </div>
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Sales
+                {activeTab === 'new'
+                  ? 'New Sale / Billing POS'
+                  : activeTab === 'estimates'
+                  ? 'Quotations & Estimates'
+                  : activeTab === 'returns'
+                  ? 'Sales Returns & Credit Notes'
+                  : activeTab === 'draft-sales'
+                  ? 'Saved Sale Drafts'
+                  : activeTab === 'draft-quotes'
+                  ? 'Saved Quotation Drafts'
+                  : 'Sales Invoices'}
               </h1>
               <p className="text-xs text-slate-500">
-                Sales Ledger, GST tax invoicing, payment tracking, and return processing.
+                {activeTab === 'new'
+                  ? 'Multi-tab billing, GST invoice calculation & item lookup'
+                  : activeTab === 'estimates'
+                  ? 'Manage customer quotations, download PDFs & convert to sales'
+                  : activeTab === 'returns'
+                  ? 'Processed sales returns, credit note history & returned inventory'
+                  : activeTab === 'draft-sales' || activeTab === 'draft-quotes'
+                  ? 'In-progress drafts saved in this browser'
+                  : 'Live tax invoices, payments tracking, collections & customer dues'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons & Tab Switcher */}
+        {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsConvertModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-2xs transition-colors cursor-pointer"
-          >
-            <ArrowRightLeft className="h-3.5 w-3.5" />
-            <span>Convert from Quote</span>
-          </button>
-
-          {/* Primary View Switcher — dropdown on mobile, pills on >= sm */}
-          <select
-            value={['ledger', 'estimates', 'returns', 'draft-sales', 'draft-quotes'].includes(activeTab) ? activeTab : 'ledger'}
-            onChange={(e) => setActiveTab(e.target.value as typeof activeTab)}
-            className="sm:hidden w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
-          >
-            {openBills.length > 0 && <option value="new">Open Bills ({openBills.length})</option>}
-            <option value="ledger">Sales Ledger ({invoices.length})</option>
-            <option value="estimates">Quotation History ({estimates.length})</option>
-            <option value="returns">Returns ({returnedInvoicesCount})</option>
-            <option value="draft-sales">Saved Sales ({draftSales.length})</option>
-            <option value="draft-quotes">Saved Quotes ({draftQuotes.length})</option>
-          </select>
-          <div className="hidden sm:flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-            {openBills.length > 0 && (
-              <button
-                type="button"
-                onClick={() => { if (!activeBillId) setActiveBillId(openBills[openBills.length - 1].id); setActiveTab('new'); }}
-                className={cn(
-                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                  activeTab === 'new'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-blue-700 hover:text-blue-900'
-                )}
-                title="Return to your open bills"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                <span>Open Bills ({openBills.length})</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setActiveTab('ledger')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                activeTab === 'ledger'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Receipt className="h-3.5 w-3.5" />
-              <span>Sales Ledger ({invoices.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('estimates')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                activeTab === 'estimates'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Quotation History ({estimates.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('returns')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                activeTab === 'returns'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Returns ({returnedInvoicesCount})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('draft-sales')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                activeTab === 'draft-sales'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Save className="h-3.5 w-3.5" />
-              <span>Saved Sales ({draftSales.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('draft-quotes')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
-                activeTab === 'draft-quotes'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Save className="h-3.5 w-3.5" />
-              <span>Saved Quotes ({draftQuotes.length})</span>
-            </button>
-          </div>
-
-          {/* Persistent Creation Buttons: ALWAYS visible from ALL tabs */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleStartBlank('Invoice')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                'bg-blue-600 hover:bg-blue-700 text-white'
-              )}
-              title="Open a new Sales Invoice tab (you can keep several bills open at once)"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>New Sale</span>
-            </button>
-
+          {activeTab === 'estimates' && (
             <button
               type="button"
               onClick={() => handleStartBlank('Quotation')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
-                'bg-purple-600 hover:bg-purple-700 text-white'
-              )}
-              title="Open a new Quotation tab"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>New Quote</span>
+              <span>Create Quotation</span>
             </button>
-          </div>
+          )}
+
+          {(activeTab === 'ledger' || activeTab === 'estimates') && (
+            <button
+              type="button"
+              onClick={() => setIsConvertModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-2xs transition-colors cursor-pointer"
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              <span>Convert from Quote</span>
+            </button>
+          )}
+
+          {activeTab === 'new' && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('ledger')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+            >
+              <span>See Sales Invoices</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -90,43 +90,15 @@ export const DeliveryChallanView: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Delivery Challan
+                {activeTab === 'new' ? 'Create Delivery Challan' : 'Delivery Challan History'}
               </h1>
               <p className="text-xs text-slate-500">
-                Goods dispatch notes and transport delivery documentation.
+                {activeTab === 'new'
+                  ? 'Issue new goods dispatch note and transport proof document.'
+                  : 'Past delivery challans, printed dispatch slips, and transport logs.'}
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 bg-slate-200/70 p-1 rounded-xl">
-          <button
-            onClick={handleStartNew}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              activeTab === 'new' && !editingChallan
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>New Challan</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              activeTab === 'history'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Truck className="h-3.5 w-3.5" />
-            <span>Challan History</span>
-            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-mono">
-              {challans.length}
-            </span>
-          </button>
         </div>
       </div>
 

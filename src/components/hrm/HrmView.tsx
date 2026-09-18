@@ -16,7 +16,6 @@ import { PayrollSummaryView } from './PayrollSummaryView';
 import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
-import { ResponsiveTabs } from '../common/ResponsiveTabs';
 import { formatCurrency } from '../../lib/utils';
 
 export const HrmView: React.FC = () => {
@@ -90,10 +89,22 @@ export const HrmView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-              Attendance
+              {activeTab === 'attendance'
+                ? 'Staff Attendance'
+                : activeTab === 'payroll'
+                ? 'Payroll Processing'
+                : activeTab === 'salary'
+                ? 'Salary Structure'
+                : 'Staff Directory'}
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              Staff & Shifts
+              {activeTab === 'attendance'
+                ? 'Shifts & Clock-ins'
+                : activeTab === 'payroll'
+                ? 'Wages & Deductions'
+                : activeTab === 'salary'
+                ? 'Base Pay Rules'
+                : 'Employee Profiles'}
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
@@ -212,18 +223,6 @@ export const HrmView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Sub-Navigation Tabs (dropdown on mobile) */}
-      <ResponsiveTabs
-        activeId={activeTab}
-        onChange={(id) => setActiveTab(id as typeof activeTab)}
-        items={[
-          { id: 'attendance', label: 'Attendance Log', count: attendanceRecords.length },
-          { id: 'payroll', label: 'Payroll', count: activeStaff.length },
-          { id: 'employees', label: 'Employees', count: employees.length },
-          { id: 'salary', label: 'Salary Details' },
-        ]}
-      />
 
       {/* Active Tab View */}
       {activeTab === 'attendance' ? (

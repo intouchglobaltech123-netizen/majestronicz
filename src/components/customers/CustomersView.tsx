@@ -163,50 +163,19 @@ export const CustomersView: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Customer Master & Loyalty
+                {activeTab === 'loyalty' ? 'Loyalty Program & Reward Rules' : 'Customer Directory'}
               </h1>
               <p className="text-xs text-slate-500">
-                Customer CRM, purchase frequency tracker, and milestone reward engine
+                {activeTab === 'loyalty'
+                  ? 'Configure tier milestones, reward thresholds, and loyalty perks.'
+                  : 'Customer CRM, purchase frequency tracker, and receivables directory.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Tab switcher & Actions */}
+        {/* Action Button */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveTab('directory')}
-              className={cn(
-                'px-4 py-2 rounded-xl transition-all',
-                activeTab === 'directory'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              Directory ({customers.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('loyalty')}
-              className={cn(
-                'px-4 py-2 rounded-xl transition-all flex items-center gap-1.5',
-                activeTab === 'loyalty'
-                  ? 'bg-white text-amber-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>Loyalty Rules</span>
-              {milestoneReadyCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[11px] font-extrabold">
-                  {milestoneReadyCount}
-                </span>
-              )}
-            </button>
-          </div>
-
           <button
             type="button"
             onClick={() => {

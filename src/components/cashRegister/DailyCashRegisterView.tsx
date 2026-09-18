@@ -173,7 +173,7 @@ export const DailyCashRegisterView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Cash Register
+                {activeSubView === 'recurring' ? 'Scheduled & Recurring Expenses' : 'Daily Cash Register Drawer'}
               </h1>
               <span
                 className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
@@ -194,50 +194,22 @@ export const DailyCashRegisterView: React.FC = () => {
                   </>
                 )}
               </span>
+              {activeSubView === 'recurring' && pendingRecurringCount > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                  {pendingRecurringCount} Due
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Live automated cash-drawer tally from Sales Invoices with petty expense tracking.
+              {activeSubView === 'recurring'
+                ? 'Monthly fixed expense templates (rent, electricity, salaries, vendor retainers).'
+                : 'Live automated cash-drawer tally from Sales Invoices with petty expense tracking.'}
             </p>
           </div>
         </div>
 
         {/* Header Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Sub-view switcher for CEO / Manager */}
-          {canManageItems && (
-            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveSubView('register')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeSubView === 'register'
-                    ? 'bg-white text-blue-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <WalletCards className="h-3.5 w-3.5" />
-                <span>Daily Register</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveSubView('recurring')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeSubView === 'recurring'
-                    ? 'bg-white text-purple-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                <span>Scheduled Amounts</span>
-                {pendingRecurringCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 text-[11px] font-bold rounded-full bg-amber-500 text-white">
-                    {pendingRecurringCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
 
           {/* History Button */}
           <button

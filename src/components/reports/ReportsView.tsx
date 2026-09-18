@@ -15,7 +15,6 @@ import {
   Calendar,
   Building,
   Landmark,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -138,67 +137,28 @@ export const ReportsView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-5 w-full">
-      {/* Top Banner (title only) */}
+      {/* Top Banner */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
         <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
           <BarChart3 className="h-6 w-6" />
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {tabs.find((t) => t.id === activeTab)?.label || 'Reports'}
+            </h1>
             <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               Live Analytics
             </span>
           </div>
           <p className="text-xs text-slate-600 mt-0.5">
-            Pick a report on the left, set its date range &amp; branch, then download.
+            {tabs.find((t) => t.id === activeTab)?.description || 'Financial statements, branch audits, and GST tax filings.'}
           </p>
         </div>
       </div>
 
-      {/* Mobile report picker */}
-      <select
-        value={activeTab}
-        onChange={(e) => setActiveTab(e.target.value as ReportTabType)}
-        className="lg:hidden w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
-      >
-        {tabs.map((tab) => (
-          <option key={tab.id} value={tab.id}>{tab.label}</option>
-        ))}
-      </select>
-
-      {/* Two-pane: left report list, right opens the selected report */}
-      <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-5 space-y-4 lg:space-y-0">
-        {/* LEFT — report list (Vyapar style) */}
-        <aside className="hidden lg:block">
-          <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-2 space-y-1 sticky top-4">
-            <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">All Reports</p>
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'w-full text-left flex items-start gap-2.5 px-2.5 py-2 rounded-lg transition-all group',
-                    isActive ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700')} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold truncate">{tab.label}</span>
-                    <span className={cn('block text-[11px] truncate', isActive ? 'text-blue-100' : 'text-slate-400')}>{tab.description}</span>
-                  </span>
-                  {isActive && <ChevronRight className="h-4 w-4 shrink-0 mt-0.5" />}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        {/* RIGHT — the opened report: filters + date range + summary + body + download */}
-        <div className="min-w-0 space-y-4">
+      {/* The opened report: filters + date range + summary + body + download */}
+      <div className="space-y-4">
           {/* Filter + date-range bar */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-3.5 flex flex-col lg:flex-row lg:items-center gap-3">
             {/* Branch scope */}
@@ -292,6 +252,5 @@ export const ReportsView: React.FC = () => {
           {activeReportBody}
         </div>
       </div>
-    </div>
   );
 };

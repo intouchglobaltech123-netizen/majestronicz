@@ -361,7 +361,7 @@ export const InventoryView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Inventory
+                {activeInventoryTab === 'combos' ? 'Combos & Kits Inventory' : 'Regular Items Stock'}
               </h1>
               <span
                 className={cn(
@@ -425,53 +425,6 @@ export const InventoryView: React.FC = () => {
             <span className="hidden sm:inline text-[11px]">{inventorySettings.deadStockThresholdDays}d</span>
           </button>
         </div>
-      </div>
-
-      {/* View Switcher: Regular Items vs Combos */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveInventoryTab('items')}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
-            activeInventoryTab === 'items'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          )}
-        >
-          <Boxes className="h-4 w-4" />
-          <span>Regular Items</span>
-          <span
-            className={cn(
-              'px-1.5 py-0.5 rounded-full text-[11px] font-bold',
-              activeInventoryTab === 'items' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
-            )}
-          >
-            {items.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveInventoryTab('combos')}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
-            activeInventoryTab === 'combos'
-              ? 'bg-purple-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          )}
-        >
-          <Sparkles className="h-4 w-4 text-purple-300" />
-          <span>Combos & Bundles</span>
-          <span
-            className={cn(
-              'px-1.5 py-0.5 rounded-full text-[11px] font-bold',
-              activeInventoryTab === 'combos' ? 'bg-purple-700 text-white' : 'bg-slate-100 text-slate-600'
-            )}
-          >
-            {combos.length}
-          </span>
-        </button>
       </div>
 
       {activeInventoryTab === 'items' && (

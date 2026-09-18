@@ -81,10 +81,10 @@ export const PurchaseManagementView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-              Purchases
+              {activeTab === 'vendors' ? 'Suppliers Directory' : 'Purchase Orders'}
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              Inward Supply
+              {activeTab === 'vendors' ? 'Vendors & Payables' : 'Inward Supply'}
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
@@ -220,43 +220,6 @@ export const PurchaseManagementView: React.FC = () => {
             </p>
           </div>
         </div>
-      </div>
-
-      {/* Primary Sub-Navigation Tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-6">
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'orders'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <ShoppingBag className="h-4 w-4" />
-          <span>Purchase Orders</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            activeTab === 'orders' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-          }`}>
-            {purchaseOrders.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('vendors')}
-          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'vendors'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          <span>Suppliers</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            activeTab === 'vendors' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-          }`}>
-            {vendors.length}
-          </span>
-        </button>
       </div>
 
       {/* Tab Content */}

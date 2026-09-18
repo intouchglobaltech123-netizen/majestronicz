@@ -24,7 +24,9 @@ import {
   PanelLeftOpen,
   X,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
+  Plus,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { NAV_SUB_CONFIG } from './navSubItems';
@@ -50,11 +52,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
   } = useErp();
 
   const asideRef = useRef<HTMLElement | null>(null);
-  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Secondary nav flyout state (desktop hover)
-  const [hoveredNav, setHoveredNav] = useState<ActiveNavView | null>(null);
-  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
+  // Secondary docked sidebar collapsed state
+  const [isSubNavCollapsed, setIsSubNavCollapsed] = useState<boolean>(false);
 
   // Mobile accordion expanded state
   const [mobileExpandedNav, setMobileExpandedNav] = useState<ActiveNavView | null>(null);
@@ -78,58 +78,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  // Close flyout on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setHoveredNav(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const clearCloseTimeout = useCallback(() => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  }, []);
-
-  const handleMouseEnterItem = useCallback((id: ActiveNavView, e: React.MouseEvent<HTMLElement>) => {
-    if (isMobile) return;
-    clearCloseTimeout();
-    const target = e.currentTarget;
-    const rect = target.getBoundingClientRect();
-    const asideRect = asideRef.current?.getBoundingClientRect();
-    const left = (asideRect ? asideRect.right : rect.right) + 4;
-
-    const config = NAV_SUB_CONFIG[id];
-    const optionCount = config?.subOptions.length || 3;
-    const estimatedHeight = Math.min(window.innerHeight - 32, 60 + optionCount * 54 + 36);
-
-    let top = rect.top - 8;
-    if (top + estimatedHeight > window.innerHeight - 16) {
-      top = Math.max(16, window.innerHeight - estimatedHeight - 16);
-    }
-    if (top < 16) top = 16;
-
-    setFlyoutPos({ top, left });
-    setHoveredNav(id);
-  }, [clearCloseTimeout, isMobile]);
-
-  const handleMouseLeave = useCallback(() => {
-    clearCloseTimeout();
-    closeTimeoutRef.current = setTimeout(() => {
-      setHoveredNav(null);
-    }, 180);
-  }, [clearCloseTimeout]);
-
   const handleSubOptionClick = useCallback((navView: ActiveNavView, subOptionId: string) => {
     navigateToTab(navView, subOptionId);
-    setHoveredNav(null);
     onClose?.();
   }, [navigateToTab, onClose]);
+
+  const handleNavClick = useCallback((id: ActiveNavView) => {
+    setCurrentView(id);
+    setIsSubNavCollapsed(false);
+    onClose?.();
+  }, [setCurrentView, onClose]);
 
   // On mobile the drawer always shows full labels; collapse only applies on desktop.
   const showLabels = isMobile || !collapsed;
@@ -161,7 +119,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
   ];
 
   const RoleIcon = currentUser.role === 'CEO' ? ShieldCheck : currentUser.role === 'Manager' ? Building2 : Lock;
-  const hoveredConfig = hoveredNav ? NAV_SUB_CONFIG[hoveredNav] : null;
+  const activeConfig = NAV_SUB_CONFIG[currentView];
+  const hasSubNav = activeConfig && activeConfig.subOptions.length > 0;
 
   return (
     <>
@@ -234,34 +193,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
             const isActive = currentView === item.id;
             const subConfig = NAV_SUB_CONFIG[item.id];
             const hasSubOptions = subConfig && subConfig.subOptions.length > 0;
-            const isHovered = hoveredNav === item.id;
 
             return (
               <div key={item.id} className="w-full">
                 <div className="flex items-center gap-1 w-full">
                   <button
-                    onClick={() => { setCurrentView(item.id); setHoveredNav(null); onClose?.(); }}
-                    onMouseEnter={(e) => handleMouseEnterItem(item.id, e)}
-                    onMouseLeave={handleMouseLeave}
+                    onClick={() => handleNavClick(item.id)}
                     title={!showLabels ? item.label : undefined}
                     className={cn(
-                      'relative flex-1 flex items-center rounded-xl text-sm font-medium transition-all group',
+                      'relative flex-1 flex items-center rounded-xl text-sm font-medium transition-all group cursor-pointer',
                       !showLabels ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5 text-left',
                       isActive
                         ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                        : isHovered
-                        ? 'bg-blue-50 text-blue-800'
                         : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                     )}
                   >
                     <Icon
                       className={cn(
                         'h-4 w-4 shrink-0 transition-colors',
-                        isActive
-                          ? 'text-white'
-                          : isHovered
-                          ? 'text-blue-600'
-                          : 'text-slate-500 group-hover:text-slate-700'
+                        isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'
                       )}
                     />
                     {showLabels && <span className="truncate">{item.label}</span>}
@@ -305,6 +255,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 {/* Mobile Sub-Options Accordion Drawer */}
                 {isMobile && mobileExpandedNav === item.id && subConfig && (
                   <div className="pl-4 pr-1 py-1 space-y-0.5 mt-1 border-l-2 border-blue-200 ml-5">
+                    {subConfig.primaryAction && (
+                      <button
+                        type="button"
+                        onClick={() => handleSubOptionClick(item.id, subConfig.primaryAction!.id)}
+                        className="w-full py-2 px-2.5 rounded-lg flex items-center gap-2 text-left text-xs font-bold text-blue-700 bg-blue-50/80 mb-1"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-blue-600" />
+                        <span>{subConfig.primaryAction.label}</span>
+                      </button>
+                    )}
                     {subConfig.subOptions.map((sub) => {
                       const SubIcon = sub.icon;
                       const isCurrentActive =
@@ -357,115 +317,100 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       </div>
       </aside>
 
-      {/* Desktop Secondary Navigation Bar (Floating flyout panel docked right beside sidebar on hover) */}
-      {hoveredConfig && hoveredConfig.subOptions.length > 0 && !isMobile && flyoutPos && (
-        <div
-          role="region"
-          aria-label={`${hoveredConfig.title} Sub-Navigation`}
-          onMouseEnter={clearCloseTimeout}
-          onMouseLeave={handleMouseLeave}
-          style={{
-            position: 'fixed',
-            top: flyoutPos.top,
-            left: flyoutPos.left,
-          }}
-          className="w-80 max-h-[calc(100vh-32px)] bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-98 duration-150 ring-1 ring-black/5 before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3"
+      {/* Desktop Secondary Docked Navigation Column (Vyapar-style) */}
+      {hasSubNav && !isSubNavCollapsed && (
+        <aside
+          className="hidden lg:flex flex-col h-screen w-60 bg-slate-50/70 border-r border-slate-200 shrink-0 select-none z-10 transition-all duration-200"
         >
-          {/* Header */}
-          <div className="p-3.5 bg-gradient-to-b from-slate-50 to-white border-b border-slate-100 flex items-center justify-between">
+          {/* Sub-Nav Header */}
+          <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white/80">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
-                <hoveredConfig.icon className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0 shadow-2xs">
+                <activeConfig.icon className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs font-bold text-slate-900 tracking-tight truncate">
-                    {hoveredConfig.title}
-                  </h3>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                    {hoveredConfig.subOptions.length}
-                  </span>
-                </div>
+                <h3 className="text-xs font-bold text-slate-900 tracking-tight truncate">
+                  {activeConfig.title}
+                </h3>
                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {hoveredConfig.subtitle}
+                  {activeConfig.subtitle}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => setHoveredNav(null)}
-              className="h-6 w-6 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-              title="Close menu"
+              onClick={() => setIsSubNavCollapsed(true)}
+              className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              title="Collapse sub-menu"
             >
-              <X className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Sub-Options List */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {hoveredConfig.subOptions.map((opt) => {
+          {/* Primary Action Button (Vyapar style, e.g. + Add Sale, + Add Product) */}
+          {activeConfig.primaryAction && (
+            <div className="p-3 border-b border-slate-200/60 bg-white/50">
+              <button
+                type="button"
+                onClick={() => handleSubOptionClick(activeConfig.id, activeConfig.primaryAction!.id)}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+              >
+                <Plus className="h-4 w-4 stroke-[2.5]" />
+                <span>{activeConfig.primaryAction.label}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Sub-Options Navigation List */}
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2.5 py-1">
+              Menu
+            </div>
+            {activeConfig.subOptions.map((opt) => {
               const SubIcon = opt.icon;
               const isCurrentActive =
-                currentView === hoveredConfig.id &&
-                activeSubTab?.view === hoveredConfig.id &&
-                activeSubTab.tab === opt.id;
+                activeSubTab?.view === activeConfig.id
+                  ? activeSubTab.tab === opt.id
+                  : activeConfig.subOptions[0]?.id === opt.id;
 
               return (
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => handleSubOptionClick(hoveredConfig.id, opt.id)}
+                  onClick={() => handleSubOptionClick(activeConfig.id, opt.id)}
                   className={cn(
-                    'w-full p-2.5 rounded-xl flex items-start gap-2.5 text-left transition-all group cursor-pointer border',
+                    'w-full px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2.5 transition-all text-left cursor-pointer border',
                     isCurrentActive
-                      ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-2xs'
-                      : 'border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700'
+                      ? 'bg-blue-50/80 border-blue-200/80 text-blue-700 font-bold shadow-2xs'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                   )}
                 >
-                  <div
+                  <SubIcon
                     className={cn(
-                      'h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-                      isCurrentActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700'
+                      'h-4 w-4 shrink-0 transition-colors',
+                      isCurrentActive ? 'text-blue-600' : 'text-slate-400'
                     )}
-                  >
-                    <SubIcon className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-bold truncate group-hover:text-blue-700">
-                        {opt.label}
-                      </span>
-                      {opt.tag && (
-                        <span
-                          className={cn(
-                            'text-[9px] font-semibold px-1.5 py-0.5 rounded-md uppercase tracking-wider',
-                            opt.tag === 'Action'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : opt.tag === 'Filter'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-slate-100 text-slate-600'
-                          )}
-                        >
-                          {opt.tag}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400 group-hover:text-slate-600 line-clamp-1 mt-0.5 leading-snug">
-                      {opt.description}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all self-center shrink-0" />
+                  />
+                  <span className="truncate flex-1">{opt.label}</span>
+                  {opt.badge && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/60 text-slate-600">
+                      {opt.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
+        </aside>
+      )}
 
-          {/* Footer bar */}
-          <div className="px-3.5 py-2 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-            <span>Click option to open</span>
-            <span className="font-mono text-[9px] bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded">ESC</span>
-          </div>
+      {/* Re-expand button when sub-nav is collapsed */}
+      {hasSubNav && isSubNavCollapsed && (
+        <div
+          className="hidden lg:flex flex-col justify-center items-center h-screen w-4 bg-slate-100 hover:bg-blue-50 border-r border-slate-200 shrink-0 cursor-pointer transition-colors group"
+          onClick={() => setIsSubNavCollapsed(false)}
+          title="Expand sub-menu"
+        >
+          <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600" />
         </div>
       )}
     </>

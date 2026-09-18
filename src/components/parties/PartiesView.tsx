@@ -181,8 +181,14 @@ export const PartiesView: React.FC = () => {
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Parties</h1>
-            <p className="text-xs text-slate-500">Customers &amp; suppliers in one place — balances, statements, and payments.</p>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              {filter === 'customers'
+                ? 'Customers (Receivables / To Collect)'
+                : filter === 'suppliers'
+                ? 'Suppliers (Payables / To Pay)'
+                : 'All Parties Ledger'}
+            </h1>
+            <p className="text-xs text-slate-500">Customers &amp; suppliers directory — balances, statements, and payment tracking.</p>
           </div>
         </div>
 
@@ -260,9 +266,9 @@ export const PartiesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Search + filter */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
-        <div className="relative flex-1 max-w-md">
+      {/* Search Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+        <div className="relative w-full max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
@@ -271,19 +277,6 @@ export const PartiesView: React.FC = () => {
             placeholder="Search party by name, phone, or GSTIN..."
             className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
           />
-        </div>
-        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
-          {([['all', 'All'], ['customers', 'Customers'], ['suppliers', 'Suppliers']] as const).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFilter(val)}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filter === val ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       </div>
 

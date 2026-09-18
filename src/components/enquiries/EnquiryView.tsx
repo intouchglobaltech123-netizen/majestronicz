@@ -151,64 +151,23 @@ export const EnquiryView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  Enquiries
+                  {activeTab === 'new-item-requests' ? 'New Item Catalog Requests' : 'Customer Enquiries'}
                 </h1>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                  {enquiries.length} Total
+                  {activeTab === 'new-item-requests' ? `${unresolvedNewItemRequests.length} Pending` : `${enquiries.length} Total`}
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Track buyer requirements, live branch stock, and order conversions.
+                {activeTab === 'new-item-requests'
+                  ? 'Customer requests for products not yet in the master catalog.'
+                  : 'Track buyer requirements, live branch stock, and order conversions.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons & View Tabs */}
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Manager / CEO Only: View Switcher */}
-          {canApproveCatalogRequests && (
-            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setActiveTab('all')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all',
-                  activeTab === 'all'
-                    ? 'bg-white text-blue-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <Boxes className="h-3.5 w-3.5" />
-                <span>Enquiries</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('new-item-requests')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all',
-                  activeTab === 'new-item-requests'
-                    ? 'bg-purple-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>New Item Requests</span>
-                {unresolvedNewItemRequests.length > 0 && (
-                  <span
-                    className={cn(
-                      'px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold',
-                      activeTab === 'new-item-requests'
-                        ? 'bg-white text-purple-700'
-                        : 'bg-purple-200 text-purple-800'
-                    )}
-                  >
-                    {unresolvedNewItemRequests.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
 
           {currentUser.role !== 'Sales' && (
             <button

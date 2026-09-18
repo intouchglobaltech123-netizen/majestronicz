@@ -328,57 +328,6 @@ export const ItemMasterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Top Navigation Tabs: Products vs Combos */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('products')}
-          className={cn(
-            'flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer',
-            activeMainTab === 'products'
-              ? 'border-blue-600 text-blue-700 bg-white shadow-2xs rounded-t-xl'
-              : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/60 rounded-t-xl'
-          )}
-        >
-          <Boxes className="h-4 w-4" />
-          <span>Products Catalog</span>
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold',
-              activeMainTab === 'products'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-slate-100 text-slate-600'
-            )}
-          >
-            {items.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('combos')}
-          className={cn(
-            'flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer',
-            activeMainTab === 'combos'
-              ? 'border-purple-600 text-purple-700 bg-white shadow-2xs rounded-t-xl'
-              : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/60 rounded-t-xl'
-          )}
-        >
-          <Layers className="h-4 w-4" />
-          <span>Combos & Bundles</span>
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold',
-              activeMainTab === 'combos'
-                ? 'bg-purple-100 text-purple-800'
-                : 'bg-slate-100 text-slate-600'
-            )}
-          >
-            {combos.length}
-          </span>
-        </button>
-      </div>
-
       {/* PRODUCTS TAB VIEW */}
       {activeMainTab === 'products' && (
         <>
