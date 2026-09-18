@@ -24,7 +24,7 @@ import {
   DollarSign,
   CreditCard,
   X,
-  Sparkles,
+  Repeat,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -438,7 +438,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-                  <Sparkles className="h-4 w-4" />
+                  <Repeat className="h-4 w-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900">

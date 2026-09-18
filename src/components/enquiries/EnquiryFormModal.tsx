@@ -15,7 +15,7 @@ import {
   Receipt,
   Save,
   Bell,
-  Sparkles,
+  PackagePlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -365,7 +365,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 )}
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <PackagePlus className="h-3.5 w-3.5" />
                 <span>New Item — Not in Catalog</span>
               </button>
             </div>
@@ -490,7 +490,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
             <div className="p-4.5 rounded-xl bg-purple-50/50 border border-purple-200 space-y-4">
               {/* Informational banner */}
               <div className="flex items-start gap-2.5 text-xs text-purple-950">
-                <Sparkles className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                <PackagePlus className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
                   <span className="font-bold">New Item Request (Not in Catalog)</span>
                   <p className="text-[11px] text-purple-800">
@@ -680,7 +680,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
               >
                 {itemMode === 'new' ? (
                   <>
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <PackagePlus className="h-3.5 w-3.5" />
                     <span>Save New Item Request</span>
                   </>
                 ) : (

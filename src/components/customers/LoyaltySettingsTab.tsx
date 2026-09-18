@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 import {
-  Sparkles,
+  Award,
   Save,
   AlertCircle,
   ShieldCheck,
@@ -67,7 +67,7 @@ export const LoyaltySettingsTab: React.FC = () => {
       <div className="p-6 rounded-3xl bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-100 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="h-4 w-4 text-amber-200" />
+            <Award className="h-4 w-4 text-amber-200" />
             <span>Active Loyalty Rule</span>
           </div>
           <span

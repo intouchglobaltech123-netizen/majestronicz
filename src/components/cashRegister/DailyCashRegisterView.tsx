@@ -13,7 +13,6 @@ import { ApproveRecurringExpenseModal } from './ApproveRecurringExpenseModal';
 import { RecurringExpensesManagement } from './RecurringExpensesManagement';
 import { RecurringExpenseTemplate } from '../../types';
 import {
-  WalletCards,
   Calendar,
   Building,
   Lock,
@@ -166,46 +165,41 @@ export const DailyCashRegisterView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner Header */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            <WalletCards className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                {activeSubView === 'recurring' ? 'Scheduled & Recurring Expenses' : 'Daily Cash Register Drawer'}
-              </h1>
-              <span
-                className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                  currentRegister.isClosed
-                    ? 'bg-slate-100 text-slate-700 border-slate-300'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }`}
-              >
-                {currentRegister.isClosed ? (
-                  <>
-                    <Lock className="h-3 w-3" />
-                    <span>Day Closed</span>
-                  </>
-                ) : (
-                  <>
-                    <Unlock className="h-3 w-3" />
-                    <span>Register Open</span>
-                  </>
-                )}
-              </span>
-              {activeSubView === 'recurring' && pendingRecurringCount > 0 && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                  {pendingRecurringCount} Due
-                </span>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              {activeSubView === 'recurring' ? 'Scheduled & Recurring Expenses' : 'Daily Cash Register Drawer'}
+            </h1>
+            <span
+              className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                currentRegister.isClosed
+                  ? 'bg-slate-100 text-slate-700 border-slate-300'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {currentRegister.isClosed ? (
+                <>
+                  <Lock className="h-3 w-3" />
+                  <span>Day Closed</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="h-3 w-3" />
+                  <span>Register Open</span>
+                </>
               )}
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              {activeSubView === 'recurring'
-                ? 'Monthly fixed expense templates (rent, electricity, salaries, vendor retainers).'
-                : 'Live automated cash-drawer tally from Sales Invoices with petty expense tracking.'}
-            </p>
+            </span>
+            {activeSubView === 'recurring' && pendingRecurringCount > 0 && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                {pendingRecurringCount} Due
+              </span>
+            )}
           </div>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {activeSubView === 'recurring'
+              ? 'Monthly fixed expense templates (rent, electricity, salaries, vendor retainers).'
+              : 'Live automated cash-drawer tally from Sales Invoices with petty expense tracking.'}
+          </p>
         </div>
 
         {/* Header Action Buttons */}

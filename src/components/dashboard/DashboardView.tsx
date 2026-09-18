@@ -4,7 +4,7 @@ import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFin
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
-  Building2, Layers, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
+  Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
   Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent, CheckCircle2,
 } from 'lucide-react';
 
@@ -244,18 +244,13 @@ export const DashboardView: React.FC = () => {
     <div ref={rootRef} className="p-6 space-y-5 w-full">
       {/* Header */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            {isAllBranches ? <Layers className="h-6 w-6" /> : <Building className="h-6 w-6" />}
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              {isAllBranches ? 'Business Overview — All Branches' : `${currentBranchData?.name} Dashboard`}
-            </h1>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Live snapshot of sales, money flow, and stock health {isAllBranches ? 'across all branches.' : `for ${currentBranchData?.location}.`}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+            {isAllBranches ? 'Business Overview — All Branches' : `${currentBranchData?.name} Dashboard`}
+          </h1>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Live snapshot of sales, money flow, and stock health {isAllBranches ? 'across all branches.' : `for ${currentBranchData?.location}.`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {!isAllBranches && currentUser.role === 'CEO' && (

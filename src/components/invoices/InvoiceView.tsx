@@ -362,12 +362,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       {/* Top Banner & Module Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
-              <Receipt className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 {activeTab === 'new'
                   ? 'New Sale / Billing POS'
                   : activeTab === 'estimates'
@@ -392,7 +388,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   : 'Live tax invoices, payments tracking, collections & customer dues'}
               </p>
             </div>
-          </div>
         </div>
 
         {/* Action Buttons specific to current sub-view */}

@@ -4,7 +4,7 @@ import {
   Role, AccessMatrix, Capability, ALL_VIEWS, ALL_CAPABILITIES, ALL_FLAGS, AI_DATA_FLAGS,
   VIEW_LABELS, CAP_LABELS, FLAG_LABELS, PRESET_ROLES,
 } from '../../types';
-import { ShieldCheck, Save, RotateCcw, Lock, Check, Sparkles, LayoutGrid, Zap, Eye } from 'lucide-react';
+import { Save, RotateCcw, Lock, Check, Sparkles, LayoutGrid, Zap, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { StaffAccountsSection } from './StaffAccountsSection';
 import { AuditLogSection } from './AuditLogSection';
@@ -56,17 +56,12 @@ export const AccessManagementView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Access Control</h1>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Grant each role the modules it can open and the actions it can perform. Changes apply
-              instantly across every logged-in session and are enforced on the server.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Access Control</h1>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Grant each role the modules it can open and the actions it can perform. Changes apply
+            instantly across every logged-in session and are enforced on the server.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

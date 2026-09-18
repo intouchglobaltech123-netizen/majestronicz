@@ -3,7 +3,6 @@ import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES } from '../../types';
 import {
   Layers,
-  ArrowRightLeft,
   History,
   Search,
   AlertTriangle,
@@ -16,7 +15,6 @@ import {
   AlertOctagon,
   Settings,
   Package,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   Info,
@@ -354,75 +352,39 @@ export const InventoryView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            <Layers className="h-6 w-6" />
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              {activeInventoryTab === 'combos' ? 'Combos & Kits Inventory' : 'Regular Items Stock'}
+            </h1>
+            <span
+              className={cn(
+                'text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border',
+                isAllBranches
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              )}
+            >
+              {isAllBranches ? 'All Branches' : currentBranchData?.name}
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                {activeInventoryTab === 'combos' ? 'Combos & Kits Inventory' : 'Regular Items Stock'}
-              </h1>
-              <span
-                className={cn(
-                  'text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border',
-                  isAllBranches
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                )}
-              >
-                {isAllBranches ? 'All Branches' : currentBranchData?.name}
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              {isAllBranches
-                ? 'Physical inventory and branch balances across Erode HQ, Coimbatore, and Chennai.'
-                : `Live physical stock counts and audit history for ${currentBranchData?.name} (${currentBranchData?.location}).`}
-            </p>
-          </div>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {isAllBranches
+              ? 'Physical inventory and branch balances across Erode HQ, Coimbatore, and Chennai.'
+              : `Live physical stock counts and audit history for ${currentBranchData?.name} (${currentBranchData?.location}).`}
+          </p>
         </div>
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
           <button
             type="button"
-            onClick={() => setAllHistoryOpen(true)}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <History className="h-4 w-4 text-slate-600" />
-            <span>Audit Trail</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsTransferHistoryOpen(true)}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <Package className="h-4 w-4 text-blue-600" />
-            <span>Transfer History</span>
-          </button>
-
-          {!isBillingUser && (
-            <>
-              <button
-                type="button"
-                onClick={() => setTransferState({})}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <ArrowRightLeft className="h-4 w-4 text-blue-600" />
-                <span>Transfer Stock</span>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
             onClick={() => setIsSettingsOpen(true)}
             title="Configure Dead Stock Threshold"
-            className="p-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Settings className="h-4 w-4 text-slate-600" />
-            <span className="hidden sm:inline text-[11px]">{inventorySettings.deadStockThresholdDays}d</span>
+            <span className="text-xs font-semibold">Dead Stock ({inventorySettings.deadStockThresholdDays}d)</span>
           </button>
         </div>
       </div>
@@ -1110,7 +1072,7 @@ export const InventoryView: React.FC = () => {
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>
-                <Sparkles className="h-4 w-4 text-purple-600" />
+                <Layers className="h-4 w-4 text-purple-600" />
               </div>
               <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
@@ -1180,7 +1142,7 @@ export const InventoryView: React.FC = () => {
                   {filteredCombos.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400">
-                        <Sparkles className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                        <Layers className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                         <p className="font-semibold text-slate-700">No combos found</p>
                         <p className="text-[11px] mt-0.5">No combos matched your search.</p>
                       </td>

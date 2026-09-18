@@ -18,7 +18,7 @@ import {
   Layers,
   FileText,
   ShoppingBag,
-  Sparkles,
+  Info,
 } from 'lucide-react';
 import {
   PurchaseOrder,
@@ -845,7 +845,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
               {/* Stopgap Architecture Reminder */}
               <div className="px-4 py-2.5 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
+                <Info className="h-4 w-4 text-amber-600 shrink-0" />
                 <span>
                   <strong>Client Storage Architecture:</strong> Bills are stored client-side in local storage
                   (Max 2.5MB per PDF, images compressed to 1200px max). Once migrated to backend Postgres, files
@@ -1040,7 +1040,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                   </div>
 
                   <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 text-xs text-purple-900 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-600 shrink-0" />
+                    <PackageCheck className="h-4 w-4 text-purple-600 shrink-0" />
                     <span>
                       When physical stock is inwarded for this PO, the waiting pending order automatically flips
                       to <strong>"Stock Arrived"</strong> and triggers follow-up notifications.

@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   XCircle,
   PackageX,
-  Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -95,7 +94,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 block">
               Conversion Rate
             </span>
-            <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+            <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
           </div>
           <div className="text-lg sm:text-2xl lg:text-3xl font-bold font-mono text-blue-900">{conversionRate}%</div>
           <div className="text-[11px] text-blue-700 font-semibold">{converted} converted / {total} enquiries</div>

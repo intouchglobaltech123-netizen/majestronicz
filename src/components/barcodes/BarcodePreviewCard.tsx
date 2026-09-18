@@ -1,7 +1,7 @@
 import React from 'react';
 import { Code128Barcode } from '../../lib/code128';
 import { LabelSizePreset } from '../../types/barcode';
-import { Sparkles, Eye, Printer } from 'lucide-react';
+import { Eye, Printer } from 'lucide-react';
 
 interface Props {
   itemCode: string;
@@ -58,7 +58,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
       <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 mt-4 my-2">
         {isDummy && (
           <div className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full mb-4">
-            <Sparkles className="h-3 w-3" />
+            <Eye className="h-3 w-3" />
             <span>Showing sample preview — pick an item to load code</span>
           </div>
         )}

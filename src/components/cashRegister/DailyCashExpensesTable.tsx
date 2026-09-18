@@ -6,7 +6,6 @@ import {
   Plus,
   Trash2,
   Lock,
-  Sparkles,
   DollarSign,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -167,9 +166,8 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
             {/* Quick Suggestions Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                <Sparkles className="h-2.5 w-2.5 text-amber-500" />
-                <span>Quick:</span>
+              <span className="text-[11px] text-slate-400 font-semibold">
+                Quick:
               </span>
               {QUICK_EXPENSE_SUGGESTIONS.map((sug) => (
                 <button

@@ -20,8 +20,6 @@ import {
   Receipt,
   Filter,
   X,
-  ArrowRight,
-  Sparkles,
   PackagePlus,
 } from 'lucide-react';
 import { ItemImage } from '../common/ItemImage';
@@ -141,29 +139,22 @@ export const EnquiryView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
-      {/* Top Banner & Navigation Header */}
+      {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
-              <Boxes className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  {activeTab === 'new-item-requests' ? 'New Item Catalog Requests' : 'Customer Enquiries'}
-                </h1>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                  {activeTab === 'new-item-requests' ? `${unresolvedNewItemRequests.length} Pending` : `${enquiries.length} Total`}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                {activeTab === 'new-item-requests'
-                  ? 'Customer requests for products not yet in the master catalog.'
-                  : 'Track buyer requirements, live branch stock, and order conversions.'}
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              {activeTab === 'new-item-requests' ? 'New Item Catalog Requests' : 'Customer Enquiries'}
+            </h1>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              {activeTab === 'new-item-requests' ? `${unresolvedNewItemRequests.length} Pending` : `${enquiries.length} Total`}
+            </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {activeTab === 'new-item-requests'
+              ? 'Customer requests for products not yet in the master catalog.'
+              : 'Track buyer requirements, live branch stock, and order conversions.'}
+          </p>
         </div>
 
         {/* Action Buttons */}
@@ -177,7 +168,6 @@ export const EnquiryView: React.FC = () => {
             >
               <Clock className="h-3.5 w-3.5 text-purple-600" />
               <span>Pending Orders ({pendingOrders.length})</span>
-              <ArrowRight className="h-3 w-3 text-slate-400" />
             </button>
           )}
 
@@ -280,7 +270,7 @@ export const EnquiryView: React.FC = () => {
           <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                <Sparkles className="h-5 w-5" />
+                <PackagePlus className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-purple-950">
@@ -402,7 +392,7 @@ export const EnquiryView: React.FC = () => {
                           {/* 7. Status */}
                           <td className="py-3.5 px-4">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold">
-                              <Sparkles className="h-3 w-3" />
+                              <PackagePlus className="h-3 w-3" />
                               Awaiting Catalog
                             </span>
                           </td>
@@ -532,7 +522,7 @@ export const EnquiryView: React.FC = () => {
                               <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                 {enq.isNewItemRequest && (
                                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold">
-                                    <Sparkles className="h-2.5 w-2.5" />
+                                    <PackagePlus className="h-2.5 w-2.5" />
                                     New Item Request
                                   </span>
                                 )}

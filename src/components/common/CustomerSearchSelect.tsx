@@ -9,7 +9,6 @@ import {
   Plus,
   Check,
   X,
-  Sparkles,
   Award,
   ChevronDown,
   Building2,
@@ -285,7 +284,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   /* Retail: show existing loyalty elements — "#N purchases" and "X/10 to next reward" badge, exactly as currently built */
                   isLoyaltyMilestoneEligible(selectedCustomer, loyaltySettings) ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-800 animate-pulse">
-                      <Sparkles className="h-3 w-3 text-amber-600" />
+                      <Award className="h-3 w-3 text-amber-600" />
                       Milestone! ({loyaltySettings.discountValue}{loyaltySettings.discountType === 'percentage' ? '%' : '₹'} Off)
                     </span>
                   ) : (
@@ -443,7 +442,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                           </span>
                         ) : isEligible ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">
-                            <Sparkles className="h-2.5 w-2.5 text-amber-600" />
+                            <Award className="h-2.5 w-2.5 text-amber-600" />
                             Reward Ready!
                           </span>
                         ) : (

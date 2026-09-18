@@ -14,7 +14,7 @@ import {
   Building,
   Calendar,
   Layers,
-  Sparkles,
+  PackageCheck,
   ExternalLink,
   Edit2,
   FileText,
@@ -149,7 +149,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     if (pendingOrder.status !== 'Cancelled' && (pendingOrder.status === 'Stock Arrived' || canFulfillNow)) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs shadow-2xs">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+          <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />
           Stock Arrived
         </span>
       );
@@ -366,7 +366,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                       <td className="py-3.5 px-4 text-right">
                         {canFulfillNow ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            <Sparkles className="h-3 w-3 text-emerald-600" />
+                            <PackageCheck className="h-3 w-3 text-emerald-600" />
                             Stock In Hand ({currentBranchStock} available)
                           </span>
                         ) : (

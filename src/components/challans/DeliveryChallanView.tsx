@@ -81,24 +81,17 @@ export const DeliveryChallanView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
-      {/* Top Banner & Tab Navigation */}
+      {/* Top Banner & Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-              <Truck className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                {activeTab === 'new' ? 'Create Delivery Challan' : 'Delivery Challan History'}
-              </h1>
-              <p className="text-xs text-slate-500">
-                {activeTab === 'new'
-                  ? 'Issue new goods dispatch note and transport proof document.'
-                  : 'Past delivery challans, printed dispatch slips, and transport logs.'}
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            {activeTab === 'new' ? 'Create Delivery Challan' : 'Delivery Challan History'}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {activeTab === 'new'
+              ? 'Issue new goods dispatch note and transport proof document.'
+              : 'Past delivery challans, printed dispatch slips, and transport logs.'}
+          </p>
         </div>
       </div>
 

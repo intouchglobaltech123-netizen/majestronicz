@@ -11,7 +11,7 @@ import {
   Clock,
   AlertTriangle,
   ExternalLink,
-  Sparkles,
+  PackageCheck,
   Check,
   User,
   Wallet,
@@ -335,7 +335,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
                     {stockArrivedOrders.length > 0 && (
                       <div className="p-2 bg-emerald-50/40">
                         <div className="px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
-                          <Sparkles className="h-3 w-3" />
+                          <PackageCheck className="h-3 w-3" />
                           <span>Restock Arrived ({stockArrivedOrders.length})</span>
                         </div>
                         {stockArrivedOrders.map((po) => (

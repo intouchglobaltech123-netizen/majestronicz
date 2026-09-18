@@ -13,7 +13,7 @@ import {
   Truck,
   TrendingUp,
   AlertCircle,
-  Sparkles,
+  Award,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -340,7 +340,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                   Loyalty Rewards
                 </span>
-                <Sparkles className="h-4 w-4 text-amber-600" />
+                <Award className="h-4 w-4 text-amber-600" />
               </div>
               <p className="text-xl sm:text-2xl font-extrabold text-amber-950 mt-1">
                 {summary.loyaltyRewardCount}{' '}

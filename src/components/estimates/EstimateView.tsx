@@ -93,19 +93,12 @@ export const EstimateView: React.FC = () => {
       {/* Top Banner & Tab Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-              <ReceiptText className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Quotes
-              </h1>
-              <p className="text-xs text-slate-500">
-                GST-compliant quotations and vector PDF exports.
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            Quotes
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            GST-compliant quotations and vector PDF exports.
+          </p>
         </div>
 
         {/* Tab Switcher & Quick Add */}

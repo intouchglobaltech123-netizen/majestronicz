@@ -9,7 +9,6 @@ import {
   Plus,
   Phone,
   MapPin,
-  Sparkles,
   Award,
   Edit2,
   Receipt,
@@ -157,21 +156,14 @@ export const CustomersView: React.FC = () => {
       {/* Top Header Card */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                {activeTab === 'loyalty' ? 'Loyalty Program & Reward Rules' : 'Customer Directory'}
-              </h1>
-              <p className="text-xs text-slate-500">
-                {activeTab === 'loyalty'
-                  ? 'Configure tier milestones, reward thresholds, and loyalty perks.'
-                  : 'Customer CRM, purchase frequency tracker, and receivables directory.'}
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            {activeTab === 'loyalty' ? 'Loyalty Program & Reward Rules' : 'Customer Directory'}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {activeTab === 'loyalty'
+              ? 'Configure tier milestones, reward thresholds, and loyalty perks.'
+              : 'Customer CRM, purchase frequency tracker, and receivables directory.'}
+          </p>
         </div>
 
         {/* Action Button */}
@@ -232,7 +224,7 @@ export const CustomersView: React.FC = () => {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                   Reward Eligible Now
                 </span>
-                <Sparkles className="h-4 w-4 text-amber-600" />
+                <Award className="h-4 w-4 text-amber-600" />
               </div>
               <div className="text-xl sm:text-2xl font-bold text-amber-950 mt-1">
                 {milestoneReadyCount}{' '}
@@ -365,7 +357,7 @@ export const CustomersView: React.FC = () => {
                       : 'hover:text-amber-900'
                   )}
                 >
-                  <Sparkles className="h-3 w-3 text-amber-600" />
+                  <Award className="h-3 w-3 text-amber-600" />
                   <span>Reward Ready ({milestoneReadyCount})</span>
                 </button>
               </div>
@@ -523,7 +515,7 @@ export const CustomersView: React.FC = () => {
                               </span>
                             ) : isEligible ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] animate-pulse">
-                                <Sparkles className="h-3 w-3 text-amber-600" />
+                                <Award className="h-3 w-3 text-amber-600" />
                                 <span>
                                   Reward Available ({loyaltySettings.discountValue}
                                   {loyaltySettings.discountType === 'percentage' ? '%' : '₹'})

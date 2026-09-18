@@ -6,7 +6,7 @@ import { formatCurrency, cn } from '../../lib/utils';
 import {
   Plus,
   RotateCcw,
-  Sparkles,
+  Tag,
   Barcode,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -180,7 +180,7 @@ export const BarcodeForm: React.FC<Props> = ({
               className="text-[11px] text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold px-2 py-1 rounded-lg border border-blue-200 flex items-center gap-1 transition-colors"
               title="Reset lines to standard MRP / HSN tags"
             >
-              <Sparkles className="h-3 w-3" />
+              <Tag className="h-3 w-3" />
               <span>Standard Tags</span>
             </button>
           )}

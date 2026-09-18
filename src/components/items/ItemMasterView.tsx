@@ -20,7 +20,8 @@ import {
   HelpCircle,
   TrendingUp,
   History,
-  Sparkles,
+  Package,
+  PackageCheck,
 } from 'lucide-react';
 import { AddItemModal } from './AddItemModal';
 import { EditItemModal } from './EditItemModal';
@@ -212,26 +213,21 @@ export const ItemMasterView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner: Catalog Pricing & Stock Callout */}
       <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            {isAllBranches ? <Layers className="h-5 w-5" /> : <Building className="h-5 w-5" />}
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
+            </h1>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              {isAllBranches ? 'All Branches' : currentBranchData?.name}
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
-              </h1>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                {isAllBranches ? 'All Branches' : currentBranchData?.name}
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Catalog sale prices are uniform across all branches. Stock counts reflect{' '}
-              <strong className="text-slate-900">
-                {isAllBranches ? 'combined inventory across 3 warehouses' : currentBranchData?.location}
-              </strong>.
-            </p>
-          </div>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Catalog sale prices are uniform across all branches. Stock counts reflect{' '}
+            <strong className="text-slate-900">
+              {isAllBranches ? 'combined inventory across 3 warehouses' : currentBranchData?.location}
+            </strong>.
+          </p>
         </div>
 
         {/* Quick Branch Switcher */}
@@ -285,7 +281,7 @@ export const ItemMasterView: React.FC = () => {
             </span>
           </div>
           <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-blue-600">
-            {activeMainTab === 'combos' ? <Layers className="h-5 w-5 text-purple-600" /> : <Boxes className="h-5 w-5" />}
+            {activeMainTab === 'combos' ? <Layers className="h-5 w-5 text-purple-600" /> : <Package className="h-5 w-5" />}
           </div>
         </div>
 
@@ -306,7 +302,7 @@ export const ItemMasterView: React.FC = () => {
             </span>
           </div>
           <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-emerald-600">
-            {activeMainTab === 'combos' ? <Sparkles className="h-5 w-5 text-emerald-600" /> : <Tag className="h-5 w-5" />}
+            {activeMainTab === 'combos' ? <PackageCheck className="h-5 w-5 text-emerald-600" /> : <Tag className="h-5 w-5" />}
           </div>
         </div>
 

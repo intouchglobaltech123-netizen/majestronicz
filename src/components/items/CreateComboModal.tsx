@@ -12,7 +12,7 @@ import {
   Plus,
   Trash2,
   TrendingDown,
-  Sparkles,
+  Percent,
   Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -624,7 +624,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                   )}
                 >
                   {liveCalculations.savings >= 0 ? (
-                    <Sparkles className="h-5 w-5" />
+                    <Percent className="h-5 w-5" />
                   ) : (
                     <TrendingDown className="h-5 w-5" />
                   )}

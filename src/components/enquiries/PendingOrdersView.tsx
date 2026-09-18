@@ -3,7 +3,6 @@ import { useErp } from '../../context/ErpContext';
 import { PendingOrderStatus } from '../../types';
 import { PendingOrderList } from './PendingOrderList';
 import {
-  Clock,
   Search,
   Filter,
   PackageCheck,
@@ -98,24 +97,17 @@ export const PendingOrdersView: React.FC = () => {
       {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0 shadow-2xs">
-              <Clock className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  Pending Orders
-                </h1>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                  {branchScopedOrders.length} Total
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Customer orders awaiting stock replenishment, restock scheduling, and 1-click fulfillment.
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              Pending Orders
+            </h1>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+              {branchScopedOrders.length} Total
+            </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Customer orders awaiting stock replenishment, restock scheduling, and 1-click fulfillment.
+          </p>
         </div>
 
         {/* Branch Scope Badge */}

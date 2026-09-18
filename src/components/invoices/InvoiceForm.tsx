@@ -40,7 +40,7 @@ import {
   ChevronUp,
   Share2,
   Link,
-  Sparkles,
+  Award,
   Copy,
   Receipt,
   Split,
@@ -2490,7 +2490,7 @@ export const InvoiceForm: React.FC<Props> = ({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1 rounded-md bg-amber-500 text-white shrink-0">
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <Award className="h-3.5 w-3.5" />
                     </div>
                     <div>
                       <span className="text-xs font-bold text-amber-950 block">
@@ -2509,7 +2509,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     onClick={handleApplyLoyaltyReward}
                     className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Award className="h-3.5 w-3.5" />
                     <span>Apply Loyalty Discount ({loyaltySettings.discountValue}{loyaltySettings.discountType === 'percentage' ? '%' : '₹'})</span>
                   </button>
                 ) : (

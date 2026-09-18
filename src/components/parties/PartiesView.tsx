@@ -176,20 +176,15 @@ export const PartiesView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              {filter === 'customers'
-                ? 'Customers (Receivables / To Collect)'
-                : filter === 'suppliers'
-                ? 'Suppliers (Payables / To Pay)'
-                : 'All Parties Ledger'}
-            </h1>
-            <p className="text-xs text-slate-500">Customers &amp; suppliers directory — balances, statements, and payment tracking.</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            {filter === 'customers'
+              ? 'Customers (Receivables / To Collect)'
+              : filter === 'suppliers'
+              ? 'Suppliers (Payables / To Pay)'
+              : 'All Parties Ledger'}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">Customers &amp; suppliers directory — balances, statements, and payment tracking.</p>
         </div>
 
         {/* Add Party */}

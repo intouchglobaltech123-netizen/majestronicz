@@ -15,7 +15,7 @@ import {
   XCircle,
   Building,
   User,
-  Sparkles,
+  PackageCheck,
   ShoppingBag,
 } from 'lucide-react';
 import { PurchaseOrderFormModal } from '../purchases/PurchaseOrderFormModal';
@@ -240,7 +240,7 @@ export const PendingOrderList: React.FC<Props> = ({
                         </span>
                       ) : po.status !== 'Cancelled' && (po.status === 'Stock Arrived' || canFulfillNow) ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] shadow-2xs">
-                          <Sparkles className="h-3 w-3 text-emerald-600" />
+                          <PackageCheck className="h-3 w-3 text-emerald-600" />
                           Stock Arrived
                         </span>
                       ) : po.status === 'Cancelled' ? (

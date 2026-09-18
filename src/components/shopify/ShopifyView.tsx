@@ -122,14 +122,9 @@ export const ShopifyView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
-      <div className="flex items-center gap-2.5">
-        <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
-          <ShoppingCart className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Online Store</h1>
-          <p className="text-xs text-slate-500">Sync your Shopify orders into Sales, matched by item code (SKU).</p>
-        </div>
+      <div>
+        <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Online Store</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Sync your Shopify orders into Sales, matched by item code (SKU).</p>
       </div>
 
       {loading ? (

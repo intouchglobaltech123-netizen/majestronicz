@@ -9,7 +9,6 @@ import {
   MapPin,
   Calendar,
   Award,
-  Sparkles,
   Receipt,
   FileText,
   ExternalLink,
@@ -156,7 +155,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                       </span>
                       {isEligible ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-xs font-bold text-amber-900 animate-pulse">
-                          <Sparkles className="h-3 w-3 text-amber-600" />
+                          <Award className="h-3 w-3 text-amber-600" />
                           Milestone Reward Ready!
                         </span>
                       ) : (
@@ -322,7 +321,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <div className="md:col-span-2 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-amber-600" />
+                    <Award className="h-4 w-4 text-amber-600" />
                     <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
                       Loyalty Reward Engine
                     </span>
@@ -524,7 +523,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                           <td className="p-3 text-center">
                             {inv.isLoyaltyRewardApplied ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-[11px] font-bold text-emerald-800">
-                                <Sparkles className="h-2.5 w-2.5 text-emerald-600" />
+                                <Award className="h-2.5 w-2.5 text-emerald-600" />
                                 Redeemed
                               </span>
                             ) : (

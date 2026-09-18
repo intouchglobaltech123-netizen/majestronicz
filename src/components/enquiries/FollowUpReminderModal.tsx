@@ -7,7 +7,6 @@ import {
   X,
   CheckCircle2,
   User,
-  Sparkles,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -204,7 +203,7 @@ export const FollowUpReminderModal: React.FC<Props> = ({
 
           {/* Info Notice */}
           <div className="p-3 bg-amber-50 border border-amber-200/70 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
-            <Sparkles className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <Bell className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <p>
               On <strong>{dueDate}</strong> at <strong>{dueTime}</strong>, this reminder will flash in the TopBar Bell icon. Staff can jump directly into this Enquiry to convert or update.
             </p>

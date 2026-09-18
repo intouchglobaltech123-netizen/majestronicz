@@ -5,7 +5,6 @@ import { formatCurrency } from '../../lib/utils';
 
 const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 import {
-  BarChart3,
   Receipt,
   PieChart,
   Boxes,
@@ -138,10 +137,7 @@ export const ReportsView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-5 w-full">
       {/* Top Banner */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
-        <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-          <BarChart3 className="h-6 w-6" />
-        </div>
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-3.5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">

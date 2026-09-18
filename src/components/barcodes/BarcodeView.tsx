@@ -11,7 +11,6 @@ import { BarcodeQueueTable } from './BarcodeQueueTable';
 import { BarcodeSettingsModal } from './BarcodeSettingsModal';
 import { BarcodeSheetPreviewModal } from './BarcodeSheetPreviewModal';
 import {
-  Barcode,
   Settings,
   Eye,
   Printer,
@@ -136,14 +135,9 @@ export const BarcodeView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
-      {/* Top Header Banner */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            <Barcode className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
+        <div>
+          <div className="flex items-center gap-2">
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 Barcode
               </h1>
@@ -155,7 +149,6 @@ export const BarcodeView: React.FC = () => {
               Print retail price stickers and product barcodes.
             </p>
           </div>
-        </div>
 
         {/* Right Header Badges & Settings Gear */}
         <div className="flex items-center gap-2.5">

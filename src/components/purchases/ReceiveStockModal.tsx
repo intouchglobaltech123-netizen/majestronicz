@@ -3,7 +3,6 @@ import {
   X,
   PackageCheck,
   CheckCircle2,
-  Sparkles,
   AlertCircle,
 } from 'lucide-react';
 import { PurchaseOrder, BRANCHES } from '../../types';
@@ -151,7 +150,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         {/* Informative Banner */}
         <div className="px-6 py-2.5 bg-blue-50/60 border-b border-blue-100 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2 text-xs text-blue-800">
-            <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
+            <PackageCheck className="h-4 w-4 text-blue-600 shrink-0" />
             <span>
               Inward stock updates physical warehouse counts immediately. Setting shelf/rack location assigns or updates the item's warehouse position for this branch. Waiting customer orders will flip to{' '}
               <strong className="font-semibold text-blue-950">"Stock Arrived"</strong>.

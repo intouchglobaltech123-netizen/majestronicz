@@ -21,7 +21,7 @@ import {
   Layers,
   Edit2,
   PlusCircle,
-  Sparkles,
+  PackagePlus,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -112,7 +112,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
     if (enquiry.isNewItemRequest && !enquiry.itemId) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs">
-          <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+          <PackagePlus className="h-3.5 w-3.5 text-purple-600" />
           New Item Request (Awaiting Catalog)
         </span>
       );
@@ -285,7 +285,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="h-9 w-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles className="h-5 w-5" />
+                    <PackagePlus className="h-5 w-5" />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wide">
@@ -347,7 +347,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                               <span>{enquiry.itemName}</span>
                               {enquiry.isNewItemRequest && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                  <Sparkles className="h-2.5 w-2.5" />
+                                  <PackagePlus className="h-2.5 w-2.5" />
                                   New Item Request
                                 </span>
                               )}
@@ -376,7 +376,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       <td className="py-3.5 px-4 text-right">
                         {!enquiry.itemId ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                            <Sparkles className="h-3 w-3" />
+                            <PackagePlus className="h-3 w-3" />
                             Not in Catalog
                           </span>
                         ) : hasSufficientStock ? (

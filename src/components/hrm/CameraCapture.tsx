@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, Check, Sparkles, VideoOff } from 'lucide-react';
+import { Camera, RefreshCw, Check, VideoOff } from 'lucide-react';
 
 interface CameraCaptureProps {
   onCapture: (photoDataUrl: string) => void;
@@ -166,7 +166,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               onClick={handleSimulateSelfie}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Camera className="h-3.5 w-3.5" />
               <span>Generate Instant Snapshot</span>
             </button>
           </div>
