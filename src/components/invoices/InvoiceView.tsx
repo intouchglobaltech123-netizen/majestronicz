@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, Estimate, PaymentMode, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
+import { Invoice, Estimate, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
-import { CollapsibleFilters } from '../common/CollapsibleFilters';
 import { calculateInvoiceTotals } from '../../lib/taxCalculations';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
@@ -34,8 +33,6 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-type SaleStatusType = 'ALL' | 'Paid' | 'Partial' | 'Credit' | 'Voided';
 
 // One open billing draft in the multi-tab bar (Vyapar-style). Each tab keeps its
 // own live InvoiceForm mounted so switching never loses in-progress work.
@@ -173,13 +170,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // Date-range / mode / status filtering now lives in the Reports section.
+  // The ledger keeps only a quick search; branch follows the global top-bar toggle.
   const [branchFilter, setBranchFilter] = useState<'ALL' | BranchId>(() =>
     isAllBranches ? 'ALL' : (currentBranch as BranchId)
   );
-  const [modeFilter, setModeFilter] = useState<'ALL' | PaymentMode>('ALL');
-  const [statusFilter, setStatusFilter] = useState<SaleStatusType>('ALL');
 
   // Keep branchFilter in sync when user toggles branch in global top bar
   useEffect(() => {
@@ -213,22 +208,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       if (!matchesBranch) return false;
 
-      // Date range filter
-      if (startDate && inv.date < startDate) return false;
-      if (endDate && inv.date > endDate) return false;
-
-      // Payment mode filter (matches if any split mode equals modeFilter)
-      if (modeFilter !== 'ALL') {
-        const splits = getInvoicePaymentSplits(inv);
-        if (!splits.some((s) => s.mode === modeFilter)) return false;
-      }
-
-      // Status filter
-      if (statusFilter !== 'ALL') {
-        const s = getSaleStatus(inv);
-        if (s.label !== statusFilter) return false;
-      }
-
       // Search filter (Invoice No, Customer, Phone, Items)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -245,22 +224,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       return true;
     });
-  }, [invoices, branchFilter, isAllBranches, currentBranch, startDate, endDate, modeFilter, statusFilter, searchQuery]);
-
-  // Quick Date Range Presets
-  const applyDatePreset = (preset: 'all' | 'today' | 'month') => {
-    const today = new Date().toISOString().split('T')[0];
-    if (preset === 'today') {
-      setStartDate(today);
-      setEndDate(today);
-    } else if (preset === 'month') {
-      setStartDate('2026-09-01');
-      setEndDate('2026-09-30');
-    } else {
-      setStartDate('');
-      setEndDate('');
-    }
-  };
+  }, [invoices, branchFilter, isAllBranches, currentBranch, searchQuery]);
 
   // Filter estimates by search and branch scope
   const filteredEstimates = useMemo(() => {
@@ -803,9 +767,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       ) : (
         /* DEFAULT VIEW: SALES LEDGER LIST */
         <div className="space-y-4">
-          {/* Quick Filter Bar */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
-            {/* Search Box — always visible */}
+          {/* Slim toolbar: quick search + at-a-glance totals. Date-range, payment
+              mode & status filtering (and CSV export) live in the Reports section. */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="relative w-full lg:max-w-md">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -817,143 +781,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               />
             </div>
 
-            {/* Date + branch/mode/status — collapse behind a Filters toggle on mobile */}
-            <CollapsibleFilters
-              activeCount={
-                (startDate || endDate ? 1 : 0) +
-                (modeFilter !== 'ALL' ? 1 : 0) +
-                (statusFilter !== 'ALL' ? 1 : 0) +
-                (isAllBranches && branchFilter !== 'ALL' ? 1 : 0)
-              }
-            >
-              <div className="space-y-3">
-              {/* Date Range Filters */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
-                  <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-transparent text-slate-700 text-xs focus:outline-none"
-                    title="Start Date"
-                  />
-                  <span className="text-slate-400 font-semibold">to</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-transparent text-slate-700 text-xs focus:outline-none"
-                    title="End Date"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-600">
-                  <button
-                    onClick={() => applyDatePreset('month')}
-                    className="px-2 py-0.5 rounded hover:bg-white transition-colors"
-                  >
-                    This Month
-                  </button>
-                  <button
-                    onClick={() => applyDatePreset('today')}
-                    className="px-2 py-0.5 rounded hover:bg-white transition-colors"
-                  >
-                    Today
-                  </button>
-                  <button
-                    onClick={() => applyDatePreset('all')}
-                    className="px-2 py-0.5 rounded hover:bg-white transition-colors"
-                  >
-                    Clear Dates
-                  </button>
-                </div>
-              </div>
-
-            {/* Sub-Filters: Branch, Payment Mode, Status */}
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Branch Filter Selector */}
-                {isAllBranches ? (
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
-                    <Building className="h-3.5 w-3.5 text-blue-600" />
-                    <select
-                      value={branchFilter}
-                      onChange={(e) => setBranchFilter(e.target.value as 'ALL' | BranchId)}
-                      className="bg-transparent font-bold text-slate-800 focus:outline-none"
-                    >
-                      <option value="ALL">All Branches</option>
-                      {BRANCHES.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-700">
-                    <Building className="h-3.5 w-3.5 text-blue-600" />
-                    <span>{currentBranchData?.name}</span>
-                  </div>
-                )}
-
-                {/* Payment Mode Pills */}
-                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
-                  <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Mode:</span>
-                  {(['ALL', 'Cash', 'HDFC', 'GPay', 'COD-Credit'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setModeFilter(m)}
-                      className={cn(
-                        'px-2 py-0.5 rounded font-bold transition-all',
-                        modeFilter === m
-                          ? 'bg-white text-blue-700 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      )}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Status Pills */}
-                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
-                  <span className="text-[11px] font-bold uppercase text-slate-400 px-1.5">Status:</span>
-                  {(['ALL', 'Paid', 'Partial', 'Credit', 'Voided'] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setStatusFilter(s)}
-                      className={cn(
-                        'px-2 py-0.5 rounded font-bold transition-all',
-                        statusFilter === s
-                          ? 'bg-white text-blue-700 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      )}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Total Active Net Revenue Callout */}
-              <div className="flex items-center gap-3 text-xs font-mono">
-                <span className="text-slate-500">
-                  Showing <strong>{filteredInvoices.length}</strong> sales
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="text-slate-500">
+                Showing <strong>{filteredInvoices.length}</strong> sales
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="font-bold text-slate-900">
+                Net Active: <span className="text-emerald-700 font-bold font-mono">{formatCurrency(totalGrossRevenue)}</span>
+              </span>
+              {voidedCount > 0 && (
+                <span className="text-[11px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold border border-rose-200">
+                  {voidedCount} Voided
                 </span>
-                <span className="text-slate-300">•</span>
-                <span className="font-bold text-slate-900">
-                  Net Active: <span className="text-emerald-700 font-bold font-mono">{formatCurrency(totalGrossRevenue)}</span>
-                </span>
-                {voidedCount > 0 && (
-                  <span className="text-[11px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold border border-rose-200">
-                    {voidedCount} Voided
-                  </span>
-                )}
-              </div>
+              )}
             </div>
-              </div>
-            </CollapsibleFilters>
           </div>
 
           {/* SALES LEDGER TABLE */}
@@ -979,8 +820,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                         <Receipt className="h-8 w-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-bold text-sm text-slate-700">No sales records found</p>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {searchQuery || modeFilter !== 'ALL' || statusFilter !== 'ALL' || startDate
-                            ? 'Try clearing your search query or active filters.'
+                          {searchQuery
+                            ? 'Try clearing your search query.'
                             : 'Start by clicking "+ New Sale" to issue your first invoice.'}
                         </p>
                         <div className="mt-4 flex justify-center gap-2">

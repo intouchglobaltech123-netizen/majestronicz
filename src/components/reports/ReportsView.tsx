@@ -15,6 +15,7 @@ import {
   Calendar,
   Building,
   Landmark,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -112,245 +113,173 @@ export const ReportsView: React.FC = () => {
     return { sales, tax, receivables, payables, bills: periodInv.length };
   }, [invoices, purchaseOrders, branchScope, startDate, endDate]);
 
+  const activeReportBody = (
+    <div className="animate-in fade-in duration-200">
+      {activeTab === 'sales' && <SalesReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'pnl' && <BranchPnlReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'stock-valuation' && <StockValuationReportTab branchScope={branchScope} />}
+      {activeTab === 'enquiry-conversion' && <EnquiryConversionReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'purchase-orders' && <PurchaseOrderStatusReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'gst' && <GstReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'payroll' && canViewPayrollReport && <PayrollSummaryReportTab branchScope={branchScope} />}
+    </div>
+  );
+
   return (
-    <div className="p-4 sm:p-6 space-y-6 w-full">
-      {/* Top Banner */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
-            <BarChart3 className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Reports
-              </h1>
-              <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                Live Analytics
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Operational performance, branch comparisons, and CSV data exports.
-            </p>
-          </div>
+    <div className="p-4 sm:p-6 space-y-5 w-full">
+      {/* Top Banner (title only) */}
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+        <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+          <BarChart3 className="h-6 w-6" />
         </div>
-
-        {/* Universal Filter Controls */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full md:w-auto">
-          {/* Branch Scope Selector */}
-          {currentUser.role === 'CEO' ? (
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700">
-              <Building className="h-3.5 w-3.5 text-blue-600" />
-              <select
-                value={branchScope}
-                onChange={(e) => setBranchScope(e.target.value as BranchScope)}
-                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
-              >
-                <option value="all">All Branches</option>
-                {BRANCHES.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.shortCode})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800">
-              <Building className="h-3.5 w-3.5 text-blue-600" />
-              <span>{BRANCHES.find((b) => b.id === branchScope)?.name || branchScope}</span>
-            </div>
-          )}
-
-          {/* Quick Date Range Preset Pills */}
-          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
-            <button
-              onClick={() => applyPreset('month')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg transition-all',
-                activePreset === 'month' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              This Month
-            </button>
-            <button
-              onClick={() => applyPreset('today')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg transition-all',
-                activePreset === 'today' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              Today
-            </button>
-            <button
-              onClick={() => applyPreset('30days')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg transition-all',
-                activePreset === '30days' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              Last 30D
-            </button>
-            <button
-              onClick={() => applyPreset('all')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg transition-all',
-                activePreset === 'all' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              Full Year
-            </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports</h1>
+            <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              Live Analytics
+            </span>
           </div>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Pick a report on the left, set its date range &amp; branch, then download.
+          </p>
         </div>
       </div>
 
-      {/* Date Range Precision Inputs */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-slate-600 font-semibold">
-          <Calendar className="h-4 w-4 text-blue-600" />
-          <span>Active Filter Date Window:</span>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-            <span className="text-[11px] uppercase font-bold text-slate-400">From</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setActivePreset('month'); // custom override
-              }}
-              className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
-            />
-          </div>
-
-          <span className="text-slate-400 font-bold">to</span>
-
-          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-            <span className="text-[11px] uppercase font-bold text-slate-400">To</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setActivePreset('month'); // custom override
-              }}
-              className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* At-a-glance summary (reflects selected range + branch) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
-          <p className="text-xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
-          <span className="text-[11px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
-        </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
-          <p className="text-xl font-bold text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
-          <span className="text-[11px] text-slate-400">On taxable invoices</span>
-        </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50/60 to-white border border-slate-200 shadow-2xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>
-          <p className="text-xl font-bold text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
-          <span className="text-[11px] text-slate-400">Customer dues (current)</span>
-        </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-rose-50/60 to-white border border-slate-200 shadow-2xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Pay</span>
-          <p className="text-xl font-bold text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
-          <span className="text-[11px] text-slate-400">Supplier dues (current)</span>
-        </div>
-      </div>
-
-      {/* Report Module Tabs — dropdown on mobile, cards on >= sm */}
+      {/* Mobile report picker */}
       <select
         value={activeTab}
         onChange={(e) => setActiveTab(e.target.value as ReportTabType)}
-        className="sm:hidden w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+        className="lg:hidden w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
       >
         {tabs.map((tab) => (
           <option key={tab.id} value={tab.id}>{tab.label}</option>
         ))}
       </select>
-      <div className="hidden sm:flex items-center gap-2 overflow-x-auto pb-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
 
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition-all shrink-0 border',
-                isActive
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-500/20'
-                  : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
-              )}
-            >
-              <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-slate-500')} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Two-pane: left report list, right opens the selected report */}
+      <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-5 space-y-4 lg:space-y-0">
+        {/* LEFT — report list (Vyapar style) */}
+        <aside className="hidden lg:block">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-2 space-y-1 sticky top-4">
+            <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">All Reports</p>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'w-full text-left flex items-start gap-2.5 px-2.5 py-2 rounded-lg transition-all group',
+                    isActive ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+                  )}
+                >
+                  <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700')} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold truncate">{tab.label}</span>
+                    <span className={cn('block text-[11px] truncate', isActive ? 'text-blue-100' : 'text-slate-400')}>{tab.description}</span>
+                  </span>
+                  {isActive && <ChevronRight className="h-4 w-4 shrink-0 mt-0.5" />}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
 
-      {/* Active Tab View Body */}
-      <div className="animate-in fade-in duration-200">
-        {activeTab === 'sales' && (
-          <SalesReportTab
-            startDate={startDate}
-            endDate={endDate}
-            branchScope={branchScope}
-          />
-        )}
+        {/* RIGHT — the opened report: filters + date range + summary + body + download */}
+        <div className="min-w-0 space-y-4">
+          {/* Filter + date-range bar */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-3.5 flex flex-col lg:flex-row lg:items-center gap-3">
+            {/* Branch scope */}
+            {currentUser.role === 'CEO' ? (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 shrink-0">
+                <Building className="h-3.5 w-3.5 text-blue-600" />
+                <select
+                  value={branchScope}
+                  onChange={(e) => setBranchScope(e.target.value as BranchScope)}
+                  className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Branches</option>
+                  {BRANCHES.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.shortCode})</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 shrink-0">
+                <Building className="h-3.5 w-3.5 text-blue-600" />
+                <span>{BRANCHES.find((b) => b.id === branchScope)?.name || branchScope}</span>
+              </div>
+            )}
 
-        {activeTab === 'pnl' && (
-          <BranchPnlReportTab
-            startDate={startDate}
-            endDate={endDate}
-            branchScope={branchScope}
-          />
-        )}
+            {/* Preset pills */}
+            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0">
+              {([['month', 'This Month'], ['today', 'Today'], ['30days', 'Last 30D'], ['all', 'Full Year']] as const).map(([preset, label]) => (
+                <button
+                  key={preset}
+                  onClick={() => applyPreset(preset)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg transition-all',
+                    activePreset === preset ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        {activeTab === 'stock-valuation' && (
-          <StockValuationReportTab
-            branchScope={branchScope}
-          />
-        )}
+            {/* Precise date window */}
+            <div className="flex items-center gap-2 flex-wrap lg:ml-auto">
+              <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
+              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
+                <span className="text-[11px] uppercase font-bold text-slate-400">From</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setActivePreset('month'); }}
+                  className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
+                />
+              </div>
+              <span className="text-slate-400 font-bold">to</span>
+              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
+                <span className="text-[11px] uppercase font-bold text-slate-400">To</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setActivePreset('month'); }}
+                  className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
 
-        {activeTab === 'enquiry-conversion' && (
-          <EnquiryConversionReportTab
-            startDate={startDate}
-            endDate={endDate}
-            branchScope={branchScope}
-          />
-        )}
+          {/* At-a-glance summary (reflects selected range + branch) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
+              <p className="text-lg font-bold text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
+              <span className="text-[11px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
+              <p className="text-lg font-bold text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
+              <span className="text-[11px] text-slate-400">On taxable invoices</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>
+              <p className="text-lg font-bold text-amber-700 mt-1 font-mono">{formatCurrency(summary.receivables)}</p>
+              <span className="text-[11px] text-slate-400">Customer dues (current)</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Pay</span>
+              <p className="text-lg font-bold text-rose-700 mt-1 font-mono">{formatCurrency(summary.payables)}</p>
+              <span className="text-[11px] text-slate-400">Supplier dues (current)</span>
+            </div>
+          </div>
 
-        {activeTab === 'purchase-orders' && (
-          <PurchaseOrderStatusReportTab
-            startDate={startDate}
-            endDate={endDate}
-            branchScope={branchScope}
-          />
-        )}
-
-        {activeTab === 'gst' && (
-          <GstReportTab
-            startDate={startDate}
-            endDate={endDate}
-            branchScope={branchScope}
-          />
-        )}
-
-        {activeTab === 'payroll' && canViewPayrollReport && (
-          <PayrollSummaryReportTab
-            branchScope={branchScope}
-          />
-        )}
+          {/* Opened report body (each report has its own Download buttons) */}
+          {activeReportBody}
+        </div>
       </div>
     </div>
   );

@@ -44,7 +44,6 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<PurchaseOrderStatus | 'ALL'>('ALL');
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
 
   // Active Modals
@@ -69,9 +68,6 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
     // Status filter
     if (selectedStatus !== 'ALL' && po.status !== selectedStatus) return false;
 
-    // Overdue filter
-    if (showOverdueOnly && !isPoOverdue(po)) return false;
-
     // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -85,9 +81,6 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
     return true;
   });
-
-  // Overdue count across all active POs
-  const overdueCount = purchaseOrders.filter(isPoOverdue).length;
 
   return (
     <div className="space-y-4">
@@ -123,22 +116,6 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
               ))}
             </select>
           )}
-
-          {/* Overdue quick toggle */}
-          <button
-            type="button"
-            onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-colors ${
-              showOverdueOnly
-                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                : overdueCount > 0
-                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <span>Overdue ({overdueCount})</span>
-          </button>
 
           {/* Create PO CTA */}
           {canManagePurchases && (
@@ -212,7 +189,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                     <ShoppingBag className="h-10 w-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-medium text-slate-600">No purchase orders found</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {searchQuery || selectedStatus !== 'ALL' || showOverdueOnly
+                      {searchQuery || selectedStatus !== 'ALL'
                         ? 'Try clearing active search or filters'
                         : 'Issue your first purchase order to replenish stock'}
                     </p>
