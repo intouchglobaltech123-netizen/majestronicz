@@ -19,6 +19,7 @@ import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
+import { GlobalSearch } from './GlobalSearch';
 
 interface TopBarProps {
   /** Backward compatibility / navigation open */
@@ -176,6 +177,9 @@ export const TopBar: React.FC<TopBarProps> = ({
           />
         </div>
       </div>
+
+      {/* Center: Global search (Vyapar-style) */}
+      <GlobalSearch />
 
       {/* Right: Notifications Bell & Role Profile */}
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
