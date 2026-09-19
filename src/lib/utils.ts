@@ -70,18 +70,33 @@ export function formatPhoneWithCountryCode(raw?: string): string {
 }
 
 /**
- * Cross-browser check for native fullscreen mode (supports macOS Safari webkit prefix).
+ * Cross-browser check for native fullscreen mode (supports macOS Safari webkit prefix,
+ * standard HTML5 fullscreen, and OS window fullscreen).
  */
 export function getIsFullscreen(): boolean {
   if (typeof document === 'undefined') return false;
   const doc = document as any;
-  return Boolean(
-    doc.fullscreenElement ||
-    doc.webkitFullscreenElement ||
-    doc.webkitIsFullScreen ||
-    doc.mozFullScreenElement ||
-    doc.msFullscreenElement
-  );
+  if (
+    Boolean(
+      doc.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.webkitIsFullScreen ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement
+    )
+  ) {
+    return true;
+  }
+  // Check if browser window occupies full screen dimensions (macOS window zoom / F11)
+  if (typeof window !== 'undefined' && window.screen) {
+    if ((window as any).fullScreen) return true;
+    const isHeightFull = Math.abs(window.screen.height - window.innerHeight) <= 4;
+    const isWidthFull = Math.abs(window.screen.width - window.innerWidth) <= 4;
+    if (isHeightFull && isWidthFull && window.innerHeight > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -89,46 +104,61 @@ export function getIsFullscreen(): boolean {
  */
 export async function enterNativeFullscreen(): Promise<boolean> {
   if (typeof document === 'undefined') return false;
-  const elem = document.documentElement as any;
-  try {
-    if (elem.requestFullscreen) {
-      await elem.requestFullscreen();
-      return true;
-    } else if (elem.webkitRequestFullscreen) {
-      await elem.webkitRequestFullscreen();
-      return true;
-    } else if (elem.msRequestFullscreen) {
-      await elem.msRequestFullscreen();
-      return true;
+  const elem = (document.documentElement || document.body) as any;
+
+  // Ordered list of browser fullscreen entry methods
+  const methods = [
+    () => (elem.requestFullscreen ? elem.requestFullscreen() : null),
+    () => (elem.webkitRequestFullscreen ? elem.webkitRequestFullscreen() : null),
+    () => (elem.mozRequestFullScreen ? elem.mozRequestFullScreen() : null),
+    () => (elem.msRequestFullscreen ? elem.msRequestFullscreen() : null),
+  ];
+
+  for (const fn of methods) {
+    try {
+      const res = fn();
+      if (res && typeof res.then === 'function') {
+        await res;
+        return true;
+      } else if (res !== null) {
+        return true;
+      }
+    } catch {
+      // Try next vendor method
     }
-  } catch (err) {
-    console.warn('Enter fullscreen error:', err);
   }
   return false;
 }
 
 /**
- * Cross-browser exit from native fullscreen (supports macOS Safari webkitExitFullscreen).
+ * Cross-browser exit from native fullscreen (supports macOS Safari webkitExitFullscreen without throwing).
  */
 export async function exitNativeFullscreen(): Promise<boolean> {
   if (typeof document === 'undefined') return false;
   const doc = document as any;
-  try {
-    if (doc.exitFullscreen) {
-      await doc.exitFullscreen();
-      return true;
-    } else if (doc.webkitExitFullscreen) {
-      await doc.webkitExitFullscreen();
-      return true;
-    } else if (doc.mozCancelFullScreen) {
-      await doc.mozCancelFullScreen();
-      return true;
-    } else if (doc.msExitFullscreen) {
-      await doc.msExitFullscreen();
-      return true;
+
+  // Prioritize active fullscreen element exit if available
+  const methods = [
+    () => (doc.webkitFullscreenElement && doc.webkitExitFullscreen ? doc.webkitExitFullscreen() : null),
+    () => (doc.fullscreenElement && doc.exitFullscreen ? doc.exitFullscreen() : null),
+    () => (doc.exitFullscreen ? doc.exitFullscreen() : null),
+    () => (doc.webkitExitFullscreen ? doc.webkitExitFullscreen() : null),
+    () => (doc.mozCancelFullScreen ? doc.mozCancelFullScreen() : null),
+    () => (doc.msExitFullscreen ? doc.msExitFullscreen() : null),
+  ];
+
+  for (const fn of methods) {
+    try {
+      const res = fn();
+      if (res && typeof res.then === 'function') {
+        await res;
+        return true;
+      } else if (res !== null) {
+        return true;
+      }
+    } catch {
+      // Try next vendor method if this one failed
     }
-  } catch (err) {
-    console.warn('Exit fullscreen error:', err);
   }
   return false;
 }

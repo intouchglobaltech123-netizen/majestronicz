@@ -53,8 +53,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Determine whether navigation is open (defaults to true if unspecified)
-  const isNavOpen = isOpen ?? mobileOpen ?? true;
+  // Separate desktop sidebar state from mobile overlay drawer
+  const isDesktopOpen = isOpen ?? true;
+  const isMobileDrawerOpen = Boolean(mobileOpen);
 
   // Grouped Navigation Definition (Classic Vyapar Desktop accounting modules)
   const groups: NavGroup[] = [
@@ -326,15 +327,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile backdrop */}
-      <div
-        className={cn(
-          'fixed inset-0 bg-slate-900/50 z-30 lg:hidden transition-opacity duration-200',
-          isNavOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {/* Mobile backdrop — strictly rendered ONLY when mobile drawer is explicitly opened */}
+      {isMobileDrawerOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden transition-opacity duration-200"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
 
       <aside
         className={cn(
@@ -342,11 +342,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           // Smooth transition for hide/show
           'transition-all duration-200 ease-in-out',
           // Mobile drawer mode (< lg)
-          'fixed inset-y-0 left-0 z-40 max-w-[85vw]',
-          isNavOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
+          'fixed inset-y-0 left-0 z-50 max-w-[85vw]',
+          isMobileDrawerOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
           // Desktop sidebar mode (>= lg)
           'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0',
-          isNavOpen
+          isDesktopOpen
             ? 'lg:w-60 lg:opacity-100 lg:pointer-events-auto'
             : 'lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0 lg:pointer-events-none'
         )}

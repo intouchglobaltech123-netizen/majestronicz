@@ -88,19 +88,43 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleToggleFullscreen = () => {
-    if (getIsFullscreen()) {
-      exitNativeFullscreen();
+  const handleToggleFullscreen = async () => {
+    if (isFullscreen || getIsFullscreen()) {
+      await exitNativeFullscreen();
+      setIsFullscreen(false);
     } else {
-      enterNativeFullscreen();
+      const ok = await enterNativeFullscreen();
+      if (ok) {
+        setIsFullscreen(true);
+        setShowFsRecommend(false);
+      }
     }
   };
 
-  const handleEnterFullscreen = () => {
-    enterNativeFullscreen().then((ok) => {
-      if (ok) setShowFsRecommend(false);
-    });
+  const handleEnterFullscreen = async () => {
+    const ok = await enterNativeFullscreen();
+    if (ok) {
+      setIsFullscreen(true);
+      setShowFsRecommend(false);
+    }
   };
+
+  const handleCloseNav = () => {
+    setMobileNavOpen(false);
+    handleCloseDesktopNav();
+  };
+
+  // Support F11 keyboard shortcut to toggle full screen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        handleToggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // Close the drawer whenever the active view changes (e.g. tapping a nav item).
   useEffect(() => {
@@ -108,11 +132,11 @@ const AppContent: React.FC = () => {
   }, [currentView]);
 
   return (
-    <div className="flex h-screen h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
+    <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Left Navigation Shell */}
       <Sidebar
         isOpen={desktopNavOpen}
-        onClose={handleCloseDesktopNav}
+        onClose={handleCloseNav}
         onToggle={handleToggleDesktopNav}
         mobileOpen={mobileNavOpen}
       />

@@ -68,10 +68,12 @@ export const TopBar: React.FC<TopBarProps> = ({
       propToggleFullscreen();
       return;
     }
-    if (getIsFullscreen()) {
+    if (isFullscreen || getIsFullscreen()) {
       exitNativeFullscreen();
+      setInternalFullscreen(false);
     } else {
       enterNativeFullscreen();
+      setInternalFullscreen(true);
     }
   };
 
@@ -172,24 +174,26 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-none">
-      {/* Left: Hamburger (3-line menu) + Logo when collapsed + Global Branch Switcher */}
+    <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-40 shadow-none">
+      {/* Left: Hamburger (3-line menu) nav toggle / minimize + Logo when collapsed + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* 3-line Hamburger nav toggle (shows on mobile, and on desktop when nav is closed/minimized) */}
+        {/* 3-line Hamburger nav toggle / minimize button — ALWAYS visible on mobile & desktop */}
         <button
           type="button"
           onClick={onToggleNav || onOpenNav}
-          aria-label={navOpen ? 'Hide navigation menu' : 'Open navigation menu'}
-          title={navOpen ? 'Hide sidebar' : 'Show sidebar menu (3 lines)'}
+          aria-label={navOpen ? 'Minimize sidebar' : 'Open navigation menu'}
+          title={navOpen ? 'Minimize sidebar (Hide navigation)' : 'Show sidebar menu (3 lines)'}
           className={cn(
-            'h-8 px-2 shrink-0 rounded-none border flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-colors',
+            'h-8 px-2.5 shrink-0 rounded-none border flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-colors',
             !navOpen
               ? 'bg-red-700 border-red-800 text-white hover:bg-red-800 shadow-sm'
-              : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 lg:hidden'
+              : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-red-700'
           )}
         >
           <Menu className="h-4 w-4" />
-          {!navOpen && <span className="hidden sm:inline font-mono text-[11px] uppercase tracking-wider">Menu</span>}
+          <span className="hidden sm:inline font-mono text-[11px] uppercase tracking-wider">
+            {navOpen ? 'Hide Nav' : 'Menu'}
+          </span>
         </button>
 
         {/* Brand logo in topbar when sidebar is minimized */}
@@ -233,21 +237,21 @@ export const TopBar: React.FC<TopBarProps> = ({
           <span className="hidden md:inline">My Attendance</span>
         </button>
 
-        {/* Fullscreen toggle (desktop only) */}
+        {/* Fullscreen / Exit Fullscreen toggle */}
         <button
           type="button"
           onClick={toggleFullscreen}
-          aria-label="Toggle full screen"
+          aria-label={isFullscreen ? 'Exit full screen (F11 / Esc)' : 'Full screen mode (F11)'}
           title={isFullscreen ? 'Exit full screen (F11 / Esc)' : 'Full screen mode (F11)'}
           className={cn(
-            'hidden sm:flex h-8 px-2 rounded-none border items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-bold font-mono',
+            'flex h-8 px-2.5 rounded-none border items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-bold font-mono',
             isFullscreen
-              ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-              : 'bg-white border-slate-300 text-red-700 hover:bg-red-50 hover:border-red-400'
+              ? 'bg-red-700 border-red-800 text-white hover:bg-red-800 shadow-sm'
+              : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-red-700'
           )}
         >
-          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5 text-red-700" />}
-          <span className="hidden lg:inline">{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5 text-white" /> : <Maximize2 className="h-3.5 w-3.5 text-red-700" />}
+          <span className="hidden md:inline">{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
         </button>
 
         {/* Notification Bell Dropdown Container */}
@@ -272,10 +276,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </button>
 
-          {/* Interactive Notifications Popover — full-width sheet on mobile,
-              anchored dropdown on >= sm */}
+          {/* Interactive Notifications Popover — full-width sheet on mobile, anchored dropdown on >= sm */}
           {isNotificationsOpen && (
-            <div className="fixed left-3 right-3 top-[3.75rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-1 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-300 rounded-none shadow-lg z-50 overflow-hidden">
+            <div className="fixed left-3 right-3 top-14 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-300 rounded-none shadow-xl z-50 overflow-hidden">
               {/* Popover Header */}
               <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
                 <div className="flex items-center gap-2">
