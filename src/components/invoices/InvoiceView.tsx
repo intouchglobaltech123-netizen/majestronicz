@@ -11,6 +11,7 @@ import { SaleReturnModal } from './SaleReturnModal';
 import { ReturnsListView } from './ReturnsListView';
 import { SaleReturnDetailModal } from './SaleReturnDetailModal';
 import { EstimatePdfModal } from '../estimates/EstimatePdfModal';
+import { DeliveryChallanView } from '../challans/DeliveryChallanView';
 import {
   FileText,
   Plus,
@@ -31,6 +32,7 @@ import {
   PlayCircle,
   Clock,
   X,
+  Truck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -71,10 +73,30 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
   // 'returns' (Returns), 'new' (Form), 'draft-sales'/'draft-quotes' (saved drafts)
-  const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new' | 'draft-sales' | 'draft-quotes'>(initialTab);
-
   // Stable per-user key for scoping local drafts.
   const draftUserKey = currentUser.userId || currentUser.name || currentUser.role;
+
+  // Open bill tabs are persisted per-user so they survive a full page refresh.
+  const OPEN_BILLS_KEY = `majestronicz_openbills_${draftUserKey}`;
+  const readPersistedBills = (): { openBills: BillTab[]; activeBillId: string | null; activeTab: string | null } => {
+    try {
+      const raw = localStorage.getItem(OPEN_BILLS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (Array.isArray(p.openBills)) {
+          return { openBills: p.openBills, activeBillId: p.activeBillId ?? null, activeTab: p.activeTab ?? null };
+        }
+      }
+    } catch { /* ignore */ }
+    return { openBills: [], activeBillId: null, activeTab: null };
+  };
+
+  const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new' | 'draft-sales' | 'draft-quotes' | 'challans'>(() => {
+    const p = readPersistedBills();
+    return p.openBills.length > 0 && p.activeTab === 'new' ? 'new' : initialTab;
+  });
+  // Which challan sub-tab to show when the embedded Delivery Challans tab is open.
+  const [challanTab, setChallanTab] = useState<'new' | 'history'>('history');
 
   // Work-in-progress drafts (per-user, browser-local)
   const [drafts, setDrafts] = useState<SalesDraft[]>(() => loadDrafts(draftUserKey));
@@ -85,10 +107,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   const draftSales = useMemo(() => drafts.filter((d) => d.kind === 'Invoice'), [drafts]);
   const draftQuotes = useMemo(() => drafts.filter((d) => d.kind === 'Quotation'), [drafts]);
-  // Multi-tab billing: several sale/quotation drafts open concurrently.
-  const [openBills, setOpenBills] = useState<BillTab[]>([]);
-  const [activeBillId, setActiveBillId] = useState<string | null>(null);
-  const billSeqRef = useRef(0);
+  // Multi-tab billing: several sale/quotation drafts open concurrently (restored on refresh).
+  const [openBills, setOpenBills] = useState<BillTab[]>(() => readPersistedBills().openBills);
+  const [activeBillId, setActiveBillId] = useState<string | null>(() => readPersistedBills().activeBillId);
+  const billSeqRef = useRef(readPersistedBills().openBills.length);
+
+  // Persist open tabs + active selection so a refresh restores them.
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPEN_BILLS_KEY, JSON.stringify({ openBills, activeBillId, activeTab }));
+    } catch { /* ignore */ }
+  }, [openBills, activeBillId, activeTab, OPEN_BILLS_KEY]);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
@@ -138,6 +167,12 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         openBillTab({ documentType: 'Invoice' });
       } else if (tab === 'new-quote') {
         openBillTab({ documentType: 'Quotation' });
+      } else if (tab === 'challans') {
+        setChallanTab('history');
+        setActiveTab('challans');
+      } else if (tab === 'new-challan') {
+        setChallanTab('new');
+        setActiveTab('challans');
       }
     }
   }, [activeSubTab]);
@@ -154,8 +189,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     }
   };
 
-  // Sync with initialTab prop when changed by router
+  // Sync with initialTab prop when changed by router. Skip the very first run so
+  // a refresh that restored open bill tabs (activeTab='new') is not overridden.
+  const initialTabMountRef = useRef(true);
   useEffect(() => {
+    if (initialTabMountRef.current) {
+      initialTabMountRef.current = false;
+      return;
+    }
     if (initialTab) {
       setActiveTab(initialTab);
     }
@@ -483,6 +524,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
         <button
           type="button"
+          onClick={() => { setChallanTab('history'); setActiveTab('challans'); }}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            activeTab === 'challans'
+              ? 'bg-emerald-700 text-white border-emerald-800 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Truck className="h-3.5 w-3.5" />
+          <span>Delivery Challans</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('returns')}
           className={cn(
             'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
@@ -641,6 +696,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           onDelete={handleDeleteDraft}
           onCreate={() => handleStartBlank('Quotation')}
         />
+      ) : activeTab === 'challans' ? (
+        /* DELIVERY CHALLANS — embedded inside Sales (not a separate section) */
+        <DeliveryChallanView key={challanTab} initialTab={challanTab} />
       ) : activeTab === 'returns' ? (
         /* DEDICATED RETURNS TAB VIEW */
         <ReturnsListView

@@ -114,8 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           visible: canAccessView('estimates') || canAccessView('invoices'),
         },
         {
-          id: 'challans',
-          subTabId: 'history',
+          id: 'invoices',
+          subTabId: 'challans',
           label: 'Delivery Challans',
           visible: canAccessView('challans'),
         },
@@ -292,13 +292,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleItemClick = useCallback(
     (item: NavItem) => {
       if (item.subTabId) {
-        if (item.subTabId === 'new-challan') {
-          navigateToTab('challans', 'new');
-        } else if (item.subTabId === 'history' && item.id === 'challans') {
-          navigateToTab('challans', 'history');
-        } else {
-          navigateToTab(item.id, item.subTabId);
-        }
+        navigateToTab(item.id, item.subTabId);
       } else {
         setCurrentView(item.id);
       }
@@ -383,7 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  navigateToTab('challans', 'new');
+                  navigateToTab('invoices', 'new-challan');
                   if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose?.();
                 }}
                 className="py-1 px-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-none border border-slate-300 text-center transition-colors cursor-pointer"

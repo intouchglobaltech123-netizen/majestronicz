@@ -15,10 +15,15 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-export const DeliveryChallanView: React.FC = () => {
+interface DeliveryChallanViewProps {
+  /** Which tab to open first when embedded (e.g. inside the Sales screen). */
+  initialTab?: 'new' | 'history';
+}
+
+export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initialTab = 'new' }) => {
   const { challans, deleteChallan, activeSubTab } = useErp();
 
-  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
+  const [activeTab, setActiveTab] = useState<'new' | 'history'>(initialTab);
   const [editingChallan, setEditingChallan] = useState<DeliveryChallan | null>(null);
 
   // Synchronize view tab when triggered from secondary navbar flyout
