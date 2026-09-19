@@ -13,6 +13,7 @@ import {
   User,
   Wallet,
   Menu,
+  Maximize2,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -23,10 +24,14 @@ interface TopBarProps {
   /** Backward compatibility / navigation open */
   navOpen?: boolean;
   onOpenNav?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   onOpenNav,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   const {
     currentBranch,
@@ -184,6 +189,20 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Clock className="h-3.5 w-3.5 text-slate-600" />
           <span className="hidden md:inline">My Attendance</span>
         </button>
+
+        {/* Full Screen button — available when not in full screen mode (or after exiting) */}
+        {!isFullscreen && onToggleFullscreen && (
+          <button
+            type="button"
+            onClick={onToggleFullscreen}
+            title="Enter Full Screen Mode (F11)"
+            aria-label="Enter Full Screen Mode"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:text-red-700 font-bold text-xs transition-colors cursor-pointer"
+          >
+            <Maximize2 className="h-3.5 w-3.5 text-red-700" />
+            <span className="hidden sm:inline">Full Screen</span>
+          </button>
+        )}
 
 
         {/* Notification Bell Dropdown Container */}

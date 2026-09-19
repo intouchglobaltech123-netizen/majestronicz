@@ -101,26 +101,9 @@ const AppContent: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Automatically enter full screen when opening or refreshing the site
+  // Attempt to enter native full screen automatically when opening the site
   useEffect(() => {
-    // 1. Try immediate native fullscreen on mount (works in PWA, kiosk mode, or permitted contexts)
     enterNativeFullscreen().catch(() => {});
-
-    // 2. In standard browsers, fullscreen requires a user interaction gesture.
-    // The very first user click, tap, or keydown anywhere on the screen will automatically launch fullscreen like a native desktop app.
-    const autoFullscreenOnFirstGesture = () => {
-      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
-        enterNativeFullscreen().catch(() => {});
-      }
-    };
-
-    window.addEventListener('pointerdown', autoFullscreenOnFirstGesture, { capture: true });
-    window.addEventListener('keydown', autoFullscreenOnFirstGesture, { capture: true });
-
-    return () => {
-      window.removeEventListener('pointerdown', autoFullscreenOnFirstGesture, { capture: true });
-      window.removeEventListener('keydown', autoFullscreenOnFirstGesture, { capture: true });
-    };
   }, []);
 
   return (
@@ -164,10 +147,12 @@ const AppContent: React.FC = () => {
           </div>
         )}
 
-        {/* Global Top Bar with Location Scope Switcher */}
+        {/* Global Top Bar with Location Scope Switcher & Full Screen button */}
         <TopBar
           navOpen={true}
           onOpenNav={() => setMobileNavOpen(true)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
         />
 
         {/* Scrollable Content Body */}
