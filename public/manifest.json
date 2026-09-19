@@ -1,0 +1,20 @@
+{
+  "name": "Majestronicz ERP",
+  "short_name": "Majestronicz",
+  "description": "Industrial Automation & Accounting ERP",
+  "start_url": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

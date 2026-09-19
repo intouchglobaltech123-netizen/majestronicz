@@ -103,7 +103,44 @@ const AppContent: React.FC = () => {
 
   // Attempt to enter native full screen automatically when opening the site
   useEffect(() => {
-    enterNativeFullscreen().catch(() => {});
+    const tryFullscreen = async () => {
+      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
+        await enterNativeFullscreen().catch(() => {});
+      }
+    };
+
+    // 1. Immediate attempt on mount
+    tryFullscreen();
+
+    // 2. Staggered attempts as browser finishes rendering and document gains focus
+    const timers = [
+      setTimeout(tryFullscreen, 60),
+      setTimeout(tryFullscreen, 250),
+      setTimeout(tryFullscreen, 600),
+      setTimeout(tryFullscreen, 1200),
+    ];
+
+    // 3. Retry on window focus or visibility change
+    const handleFocus = () => tryFullscreen();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 4. Non-intrusive fallback: on first normal interaction, expand to fullscreen without intercepting the click
+    const handleFirstInteraction = () => {
+      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
+        tryFullscreen();
+      }
+    };
+    window.addEventListener('click', handleFirstInteraction, { capture: false });
+    window.addEventListener('keydown', handleFirstInteraction, { capture: false });
+
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('click', handleFirstInteraction, { capture: false });
+      window.removeEventListener('keydown', handleFirstInteraction, { capture: false });
+    };
   }, []);
 
   return (
