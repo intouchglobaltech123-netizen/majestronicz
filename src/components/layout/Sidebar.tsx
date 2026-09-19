@@ -153,12 +153,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Purchase Orders',
           visible: canAccessView('purchases'),
         },
-        {
-          id: 'purchases',
-          subTabId: 'vendors',
-          label: 'Vendors Directory',
-          visible: canAccessView('purchases'),
-        },
       ],
     },
     {

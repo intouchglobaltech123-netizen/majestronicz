@@ -31,7 +31,6 @@ import {
   PlayCircle,
   Clock,
   X,
-  Truck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -68,7 +67,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     voidInvoice,
     currentUser,
     activeSubTab,
-    navigateToTab,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -414,14 +412,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 <Plus className="h-3.5 w-3.5" />
                 <span>+ Add Quote</span>
               </button>
-              <button
-                type="button"
-                onClick={() => navigateToTab('challans', 'new')}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-none bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold border border-emerald-800 transition-colors cursor-pointer"
-              >
-                <Truck className="h-3.5 w-3.5" />
-                <span>+ Delivery Challan</span>
-              </button>
             </>
           )}
 
@@ -489,15 +479,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           )}>
             {estimates.length}
           </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigateToTab('challans', 'history')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900"
-        >
-          <Truck className="h-3.5 w-3.5" />
-          <span>Delivery Challans</span>
         </button>
 
         <button

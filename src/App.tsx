@@ -14,7 +14,6 @@ import { PurchaseManagementView } from './components/purchases/PurchaseManagemen
 import { HrmView } from './components/hrm/HrmView';
 import { InventoryView } from './components/inventory/InventoryView';
 import { ReportsView } from './components/reports/ReportsView';
-import { CustomersView } from './components/customers/CustomersView';
 import { PartiesView } from './components/parties/PartiesView';
 import { ShopifyView } from './components/shopify/ShopifyView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
@@ -206,8 +205,6 @@ const AppContent: React.FC = () => {
           {!isBilling && (
             currentView === 'dashboard' ? (
               <DashboardView />
-            ) : currentView === 'customers' ? (
-              <CustomersView />
             ) : currentView === 'parties' ? (
               <PartiesView />
             ) : currentView === 'inventory' ? (

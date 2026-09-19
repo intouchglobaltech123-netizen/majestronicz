@@ -11,26 +11,24 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { Vendor } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
-import { VendorListView } from './VendorListView';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
   const { purchaseOrders, vendors, canManagePurchases, activeSubTab } = useErp();
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'vendors'>('orders');
   const [isPoFormOpen, setIsPoFormOpen] = useState(false);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
 
-  // Synchronize view tab and actions when triggered from secondary navbar flyout
+  // Synchronize actions when triggered from secondary navbar flyout.
+  // The supplier directory now lives in Parties → Suppliers, so 'vendors' here
+  // just opens Parties; PO actions are handled below.
   useEffect(() => {
     if (activeSubTab?.view === 'purchases') {
       const tab = activeSubTab.tab;
-      if (tab === 'orders' || tab === 'vendors') {
-        setActiveTab(tab);
-      } else if (tab === 'issue-po') {
+      if (tab === 'issue-po') {
         setSelectedVendorForPo(null);
         setIsPoFormOpen(true);
       } else if (tab === 'add-vendor') {
@@ -64,11 +62,6 @@ export const PurchaseManagementView: React.FC = () => {
     .filter((p) => p.status !== 'Cancelled' && (p.date || '').startsWith(thisMonth))
     .reduce((sum, p) => sum + (p.totalAmount || 0), 0);
 
-  const handleStartPoWithVendor = (vendor: Vendor) => {
-    setSelectedVendorForPo(vendor);
-    setIsPoFormOpen(true);
-  };
-
   const handleOpenGeneralPo = () => {
     setSelectedVendorForPo(null);
     setIsPoFormOpen(true);
@@ -81,10 +74,10 @@ export const PurchaseManagementView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-              {activeTab === 'vendors' ? 'Suppliers Directory' : 'Purchase Orders'}
+              Purchase Orders
             </h1>
             <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {activeTab === 'vendors' ? 'Vendors & Payables' : 'Inward Supply'}
+              Inward Supply
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
@@ -111,49 +104,6 @@ export const PurchaseManagementView: React.FC = () => {
             </button>
           </div>
         )}
-      </div>
-
-      {/* Segmented View Tabs (Classic Desktop ERP) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('orders')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'orders'
-              ? 'bg-red-600 text-white border-red-700 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <ShoppingBag className="h-3.5 w-3.5" />
-          <span>Purchase Orders</span>
-          <span className={cn(
-            'px-1.5 py-0.2 rounded-none text-[10px]',
-            activeTab === 'orders' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-          )}>
-            {purchaseOrders.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('vendors')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'vendors'
-              ? 'bg-red-600 text-white border-red-700 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <Building2 className="h-3.5 w-3.5" />
-          <span>Suppliers Directory</span>
-          <span className={cn(
-            'px-1.5 py-0.2 rounded-none text-[10px]',
-            activeTab === 'vendors' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-          )}>
-            {vendors.length}
-          </span>
-        </button>
       </div>
 
       {/* KPI Metric Cards */}
@@ -265,12 +215,8 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'orders' ? (
-        <PurchaseOrderList onCreateNewPo={handleOpenGeneralPo} />
-      ) : (
-        <VendorListView onSelectVendorForPo={handleStartPoWithVendor} />
-      )}
+      {/* Purchase orders list */}
+      <PurchaseOrderList onCreateNewPo={handleOpenGeneralPo} />
 
       {/* Create Purchase Order Modal */}
       <PurchaseOrderFormModal
