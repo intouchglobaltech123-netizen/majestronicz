@@ -90,6 +90,38 @@ const AppContent: React.FC = () => {
     setMobileNavOpen(false);
   }, [currentView]);
 
+  // Live clock for ERP status bar
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Default open to full screen on initial load & first user interaction
+  useEffect(() => {
+    // Attempt fullscreen immediately (works in kiosk, PWA, or if allowed by browser)
+    enterNativeFullscreen().catch(() => {});
+
+    // Browser security restricts requestFullscreen to user activation gestures.
+    // Attach one-time listeners to auto-enter fullscreen on the very first click or keypress.
+    const autoFullscreenOnFirstGesture = () => {
+      if (!getIsFullscreen()) {
+        enterNativeFullscreen().catch(() => {});
+      }
+    };
+
+    window.addEventListener('click', autoFullscreenOnFirstGesture, { once: true, capture: true });
+    window.addEventListener('keydown', autoFullscreenOnFirstGesture, { once: true, capture: true });
+
+    return () => {
+      window.removeEventListener('click', autoFullscreenOnFirstGesture, { capture: true });
+      window.removeEventListener('keydown', autoFullscreenOnFirstGesture, { capture: true });
+    };
+  }, []);
+
   return (
     <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Left Navigation Shell (permanently open on desktop) */}
@@ -101,19 +133,33 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
-        {/* Fullscreen top safety bar (protects buttons from macOS menu bar / notch click interception) */}
+        {/* Fullscreen top safety bar with live temporal clock & exit action */}
         {isFullscreen && (
-          <div className="bg-slate-900 text-slate-200 px-4 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-none bg-emerald-500 animate-pulse" />
-              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-slate-300">
-                Full Screen Workspace
+          <div className="bg-slate-900 text-slate-200 px-3.5 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50 shadow-sm">
+            <div className="flex items-center gap-2.5 font-mono text-[11px] min-w-0">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider shrink-0">
+                <span className="h-2 w-2 rounded-none bg-emerald-500 animate-pulse" />
+                LIVE
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-200 font-bold truncate">
+                {currentTime.toLocaleDateString('en-IN', { weekday: 'long' })},{' '}
+                {currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-amber-400 font-mono font-bold tracking-wider shrink-0">
+                {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              </span>
+              <span className="hidden md:inline text-slate-600">|</span>
+              <span className="hidden md:inline text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                MAJESTRONICZ ERP
               </span>
             </div>
             <button
               type="button"
               onClick={handleToggleFullscreen}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-600 hover:bg-red-700 text-white font-mono text-[11px] font-bold rounded-none transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-600 hover:bg-red-700 text-white font-mono text-[11px] font-bold rounded-none transition-colors cursor-pointer shrink-0 ml-2"
+              title="Exit Full Screen (Esc)"
             >
               <Minimize2 className="h-3 w-3" />
               <span>Exit Full Screen (Esc)</span>
@@ -125,8 +171,6 @@ const AppContent: React.FC = () => {
         <TopBar
           navOpen={true}
           onOpenNav={() => setMobileNavOpen(true)}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={handleToggleFullscreen}
         />
 
         {/* Fullscreen Recommendation Banner (shown on open if not fullscreen) */}

@@ -12,32 +12,21 @@ import {
   Check,
   User,
   Wallet,
-  Maximize2,
-  Minimize2,
   Menu,
 } from 'lucide-react';
-import { cn, formatCurrency, getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from '../../lib/utils';
+import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
 
 interface TopBarProps {
-  /** Whether the navigation bar is currently open. */
+  /** Backward compatibility / navigation open */
   navOpen?: boolean;
-  /** Toggles or opens the navigation bar. */
-  onToggleNav?: () => void;
-  /** Backward compatibility */
   onOpenNav?: () => void;
-  /** External fullscreen state */
-  isFullscreen?: boolean;
-  /** Callback to toggle fullscreen */
-  onToggleFullscreen?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   onOpenNav,
-  isFullscreen: propIsFullscreen,
-  onToggleFullscreen: propToggleFullscreen,
 }) => {
   const {
     currentBranch,
@@ -57,29 +46,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
-  const [internalFullscreen, setInternalFullscreen] = useState(() => getIsFullscreen());
-  const isFullscreen = propIsFullscreen ?? internalFullscreen;
-
-  const toggleFullscreen = () => {
-    if (propToggleFullscreen) {
-      propToggleFullscreen();
-      return;
-    }
-    if (isFullscreen || getIsFullscreen()) {
-      exitNativeFullscreen();
-      setInternalFullscreen(false);
-    } else {
-      enterNativeFullscreen();
-      setInternalFullscreen(true);
-    }
-  };
-
-  useEffect(() => {
-    const onFs = () => setInternalFullscreen(getIsFullscreen());
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange', 'resize'];
-    events.forEach((ev) => document.addEventListener(ev, onFs));
-    return () => events.forEach((ev) => document.removeEventListener(ev, onFs));
-  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -219,22 +185,6 @@ export const TopBar: React.FC<TopBarProps> = ({
           <span className="hidden md:inline">My Attendance</span>
         </button>
 
-        {/* Fullscreen / Exit Fullscreen toggle */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Exit full screen (F11 / Esc)' : 'Full screen mode (F11)'}
-          title={isFullscreen ? 'Exit full screen (F11 / Esc)' : 'Full screen mode (F11)'}
-          className={cn(
-            'flex h-8 px-2.5 rounded-none border items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-bold font-mono',
-            isFullscreen
-              ? 'bg-red-700 border-red-800 text-white hover:bg-red-800 shadow-sm'
-              : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-red-700'
-          )}
-        >
-          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5 text-white" /> : <Maximize2 className="h-3.5 w-3.5 text-red-700" />}
-          <span className="hidden md:inline">{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
-        </button>
 
         {/* Notification Bell Dropdown Container */}
         <div className="relative" ref={notifRef}>
