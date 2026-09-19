@@ -225,7 +225,7 @@ export const DailyCashRegisterView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsHistoryModalOpen(true)}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5"
+            className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-none text-xs font-semibold shadow-none transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <History className="h-3.5 w-3.5 text-slate-500" />
             <span>Audit History</span>
@@ -235,7 +235,7 @@ export const DailyCashRegisterView: React.FC = () => {
           <button
             type="button"
             onClick={() => window.print()}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5"
+            className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-none text-xs font-semibold shadow-none transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Print daily register sheet"
           >
             <Printer className="h-3.5 w-3.5 text-slate-500" />
@@ -253,7 +253,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 }
                 setIsCloseDayModalOpen(true);
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-none border border-red-700 text-xs font-bold transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
             >
               <Lock className="h-3.5 w-3.5" />
               <span>Close Day</span>
@@ -263,7 +263,7 @@ export const DailyCashRegisterView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => reopenDailyRegister(activeBranchId, selectedDate)}
-                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-none text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5 text-amber-700" />
                 <span>Reopen Day</span>
@@ -329,19 +329,19 @@ export const DailyCashRegisterView: React.FC = () => {
           />
 
           {/* Date & Branch Filter Bar */}
-          <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 bg-white border border-slate-300 rounded-none shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               {/* Date Picker Input */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                  <Calendar className="h-3.5 w-3.5 text-red-700" />
                   <span>Date:</span>
                 </span>
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs font-bold font-mono bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="text-xs font-bold font-mono bg-slate-50 border border-slate-300 rounded-none px-3 py-1.5 focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -350,10 +350,10 @@ export const DailyCashRegisterView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSetYesterday}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors cursor-pointer ${
                     selectedDate === yesterdayStr
-                      ? 'bg-blue-50 text-blue-700 border-blue-200 font-bold'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      ? 'bg-red-600 text-white border-red-700 font-bold'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
                   Yesterday
@@ -361,10 +361,10 @@ export const DailyCashRegisterView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSetToday}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors cursor-pointer ${
                     selectedDate === todayStr
-                      ? 'bg-blue-50 text-blue-700 border-blue-200 font-bold'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      ? 'bg-red-600 text-white border-red-700 font-bold'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
                   Today
@@ -379,14 +379,14 @@ export const DailyCashRegisterView: React.FC = () => {
                 <span>Branch Drawer:</span>
               </span>
               {currentUser.role === 'Manager' && currentUser.assignedBranchId ? (
-                <span className="text-xs font-bold px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg">
+                <span className="text-xs font-bold px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-none">
                   {BRANCHES.find((b) => b.id === currentUser.assignedBranchId)?.name}
                 </span>
               ) : (
                 <select
                   value={activeBranchId}
                   onChange={(e) => setActiveBranchId(e.target.value as BranchId)}
-                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-none px-3 py-1.5 focus:outline-none focus:border-red-600 cursor-pointer"
                 >
                   {BRANCHES.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -444,7 +444,7 @@ export const DailyCashRegisterView: React.FC = () => {
 
       {/* Closed Day Information Box */}
       {currentRegister.isClosed && (
-        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+        <div className="p-4 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-between text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-slate-500 shrink-0" />
             <div>
@@ -467,7 +467,7 @@ export const DailyCashRegisterView: React.FC = () => {
             </div>
           </div>
 
-          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-none border border-emerald-300 font-mono">
             Next Day Opening: ₹{closingBalance.toLocaleString('en-IN')}
           </span>
         </div>

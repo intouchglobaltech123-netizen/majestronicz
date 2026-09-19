@@ -720,7 +720,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           <button
                             type="button"
                             onClick={() => handleStartBlank('Quotation')}
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                            className="px-4 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-none border border-red-700 font-bold text-xs uppercase tracking-wider shadow-none transition-colors cursor-pointer"
                           >
                             + Create First Quotation
                           </button>
@@ -731,10 +731,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                     filteredEstimates.map((est) => (
                       <tr key={est.id} className="hover:bg-slate-50/70 transition-colors group">
                         <td className="py-3.5 px-4 font-mono">
-                          <span className="font-bold text-purple-700 block">{est.estimateNumber}</span>
+                          <span className="font-bold text-slate-900 block">{est.estimateNumber}</span>
                           {est.sourceEnquiryNumber && (
                             <span
-                              className="text-[11px] text-blue-700 font-medium block truncate mt-0.5"
+                              className="text-[11px] text-red-700 font-medium block truncate mt-0.5"
                               title={`From Enquiry #${est.sourceEnquiryNumber}`}
                             >
                               From Enq: #{est.sourceEnquiryNumber}
@@ -893,7 +893,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           <button
                             type="button"
                             onClick={() => handleStartBlank('Invoice')}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer"
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-none border border-red-700 font-bold text-xs shadow-none cursor-pointer"
                           >
                             + New Sale
                           </button>
@@ -934,7 +934,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               </span>
                             )}
                             {inv.sourceEnquiryNumber && (
-                              <span className="text-[11px] text-purple-700 block truncate mt-0.5">
+                              <span className="text-[11px] text-red-700 font-medium block truncate mt-0.5">
                                 From Enq #{inv.sourceEnquiryNumber}
                               </span>
                             )}
@@ -975,14 +975,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                   <div className="space-y-1">
                                     <span
                                       title={splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')}
-                                      className="inline-flex items-center gap-1 font-mono font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-[11px] cursor-help"
+                                      className="inline-flex items-center gap-1 font-mono font-bold text-slate-800 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-none text-[11px] cursor-help uppercase tracking-wider"
                                     >
-                                      <Split className="h-2.5 w-2.5" />
+                                      <Split className="h-2.5 w-2.5 text-slate-600" />
                                       <span>Split ({splits.length})</span>
                                     </span>
                                     <div className="text-[11px] text-slate-500 font-mono flex flex-wrap gap-1">
                                       {splits.map((s, idx) => (
-                                        <span key={idx} className="bg-slate-50 px-1 py-0.2 rounded border border-slate-200">
+                                        <span key={idx} className="bg-slate-50 px-1 py-0.2 rounded-none border border-slate-200">
                                           {s.mode}: ₹{s.amount.toLocaleString('en-IN')}
                                         </span>
                                       ))}
@@ -1285,10 +1285,10 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
   const label = isQuote ? 'Quote' : 'Sale';
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+    <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-none">
+      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Save className={cn('h-4 w-4', isQuote ? 'text-purple-600' : 'text-blue-600')} />
+          <Save className="h-4 w-4 text-slate-700" />
           <h3 className="text-sm font-bold text-slate-800">
             Saved {isQuote ? 'Quotes' : 'Sales'} (Drafts)
           </h3>
@@ -1312,8 +1312,8 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
               type="button"
               onClick={onCreate}
               className={cn(
-                'px-4 py-2 rounded-xl font-bold text-xs shadow-xs text-white transition-colors cursor-pointer',
-                isQuote ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
+                'px-4 py-2 rounded-none font-bold text-xs uppercase tracking-wider shadow-none text-white transition-colors cursor-pointer border',
+                isQuote ? 'bg-slate-800 hover:bg-slate-900 border-slate-900' : 'bg-red-600 hover:bg-red-700 border-red-700'
               )}
             >
               + New {label}
@@ -1324,7 +1324,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-4">{label} No (Provisional)</th>
                 <th className="py-3 px-4">Customer</th>
                 <th className="py-3 px-4">Branch</th>
@@ -1371,14 +1371,9 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
                         type="button"
                         onClick={() => onResume(d)}
                         title={`Resume this ${label.toLowerCase()} draft`}
-                        className={cn(
-                          'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer',
-                          isQuote
-                            ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
-                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                        )}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none border border-slate-300 text-[11px] font-bold uppercase tracking-wider bg-white hover:bg-slate-100 text-slate-800 transition-colors cursor-pointer"
                       >
-                        <PlayCircle className="h-3.5 w-3.5" />
+                        <PlayCircle className="h-3.5 w-3.5 text-slate-600" />
                         <span>Resume</span>
                       </button>
                       <button
@@ -1387,7 +1382,7 @@ const DraftList: React.FC<DraftListProps> = ({ kind, drafts, onResume, onDelete,
                           if (confirm(`Delete this saved ${label.toLowerCase()} draft?`)) onDelete(d.draftId);
                         }}
                         title="Delete draft"
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
+                        className="p-1 rounded-none bg-white hover:bg-red-50 hover:text-red-700 text-slate-400 border border-slate-300 transition-colors cursor-pointer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

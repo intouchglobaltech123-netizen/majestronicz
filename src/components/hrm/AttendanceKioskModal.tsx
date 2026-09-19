@@ -167,12 +167,12 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header + live clock */}
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <Clock className="h-5 w-5 text-blue-300" />
+            <div className="h-10 w-10 rounded-none bg-white/10 flex items-center justify-center border border-white/20">
+              <Clock className="h-5 w-5 text-red-300" />
             </div>
             <div>
               <h3 className="text-base font-bold">Attendance Check-In / Out</h3>
@@ -182,16 +182,16 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-none transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Step indicator */}
-        <div className="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2 text-[11px] font-bold shrink-0">
-          <span className={step === 'identify' ? 'text-blue-700' : 'text-slate-400'}>1. Who are you</span>
+        <div className="px-5 py-2.5 border-b border-slate-200 flex items-center gap-2 text-[11px] font-bold shrink-0 bg-slate-50/60">
+          <span className={step === 'identify' ? 'text-red-700' : 'text-slate-400'}>1. Who are you</span>
           <ArrowRight className="h-3 w-3 text-slate-300" />
-          <span className={step === 'capture' ? 'text-blue-700' : 'text-slate-400'}>2. Selfie &amp; confirm</span>
+          <span className={step === 'capture' ? 'text-red-700' : 'text-slate-400'}>2. Selfie &amp; confirm</span>
         </div>
 
         {step === 'identify' ? (
@@ -204,7 +204,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search your name…"
-                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
               />
             </div>
 
@@ -221,23 +221,23 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                       key={emp.id}
                       type="button"
                       onClick={() => { setSelectedEmployeeId(emp.id); setPinInput(''); }}
-                      className={`text-left p-3 rounded-xl border flex items-center gap-3 transition-all ${
-                        active ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300' : 'border-slate-200 hover:bg-slate-50'
+                      className={`text-left p-3 rounded-none border flex items-center gap-3 transition-all ${
+                        active ? 'border-red-600 bg-red-50/80 shadow-xs' : 'border-slate-300 hover:bg-slate-50'
                       }`}
                     >
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
-                        active ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                      <div className={`h-9 w-9 rounded-none flex items-center justify-center shrink-0 text-xs font-bold ${
+                        active ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700 border border-slate-300'
                       }`}>
                         {emp.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-800 truncate">{emp.name}</p>
+                        <p className={`text-sm font-bold truncate ${active ? 'text-red-700' : 'text-slate-800'}`}>{emp.name}</p>
                         <p className="text-[11px] text-slate-500 truncate">{emp.designation}</p>
                       </div>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                        st === 'done' ? 'bg-slate-100 text-slate-500'
-                          : st === 'out' ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-none shrink-0 border ${
+                        st === 'done' ? 'bg-slate-100 text-slate-500 border-slate-300'
+                          : st === 'out' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       }`}>
                         {st === 'done' ? 'Done' : st === 'out' ? 'On shift' : 'Check in'}
                       </span>
@@ -264,7 +264,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                     onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
                     onKeyDown={(e) => { if (e.key === 'Enter') proceedToCapture(); }}
                     placeholder="••••"
-                    className="w-full pl-10 pr-4 py-2.5 text-lg font-mono tracking-[0.4em] rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2.5 text-lg font-mono tracking-[0.4em] rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
                   />
                 </div>
               </div>
@@ -273,11 +273,11 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
         ) : (
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {/* Selected employee + what happens */}
-            <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
-              mode === 'in' ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'
+            <div className={`p-3.5 rounded-none border flex items-center gap-3 ${
+              mode === 'in' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'
             }`}>
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-white ${
-                mode === 'in' ? 'bg-blue-600' : 'bg-emerald-600'
+              <div className={`h-10 w-10 rounded-none flex items-center justify-center shrink-0 text-white ${
+                mode === 'in' ? 'bg-red-600' : 'bg-emerald-600'
               }`}>
                 {mode === 'in' ? <LogIn className="h-5 w-5" /> : <LogOut className="h-5 w-5" />}
               </div>
@@ -294,7 +294,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
             </div>
 
             {alreadyDone ? (
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm text-slate-600 flex flex-col items-center gap-2">
+              <div className="p-4 bg-slate-50 border border-slate-300 rounded-none text-center text-sm text-slate-600 flex flex-col items-center gap-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                 <span>You've already completed today's shift ({todayRecord?.hoursWorked} hrs). Nothing to record.</span>
               </div>
@@ -314,9 +314,9 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                 </div>
 
                 {/* Location */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                <div className="p-3 bg-slate-50 rounded-none border border-slate-300 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                    <Navigation className="h-3.5 w-3.5 text-blue-600" /> Location
+                    <Navigation className="h-3.5 w-3.5 text-red-700" /> Location
                   </span>
                   {location ? (
                     <span className="text-[11px] text-slate-600 font-mono">
@@ -324,8 +324,8 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                       <span className="text-slate-400 font-sans"> ({location.addressHint})</span>
                     </span>
                   ) : (
-                    <span className={`text-[11px] px-1.5 py-0.5 rounded border font-bold ${
-                      isFetchingLocation ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-none border font-bold ${
+                      isFetchingLocation ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-300'
                     }`}>{isFetchingLocation ? 'Detecting…' : 'Unavailable'}</span>
                   )}
                 </div>
@@ -333,7 +333,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
             )}
 
             {(mode === 'out' && !todayRecord?.checkInTime) && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-none text-rose-800 text-xs flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
                 <span>No check-in found today — you need to check in first.</span>
               </div>
@@ -342,17 +342,17 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
         )}
 
         {/* Footer actions */}
-        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-5 py-4 border-t border-slate-300 bg-slate-50/70 flex items-center justify-between gap-3 shrink-0">
           {step === 'identify' ? (
             <>
-              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300 transition-colors">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={proceedToCapture}
                 disabled={!currentEmp || pinInput.length < 4}
-                className="inline-flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-6 py-2 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <span>Continue</span>
                 <ArrowRight className="h-4 w-4" />
@@ -362,7 +362,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
             <>
               <button
                 onClick={() => setStep('identify')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300 transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" /> Back
               </button>
@@ -370,8 +370,8 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                 type="button"
                 onClick={handleConfirm}
                 disabled={alreadyDone || !capturedPhoto || (mode === 'out' && !todayRecord?.checkInTime)}
-                className={`inline-flex items-center gap-2 px-6 py-2 text-sm font-bold text-white rounded-xl shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  mode === 'in' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                className={`inline-flex items-center gap-2 px-6 py-2 text-xs font-bold uppercase tracking-wider text-white rounded-none shadow-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  mode === 'in' ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700' : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 border border-emerald-700'
                 }`}
               >
                 {mode === 'in' ? <LogIn className="h-4 w-4" /> : <LogOut className="h-4 w-4" />}

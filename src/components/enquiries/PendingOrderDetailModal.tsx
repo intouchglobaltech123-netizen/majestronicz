@@ -140,15 +140,15 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     // Arrived" just because stock happens to be on hand.
     if (pendingOrder.status === 'Fulfilled') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-bold text-xs">
-          <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs">
+          <CheckCircle2 className="h-3.5 w-3.5 text-slate-600" />
           Fulfilled
         </span>
       );
     }
     if (pendingOrder.status !== 'Cancelled' && (pendingOrder.status === 'Stock Arrived' || canFulfillNow)) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs shadow-2xs">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs shadow-none">
           <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />
           Stock Arrived
         </span>
@@ -156,14 +156,14 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     }
     if (pendingOrder.status === 'Cancelled') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs">
           <XCircle className="h-3.5 w-3.5 text-rose-600" />
           Cancelled
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs">
         <Clock className="h-3.5 w-3.5 text-amber-600" />
         Waiting Restock
       </span>
@@ -172,14 +172,14 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Header Bar */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
           <div className="flex items-center flex-wrap gap-2.5">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Pending Stock Order Document Preview
             </span>
-            <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {pendingOrder.orderNumber}
             </span>
             {statusBadge()}
@@ -189,7 +189,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handlePrint}
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-none transition-colors cursor-pointer"
               title="Print Order Sheet"
             >
               <Printer className="h-4 w-4" />
@@ -197,7 +197,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-none transition-colors cursor-pointer"
               title="Close (Esc)"
             >
               <X className="h-5 w-5" />
@@ -207,7 +207,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
 
         {/* Scrollable Printable Document Card */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-4 sm:p-6 space-y-6 print:p-0">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs print:border-none print:shadow-none space-y-6">
+          <div className="bg-white border border-slate-300 rounded-none p-6 sm:p-8 shadow-none print:border-none print:shadow-none space-y-6">
             {/* 1. Company Profile & Pending Order Meta Header */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-slate-200">
               <div className="space-y-2">
@@ -221,11 +221,11 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="sm:text-right space-y-1.5 shrink-0 bg-slate-50 sm:bg-transparent p-4 sm:p-0 rounded-xl">
+              <div className="sm:text-right space-y-1.5 shrink-0 bg-slate-50 sm:bg-transparent p-4 sm:p-0 rounded-none">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
                   Pending Stock Replenishment Order
                 </span>
-                <h2 className="text-xl sm:text-2xl font-bold font-mono text-purple-700">
+                <h2 className="text-xl sm:text-2xl font-bold font-mono text-red-700">
                   {pendingOrder.orderNumber}
                 </h2>
                 <div className="text-xs text-slate-600 font-mono space-y-0.5">
@@ -247,12 +247,12 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
 
             {/* 2. Customer & Shortage Overview Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+              <div className="p-4 rounded-none bg-slate-50 border border-slate-200 space-y-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Customer Waiting for Fulfillment
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <div className="h-8 w-8 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center shrink-0">
                     <User className="h-4 w-4" />
                   </div>
                   <div>
@@ -269,17 +269,17 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+              <div className="p-4 rounded-none bg-slate-50 border border-slate-200 space-y-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
                   Restock Timeline & Monitoring
                 </span>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className={cn(
-                      'text-xs font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1',
+                      'text-xs font-bold px-2 py-0.5 rounded-none border inline-flex items-center gap-1',
                       restock.isOverdue
                         ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-slate-100 text-slate-800 border-slate-300'
                     )}>
                       {restock.isOverdue && <AlertTriangle className="h-3 w-3 text-rose-600" />}
                       {restock.text}
@@ -292,7 +292,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setIsEditingExpectedDate(true)}
-                      className="px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-none border border-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <Edit2 className="h-3 w-3" />
                       <span>Change Date</span>
@@ -306,12 +306,12 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                       type="date"
                       value={newDateVal}
                       onChange={(e) => setNewDateVal(e.target.value)}
-                      className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                      className="px-2 py-1 rounded-none bg-white border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-red-600"
                     />
                     <button
                       type="button"
                       onClick={handleSaveExpectedDate}
-                      className="px-2.5 py-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1 shadow-2xs"
+                      className="px-2.5 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 flex items-center gap-1 shadow-none cursor-pointer"
                     >
                       <Save className="h-3 w-3" />
                       <span>Save</span>
@@ -319,7 +319,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setIsEditingExpectedDate(false)}
-                      className="px-2 py-1 text-xs text-slate-500 hover:bg-slate-200 rounded-lg"
+                      className="px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded-none border border-slate-300 cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -333,7 +333,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               <div className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2">
                 Item & Inventory Status
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-slate-300 rounded-none overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
@@ -383,28 +383,28 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
             </div>
 
             {/* 4. Related Records Section */}
-            <div className="p-4 rounded-xl bg-purple-50/40 border border-purple-100 space-y-3">
+            <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-purple-600" />
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-slate-600" />
                   <span>Related Business Records</span>
                 </span>
-                <span className="text-[11px] text-purple-600">Cross-links & traceability</span>
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Cross-links & traceability</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Link to Original Customer Enquiry */}
-                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+                <div className="p-3 rounded-none bg-white border border-slate-300 shadow-none flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       Original Customer Enquiry
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs text-blue-700">
+                      <span className="font-mono font-bold text-xs text-red-700">
                         {pendingOrder.enquiryNumber}
                       </span>
                       {originalEnquiry && (
-                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded-none bg-red-50 text-red-700 border border-red-200">
                           {originalEnquiry.status}
                         </span>
                       )}
@@ -415,7 +415,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={handleJumpToEnquiry}
-                      className="px-2.5 py-1 text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-bold text-slate-800 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 rounded-none border border-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <span>View Enquiry</span>
                       <ExternalLink className="h-3 w-3" />
@@ -424,7 +424,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                 </div>
 
                 {/* Link to Linked Purchase Order or Create PO Action */}
-                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+                <div className="p-3 rounded-none bg-white border border-slate-300 shadow-none flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-[11px] font-bold uppercase text-slate-400 block">
                       {linkedPo || pendingOrder.purchaseOrderNumber || pendingOrder.linkedPurchaseOrderId
@@ -437,7 +437,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                           {linkedPo?.poNumber || pendingOrder.purchaseOrderNumber || 'Linked PO'}
                         </span>
                         {linkedPo && (
-                          <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded-none bg-amber-50 text-amber-800 border border-amber-200">
                             {linkedPo.status}
                           </span>
                         )}
@@ -451,7 +451,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedPurchaseOrderForDetail(linkedPo)}
-                      className="px-2.5 py-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors flex items-center gap-1 shadow-2xs"
+                      className="px-2.5 py-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-none border border-amber-300 transition-colors flex items-center gap-1 shadow-none cursor-pointer"
                       title="View Purchase Order Details & PDF"
                     >
                       <span>View PO</span>
@@ -461,9 +461,9 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => onCreatePurchaseOrder(pendingOrder)}
-                      className="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg border border-amber-300 transition-colors flex items-center gap-1 shadow-2xs"
+                      className="px-2.5 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors flex items-center gap-1 shadow-none cursor-pointer"
                     >
-                      <ShoppingBag className="h-3 w-3 text-amber-700" />
+                      <ShoppingBag className="h-3 w-3 text-white" />
                       <span>Create PO</span>
                     </button>
                   ) : null}
@@ -473,7 +473,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
 
             {/* 5. Notes & Cancellation Detail */}
             {(pendingOrder.notes || pendingOrder.cancellationReason) && (
-              <div className="p-4 rounded-xl border border-slate-200 space-y-1 bg-slate-50/60">
+              <div className="p-4 rounded-none border border-slate-300 space-y-1 bg-slate-50">
                 <span className="text-xs font-bold text-slate-700 block">
                   Order Log Notes & Reasons:
                 </span>
@@ -499,7 +499,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onEditRestockDate(pendingOrder)}
-                className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
+                className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer uppercase tracking-wider"
               >
                 <Edit2 className="h-3.5 w-3.5 text-slate-500" />
                 <span>Edit Restock Date</span>
@@ -510,7 +510,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onCreatePurchaseOrder(pendingOrder)}
-                className="px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
+                className="px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer uppercase tracking-wider"
               >
                 <ShoppingBag className="h-3.5 w-3.5 text-amber-700" />
                 <span>Create Purchase Order</span>
@@ -521,7 +521,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onCancel(pendingOrder)}
-                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition-colors flex items-center gap-1"
+                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-none border border-slate-200 hover:border-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <XCircle className="h-3.5 w-3.5" />
                 <span>Cancel Order</span>
@@ -533,7 +533,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -546,10 +546,10 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     onClose();
                     onConvert(pendingOrder.enquiryId, 'estimate');
                   }}
-                  className="px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
+                  className="px-4 py-2 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
                 >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>Quote</span>
+                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                  <span>+ Quote</span>
                 </button>
 
                 <button
@@ -558,10 +558,10 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     onClose();
                     onConvert(pendingOrder.enquiryId, 'invoice');
                   }}
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
                 >
                   <Receipt className="h-3.5 w-3.5" />
-                  <span>Bill</span>
+                  <span>+ Bill</span>
                 </button>
               </>
             )}

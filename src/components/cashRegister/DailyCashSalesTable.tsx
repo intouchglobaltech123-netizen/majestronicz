@@ -33,17 +33,17 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
   );
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col h-full">
+    <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-xs flex flex-col h-full">
       {/* Table Header */}
-      <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="h-8 w-8 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <Receipt className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">Sales Invoices Log</h3>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-slate-200 text-slate-800 border border-slate-300">
                 Auto-Populated
               </span>
             </div>
@@ -54,11 +54,11 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+          <span className="px-2.5 py-1 rounded-none bg-slate-100 text-slate-700 font-semibold border border-slate-300">
             {invoices.length} Bill{invoices.length === 1 ? '' : 's'}
           </span>
           {invoices.some((i) => i.isPartialPayment) && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[11px] flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-none bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[11px] flex items-center gap-1">
               <span>PP = Partial Payment</span>
             </span>
           )}
@@ -68,7 +68,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
       {/* Table Body */}
       {invoices.length === 0 ? (
         <div className="flex-1 py-12 px-4 text-center flex flex-col items-center justify-center">
-          <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+          <div className="h-12 w-12 rounded-none bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mb-2">
             <FileText className="h-6 w-6" />
           </div>
           <h4 className="text-xs font-bold text-slate-700">No Sales Recorded for this Date</h4>
@@ -79,7 +79,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
       ) : (
         <div className="overflow-x-auto flex-1 max-h-[460px]">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
+            <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="py-3 px-4">Bill No. & Customer</th>
                 <th className="py-3 px-3 text-right">HDFC</th>
@@ -183,7 +183,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                     {/* GPay Digital Column */}
                     <td className="py-3 px-3 text-right font-mono">
                       {gpayAmount > 0 ? (
-                        <span className="font-bold text-blue-700">
+                        <span className="font-bold text-slate-800">
                           {formatCurrency(gpayAmount)}
                         </span>
                       ) : (
@@ -195,11 +195,11 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                     <td className="py-3 px-3 text-right font-mono">
                       {codAmount > 0 ? (
                         <div className="flex flex-col items-end">
-                          <span className="font-bold text-indigo-900">
+                          <span className="font-bold text-amber-900">
                             {formatCurrency(codAmount)}
                           </span>
                           {inv.isPartialPayment && (
-                            <span className="text-[11px] text-indigo-500">
+                            <span className="text-[11px] text-amber-700">
                               Partially Paid
                             </span>
                           )}
@@ -214,7 +214,7 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
             </tbody>
 
             {/* TOTAL SALE ROW */}
-            <tfoot className="sticky bottom-0 z-10 bg-slate-100/95 backdrop-blur-xs border-t-2 border-slate-300 font-bold text-xs">
+            <tfoot className="sticky bottom-0 z-10 bg-slate-100 border-t-2 border-slate-300 font-bold text-xs">
               <tr>
                 <td className="py-3 px-4 text-slate-800 uppercase text-[11px] tracking-wider">
                   <div className="flex items-center gap-1.5">
@@ -233,11 +233,11 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                   {formatCurrency(totals.cash)}
                 </td>
                 {/* GPay Total */}
-                <td className="py-3 px-3 text-right font-mono text-blue-700">
+                <td className="py-3 px-3 text-right font-mono text-slate-800">
                   {formatCurrency(totals.gpay)}
                 </td>
                 {/* COD / Credit Total */}
-                <td className="py-3 px-3 text-right font-mono text-indigo-900">
+                <td className="py-3 px-3 text-right font-mono text-amber-900">
                   {formatCurrency(totals.codCredit)}
                 </td>
               </tr>

@@ -49,11 +49,11 @@ export const OverrideOpeningModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      <div className="bg-white rounded-none max-w-md w-full shadow-2xl border border-slate-300 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+            <div className="h-8 w-8 rounded-none bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
               <Edit2 className="h-4 w-4" />
             </div>
             <div>
@@ -66,15 +66,15 @@ export const OverrideOpeningModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent hover:border-slate-300 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Warning Banner */}
-        <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-start gap-2.5 text-xs text-amber-800">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="p-4 bg-amber-50 border-b border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+          <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
           <p>
             The Opening Amount is normally carried forward automatically from yesterday's closing drawer count. Override this only if there is a verified discrepancy or physical cash replenishment.
           </p>
@@ -84,7 +84,7 @@ export const OverrideOpeningModal: React.FC<Props> = ({
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              New Opening Cash Amount (₹) <span className="text-red-500">*</span>
+              New Opening Cash Amount (₹) <span className="text-red-600">*</span>
             </label>
             <div className="relative">
               <input
@@ -94,7 +94,7 @@ export const OverrideOpeningModal: React.FC<Props> = ({
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full text-base font-mono font-bold bg-white border border-slate-300 rounded-xl px-3 py-2.5 pl-8 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full text-base font-mono font-bold bg-white border border-slate-300 rounded-none px-3 py-2.5 pl-8 focus:outline-none focus:border-red-600"
               />
               <span className="absolute left-3 top-3 font-bold text-slate-400">₹</span>
             </div>
@@ -102,28 +102,28 @@ export const OverrideOpeningModal: React.FC<Props> = ({
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Reason for Override (Audit Log) <span className="text-red-500">*</span>
+              Reason for Override (Audit Log) <span className="text-red-600">*</span>
             </label>
             <textarea
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Added ₹2,000 small change float from central bank locker, or physical recount before opening..."
-              className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+              className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600 resize-none"
             />
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+              className="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
             >
               Save Override
             </button>

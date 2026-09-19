@@ -74,25 +74,25 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search suppliers by name, phone, or GSTIN..."
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+            className="w-full pl-10 pr-4 py-2 text-xs font-semibold rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600 bg-white"
           />
         </div>
 
         {canManagePurchases && (
           <button
             onClick={handleAddNew}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Supplier</span>
+            <span>+ Add Supplier</span>
           </button>
         )}
       </div>
 
       {/* Vendors Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-none border border-slate-300 shadow-none overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-4">Supplier / Company</th>
@@ -124,11 +124,11 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
                       {/* Name & Badge */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/60 font-bold flex items-center justify-center shrink-0 text-sm">
+                          <div className="h-9 w-9 rounded-none bg-slate-100 text-slate-800 border border-slate-300 font-bold flex items-center justify-center shrink-0 text-xs">
                             {vendor.vendorName.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <div className="font-bold text-slate-900 group-hover:text-red-600 transition-colors">
                               {vendor.vendorName}
                             </div>
                             <div className="text-[11px] text-slate-400 font-mono">

@@ -85,22 +85,22 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Metadata Header (Clean document metadata, No action buttons) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
           <div className="flex items-center flex-wrap gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Quote Document Preview
             </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {estimate.estimateNumber}
             </span>
             {estimate.withGst ? (
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-none border border-emerald-200">
                 GST Tax Invoice Format
               </span>
             ) : (
-              <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-none">
                 Standard Non-GST Format
               </span>
             )}
@@ -110,7 +110,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             type="button"
             onClick={onClose}
             title="Close Preview (Esc)"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -118,10 +118,10 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
 
         {/* Printable PDF Document Body */}
         <div id="printable-estimate-doc" className="p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
-          {/* Header Block with Blue Bar Accent */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
-            {/* Top Blue Accent Title Strip */}
-            <div className="bg-blue-600 text-white px-6 py-2.5 flex items-center justify-between">
+          {/* Header Block with Red Bar Accent */}
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
+            {/* Top Red Accent Title Strip */}
+            <div className="bg-red-600 text-white px-6 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black uppercase tracking-widest">
                   ESTIMATE / QUOTATION
@@ -209,11 +209,11 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             </div>
           </div>
 
-          {/* Line Items Table with Blue Header Bar */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
+          {/* Line Items Table with Red Header Bar */}
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-blue-600 text-white font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-red-600 text-white font-bold uppercase text-[10px] tracking-wider">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3">Item Description</th>
                   <th className="py-2.5 px-3 w-24">HSN / SAC</th>
@@ -389,12 +389,12 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
               )}
 
               {/* Grand Total Bar */}
-              <div className="mt-3 p-3 rounded-xl bg-blue-600 text-white flex items-baseline justify-between shadow-xs">
+              <div className="mt-3 p-3 rounded-none bg-red-600 text-white flex items-baseline justify-between shadow-none">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider block text-blue-100">
+                  <span className="text-[10px] uppercase font-bold tracking-wider block text-red-100">
                     Grand Total
                   </span>
-                  <span className="text-[10px] text-blue-200">
+                  <span className="text-[10px] text-red-200">
                     {estimate.withGst ? '(Inclusive of all taxes)' : '(Net Estimate Amount)'}
                   </span>
                 </div>
@@ -428,7 +428,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
         {/* Single Unified Bottom Action Bar (Hidden during Print) */}
         <div className="p-4 sm:px-6 sm:py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden">
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
-            <Building className="h-4 w-4 text-blue-600 shrink-0" />
+            <Building className="h-4 w-4 text-red-600 shrink-0" />
             <span className="font-medium">
               A4 Format &bull; {estimate.estimateNumber}
             </span>
@@ -439,7 +439,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             <button
               type="button"
               onClick={handleCopySummary}
-              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               {copied ? (
                 <Check className="h-4 w-4 text-emerald-600" />
@@ -453,7 +453,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               <Share2 className="h-4 w-4 text-emerald-600" />
               <span>Share</span>
@@ -463,7 +463,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             <button
               type="button"
               onClick={handlePrint}
-              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               <Printer className="h-4 w-4 text-slate-600" />
               <span>Print</span>
@@ -474,10 +474,10 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
               type="button"
               onClick={handleSavePdf}
               disabled={isDownloadingPdf}
-              className="h-10 px-5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
+              className="h-10 px-5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
             >
               {isDownloadingPdf ? (
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-none animate-spin" />
               ) : (
                 <Download className="h-4 w-4 text-white" />
               )}
@@ -488,7 +488,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <X className="h-4 w-4 text-slate-500" />
               <span>Close</span>

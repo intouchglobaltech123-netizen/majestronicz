@@ -55,9 +55,9 @@ export const AccessManagementView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-5 rounded-none bg-white border border-slate-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Access Control</h1>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">Access Control</h1>
           <p className="text-xs text-slate-600 mt-0.5">
             Grant each role the modules it can open and the actions it can perform. Changes apply
             instantly across every logged-in session and are enforced on the server.
@@ -67,14 +67,14 @@ export const AccessManagementView: React.FC = () => {
           <button
             onClick={resetChanges}
             disabled={!dirty || saving}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 transition-colors"
+            className="px-3.5 py-2 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 transition-colors cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Revert
           </button>
           <button
             onClick={save}
             disabled={!dirty || saving}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 transition-colors shadow-xs"
+            className="px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 transition-colors shadow-none border border-red-700 cursor-pointer"
           >
             <Save className="h-3.5 w-3.5" /> {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
           </button>
@@ -82,7 +82,7 @@ export const AccessManagementView: React.FC = () => {
       </div>
 
       {/* CEO locked card */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 flex items-center gap-3">
+      <div className="rounded-none border border-amber-300 bg-amber-50/50 p-4 flex items-center gap-3">
         <Lock className="h-4 w-4 text-amber-600" />
         <p className="text-xs font-semibold text-amber-800">
           CEO ({roleName('CEO')}) always retains full access and cannot be restricted.
@@ -97,10 +97,10 @@ export const AccessManagementView: React.FC = () => {
         const role = selectedRole;
         const cfg = draft[role];
         const tone: Record<string, { on: string; box: string }> = {
-          blue: { on: 'bg-blue-50 text-blue-800 border-blue-200', box: 'bg-blue-600' },
-          emerald: { on: 'bg-emerald-50 text-emerald-800 border-emerald-200', box: 'bg-emerald-600' },
-          violet: { on: 'bg-violet-50 text-violet-800 border-violet-200', box: 'bg-violet-600' },
-          fuchsia: { on: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200', box: 'bg-fuchsia-600' },
+          blue: { on: 'bg-red-50 text-red-900 border-red-200', box: 'bg-red-600' },
+          emerald: { on: 'bg-emerald-50 text-emerald-900 border-emerald-300', box: 'bg-emerald-700' },
+          violet: { on: 'bg-slate-100 text-slate-900 border-slate-300', box: 'bg-slate-800' },
+          fuchsia: { on: 'bg-slate-100 text-slate-900 border-slate-300', box: 'bg-slate-800' },
         };
         const ToggleGrid = ({ items, on, onToggle, color }: { items: { key: string; label: string }[]; on: (k: string) => boolean; onToggle: (k: string) => void; color: string }) => (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -111,9 +111,9 @@ export const AccessManagementView: React.FC = () => {
                 <button
                   key={it.key}
                   onClick={() => onToggle(it.key)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-left transition-colors border ${active ? t.on : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'}`}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-none text-xs font-medium text-left transition-colors border cursor-pointer ${active ? t.on : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                 >
-                  <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 ${active ? `${t.box} text-white` : 'border border-slate-300'}`}>
+                  <span className={`h-4 w-4 rounded-none flex items-center justify-center shrink-0 ${active ? `${t.box} text-white` : 'border border-slate-300 bg-white'}`}>
                     {active && <Check className="h-3 w-3" />}
                   </span>
                   {it.label}
@@ -124,11 +124,11 @@ export const AccessManagementView: React.FC = () => {
         );
 
         const Section = ({ icon: Icon, title, hint, children }: { icon: React.ComponentType<{ className?: string }>; title: string; hint?: string; children: React.ReactNode }) => (
-          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-              <Icon className="h-4 w-4 text-slate-500" />
+          <div className="rounded-none border border-slate-300 bg-white shadow-xs overflow-hidden">
+            <div className="px-5 py-3 bg-slate-100 border-b border-slate-300 flex items-center gap-2">
+              <Icon className="h-4 w-4 text-slate-600" />
               <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{title}</span>
-              {hint && <span className="text-[11px] text-slate-400 ml-1">{hint}</span>}
+              {hint && <span className="text-[11px] text-slate-500 ml-1">{hint}</span>}
             </div>
             <div className="p-5">{children}</div>
           </div>
@@ -137,16 +137,16 @@ export const AccessManagementView: React.FC = () => {
         return (
           <div className="space-y-5">
             {/* Role picker */}
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="p-4 rounded-none bg-white border border-slate-300 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Editing role</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Editing role</span>
               </div>
               <div className="w-full sm:w-72">
                 <UniversalDropdown
                   value={role}
                   onChange={(v) => setSelectedRole(v as Role)}
                   options={EDITABLE_ROLES.map((r) => ({ value: r, label: r, sublabel: roleName(r) }))}
-                  buttonClassName="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900"
+                  buttonClassName="w-full px-3.5 py-2.5 rounded-none bg-white border border-slate-300 text-sm font-bold text-slate-900"
                 />
               </div>
               <span className="text-[11px] font-semibold text-slate-500 sm:ml-auto">
@@ -184,7 +184,7 @@ export const AccessManagementView: React.FC = () => {
 
               <Section icon={Sparkles} title="Beta AI — Data the AI Can Read">
                 {!cfg.caps.includes('ai:use') && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-3">
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-none px-2.5 py-1.5 mb-3">
                     Enable “Use Beta AI assistant” under Actions first — these scopes then limit what its AI can read.
                   </p>
                 )}

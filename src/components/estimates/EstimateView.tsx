@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Estimate } from '../../types';
+import { Estimate, BRANCHES } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { EstimateForm } from './EstimateForm';
 import { EstimatePdfModal } from './EstimatePdfModal';
@@ -11,7 +11,6 @@ import {
   Printer,
   Trash2,
   Edit2,
-  Calendar,
   Building,
   ReceiptText,
   ArrowRightLeft,
@@ -103,7 +102,7 @@ export const EstimateView: React.FC = () => {
 
         {/* Tab Switcher & Quick Add */}
         <div className="flex items-center gap-2">
-          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex flex-wrap items-center bg-white p-0.5 rounded-none border border-slate-300 text-xs">
             <button
               onClick={() => {
                 setDuplicateSourceEstimate(null);
@@ -111,10 +110,10 @@ export const EstimateView: React.FC = () => {
                 setActiveTab('new');
               }}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-none font-bold transition-all cursor-pointer',
                 activeTab === 'new'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-red-600 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
               )}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -130,10 +129,10 @@ export const EstimateView: React.FC = () => {
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-none font-bold transition-all cursor-pointer',
                 activeTab === 'history'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-red-600 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
               )}
             >
               <FileText className="h-3.5 w-3.5" />
@@ -144,9 +143,9 @@ export const EstimateView: React.FC = () => {
           {activeTab === 'history' && (
             <button
               onClick={handleStartNew}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs border border-red-700 cursor-pointer"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               <span>Create New</span>
             </button>
           )}
@@ -154,23 +153,23 @@ export const EstimateView: React.FC = () => {
       </div>
 
       {/* Quote metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Quotes</span>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{quoteStats.count}</p>
           <span className="text-[11px] text-slate-400">{isAllBranches ? 'All branches' : currentBranchData?.name}</span>
         </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-3.5 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quoted Value</span>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.totalValue)}</p>
           <span className="text-[11px] text-slate-400">Across all quotes</span>
         </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-3.5 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
-          <p className="text-xl sm:text-2xl font-bold text-indigo-700 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.monthValue)}</p>
           <span className="text-[11px] text-slate-400">{quoteStats.monthCount} quote{quoteStats.monthCount === 1 ? '' : 's'}</span>
         </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
+        <div className="p-3.5 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Avg Quote</span>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{formatCurrency(quoteStats.avgValue)}</p>
           <span className="text-[11px] text-slate-400">Per quotation</span>
@@ -189,7 +188,7 @@ export const EstimateView: React.FC = () => {
         /* ESTIMATE HISTORY TAB */
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-none">
             <div className="relative flex-1 max-w-md w-full">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -197,12 +196,12 @@ export const EstimateView: React.FC = () => {
                 placeholder="Search estimate by Customer, Estimate No, or Phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
+                className="w-full pl-10 pr-4 py-2 rounded-none bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600"
               />
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Building className="h-4 w-4 text-blue-600" />
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <Building className="h-4 w-4 text-slate-500" />
               <span>
                 Scope: <strong>{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
               </span>
@@ -210,12 +209,12 @@ export const EstimateView: React.FC = () => {
           </div>
 
           {/* Estimates Table */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-none">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
-                    <th className="py-3.5 px-4">Estimate No</th>
+                <thead className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4">Estimate #</th>
                     <th className="py-3.5 px-4">Customer Details</th>
                     <th className="py-3.5 px-4">Date & Time</th>
                     <th className="py-3.5 px-4">Branch</th>
@@ -237,7 +236,7 @@ export const EstimateView: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleStartNew}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors"
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-none border border-red-700 font-bold text-xs shadow-none transition-colors cursor-pointer"
                           >
                             + Create First Estimate
                           </button>
@@ -248,9 +247,9 @@ export const EstimateView: React.FC = () => {
                     filteredEstimates.map((est) => (
                       <tr key={est.id} className="hover:bg-slate-50/70 transition-colors group">
                         <td className="py-3.5 px-4 font-mono">
-                          <span className="font-bold text-blue-700 block">{est.estimateNumber}</span>
+                          <span className="font-bold text-slate-900 block">{est.estimateNumber}</span>
                           {est.sourceEnquiryNumber && (
-                            <span className="text-[11px] text-purple-700 font-medium block truncate mt-0.5" title={`From Enquiry #${est.sourceEnquiryNumber}`}>
+                            <span className="text-[11px] text-red-700 font-medium block truncate mt-0.5" title={`From Enquiry #${est.sourceEnquiryNumber}`}>
                               From Enq: #{est.sourceEnquiryNumber}
                             </span>
                           )}
@@ -258,32 +257,34 @@ export const EstimateView: React.FC = () => {
                         <td className="py-3.5 px-4">
                           <div className="font-bold text-slate-900">{est.customerName}</div>
                           {est.customerContact && (
-                            <div className="text-[11px] text-slate-500">{est.customerContact}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">{est.customerContact}</div>
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600">
-                          <div className="flex items-center gap-1 font-medium">
-                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{est.date}</span>
-                          </div>
-                          <span className="text-[11px] text-slate-400 pl-4">{est.time}</span>
-                        </td>
-                        <td className="py-3.5 px-4 uppercase font-mono text-[11px] text-slate-600">
-                          {est.branchId}
+                          <div>{est.date}</div>
+                          <div className="text-[11px] text-slate-400">{est.time}</div>
                         </td>
                         <td className="py-3.5 px-4">
-                          {est.withGst ? (
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              With GST
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                              Without GST
-                            </span>
-                          )}
+                          <span className="px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-200 font-medium text-[11px]">
+                            {BRANCHES.find((b) => b.id === est.branchId)?.name || est.branchId}
+                          </span>
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-slate-900">
-                          {formatCurrency(est.grandTotal)}
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded-none font-bold text-[11px] border',
+                              est.withGst
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            )}
+                          >
+                            {est.withGst ? 'With GST' : 'No Tax'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <span className="font-mono font-bold text-sm text-slate-900">
+                            {formatCurrency(est.grandTotal)}
+                          </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -293,7 +294,7 @@ export const EstimateView: React.FC = () => {
                                 setCurrentView('invoices');
                               }}
                               title="Convert this estimate into a Sales Invoice"
-                              className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold"
+                              className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                             >
                               <ArrowRightLeft className="h-3 w-3" />
                               <span>To Invoice</span>
@@ -301,14 +302,14 @@ export const EstimateView: React.FC = () => {
                             <button
                               onClick={() => setPreviewEstimate(est)}
                               title="Print / Save PDF"
-                              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors"
+                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
                             >
                               <Printer className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => handleEdit(est)}
                               title="Edit Estimate"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
@@ -316,7 +317,7 @@ export const EstimateView: React.FC = () => {
                               type="button"
                               onClick={() => handleDuplicate(est)}
                               title="Duplicate Quote (New quote with same items)"
-                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors"
+                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
@@ -327,7 +328,7 @@ export const EstimateView: React.FC = () => {
                                 }
                               }}
                               title="Delete Estimate"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors"
+                              className="p-1.5 rounded-none bg-white hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

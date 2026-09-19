@@ -270,17 +270,17 @@ export const TransferStockModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+        <div className="px-6 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-100">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-9 w-9 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <ArrowRightLeft className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Multi-Item Inter-Branch Transfer</h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-slate-200 text-slate-800 border border-slate-300">
                   Atomic Batch Transfer
                 </span>
               </div>
@@ -291,7 +291,7 @@ export const TransferStockModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -300,13 +300,13 @@ export const TransferStockModal: React.FC<Props> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1">
           {/* Branch Routing (Set Once) */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-1.5">
                 <span>Transfer Route</span>
                 <span className="text-[11px] text-slate-400 font-normal">(Configured once for the entire batch)</span>
               </span>
-              <span className="text-[11px] text-blue-600 font-semibold uppercase tracking-wider">
+              <span className="text-[11px] text-red-700 font-semibold uppercase tracking-wider">
                 All lines commit together
               </span>
             </div>
@@ -321,7 +321,7 @@ export const TransferStockModal: React.FC<Props> = ({
                   <select
                     value={fromBranch}
                     onChange={(e) => handleFromBranchChange(e.target.value as BranchId)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                    className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
                   >
                     {BRANCHES.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -330,9 +330,9 @@ export const TransferStockModal: React.FC<Props> = ({
                     ))}
                   </select>
                 ) : (
-                  <div className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <div className="px-3 py-2 rounded-none bg-slate-100 border border-slate-300 text-xs font-bold text-slate-800 flex items-center justify-between">
                     <span>{BRANCHES.find((b) => b.id === fromBranch)?.name}</span>
-                    <span className="text-[11px] px-1 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                    <span className="text-[11px] px-1 rounded-none bg-slate-200 text-slate-800 border border-slate-300 font-semibold">
                       Your Branch
                     </span>
                   </div>
@@ -347,7 +347,7 @@ export const TransferStockModal: React.FC<Props> = ({
                 <select
                   value={toBranch}
                   onChange={(e) => setToBranch(e.target.value as BranchId)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+                  className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
                 >
                   {BRANCHES.filter((b) => b.id !== fromBranch).map((b) => (
                     <option key={b.id} value={b.id}>
@@ -371,18 +371,18 @@ export const TransferStockModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={handleAddRow}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add Row</span>
               </button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+            <div className="border border-slate-300 rounded-none overflow-hidden bg-white shadow-2xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200">
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] tracking-wider border-b border-slate-300">
                       <th className="py-3 px-3 w-10 text-center">#</th>
                       <th className="py-3 px-3 min-w-[260px]">Product / Search Catalog</th>
                       <th className="py-3 px-3 w-32 text-center">
@@ -396,7 +396,7 @@ export const TransferStockModal: React.FC<Props> = ({
                       <th className="py-3 px-2 w-10 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-200">
                     {rowValidations.map(({ row, item, idx, availableInFrom, currentInTo, numQty, isOverAvailable, isDuplicate, errorMessage }) => {
                       const hasError = Boolean(errorMessage);
 
@@ -424,16 +424,16 @@ export const TransferStockModal: React.FC<Props> = ({
                               placeholder="Search catalog item by name or code..."
                               dropdownWidth="w-[480px] max-w-[calc(100vw-2rem)]"
                               inputClassName={cn(
-                                'w-full px-3 py-1.5 rounded-lg bg-slate-50 border text-xs font-semibold focus:outline-none transition-all',
+                                'w-full px-3 py-1.5 rounded-none bg-white border text-xs font-semibold focus:outline-none transition-all',
                                 isDuplicate || !row.itemId
                                   ? 'border-rose-300 focus:border-rose-600 text-rose-900'
-                                  : 'border-slate-200 focus:border-blue-600 text-slate-900'
+                                  : 'border-slate-300 focus:border-red-600 text-slate-900'
                               )}
                             />
 
                             {item && (
                               <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                                <span className="font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                <span className="font-mono font-bold px-1.5 py-0.2 rounded-none bg-slate-100 text-slate-700 border border-slate-300">
                                   {item.itemCode}
                                 </span>
                                 <span>{item.category}</span>
@@ -453,7 +453,7 @@ export const TransferStockModal: React.FC<Props> = ({
                           <td className="py-3 px-3 text-center">
                             <span
                               className={cn(
-                                'font-bold font-mono text-xs px-2 py-0.5 rounded border',
+                                'font-bold font-mono text-xs px-2 py-0.5 rounded-none border',
                                 availableInFrom === 0
                                   ? 'bg-rose-100 text-rose-800 border-rose-200'
                                   : availableInFrom < 5
@@ -483,10 +483,10 @@ export const TransferStockModal: React.FC<Props> = ({
                                 }
                                 placeholder={`1-${availableInFrom || 0}`}
                                 className={cn(
-                                  'w-24 px-2.5 py-1.5 rounded-lg bg-slate-50 border text-xs font-mono font-bold text-right focus:outline-none transition-all',
+                                  'w-24 px-2.5 py-1.5 rounded-none bg-white border text-xs font-mono font-bold text-right focus:outline-none transition-all',
                                   isOverAvailable
                                     ? 'border-rose-400 bg-rose-50 text-rose-900 focus:border-rose-600'
-                                    : 'border-slate-200 focus:border-blue-600 text-slate-900'
+                                    : 'border-slate-300 focus:border-red-600 text-slate-900'
                                 )}
                               />
                               {availableInFrom > 0 && (
@@ -494,7 +494,7 @@ export const TransferStockModal: React.FC<Props> = ({
                                   type="button"
                                   onClick={() => handleUpdateRow(row.id, { quantity: availableInFrom })}
                                   title="Transfer maximum available stock"
-                                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline shrink-0 cursor-pointer"
+                                  className="text-[11px] font-bold text-red-700 hover:text-red-900 underline shrink-0 cursor-pointer"
                                 >
                                   Max
                                 </button>
@@ -531,7 +531,7 @@ export const TransferStockModal: React.FC<Props> = ({
                               type="button"
                               onClick={() => handleRemoveRow(row.id)}
                               title="Remove item line"
-                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              className="p-1 rounded-none text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -541,12 +541,12 @@ export const TransferStockModal: React.FC<Props> = ({
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-slate-50/80 border-t border-slate-200 font-bold text-xs">
+                    <tr className="bg-slate-50 border-t border-slate-300 font-bold text-xs">
                       <td colSpan={3} className="py-3 px-4">
                         <button
                           type="button"
                           onClick={handleAddRow}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-blue-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 shadow-2xs transition-colors cursor-pointer"
                         >
                           <Plus className="h-3.5 w-3.5" />
                           <span>Add Another Item Row</span>
@@ -571,7 +571,7 @@ export const TransferStockModal: React.FC<Props> = ({
 
           {/* Validation Banner if errors exist */}
           {hasInvalidRows && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
+            <div className="p-3.5 rounded-none bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-rose-900">
                 <AlertTriangle className="h-4 w-4 text-rose-600" />
                 <span>Cannot submit transfer batch due to row issues:</span>
@@ -587,17 +587,17 @@ export const TransferStockModal: React.FC<Props> = ({
           )}
 
           {/* Auto-generate Delivery Challan Option */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+          <div className="p-3.5 rounded-none bg-slate-50 border border-slate-300 flex items-start gap-3">
             <input
               type="checkbox"
               id="autoChallanBatch"
               checked={autoGenerateChallan}
               onChange={(e) => setAutoGenerateChallan(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              className="mt-1 h-4 w-4 rounded-none border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer"
             />
             <label htmlFor="autoChallanBatch" className="text-xs text-slate-700 cursor-pointer select-none">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Truck className="h-3.5 w-3.5 text-blue-600" />
+                <Truck className="h-3.5 w-3.5 text-red-700" />
                 Auto-generate single Delivery Challan for entire batch
               </span>
               <span className="text-[11px] text-slate-500 block mt-0.5">
@@ -616,12 +616,12 @@ export const TransferStockModal: React.FC<Props> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Urgent machine retrofit batch / Replenishment from Central Stores"
-              className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+              className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-red-600"
             />
           </div>
 
           {/* Atomic Logging Guarantee */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-start gap-2">
+          <div className="p-3 rounded-none bg-slate-50 border border-slate-300 text-[11px] text-slate-600 flex items-start gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>
               <strong>Atomic Batch Guarantee:</strong> Either all {rows.length} line items transfer successfully together, or none of them do. Creates 1 linked Transfer record with paired StockAdjustmentLog entries for each item.
@@ -629,7 +629,7 @@ export const TransferStockModal: React.FC<Props> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-2 flex items-center justify-between border-t border-slate-200">
+          <div className="pt-2 flex items-center justify-between border-t border-slate-300">
             <div className="text-xs text-slate-500">
               Transferring <strong className="text-slate-900 font-bold">{totalTransferUnits}</strong> total units across{' '}
               <strong className="text-slate-900 font-bold">{rows.length}</strong> SKU{rows.length === 1 ? '' : 's'}
@@ -639,14 +639,14 @@ export const TransferStockModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-none text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!canTransfer || hasInvalidRows || totalTransferUnits <= 0}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-none text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700 shadow-none hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
                 <Check className="h-4 w-4" />
                 <span>Confirm Batch Transfer</span>

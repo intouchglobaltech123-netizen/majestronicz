@@ -410,11 +410,11 @@ export const EstimateForm: React.FC<Props> = ({
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
               {initialEstimate ? 'Edit Estimate' : duplicateSourceEstimate ? 'Duplicate Estimate' : 'New Quotation / Estimate'}
             </h2>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {estimateNumber}
             </span>
             {duplicateSourceEstimate && (
-              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200 flex items-center gap-1">
+              <span className="text-[11px] font-semibold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-none border border-slate-300 flex items-center gap-1">
                 <Copy className="h-3 w-3" />
                 <span>Duplicate of #{duplicateSourceEstimate.estimateNumber}</span>
               </span>
@@ -430,15 +430,15 @@ export const EstimateForm: React.FC<Props> = ({
         {/* GST Toggle & Actions */}
         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
           {/* GST Mode Segmented Toggle */}
-          <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs">
+          <div className="flex items-center bg-white p-0.5 rounded-none border border-slate-300 text-xs">
             <button
               type="button"
               onClick={() => setWithGst(true)}
               className={cn(
-                'px-3 py-1.5 rounded-lg font-bold transition-all',
+                'px-3 py-1 rounded-none font-bold transition-all cursor-pointer',
                 withGst
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-slate-800 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-slate-100'
               )}
             >
               With GST
@@ -447,10 +447,10 @@ export const EstimateForm: React.FC<Props> = ({
               type="button"
               onClick={() => setWithGst(false)}
               className={cn(
-                'px-3 py-1.5 rounded-lg font-bold transition-all',
+                'px-3 py-1 rounded-none font-bold transition-all cursor-pointer',
                 !withGst
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-slate-800 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-slate-100'
               )}
             >
               Without GST
@@ -461,16 +461,16 @@ export const EstimateForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={handlePreview}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300 transition-colors cursor-pointer"
             >
-              <Printer className="h-3.5 w-3.5 text-blue-600" />
+              <Printer className="h-3.5 w-3.5 text-slate-600" />
               <span>Preview PDF</span>
             </button>
 
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs border border-red-700 transition-colors cursor-pointer"
             >
               <Save className="h-3.5 w-3.5" />
               <span>Save Estimate</span>
@@ -482,15 +482,15 @@ export const EstimateForm: React.FC<Props> = ({
       <div className="p-4 sm:p-6 space-y-6">
         {/* Linked Enquiry Notification Banner */}
         {sourceEnquiryNumber && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900">
+          <div className="bg-red-50 border border-red-200 rounded-none px-4 py-2.5 flex items-center justify-between text-xs text-red-900">
             <div className="flex items-center gap-2">
-              <Link className="h-4 w-4 text-blue-600 shrink-0" />
+              <Link className="h-4 w-4 text-red-700 shrink-0" />
               <span className="font-bold">Linked to Customer Enquiry:</span>
-              <span className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold text-blue-700">
+              <span className="bg-white px-2 py-0.5 rounded-none border border-red-200 font-mono font-bold text-red-700">
                 #{sourceEnquiryNumber}
               </span>
             </div>
-            <span className="text-[11px] text-blue-600 font-medium hidden sm:inline">
+            <span className="text-[11px] text-red-700 font-medium hidden sm:inline">
               Pre-filled from enquiry requirements
             </span>
           </div>
@@ -545,7 +545,7 @@ export const EstimateForm: React.FC<Props> = ({
                     placeholder="Customer Billing Address (Optional)"
                     value={customerAddress}
                     onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600"
                   />
                 </div>
               </div>
@@ -553,7 +553,7 @@ export const EstimateForm: React.FC<Props> = ({
           </div>
 
           {/* Document Meta (Span 5) */}
-          <div className="md:col-span-5 bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-2.5">
+          <div className="md:col-span-5 bg-slate-50 p-4 rounded-none border border-slate-200 space-y-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
               Estimate Meta
             </span>
@@ -565,7 +565,7 @@ export const EstimateForm: React.FC<Props> = ({
                   type="text"
                   value={estimateNumber}
                   onChange={(e) => setEstimateNumber(e.target.value)}
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xs font-bold focus:outline-none focus:border-blue-600"
+                  className="flex-1 px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-900 font-mono text-xs font-bold focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -578,7 +578,7 @@ export const EstimateForm: React.FC<Props> = ({
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
+                      className="w-full pl-8 pr-2 py-1.5 rounded-none bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-red-600"
                     />
                   </div>
                   <div className="relative w-24">
@@ -587,7 +587,7 @@ export const EstimateForm: React.FC<Props> = ({
                       type="time"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
+                      className="w-full pl-8 pr-2 py-1.5 rounded-none bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-red-600"
                     />
                   </div>
                 </div>
@@ -598,7 +598,7 @@ export const EstimateForm: React.FC<Props> = ({
                 <select
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-none focus:border-blue-600"
+                  className="flex-1 px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-none focus:border-red-600"
                 >
                   <option value="erode-hq">Erode HQ (Central Hub)</option>
                   <option value="coimbatore">Coimbatore (Robotics)</option>
@@ -647,7 +647,7 @@ export const EstimateForm: React.FC<Props> = ({
 
             {/* Bulk Tax Settings Shortcut Control */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-none border border-slate-300 shadow-none">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -659,7 +659,7 @@ export const EstimateForm: React.FC<Props> = ({
                         handleApplyBulkTax(bulkGstRate, withGst);
                       }
                     }}
-                    className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                    className="rounded-none text-red-600 focus:ring-red-500 h-3.5 w-3.5 cursor-pointer"
                   />
                   <span>Apply to all items</span>
                 </label>
@@ -667,13 +667,13 @@ export const EstimateForm: React.FC<Props> = ({
                 {isBulkTaxOpen && (
                   <div className="flex items-center gap-2 border-l border-slate-200 pl-2.5 ml-1">
                     {/* Mode Selector */}
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[11px]">
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-none text-[11px] border border-slate-300">
                       <button
                         type="button"
                         onClick={() => handleApplyBulkTax(bulkGstRate, true)}
                         className={cn(
-                          'px-2 py-0.5 rounded-md font-bold transition-all',
-                          withGst ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          'px-2 py-0.5 rounded-none font-bold transition-all cursor-pointer',
+                          withGst ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-900'
                         )}
                       >
                         With GST
@@ -682,8 +682,8 @@ export const EstimateForm: React.FC<Props> = ({
                         type="button"
                         onClick={() => handleApplyBulkTax(0, false)}
                         className={cn(
-                          'px-2 py-0.5 rounded-md font-bold transition-all',
-                          !withGst ? 'bg-slate-700 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          'px-2 py-0.5 rounded-none font-bold transition-all cursor-pointer',
+                          !withGst ? 'bg-slate-800 text-white' : 'text-slate-600 hover:text-slate-900'
                         )}
                       >
                         No GST
@@ -700,7 +700,7 @@ export const EstimateForm: React.FC<Props> = ({
                             setBulkGstRate(rate);
                             handleApplyBulkTax(rate, true);
                           }}
-                          className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
+                          className="px-2 py-1 rounded-none bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-red-600 cursor-pointer"
                         >
                           <option value="0">0% GST</option>
                           <option value="5">5% GST</option>
@@ -712,7 +712,7 @@ export const EstimateForm: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => handleApplyBulkTax(bulkGstRate, true)}
-                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                          className="px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 shadow-none transition-colors cursor-pointer"
                           title="Re-apply this tax rate to all quotation lines"
                         >
                           Apply
@@ -768,11 +768,11 @@ export const EstimateForm: React.FC<Props> = ({
                         lockOutOfStock={true}
                         placeholder="Search product or combo..."
                         dropdownWidth="w-[480px] max-w-[calc(100vw-2rem)]"
-                        inputClassName="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:border-blue-600 bg-white"
+                        inputClassName="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-none focus:border-red-600 bg-white"
                       />
                       {row.isCombo && (
                         <div className="flex items-center gap-1.5 mt-1">
-                          <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                          <span className="px-1.5 py-0.2 rounded-none text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase">
                             Combo Bundle
                           </span>
                         </div>
@@ -789,7 +789,7 @@ export const EstimateForm: React.FC<Props> = ({
                         return (
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border max-w-[130px] truncate',
+                              'inline-flex items-center gap-1 px-2 py-1 rounded-none text-xs font-medium border max-w-[130px] truncate',
                               loc
                                 ? 'bg-amber-50 text-amber-800 border-amber-200 font-mono'
                                 : 'bg-slate-50 text-slate-400 border-slate-200'
@@ -813,7 +813,7 @@ export const EstimateForm: React.FC<Props> = ({
                         onChange={(e) =>
                           updateLineItem(row.id, { quantity: parseFloat(e.target.value) || 0 })
                         }
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-right font-bold text-xs focus:outline-none focus:border-blue-600"
+                        className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-slate-900 text-right font-bold text-xs focus:outline-none focus:border-red-600"
                       />
                     </td>
 
@@ -823,7 +823,7 @@ export const EstimateForm: React.FC<Props> = ({
                         type="text"
                         value={row.unit}
                         onChange={(e) => updateLineItem(row.id, { unit: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-slate-600 uppercase font-mono text-xs focus:outline-none focus:border-blue-600"
+                        className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-slate-600 uppercase font-mono text-xs focus:outline-none focus:border-red-600"
                       />
                     </td>
 
@@ -837,7 +837,7 @@ export const EstimateForm: React.FC<Props> = ({
                         onChange={(e) =>
                           updateLineItem(row.id, { unitPrice: parseFloat(e.target.value) || 0 })
                         }
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-slate-900 text-right font-mono font-bold text-xs focus:outline-none focus:border-blue-600"
+                        className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-slate-900 text-right font-mono font-bold text-xs focus:outline-none focus:border-red-600"
                       />
                     </td>
 
@@ -850,7 +850,7 @@ export const EstimateForm: React.FC<Props> = ({
                             onChange={(e) =>
                               updateLineItem(row.id, { gstRate: Number(e.target.value) })
                             }
-                            className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                            className="w-full px-1.5 py-1.5 rounded-none border border-slate-300 text-slate-700 text-xs font-mono text-right focus:outline-none focus:border-red-600"
                           >
                             <option value={0}>0%</option>
                             <option value={5}>5%</option>
@@ -876,7 +876,7 @@ export const EstimateForm: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => removeLineItem(row.id)}
-                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        className="p-1 rounded-none text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                         title="Remove row"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -892,7 +892,7 @@ export const EstimateForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => addNewRow()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold border border-slate-200 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300 transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Empty Row</span>
@@ -959,13 +959,13 @@ export const EstimateForm: React.FC<Props> = ({
                 rows={3}
                 value={terms}
                 onChange={(e) => setTerms(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600 leading-relaxed font-mono"
+                className="w-full p-2.5 rounded-none bg-slate-50 border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600 leading-relaxed font-mono"
               />
             </div>
           </div>
 
           {/* Right Column (Span 5): Amounts Summary Panel */}
-          <div className="md:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 text-xs">
+          <div className="md:col-span-5 bg-slate-50 border border-slate-300 rounded-none p-5 space-y-3 text-xs">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block pb-1 border-b border-slate-200">
               Amounts Summary
             </span>
@@ -993,19 +993,19 @@ export const EstimateForm: React.FC<Props> = ({
                 </div>
                 <div className="flex justify-between py-1 text-slate-600 border-t border-slate-200">
                   <span>Combined Tax:</span>
-                  <span className="font-mono font-bold text-blue-700">
+                  <span className="font-mono font-bold text-slate-900">
                     {formatCurrency(totals.totalTax)}
                   </span>
                 </div>
               </>
             )}
 
-            <div className="mt-4 p-4 rounded-xl bg-blue-600 text-white flex items-baseline justify-between shadow-xs">
+            <div className="mt-3 p-3.5 rounded-none bg-slate-800 border border-slate-900 text-white flex items-baseline justify-between shadow-2xs">
               <div>
-                <span className="text-[11px] uppercase font-bold tracking-wider block text-blue-100">
+                <span className="text-[11px] uppercase font-bold tracking-wider block text-slate-300">
                   Final Estimate Total
                 </span>
-                <span className="text-[11px] text-blue-200">
+                <span className="text-[11px] text-slate-400">
                   {withGst ? 'With GST (CGST+SGST)' : 'Without GST'}
                 </span>
               </div>
@@ -1018,15 +1018,15 @@ export const EstimateForm: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={handlePreview}
-                className="flex-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-200 transition-colors shadow-2xs flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 rounded-none bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-300 transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Printer className="h-3.5 w-3.5 text-blue-600" />
+                <Printer className="h-3.5 w-3.5 text-slate-600" />
                 <span>PDF Preview</span>
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white font-bold transition-colors shadow-2xs border border-red-700 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Save className="h-3.5 w-3.5" />
                 <span>Save Estimate</span>

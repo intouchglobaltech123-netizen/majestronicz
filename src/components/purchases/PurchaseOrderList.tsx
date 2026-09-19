@@ -34,7 +34,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   const {
     purchaseOrders,
     currentBranch,
-    currentUser,
+    isAllBranches,
     cancelPurchaseOrder,
     canManagePurchases,
     selectedPurchaseOrderForDetail,
@@ -85,28 +85,27 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   return (
     <div className="space-y-4">
       {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-none border border-slate-200 shadow-none">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
           <input
             type="text"
+            placeholder="Search by PO number, vendor name, or phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search PO #, supplier, or item description..."
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-none border border-slate-300 focus:outline-none focus:border-red-600 bg-white"
           />
         </div>
 
         {/* Filters & Actions */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Branch Filter — hidden for branch-locked roles (Manager, Purchase)
-              so they can't view other branches' POs via this internal filter. */}
-          {currentUser.role !== 'Manager' && currentUser.role !== 'Purchase' && (
+        <div className="flex items-center gap-2">
+          {/* Branch Filter */}
+          {isAllBranches && (
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
-              className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700 focus:outline-hidden focus:border-blue-500"
+              className="px-3 py-2 text-xs font-semibold rounded-none border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-red-600 cursor-pointer"
             >
               <option value="all">All Branches</option>
               {BRANCHES.map((b) => (
@@ -121,7 +120,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
           {canManagePurchases && (
             <button
               onClick={onCreateNewPo}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Issue New PO</span>
@@ -142,16 +141,16 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
             <button
               key={st}
               onClick={() => setSelectedStatus(st)}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-none transition-all shrink-0 cursor-pointer ${
                 selectedStatus === st
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  ? 'bg-red-600 text-white shadow-none'
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
               }`}
             >
               <span>{st === 'ALL' ? 'All Orders' : st}</span>
               <span
-                className={`ml-1.5 text-[11px] px-1.5 py-0.2 rounded-md ${
-                  selectedStatus === st ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                className={`ml-1.5 text-[11px] px-1.5 py-0.2 rounded-none ${
+                  selectedStatus === st ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
                 }`}
               >
                 {count}
@@ -212,7 +211,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                     >
                       {/* PO Number & Date */}
                       <td className="py-3.5 px-4">
-                        <div className="font-mono font-bold text-slate-900 group-hover:text-blue-600 flex items-center gap-1.5 transition-colors">
+                        <div className="font-mono font-bold text-slate-900 group-hover:text-red-700 flex items-center gap-1.5 transition-colors">
                           <span>{po.poNumber}</span>
                         </div>
                         <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
@@ -233,7 +232,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
                       {/* Branch */}
                       <td className="py-3.5 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
                           <Building2 className="h-3 w-3 text-slate-400" />
                           {branchObj?.name || po.branchId}
                         </span>
@@ -242,14 +241,14 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                       {/* Status */}
                       <td className="py-3.5 px-3 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-none text-xs font-bold border ${
                             po.status === 'Received'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : po.status === 'Partially Received'
                               ? 'bg-amber-50 text-amber-700 border-amber-200'
                               : po.status === 'Cancelled'
                               ? 'bg-slate-100 text-slate-500 border-slate-200'
-                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-slate-100 text-slate-800 border-slate-300'
                           }`}
                         >
                           {po.status === 'Received' && <CheckCircle2 className="h-3 w-3" />}
@@ -263,7 +262,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                       {/* Expected Delivery */}
                       <td className="py-3.5 px-3">
                         {overdue ? (
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold">
                             <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />
                             <span>{po.expectedDeliveryDate}</span>
                           </div>
@@ -283,10 +282,10 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                       <td className="py-3.5 px-3 text-center">
                         {billCount > 0 ? (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-xs font-bold text-slate-800 bg-slate-100 border border-slate-300 hover:bg-slate-200 transition-colors"
                             title={`${billCount} vendor bill(s) attached — click row to view`}
                           >
-                            <Paperclip className="h-3 w-3 text-blue-600 shrink-0" />
+                            <Paperclip className="h-3 w-3 text-slate-600 shrink-0" />
                             <span>{billCount}</span>
                           </span>
                         ) : (
@@ -304,7 +303,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                             <button
                               onClick={() => setSelectedPoForReceive(po)}
                               title="Inward physical stock"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-2xs transition-colors"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-none transition-colors cursor-pointer"
                             >
                               <PackageCheck className="h-3.5 w-3.5" />
                               <span className="hidden md:inline">Receive</span>
@@ -315,7 +314,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                           <button
                             onClick={() => setSelectedPurchaseOrderForDetail(po)}
                             title="Open detailed PO view"
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-red-700 hover:bg-slate-100 rounded-none transition-colors cursor-pointer"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
@@ -324,7 +323,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                           <button
                             onClick={() => setSelectedPoForPdf(po)}
                             title="Print / View Purchase Order PDF document"
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-none transition-colors cursor-pointer"
                           >
                             <FileText className="h-4 w-4" />
                           </button>

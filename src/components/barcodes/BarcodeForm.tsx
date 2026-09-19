@@ -158,10 +158,10 @@ export const BarcodeForm: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+    <div className="bg-white border border-slate-300 rounded-none p-5 shadow-xs">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+          <div className="h-7 w-7 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <Barcode className="h-4 w-4" />
           </div>
           <div>
@@ -177,7 +177,7 @@ export const BarcodeForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleAutoFill}
-              className="text-[11px] text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold px-2 py-1 rounded-lg border border-blue-200 flex items-center gap-1 transition-colors"
+              className="text-[11px] text-red-700 hover:text-red-800 bg-red-50 hover:bg-red-100 font-bold px-2 py-1 rounded-none border border-red-200 flex items-center gap-1 transition-colors"
               title="Reset lines to standard MRP / HSN tags"
             >
               <Tag className="h-3 w-3" />
@@ -188,7 +188,7 @@ export const BarcodeForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleReset}
-            className="text-[11px] text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg flex items-center gap-1 transition-colors"
+            className="text-[11px] text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-none border border-slate-300 flex items-center gap-1 transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
             <span>Reset</span>
@@ -202,7 +202,7 @@ export const BarcodeForm: React.FC<Props> = ({
           {/* Autocomplete Dropdown */}
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Item Name <span className="text-red-500">*</span>
+              Item Name <span className="text-red-600">*</span>
             </label>
             <ItemSearchDropdown
               value={searchQuery}
@@ -217,7 +217,7 @@ export const BarcodeForm: React.FC<Props> = ({
               selectedBranchId={isAllBranches ? 'all' : (currentBranch as BranchId)}
               placeholder="Type to search items by name or code..."
               dropdownWidth="w-full"
-              inputClassName="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              inputClassName="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2.5 focus:outline-none focus:border-red-600"
               onClear={() => {
                 setSearchQuery('');
                 setSelectedItem(null);
@@ -237,14 +237,14 @@ export const BarcodeForm: React.FC<Props> = ({
               readOnly
               value={itemCode}
               placeholder="Auto-filled on selection"
-              className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 cursor-not-allowed"
+              className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-none px-3 py-2.5 text-slate-800 cursor-not-allowed"
             />
           </div>
         </div>
 
         {/* Selected Item Stock & Price Live Bar */}
         {selectedItem && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-blue-50/60 border border-blue-200/60 rounded-xl text-xs text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50 border border-slate-300 rounded-none text-xs text-slate-700">
             <div className="flex flex-wrap items-center gap-3">
               <span>
                 Sale Price: <strong>{formatCurrency(selectedItem.salePrice)}</strong>
@@ -256,16 +256,16 @@ export const BarcodeForm: React.FC<Props> = ({
               </span>
               <span className="text-slate-300">•</span>
               <span>
-                Location: <strong className="font-mono text-blue-900 font-bold">{getItemLocation(selectedItem.id)}</strong>
+                Location: <strong className="font-mono text-slate-900 font-bold">{getItemLocation(selectedItem.id)}</strong>
               </span>
             </div>
             <div className="flex items-center gap-2">
               {selectedItem.subcategory && (
-                <span className="text-[10px] text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 font-medium">
+                <span className="text-[10px] text-slate-600 bg-white px-2 py-0.5 rounded-none border border-slate-300 font-medium">
                   {selectedItem.subcategory}
                 </span>
               )}
-              <span className="text-[11px] text-blue-700 font-semibold bg-white px-2 py-0.5 rounded-md border border-blue-200">
+              <span className="text-[11px] text-slate-800 font-bold bg-white px-2 py-0.5 rounded-none border border-slate-300">
                 HSN: {selectedItem.itemHSN}
               </span>
             </div>
@@ -276,13 +276,13 @@ export const BarcodeForm: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              No. of Labels <span className="text-red-500">*</span>
+              No. of Labels <span className="text-red-600">*</span>
             </label>
             <div className="flex items-center">
               <button
                 type="button"
                 onClick={() => setNoOfLabels((prev) => Math.max(1, prev - 1))}
-                className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 border border-r-0 border-slate-300 rounded-l-xl text-xs font-bold"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-r-0 border-slate-300 rounded-none text-xs font-bold"
               >
                 -
               </button>
@@ -290,20 +290,18 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="number"
                 min="1"
                 max="5000"
-                // Allow free typing (including clearing the field); clamp on blur so
-                // the value can actually be edited instead of snapping back to 1.
                 value={noOfLabels === 0 ? '' : noOfLabels}
                 onChange={(e) => {
                   const n = parseInt(e.target.value, 10);
                   setNoOfLabels(Number.isNaN(n) ? 0 : Math.min(5000, Math.max(0, n)));
                 }}
                 onBlur={() => { if (noOfLabels < 1) setNoOfLabels(1); }}
-                className="w-full text-center text-xs font-bold border-y border-slate-300 py-2.5 focus:outline-none"
+                className="w-full text-center text-xs font-bold border-y border-slate-300 py-2 focus:outline-none focus:border-red-600 rounded-none"
               />
               <button
                 type="button"
                 onClick={() => setNoOfLabels((prev) => prev + 1)}
-                className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 border border-l-0 border-slate-300 rounded-r-xl text-xs font-bold"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-l-0 border-slate-300 rounded-none text-xs font-bold"
               >
                 +
               </button>
@@ -319,7 +317,7 @@ export const BarcodeForm: React.FC<Props> = ({
               value={header}
               onChange={(e) => setHeader(e.target.value)}
               placeholder="e.g. MAJESTRONICZ"
-              className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
             />
           </div>
         </div>
@@ -340,7 +338,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 value={line1}
                 onChange={(e) => setLine1(e.target.value)}
                 placeholder="Line 1: e.g. MRP: ₹1,200.00"
-                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
@@ -349,7 +347,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 value={line2}
                 onChange={(e) => setLine2(e.target.value)}
                 placeholder="Line 2: e.g. Incl. of all taxes"
-                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
@@ -358,7 +356,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 value={line3}
                 onChange={(e) => setLine3(e.target.value)}
                 placeholder="Line 3: e.g. Warranty: 1 Year"
-                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
@@ -367,7 +365,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 value={line4}
                 onChange={(e) => setLine4(e.target.value)}
                 placeholder="Line 4: e.g. PKD: 09/2026"
-                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
           </div>
@@ -379,10 +377,10 @@ export const BarcodeForm: React.FC<Props> = ({
             type="submit"
             disabled={!selectedItem}
             className={cn(
-              'px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2',
+              'px-5 py-2 rounded-none text-xs font-bold transition-all shadow-none flex items-center gap-2',
               selectedItem
-                ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border border-red-700 cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
             )}
           >
             <Plus className="h-4 w-4" />

@@ -102,18 +102,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-none border border-slate-300 shadow-xl max-w-lg w-full p-5 space-y-4 animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-              <User className="h-5 w-5" />
+            <div className="h-8 w-8 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center">
+              <User className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
+              <h2 className="text-sm font-bold text-slate-900">
                 {customerToEdit ? 'Edit Customer Master' : 'Add New Customer'}
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 {customerToEdit
                   ? `Update contact and address details for ${customerToEdit.name}`
                   : 'Register a new customer profile in Majestronicz'}
@@ -123,7 +123,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-300 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -131,45 +131,45 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
+          <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-none text-xs font-semibold text-rose-700">
             {errorMessage}
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Customer Type Selector */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Customer Type <span className="text-rose-500">*</span>
-              {!customerType && <span className="text-amber-600 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Customer Type <span className="text-red-600">*</span>
+              {!customerType && <span className="text-amber-700 font-semibold ml-2 normal-case tracking-normal">(Required — click to choose)</span>}
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setCustomerType('Retail')}
                 className={cn(
-                  'p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  'p-2.5 rounded-none border text-left flex items-start gap-2.5 transition-all cursor-pointer',
                   customerType === 'Retail'
-                    ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-100 text-blue-950 shadow-xs'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ? 'bg-red-50/80 border-red-600 text-red-950 font-bold shadow-2xs'
+                    : 'border-slate-300 hover:bg-slate-50 text-slate-700'
                 )}
               >
                 <div
                   className={cn(
-                    'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
-                    customerType === 'Retail' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                    'w-7 h-7 rounded-none flex items-center justify-center shrink-0',
+                    customerType === 'Retail' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'
                   )}
                 >
-                  <User className="h-4 w-4" />
+                  <User className="h-3.5 w-3.5" />
                 </div>
                 <div>
-                  <div className="text-xs font-extrabold flex items-center gap-1.5">
+                  <div className="text-xs font-bold flex items-center gap-1.5">
                     <span>Retail</span>
-                    {customerType === 'Retail' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>}
+                    {customerType === 'Retail' && <span className="w-1.5 h-1.5 rounded-none bg-red-600"></span>}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                    Individual walk-in buyers, small purchases (loyalty rewards enabled)
+                    Individual walk-in buyers, small purchases (loyalty rewards)
                   </div>
                 </div>
               </button>
@@ -178,24 +178,24 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 type="button"
                 onClick={() => setCustomerType('Organization')}
                 className={cn(
-                  'p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer',
+                  'p-2.5 rounded-none border text-left flex items-start gap-2.5 transition-all cursor-pointer',
                   customerType === 'Organization'
-                    ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-100 text-purple-950 shadow-xs'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ? 'bg-slate-100 border-slate-700 text-slate-950 font-bold shadow-2xs'
+                    : 'border-slate-300 hover:bg-slate-50 text-slate-700'
                 )}
               >
                 <div
                   className={cn(
-                    'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
-                    customerType === 'Organization' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'
+                    'w-7 h-7 rounded-none flex items-center justify-center shrink-0',
+                    customerType === 'Organization' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'
                   )}
                 >
-                  <Building2 className="h-4 w-4" />
+                  <Building2 className="h-3.5 w-3.5" />
                 </div>
                 <div>
-                  <div className="text-xs font-extrabold flex items-center gap-1.5">
+                  <div className="text-xs font-bold flex items-center gap-1.5">
                     <span>Organization</span>
-                    {customerType === 'Organization' && <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>}
+                    {customerType === 'Organization' && <span className="w-1.5 h-1.5 rounded-none bg-slate-800"></span>}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                     Institutional bulk buyers (colleges, schools, companies)
@@ -206,8 +206,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Customer / Organization Name <span className="text-rose-500">*</span>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Customer / Organization Name <span className="text-red-600">*</span>
             </label>
             <div className="relative">
               <input
@@ -216,9 +216,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 placeholder="e.g. Ramesh Kumar or Lakshmi Textile Mills"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                className="w-full pl-8 pr-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600 transition-all"
               />
-              <User className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <User className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           />
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
               Billing Address (Optional)
             </label>
             <div className="relative">
@@ -241,14 +241,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 placeholder="Street address, locality, city, pincode..."
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                className="w-full pl-8 pr-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600 transition-all resize-none"
               />
-              <MapPin className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+              <MapPin className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
               Internal Notes (Optional)
             </label>
             <div className="relative">
@@ -257,23 +257,23 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 placeholder="e.g. Preferred delivery timings, reference contact, preferred payment mode..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                className="w-full pl-8 pr-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600 transition-all resize-none"
               />
-              <FileText className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+              <FileText className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 cursor-pointer shadow-2xs transition-colors"
             >
               {customerToEdit ? 'Save Changes' : 'Create Customer'}
             </button>

@@ -233,12 +233,12 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
           </span>
           {selectedCustomer && (
             (selectedCustomer.customerType || 'Retail') === 'Organization' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[11px] font-bold text-purple-700">
-                <Building2 className="h-3 w-3 text-purple-600" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-[11px] font-bold text-slate-800">
+                <Building2 className="h-3 w-3 text-slate-700" />
                 Organization Account
               </span>
             ) : (
-              <span className="text-[11px] font-semibold text-blue-600">
+              <span className="text-[11px] font-bold text-red-700 font-mono">
                 #{selectedCustomer.purchaseCount} purchases
               </span>
             )
@@ -248,14 +248,14 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 
       {/* Main Selected Input / Search Trigger */}
       {selectedCustomer ? (
-        <div className="flex items-center justify-between p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl transition-all">
+        <div className="flex items-center justify-between p-2 bg-red-50/60 border border-red-200 rounded-none transition-all">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className={cn(
-              "w-8 h-8 rounded-lg text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-xs",
-              (selectedCustomer.customerType || 'Retail') === 'Organization' ? "bg-purple-600" : "bg-blue-600"
+              "w-7 h-7 rounded-none text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-2xs border",
+              (selectedCustomer.customerType || 'Retail') === 'Organization' ? "bg-slate-800 border-slate-900" : "bg-red-600 border-red-700"
             )}>
               {(selectedCustomer.customerType || 'Retail') === 'Organization' ? (
-                <Building2 className="h-4 w-4" />
+                <Building2 className="h-3.5 w-3.5" />
               ) : (
                 selectedCustomer.name.charAt(0).toUpperCase()
               )}
@@ -266,20 +266,19 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   {cleanCustomerName(selectedCustomer.name)}
                 </span>
                 {(selectedCustomer.customerType || 'Retail') === 'Organization' ? (
-                  /* Organization: DO NOT show loyalty badge/reward progress at all.
-                     Instead show a "Purchase History" link/summary (e.g. total orders, total value) */
+                  /* Organization: show purchase history ledger link */
                   <div className="inline-flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-100/80 border border-purple-200 text-[11px] font-bold text-purple-800">
-                      <Building2 className="h-2.5 w-2.5 text-purple-600" />
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-[10px] font-bold text-slate-800">
+                      <Building2 className="h-2.5 w-2.5 text-slate-600" />
                       Organization
                     </span>
                     <button
                       type="button"
                       onClick={() => setIsHistoryModalOpen(true)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white hover:bg-purple-50 border border-purple-200 text-[11px] font-bold text-purple-700 hover:text-purple-900 transition-colors shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-white hover:bg-slate-100 border border-slate-300 text-[10px] font-bold text-slate-800 transition-colors shadow-2xs cursor-pointer"
                       title="Click to view full purchase history orders & invoices"
                     >
-                      <History className="h-3 w-3 text-purple-600" />
+                      <History className="h-3 w-3 text-slate-600" />
                       <span>
                         Purchase History ({selectedCustomerInvoices.length} orders • {formatCurrency(selectedCustomerTotalSpent)})
                       </span>
@@ -337,7 +336,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             <button
               type="button"
               onClick={handleOpenDropdown}
-              className="px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+              className="px-2 py-0.5 text-[11px] font-bold text-red-700 hover:bg-red-100 rounded-none border border-red-200 bg-white transition-colors cursor-pointer"
             >
               Change
             </button>
@@ -345,7 +344,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               <button
                 type="button"
                 onClick={onClearCustomer}
-                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                className="p-1 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-none transition-colors cursor-pointer"
                 title="Deselect Customer"
               >
                 <X className="h-3.5 w-3.5" />
@@ -360,8 +359,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             onClick={handleOpenDropdown}
             disabled={disabled}
             className={cn(
-              'w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border text-left text-xs font-semibold transition-all',
-              isOpen ? 'border-blue-600 ring-2 ring-blue-100 bg-white' : 'border-slate-200 hover:border-slate-300',
+              'w-full flex items-center justify-between px-3 py-2 rounded-none bg-white border text-left text-xs font-semibold transition-all cursor-pointer',
+              isOpen ? 'border-red-600 ring-1 ring-red-600 bg-white' : 'border-slate-300 hover:border-slate-400',
               disabled && 'opacity-60 cursor-not-allowed bg-slate-100'
             )}
           >
@@ -378,9 +377,9 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 
       {/* Dropdown Popup */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-80 flex flex-col">
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-300 rounded-none shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-80 flex flex-col">
           {/* Search Header inside dropdown */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+          <div className="p-2 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
             <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
             <input
               ref={searchInputRef}
@@ -394,7 +393,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-md"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-none cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -402,14 +401,14 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
           </div>
 
           {/* Quick Add Button Banner */}
-          <div className="p-2 border-b border-slate-100 bg-blue-50/40 flex items-center justify-between">
+          <div className="p-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <span className="text-[11px] text-slate-600 font-medium">
               {searchQuery ? `Looking for "${searchQuery}"` : 'Select from Customer Master'}
             </span>
             <button
               type="button"
               onClick={handleOpenQuickAdd}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors shadow-2xs cursor-pointer"
             >
               <Plus className="h-3 w-3" />
               <span>Add New Customer</span>
@@ -417,7 +416,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
           </div>
 
           {/* List of Results */}
-          <div className="overflow-y-auto flex-1 p-1 divide-y divide-slate-50">
+          <div className="overflow-y-auto flex-1 p-1 divide-y divide-slate-100">
             {filteredCustomers.length > 0 ? (
               filteredCustomers.map((cust) => {
                 const isSelected = selectedCustomer?.id === cust.id;
@@ -431,22 +430,22 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     type="button"
                     onClick={() => handleSelect(cust)}
                     className={cn(
-                      'w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between gap-3 group',
-                      isSelected ? 'bg-blue-50/80 text-blue-900' : 'hover:bg-slate-50'
+                      'w-full text-left p-2 rounded-none transition-colors flex items-center justify-between gap-3 group cursor-pointer',
+                      isSelected ? 'bg-red-50 text-red-950 font-bold' : 'hover:bg-slate-50'
                     )}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-red-700 transition-colors">
                           {cleanCustomerName(cust.name, cust.notes)}
                         </span>
                         {isOrg ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[11px] font-bold">
-                            <Building2 className="h-2.5 w-2.5 text-purple-600" />
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-slate-800 text-[10px] font-bold">
+                            <Building2 className="h-2.5 w-2.5 text-slate-600" />
                             Organization
                           </span>
                         ) : isEligible ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold">
                             <Award className="h-2.5 w-2.5 text-amber-600" />
                             Reward Ready!
                           </span>
@@ -488,7 +487,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     </div>
 
                     {isSelected && (
-                      <Check className="h-4 w-4 text-blue-600 shrink-0" />
+                      <Check className="h-4 w-4 text-red-600 shrink-0" />
                     )}
                   </button>
                 );
@@ -499,7 +498,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenQuickAdd}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors border border-red-700 shadow-none cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Register "{searchQuery || 'New Customer'}"</span>
@@ -513,10 +512,10 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {/* Inline Quick Add Customer Modal */}
       {isQuickAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white rounded-none border border-slate-300 shadow-xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <div className="p-2 rounded-none bg-red-50 text-red-700 border border-red-200">
                   <User className="h-5 w-5" />
                 </div>
                 <div>
@@ -527,7 +526,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               <button
                 type="button"
                 onClick={() => setIsQuickAddOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="p-1 rounded-none text-slate-400 hover:text-slate-600 hover:bg-slate-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -550,13 +549,13 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     type="button"
                     onClick={() => setNewType('Retail')}
                     className={cn(
-                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      'p-2.5 rounded-none border text-left flex items-start gap-2 transition-all cursor-pointer',
                       newType === 'Retail'
-                        ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-100 text-blue-950 shadow-xs'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        ? 'bg-red-50/80 border-red-600 text-red-950 font-bold shadow-2xs'
+                        : 'border-slate-300 hover:bg-slate-50 text-slate-700'
                     )}
                   >
-                    <User className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Retail' ? 'text-blue-600' : 'text-slate-400')} />
+                    <User className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Retail' ? 'text-red-600' : 'text-slate-400')} />
                     <div>
                       <div className="text-xs font-bold">Retail</div>
                       <div className="text-[11px] text-slate-500 leading-tight">Walk-in buyers, loyalty enabled</div>
@@ -567,13 +566,13 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     type="button"
                     onClick={() => setNewType('Organization')}
                     className={cn(
-                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      'p-2.5 rounded-none border text-left flex items-start gap-2 transition-all cursor-pointer',
                       newType === 'Organization'
-                        ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-100 text-purple-950 shadow-xs'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        ? 'bg-slate-100 border-slate-700 text-slate-950 font-bold shadow-2xs'
+                        : 'border-slate-300 hover:bg-slate-50 text-slate-700'
                     )}
                   >
-                    <Building2 className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Organization' ? 'text-purple-600' : 'text-slate-400')} />
+                    <Building2 className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Organization' ? 'text-slate-700' : 'text-slate-400')} />
                     <div>
                       <div className="text-xs font-bold">Organization</div>
                       <div className="text-[11px] text-slate-500 leading-tight">Colleges, companies, bulk buyer</div>
@@ -583,8 +582,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Customer / Company Name <span className="text-rose-500">*</span>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Customer / Company Name <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="text"
@@ -592,7 +591,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   placeholder="e.g. Ramesh Kumar or Lakshmi Tex"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -606,7 +605,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               />
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Billing Address (Optional)
                 </label>
                 <textarea
@@ -614,12 +613,12 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   placeholder="Street, City, Postal Code"
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600 resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Notes (Optional)
                 </label>
                 <input
@@ -627,21 +626,21 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   placeholder="e.g. Referred by Kumar, prefers GPay"
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsQuickAddOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-3.5 py-1.5 rounded-none text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors shadow-2xs cursor-pointer"
                 >
                   Save & Select Customer
                 </button>
@@ -654,16 +653,16 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       {/* Organization Purchase History Modal */}
       {isHistoryModalOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white rounded-none border border-slate-300 shadow-xl max-w-2xl w-full p-4 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
+                <div className="p-2.5 rounded-none bg-slate-100 text-slate-800 border border-slate-300">
                   <Building2 className="h-6 w-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-extrabold text-slate-900">{cleanCustomerName(selectedCustomer.name)}</h3>
-                    <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 font-bold text-[11px]">
+                    <span className="px-2 py-0.5 rounded-none bg-slate-800 text-white font-bold text-[11px]">
                       Organization
                     </span>
                   </div>
@@ -675,7 +674,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               <button
                 type="button"
                 onClick={() => setIsHistoryModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="p-1 rounded-none text-slate-400 hover:text-slate-600 hover:bg-slate-100"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -683,15 +682,15 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 
             {/* Quick summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Orders</span>
+              <div className="p-3 rounded-none bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Orders</span>
                 <span className="text-lg font-extrabold text-slate-900">{selectedCustomerInvoices.length}</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Billed</span>
+              <div className="p-3 rounded-none bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Billed</span>
                 <span className="text-lg font-extrabold text-slate-900 font-mono">{formatCurrency(selectedCustomerTotalSpent)}</span>
               </div>
-              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
+              <div className="p-3 rounded-none bg-amber-50/70 border border-amber-200">
                 <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Balance Due</span>
                 <span className={cn(
                   "text-lg font-bold font-mono block",
@@ -700,25 +699,25 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   {formatCurrency(selectedCustomerOutstanding.totalOutstanding)}
                 </span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Account Type</span>
-                <span className="text-xs font-bold text-purple-700 mt-1 block truncate">
+              <div className="p-3 rounded-none bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Account Type</span>
+                <span className="text-xs font-bold text-slate-800 mt-1 block truncate">
                   {(selectedCustomer.customerType || 'Retail') === 'Organization' ? 'Organization' : 'Retail Customer'}
                 </span>
               </div>
             </div>
 
             {/* Invoices List */}
-            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-100 rounded-xl p-2 bg-slate-50/40">
+            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-200 rounded-none p-2 bg-slate-50">
               {selectedCustomerInvoices.length > 0 ? (
                 selectedCustomerInvoices.map((inv) => (
                   <div
                     key={inv.id}
-                    className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-2xs"
+                    className="p-3 bg-white rounded-none border border-slate-200 flex items-center justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-blue-700">#{inv.invoiceNumber}</span>
+                        <span className="font-mono font-bold text-xs text-red-700">#{inv.invoiceNumber}</span>
                         <span className="text-[11px] text-slate-400 flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {inv.date}

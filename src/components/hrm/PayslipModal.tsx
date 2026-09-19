@@ -26,18 +26,18 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden when printing) */}
-        <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden shrink-0">
+        <div className="px-6 py-3.5 border-b border-slate-300 bg-slate-100 flex items-center justify-between print:hidden shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Salary Payslip Voucher
             </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-slate-900 bg-slate-200 px-2 py-0.5 rounded-none border border-slate-300">
               {payrollRecord.month}
             </span>
             <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-none border ${
                 payrollRecord.status === 'Paid'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -50,14 +50,14 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print Payslip</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2"
+              className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors ml-2"
             >
               <X className="h-5 w-5" />
             </button>
@@ -79,7 +79,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
               </div>
 
               <div className="text-right">
-                <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded-sm text-xs font-black tracking-widest uppercase mb-1.5">
+                <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded-none text-xs font-black tracking-widest uppercase mb-1.5">
                   SALARY PAYSLIP
                 </div>
                 <p className="text-xs font-bold text-slate-900">
@@ -93,23 +93,23 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
           </div>
 
           {/* Employee & Shift Summary Box */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs mb-6">
+          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-none border border-slate-300 text-xs mb-6">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Employee Details</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Employee Details</p>
               <p className="font-bold text-slate-900 text-sm mt-0.5">{payrollRecord.employeeName}</p>
               <p className="text-slate-600 font-medium">{payrollRecord.designation}</p>
               <p className="text-slate-500 font-mono mt-0.5">Emp ID: {payrollRecord.employeeId}</p>
             </div>
 
-            <div className="border-l border-slate-200 pl-4 space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Attendance Metrics</p>
+            <div className="border-l border-slate-300 pl-4 space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Attendance Metrics</p>
               <div className="flex justify-between">
                 <span className="text-slate-600">Standard Monthly Hours:</span>
                 <span className="font-mono font-bold text-slate-900">{payrollRecord.standardHoursPerMonth} hrs</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Recorded Hours Worked:</span>
-                <span className="font-mono font-bold text-blue-700">{payrollRecord.totalHoursWorked.toFixed(1)} hrs</span>
+                <span className="font-mono font-bold text-slate-900">{payrollRecord.totalHoursWorked.toFixed(1)} hrs</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Days Present:</span>
@@ -144,14 +144,14 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   ₹{payrollRecord.hourlyRate.toFixed(2)}/hr
                 </td>
               </tr>
-              <tr className="bg-blue-50/40">
-                <td className="py-2.5 px-3 font-bold text-blue-950">
+              <tr className="bg-slate-50">
+                <td className="py-2.5 px-3 font-bold text-slate-900">
                   Computed Pay (Actual Recorded Attendance)
                 </td>
-                <td className="py-2.5 px-3 text-right font-mono text-blue-900">
+                <td className="py-2.5 px-3 text-right font-mono text-slate-800">
                   {payrollRecord.totalHoursWorked.toFixed(1)}h × ₹{payrollRecord.hourlyRate.toFixed(2)}
                 </td>
-                <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-950">
+                <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                   {formatCurrency(payrollRecord.computedPay)}
                 </td>
               </tr>
@@ -193,8 +193,8 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
 
           {/* Net Payable & Words */}
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+            <div className="p-3 bg-slate-50 rounded-none border border-slate-300 text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                 NET PAYABLE IN WORDS
               </span>
               <p className="font-medium text-slate-800 italic leading-relaxed">
@@ -202,11 +202,11 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
               </p>
             </div>
 
-            <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200 flex flex-col justify-between text-right">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+            <div className="p-4 bg-slate-50 rounded-none border border-slate-300 flex flex-col justify-between text-right">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
                 Net Take-Home Salary
               </span>
-              <span className="text-2xl font-black font-mono text-blue-900">
+              <span className="text-2xl font-black font-mono text-red-700">
                 {formatCurrency(payrollRecord.finalPayable)}
               </span>
             </div>
@@ -214,7 +214,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
 
           {/* Payment Status Stamp */}
           {payrollRecord.status === 'Paid' ? (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 mb-6">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-none flex items-center justify-between text-xs text-emerald-900 mb-6">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                 <span>
@@ -224,12 +224,12 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   {payrollRecord.paymentReference && ` (${payrollRecord.paymentReference})`}
                 </span>
               </div>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-600 text-white">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-none bg-emerald-600 text-white">
                 Verified Paid
               </span>
             </div>
           ) : (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-900 mb-6">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-none flex items-center gap-2 text-xs text-amber-900 mb-6">
               <Clock className="h-4 w-4 text-amber-600 shrink-0" />
               <span>Pending Disbursement — Subject to CEO approval</span>
             </div>

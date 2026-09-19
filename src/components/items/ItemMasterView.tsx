@@ -311,7 +311,7 @@ export const ItemMasterView: React.FC = () => {
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'Total Combos' : 'Total Items'}
@@ -323,12 +323,12 @@ export const ItemMasterView: React.FC = () => {
               {activeMainTab === 'combos' ? 'Bundle templates configured' : 'Catalog products'}
             </span>
           </div>
-          <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-blue-600">
-            {activeMainTab === 'combos' ? <Layers className="h-5 w-5 text-purple-600" /> : <Package className="h-5 w-5" />}
+          <div className="h-11 w-11 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700">
+            {activeMainTab === 'combos' ? <Layers className="h-5 w-5 text-slate-700" /> : <Package className="h-5 w-5" />}
           </div>
         </div>
 
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {activeMainTab === 'combos' ? 'In-Stock Combos' : 'Avg. Sale Price'}
@@ -344,24 +344,24 @@ export const ItemMasterView: React.FC = () => {
                 : 'Across all items'}
             </span>
           </div>
-          <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-emerald-600">
-            {activeMainTab === 'combos' ? <PackageCheck className="h-5 w-5 text-emerald-600" /> : <Tag className="h-5 w-5" />}
+          <div className="h-11 w-11 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-emerald-700">
+            {activeMainTab === 'combos' ? <PackageCheck className="h-5 w-5 text-emerald-700" /> : <Tag className="h-5 w-5" />}
           </div>
         </div>
 
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-5 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500">
               {isAllBranches ? 'Total Available Stock' : `Stock (${currentBranchData?.name})`}
             </span>
-            <div className="text-2xl lg:text-3xl font-bold text-blue-700 tracking-tight font-mono mt-1">
+            <div className="text-2xl lg:text-3xl font-bold text-red-700 tracking-tight font-mono mt-1">
               {stats.totalStockInScope} Units
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
               {isAllBranches ? 'Across all 3 branches' : currentBranchData?.location}
             </span>
           </div>
-          <div className="h-11 w-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="h-11 w-11 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <TrendingUp className="h-5 w-5" />
           </div>
         </div>
@@ -371,7 +371,7 @@ export const ItemMasterView: React.FC = () => {
       {activeMainTab === 'products' && (
         <>
           {/* Action Bar: Search, Category Filter Pills, & Add Item */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search bar */}
               <div className="relative flex-1 max-w-md">
@@ -381,13 +381,13 @@ export const ItemMasterView: React.FC = () => {
                   placeholder="Search by Item Name, Code, HSN, or Category..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full pl-10 pr-4 py-2 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
                 />
               </div>
 
               {/* Sort Controls & Action */}
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-none border border-slate-300 text-xs">
                   <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 ml-1.5" />
                   <button
                     onClick={() => {
@@ -398,8 +398,8 @@ export const ItemMasterView: React.FC = () => {
                       }
                     }}
                     className={cn(
-                      'px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
-                      sortBy === 'price' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                      'px-2.5 py-1 rounded-none text-xs font-bold transition-colors cursor-pointer',
+                      sortBy === 'price' ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-900'
                     )}
                   >
                     Sort Price {sortBy === 'price' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
@@ -413,8 +413,8 @@ export const ItemMasterView: React.FC = () => {
                       }
                     }}
                     className={cn(
-                      'px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
-                      sortBy === 'stock' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                      'px-2.5 py-1 rounded-none text-xs font-bold transition-colors cursor-pointer',
+                      sortBy === 'stock' ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-900'
                     )}
                   >
                     Sort Stock {sortBy === 'stock' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
@@ -432,10 +432,10 @@ export const ItemMasterView: React.FC = () => {
                         : 'Add new master item'
                     }
                     className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                      'flex items-center gap-2 px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wider transition-all shadow-none cursor-pointer',
                       canManageItems
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                        ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border border-red-700'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-300'
                     )}
                   >
                     <Plus className="h-4 w-4" />
@@ -456,10 +456,10 @@ export const ItemMasterView: React.FC = () => {
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={cn(
-                    'px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition-colors text-xs shrink-0 cursor-pointer',
+                    'px-3 py-1 rounded-none font-bold whitespace-nowrap transition-colors text-xs shrink-0 cursor-pointer border',
                     selectedCategory === cat
-                      ? 'bg-blue-50 text-blue-700 border border-blue-300'
-                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200'
+                      ? 'bg-red-600 text-white border-red-700 shadow-none'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
                   )}
                 >
                   {cat === 'ALL' ? 'All Categories' : cat}
@@ -469,24 +469,24 @@ export const ItemMasterView: React.FC = () => {
           </div>
 
           {/* Main Item Master Table */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Item Details</th>
                     <th className="py-3.5 px-4">Item Code</th>
                     <th className="py-3.5 px-4">Category & Unit</th>
                     <th className="py-3.5 px-4 text-slate-800">
                       <div className="flex items-center gap-1.5">
-                        <Tag className="h-3.5 w-3.5 text-blue-600" />
+                        <Tag className="h-3.5 w-3.5 text-slate-600" />
                         <span>Sale Price</span>
                       </div>
                     </th>
                     {currentUser.role !== 'Sales' && <th className="py-3.5 px-4">Wholesale Tier</th>}
-                    <th className="py-3.5 px-4 bg-blue-50/60 border-x border-blue-200 text-blue-900">
+                    <th className="py-3.5 px-4 bg-slate-50 border-x border-slate-300 text-slate-800">
                       <div className="flex items-center gap-1.5">
-                        <Building className="h-3.5 w-3.5 text-blue-600" />
+                        <Building className="h-3.5 w-3.5 text-slate-600" />
                         <span>
                           {isAllBranches ? 'Total Stock (All Branches)' : `Stock (${currentBranchData?.name})`}
                         </span>
@@ -551,7 +551,7 @@ export const ItemMasterView: React.FC = () => {
                                 src={item.imageUrl}
                                 alt={item.itemName}
                                 subtitle={`Code: ${item.itemCode} • ${formatCurrency(item.salePrice)}`}
-                                className="h-9 w-9 rounded-xl shrink-0"
+                                className="h-9 w-9 rounded-none shrink-0 border border-slate-200"
                                 iconClassName="h-4 w-4"
                                 fallbackIcon="boxes"
                                 previewable
@@ -563,7 +563,7 @@ export const ItemMasterView: React.FC = () => {
                                     setEditingItem(item);
                                     setItemModalTab('history');
                                   }}
-                                  className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors text-left hover:underline cursor-pointer"
+                                  className="font-bold text-slate-900 group-hover:text-red-700 transition-colors text-left hover:underline cursor-pointer"
                                   title="Click to view item details and history"
                                 >
                                   {item.itemName}
@@ -582,7 +582,7 @@ export const ItemMasterView: React.FC = () => {
                             <button
                               onClick={() => handleCopyCode(item.itemCode)}
                               title="Click to copy code"
-                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 hover:border-slate-300 font-mono text-[11px] text-slate-700 transition-colors group/code cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-none bg-slate-50 border border-slate-300 hover:border-slate-400 font-mono text-[11px] text-slate-700 transition-colors group/code cursor-pointer"
                             >
                               <span>{item.itemCode}</span>
                               {copiedCode === item.itemCode ? (
@@ -648,23 +648,23 @@ export const ItemMasterView: React.FC = () => {
                           )}
 
                           {/* BRANCH SCOPED STOCK COLUMN */}
-                          <td className="py-3.5 px-4 bg-blue-50/40 border-x border-blue-100">
+                          <td className="py-3.5 px-4 bg-slate-50/60 border-x border-slate-200">
                             <div className="flex flex-col">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-sm text-slate-900">
+                                <span className="font-bold text-sm text-slate-900 font-mono">
                                   {qty} {item.unit}
                                 </span>
                                 <span className="text-slate-300 text-xs font-normal">·</span>
                                 {qty > (item.reorderThreshold ?? 10) ? (
-                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-emerald-50 text-emerald-800 border border-emerald-300">
                                     In Stock
                                   </span>
                                 ) : qty > 0 ? (
-                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-amber-50 text-amber-800 border border-amber-300">
                                     Low
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                                  <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-rose-50 text-rose-800 border border-rose-300">
                                     Out
                                   </span>
                                 )}
@@ -705,7 +705,7 @@ export const ItemMasterView: React.FC = () => {
                                 <button
                                   onClick={() => setStockModalItem(item)}
                                   title="View stock levels across all branches"
-                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-none bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-600 border border-slate-300 transition-colors cursor-pointer"
                                 >
                                   <Layers className="h-3.5 w-3.5" />
                                 </button>
@@ -717,7 +717,7 @@ export const ItemMasterView: React.FC = () => {
                                     setItemModalTab('history');
                                   }}
                                   title="View Item History (Purchases, Sales & Stock Logs)"
-                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-none bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-600 border border-slate-300 transition-colors cursor-pointer"
                                 >
                                   <History className="h-3.5 w-3.5" />
                                 </button>
@@ -733,7 +733,7 @@ export const ItemMasterView: React.FC = () => {
                                       ? 'View item details'
                                       : 'Edit master item & stock'
                                   }
-                                  className="p-1.5 rounded-lg border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 cursor-pointer"
+                                  className="p-1.5 rounded-none border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 cursor-pointer"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>
@@ -744,9 +744,9 @@ export const ItemMasterView: React.FC = () => {
                                   title="Delete item"
                                   disabled={!canManageItems}
                                   className={cn(
-                                    'p-1.5 rounded-lg border transition-colors',
+                                    'p-1.5 rounded-none border transition-colors',
                                     canManageItems
-                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
+                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-300 cursor-pointer'
                                       : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
                                   )}
                                 >
@@ -764,9 +764,9 @@ export const ItemMasterView: React.FC = () => {
             </div>
 
             {/* Table Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="p-4 bg-slate-50 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
               <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-blue-600 shrink-0" />
+                <HelpCircle className="h-4 w-4 text-slate-600 shrink-0" />
                 <span>
                   Switch branches in the top bar to view available stock for each location.
                 </span>
@@ -783,7 +783,7 @@ export const ItemMasterView: React.FC = () => {
       {activeMainTab === 'combos' && (
         <>
           {/* Action Bar for Combos */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search bar */}
               <div className="relative flex-1 max-w-md">
@@ -793,13 +793,13 @@ export const ItemMasterView: React.FC = () => {
                   placeholder="Search combo by name or code (e.g. CB-0001)..."
                   value={comboSearchQuery}
                   onChange={(e) => setComboSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600"
+                  className="w-full pl-10 pr-4 py-2 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
                 />
               </div>
 
               {/* Notice & Add Combo Button */}
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-between sm:justify-end">
-                <span className="text-[11px] text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 font-medium hidden sm:inline-block">
+                <span className="text-[11px] text-slate-700 bg-slate-100 px-2.5 py-1 rounded-none border border-slate-300 font-medium hidden sm:inline-block">
                   Live availability for <strong>{isAllBranches ? 'All Branches' : currentBranchData?.name}</strong>
                 </span>
 
@@ -817,10 +817,10 @@ export const ItemMasterView: React.FC = () => {
                         : 'Create new bundled offer'
                     }
                     className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer',
+                      'flex items-center gap-2 px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wider transition-all shadow-none cursor-pointer',
                       canManageItems
-                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                        ? 'bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white border border-slate-900'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-300'
                     )}
                   >
                     <Plus className="h-4 w-4" />
@@ -833,11 +833,11 @@ export const ItemMasterView: React.FC = () => {
           </div>
 
           {/* Combos Table */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                  <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4 w-12 text-center">#</th>
                     <th className="py-3 px-4">Combo Name & Code</th>
                     <th className="py-3 px-4">Components Preview</th>
@@ -905,24 +905,24 @@ export const ItemMasterView: React.FC = () => {
                                 alt={combo.comboName}
                                 subtitle={`Combo Code: ${combo.comboCode} • ${formatCurrency(combo.comboPrice)}`}
                                 isCombo={true}
-                                className="h-9 w-9 rounded-xl shrink-0"
+                                className="h-9 w-9 rounded-none shrink-0 border border-slate-200"
                                 iconClassName="h-4 w-4"
                                 previewable
                               />
                               <div>
                                 <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
                                   <span>{combo.comboName}</span>
-                                  <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                                  <span className="px-1.5 py-0.2 rounded-none text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase">
                                     Combo
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="font-mono text-[11px] text-purple-700 font-bold">
+                                  <span className="font-mono text-[11px] text-slate-800 font-bold">
                                     {combo.comboCode}
                                   </span>
                                   <button
                                     onClick={() => handleCopyCode(combo.comboCode)}
-                                    className="text-slate-400 hover:text-purple-600 transition-colors p-0.5 cursor-pointer"
+                                    className="text-slate-400 hover:text-red-700 transition-colors p-0.5 cursor-pointer"
                                     title="Copy Combo Code"
                                   >
                                     {copiedCode === combo.comboCode ? (
@@ -957,13 +957,13 @@ export const ItemMasterView: React.FC = () => {
                                     key={cIdx}
                                     title={`${it?.itemName || 'Product'} · ${compStock} available at this branch`}
                                     className={cn(
-                                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border',
+                                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-medium border',
                                       isCompOut
                                         ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
                                         : 'bg-slate-100 text-slate-700 border-slate-200'
                                     )}
                                   >
-                                    <span className="font-mono font-bold text-purple-700">
+                                    <span className="font-mono font-bold text-slate-900">
                                       {comp.quantity}x
                                     </span>
                                     <span className="truncate max-w-[120px]">
@@ -991,7 +991,7 @@ export const ItemMasterView: React.FC = () => {
                             <div className="text-[11px] text-slate-400 flex items-center justify-end gap-1.5 mt-0.5">
                               <span>Separate: {formatCurrency(buyingSeparately)}</span>
                               {savings > 0 && (
-                                <span className="font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded-none border border-emerald-300">
                                   Save {savingsPct}%
                                 </span>
                               )}
@@ -1003,7 +1003,7 @@ export const ItemMasterView: React.FC = () => {
                             <div className="flex flex-col items-end gap-1">
                               <span
                                 className={cn(
-                                  'inline-block px-2.5 py-1 rounded-lg text-xs font-bold font-mono',
+                                  'inline-block px-2.5 py-1 rounded-none text-xs font-bold font-mono',
                                   isOutOfStock
                                     ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                     : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1037,7 +1037,7 @@ export const ItemMasterView: React.FC = () => {
                                     setCreateComboModalOpen(true);
                                   }}
                                   title={canManageItems ? 'Edit Combo Definition' : 'View Combo Details (Read-Only)'}
-                                  className="p-1.5 rounded-lg border bg-slate-100 hover:bg-purple-50 hover:text-purple-600 text-slate-600 border-slate-200 transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-none border bg-slate-100 hover:bg-slate-200 hover:text-slate-900 text-slate-600 border-slate-300 transition-colors cursor-pointer"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>
@@ -1048,9 +1048,9 @@ export const ItemMasterView: React.FC = () => {
                                   disabled={!canManageItems}
                                   title={canManageItems ? 'Delete Combo Bundle' : 'Billing cannot delete combos'}
                                   className={cn(
-                                    'p-1.5 rounded-lg border transition-colors',
+                                    'p-1.5 rounded-none border transition-colors',
                                     canManageItems
-                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200 cursor-pointer'
+                                      ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-300 cursor-pointer'
                                       : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
                                   )}
                                 >
@@ -1068,9 +1068,9 @@ export const ItemMasterView: React.FC = () => {
             </div>
 
             {/* Table Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="p-4 bg-slate-50 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
               <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-purple-600 shrink-0" />
+                <HelpCircle className="h-4 w-4 text-slate-600 shrink-0" />
                 <span>
                   Combos have zero independent physical stock. Real-time availability reflects component inventory at{' '}
                   <strong>{isAllBranches ? 'all branches' : currentBranchData?.name}</strong>.

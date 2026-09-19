@@ -278,7 +278,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-3xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -286,13 +286,13 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               src={imageUrl || editingCombo?.imageUrl}
               alt={comboName || 'Combo'}
               isCombo={true}
-              className="h-11 w-11 rounded-xl shadow-xs"
+              className="h-11 w-11 rounded-none shadow-none border border-slate-700"
               iconClassName="h-5 w-5"
             />
             <div>
-              <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              <h2 className="text-base font-bold tracking-tight text-white uppercase flex items-center gap-2">
                 {editingCombo ? 'Edit Combo Bundle' : 'Create New Combo Item'}
-                <span className="text-[11px] uppercase font-mono px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                <span className="text-[11px] uppercase font-mono px-2 py-0.5 rounded-none bg-slate-800 text-slate-200 border border-slate-700">
                   {comboCode || 'CB-000X'}
                 </span>
               </h2>
@@ -304,7 +304,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-none text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -313,11 +313,11 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Info Banner: Zero Independent Stock */}
-          <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl flex items-start gap-2.5 text-xs text-purple-900">
-            <Info className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-none flex items-start gap-2.5 text-xs text-slate-800">
+            <Info className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold">No Physical Stock or Warehouse Rack Required</p>
-              <p className="text-purple-700 text-[11px] mt-0.5">
+              <p className="text-slate-600 text-[11px] mt-0.5">
                 Combos do not have independent stock or physical rack locations. Their availability at any branch is
                 calculated on the fly from the minimum available inventory across all component items.
               </p>
@@ -354,7 +354,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
             {/* Combo Name */}
             <div className="sm:col-span-8">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Combo Name <span className="text-rose-500">*</span>
               </label>
               <input
@@ -363,23 +363,23 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                 value={comboName}
                 onChange={(e) => setComboName(e.target.value)}
                 placeholder="e.g. PLC Automation Starter Kit"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-none text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all"
               />
             </div>
 
             {/* Combo Code (Auto-generated with sequence) */}
             <div className="sm:col-span-4">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                   <span>Combo Code</span>
-                  <span className="text-[11px] text-purple-700 font-semibold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 uppercase font-mono">
+                  <span className="text-[11px] text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.2 rounded-none border border-slate-300 uppercase font-mono">
                     {isCodeOverridden ? 'Manual' : 'Auto'}
                   </span>
                 </label>
                 <button
                   type="button"
                   onClick={handleAutoGenerateCode}
-                  className="text-[11px] text-purple-600 hover:text-purple-700 font-bold cursor-pointer"
+                  className="text-[11px] text-red-700 hover:text-red-800 font-bold cursor-pointer"
                 >
                   + Auto Assign
                 </button>
@@ -392,13 +392,13 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                   setIsCodeOverridden(true);
                 }}
                 placeholder="e.g. AUT-PLC-0001"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-purple-700 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-none text-xs font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all"
               />
             </div>
 
             {/* Description (Optional) */}
             <div className="sm:col-span-12">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Description / Bundle Inclusions <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
               <textarea
@@ -406,7 +406,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Short summary of what this combo bundle offers to customers..."
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:border-purple-600 transition-all resize-y"
+                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-none text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all resize-y"
               />
             </div>
 
@@ -423,11 +423,11 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
           {/* Components Section */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center justify-between border-b border-slate-300 pb-2">
               <div>
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <span>Components</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-mono font-bold">
+                  <span className="px-1.5 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-mono font-bold">
                     {componentRows.length} items (Min 2)
                   </span>
                 </h3>
@@ -439,7 +439,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               <button
                 type="button"
                 onClick={handleAddComponent}
-                className="px-2.5 py-1 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 flex items-center gap-1 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 rounded-none border border-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add Component</span>
@@ -447,7 +447,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
             </div>
 
             {/* Component Rows Header Strip */}
-            <div className="hidden sm:grid grid-cols-12 gap-3 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 rounded-lg">
+            <div className="hidden sm:grid grid-cols-12 gap-3 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-300 rounded-none">
               <div className="col-span-1 text-center">#</div>
               <div className="col-span-4">Component Product</div>
               <div className="col-span-2 text-right">Catalog Price (Unit)</div>
@@ -465,10 +465,10 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                 return (
                   <div
                     key={row.id}
-                    className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
+                    className="p-3 rounded-none bg-slate-50 border border-slate-300 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
                   >
                     {/* Index */}
-                    <div className="col-span-1 text-center font-mono font-bold text-slate-400 text-xs">
+                    <div className="col-span-1 text-center font-mono font-bold text-slate-500 text-xs">
                       #{idx + 1}
                     </div>
 
@@ -490,11 +490,11 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                         lockOutOfStock={false}
                         placeholder="Search product from catalog..."
                         dropdownWidth="w-[440px] max-w-[calc(100vw-2rem)]"
-                        inputClassName="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600"
+                        inputClassName="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
                       />
                       {item && (
                         <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                          <span className="font-mono text-purple-700 font-bold">{item.itemCode}</span>
+                          <span className="font-mono text-red-700 font-bold">{item.itemCode}</span>
                           <span className="text-slate-400">Unit: {item.unit}</span>
                         </div>
                       )}
@@ -527,7 +527,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                             quantity: Math.max(1, parseInt(e.target.value, 10) || 1),
                           })
                         }
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-right text-slate-900 focus:outline-none focus:border-purple-600"
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-none text-xs font-mono font-bold text-right text-slate-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
                       />
                     </div>
 
@@ -548,7 +548,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                         type="button"
                         onClick={() => handleRemoveComponent(row.id)}
                         disabled={componentRows.length <= 2}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="p-1.5 rounded-none text-slate-400 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                         title={componentRows.length <= 2 ? 'Minimum 2 components required' : 'Remove component'}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -565,10 +565,10 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
               <div className="sm:col-span-6">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Set Combo Price (Pre-Tax) <span className="text-rose-500">*</span>
+                  Set Combo Price (Pre-Tax) <span className="text-red-600">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">
                     ₹
                   </span>
                   <input
@@ -581,7 +581,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                       setComboPrice(e.target.value === '' ? '' : parseFloat(e.target.value))
                     }
                     placeholder="Enter bundle offer price..."
-                    className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                    className="w-full pl-8 pr-3.5 py-2 bg-white border border-slate-300 rounded-none text-sm font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all"
                   />
                 </div>
                 <span className="text-[11px] text-slate-500 mt-1 block">
@@ -590,7 +590,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
               </div>
 
               {/* Buying Separately Reference Display */}
-              <div className="sm:col-span-6 bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+              <div className="sm:col-span-6 bg-slate-50 p-3 rounded-none border border-slate-300 flex items-center justify-between">
                 <div>
                   <span className="text-[11px] font-bold uppercase text-slate-500 block">
                     Individual Catalog Total
@@ -608,25 +608,25 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
             {/* LIVE SAVINGS CALLOUT BANNER (User Prompt Mandate) */}
             <div
               className={cn(
-                'p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3',
+                'p-3.5 rounded-none border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3',
                 liveCalculations.savings >= 0
-                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
-                  : 'bg-amber-50/90 border-amber-300 text-amber-950'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : 'bg-amber-50 border-amber-300 text-amber-950'
               )}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={cn(
-                    'h-10 w-10 rounded-xl flex items-center justify-center shrink-0 font-bold',
+                    'h-9 w-9 rounded-none flex items-center justify-center shrink-0 font-bold border',
                     liveCalculations.savings >= 0
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
                   )}
                 >
                   {liveCalculations.savings >= 0 ? (
-                    <Percent className="h-5 w-5" />
+                    <Percent className="h-4 w-4" />
                   ) : (
-                    <TrendingDown className="h-5 w-5" />
+                    <TrendingDown className="h-4 w-4" />
                   )}
                 </div>
                 <div>
@@ -654,7 +654,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
               {liveCalculations.savings > 0 && (
                 <div className="shrink-0">
-                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
+                  <span className="px-2.5 py-1 rounded-none text-xs font-bold uppercase tracking-wider bg-emerald-700 text-white border border-emerald-800">
                     Save {liveCalculations.savingsPercent}%
                   </span>
                 </div>
@@ -667,13 +667,13 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-none border border-slate-300 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5"
+              className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Layers className="h-4 w-4" />
               <span>{editingCombo ? 'Update Combo Bundle' : 'Create Combo Bundle'}</span>

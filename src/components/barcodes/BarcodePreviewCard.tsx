@@ -31,11 +31,11 @@ export const BarcodePreviewCard: React.FC<Props> = ({
   const isDummy = !itemCode.trim();
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col h-full sticky top-6">
+    <div className="bg-white border border-slate-300 rounded-none p-6 shadow-xs flex flex-col h-full sticky top-6">
       {/* Card Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="h-8 w-8 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <Eye className="h-4 w-4" />
           </div>
           <div>
@@ -45,19 +45,19 @@ export const BarcodePreviewCard: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
             {preset.widthMm} × {preset.heightMm} mm
           </span>
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-300">
             {printerType === 'thermal' ? 'Thermal' : 'A4 Sheet'}
           </span>
         </div>
       </div>
 
       {/* Live Preview Sticker Stage */}
-      <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 mt-4 my-2">
+      <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 bg-slate-50 rounded-none border border-dashed border-slate-300 mt-4 my-2">
         {isDummy && (
-          <div className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full mb-4">
+          <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-none mb-4 font-medium">
             <Eye className="h-3 w-3" />
             <span>Showing sample preview — pick an item to load code</span>
           </div>
@@ -133,9 +133,9 @@ export const BarcodePreviewCard: React.FC<Props> = ({
       </div>
 
       {/* Footer Specs Helper */}
-      <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+      <div className="mt-auto pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
         <div className="flex items-center gap-1">
-          <Printer className="h-3.5 w-3.5 text-blue-600" />
+          <Printer className="h-3.5 w-3.5 text-red-700" />
           <span>Symbology: <strong>Code 128 (Subset B)</strong></span>
         </div>
         <span>{preset.labelsPerPage} labels / A4 page</span>

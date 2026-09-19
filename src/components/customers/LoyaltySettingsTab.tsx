@@ -134,7 +134,7 @@ export const LoyaltySettingsTab: React.FC = () => {
                 disabled={!canManageLoyalty}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
             </label>
           </div>
 
@@ -250,7 +250,7 @@ export const LoyaltySettingsTab: React.FC = () => {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                className="flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
               >
                 <Save className="h-4 w-4" />
                 <span>Save Loyalty Settings</span>

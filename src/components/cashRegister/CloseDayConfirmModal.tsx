@@ -37,11 +37,11 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      <div className="bg-white rounded-none max-w-lg w-full shadow-2xl border border-slate-300 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-8 w-8 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <Lock className="h-4 w-4" />
             </div>
             <div>
@@ -54,7 +54,7 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent hover:border-slate-300 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -62,7 +62,7 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
 
         {/* Audit Numbers Breakdown Box */}
         <form onSubmit={handleConfirm} className="p-6 space-y-5">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+          <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-2.5 text-xs">
             <div className="flex items-center justify-between text-slate-600">
               <span>Opening Cash Balance:</span>
               <span className="font-mono font-semibold text-slate-900">
@@ -85,14 +85,14 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
               <span className="font-extrabold text-slate-900">
                 Expected Physical Cash in Drawer:
               </span>
-              <span className="font-mono text-base font-bold text-blue-700">
+              <span className="font-mono text-base font-bold text-red-700">
                 {formatCurrency(closingBalance)}
               </span>
             </div>
           </div>
 
           {/* Locking Warning */}
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+          <div className="p-3 bg-amber-50 rounded-none border border-amber-300 flex items-start gap-2.5 text-xs text-amber-900">
             <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold">Important Audit Notice:</p>
@@ -112,7 +112,7 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. 500x12, 200x20, 100x15... Physical cash counted and locked in shop safe."
-              className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+              className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600 resize-none"
             />
           </div>
 
@@ -121,13 +121,13 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
+              className="px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Confirm & Lock Register</span>

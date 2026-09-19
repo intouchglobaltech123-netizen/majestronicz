@@ -41,11 +41,11 @@ export const ConvertEstimateModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-9 w-9 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <ReceiptText className="h-5 w-5" />
             </div>
             <div>
@@ -57,7 +57,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -72,7 +72,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
               placeholder="Search by customer name, estimate number, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
+              className="w-full pl-10 pr-4 py-2 rounded-none bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600"
               autoFocus
             />
           </div>
@@ -96,11 +96,11 @@ export const ConvertEstimateModal: React.FC<Props> = ({
                   onSelectEstimate(est);
                   onClose();
                 }}
-                className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
+                className="p-3.5 rounded-none border border-slate-200 hover:border-red-600 hover:bg-red-50/20 cursor-pointer transition-all flex items-center justify-between group"
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    <span className="font-mono font-bold text-xs text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
                       {est.estimateNumber}
                     </span>
                     <span className="text-[11px] uppercase font-bold text-slate-500 flex items-center gap-1">
@@ -108,11 +108,11 @@ export const ConvertEstimateModal: React.FC<Props> = ({
                       {est.branchId}
                     </span>
                     {est.withGst ? (
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-none border border-emerald-200">
                         With GST
                       </span>
                     ) : (
-                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded-none">
                         Without GST
                       </span>
                     )}
@@ -137,7 +137,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
                       {formatCurrency(est.grandTotal)}
                     </span>
                   </div>
-                  <div className="h-8 w-8 rounded-lg bg-slate-100 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center text-slate-400 transition-colors">
+                  <div className="h-8 w-8 rounded-none bg-slate-100 group-hover:bg-red-600 group-hover:text-white flex items-center justify-center text-slate-400 transition-colors">
                     <ArrowRight className="h-4 w-4" />
                   </div>
                 </div>
@@ -151,7 +151,7 @@ export const ConvertEstimateModal: React.FC<Props> = ({
           <span>{filtered.length} estimate{filtered.length === 1 ? '' : 's'} available to convert</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-colors"
+            className="px-4 py-2 rounded-none text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
           >
             Cancel
           </button>

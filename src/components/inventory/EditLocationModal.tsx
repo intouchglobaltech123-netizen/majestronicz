@@ -66,21 +66,21 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+        <div className="px-6 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-9 w-9 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <MapPin className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Physical Rack / Row Location</h2>
+              <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">Physical Rack / Row Location</h2>
               <p className="text-xs text-slate-500">Assign physical shelf or warehouse location</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -89,10 +89,10 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
           {/* Item details */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+          <div className="p-3 rounded-none bg-slate-50 border border-slate-300 flex items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
                   {item.itemCode}
                 </span>
                 <span className="text-xs text-slate-500">{item.category}</span>
@@ -107,7 +107,7 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
           {/* Location inputs per branch */}
           <div className="space-y-3 pt-1">
             {branchesToEdit.map((b) => (
-              <div key={b.id} className="p-3.5 rounded-xl border border-slate-200 bg-white">
+              <div key={b.id} className="p-3.5 rounded-none border border-slate-300 bg-white">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-bold text-slate-800">{b.name}</span>
                   <span className="text-[11px] uppercase font-semibold text-slate-400">
@@ -121,7 +121,7 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
                     value={locations[b.id] || ''}
                     onChange={(e) => setLocations((prev) => ({ ...prev, [b.id]: e.target.value }))}
                     placeholder="e.g. Rack R2, Shelf B-4, Bay 12"
-                    className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full pl-8 pr-3 py-2 rounded-none border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
                   />
                 </div>
               </div>
@@ -129,17 +129,17 @@ export const EditLocationModal: React.FC<EditLocationModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-200">
+          <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-300">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 rounded-none text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs transition-all flex items-center gap-1.5"
+              className="px-5 py-2 rounded-none text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700 shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Check className="h-4 w-4" />
               <span>Save Location</span>

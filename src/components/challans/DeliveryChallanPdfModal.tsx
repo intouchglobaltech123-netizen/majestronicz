@@ -49,17 +49,17 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden during Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Delivery Challan Preview
             </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {challan.challanNumber}
             </span>
-            <span className="text-[10px] font-bold text-slate-600 bg-slate-200/70 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-bold text-slate-600 bg-slate-200/70 px-1.5 py-0.5 rounded-none">
               Goods Movement Note
             </span>
           </div>
@@ -68,7 +68,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopySummary}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer shadow-none"
               title="Copy Summary"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
@@ -77,7 +77,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
             <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-none transition-colors cursor-pointer shadow-none"
               title="Share on WhatsApp"
             >
               <Share2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -86,7 +86,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-colors shadow-none cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print / Save as PDF</span>
@@ -94,7 +94,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2"
+              className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2 cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
@@ -103,10 +103,10 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
         {/* Printable PDF Document Body */}
         <div id="printable-challan-doc" className="p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
-          {/* Header Block with Blue Bar Accent */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
-            {/* Top Blue Accent Title Strip */}
-            <div className="bg-blue-600 text-white px-6 py-2.5 flex items-center justify-between">
+          {/* Header Block with Red Bar Accent */}
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
+            {/* Top Red Accent Title Strip */}
+            <div className="bg-red-600 text-white px-6 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
                 <span className="text-sm font-black uppercase tracking-widest">
@@ -179,7 +179,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
           </div>
 
           {/* Line Items Table (NO PRICING - Goods Movement Only) */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-6">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
@@ -213,14 +213,14 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
               </tbody>
               {/* Total Quantity Row */}
               <tfoot>
-                <tr className="bg-blue-50/70 border-t-2 border-slate-300 font-bold text-slate-900">
+                <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-900">
                   <td colSpan={3} className="py-3 px-3 text-right text-xs uppercase tracking-wider text-slate-700">
                     Total Quantity Dispatched:
                   </td>
-                  <td className="py-3 px-3 text-right text-sm font-black font-mono text-blue-700">
+                  <td className="py-3 px-3 text-right text-sm font-black font-mono text-red-700">
                     {challan.totalQuantity}
                   </td>
-                  <td className="py-3 px-3 text-center text-xs text-blue-700 font-bold">
+                  <td className="py-3 px-3 text-center text-xs text-slate-700 font-bold">
                     Units / Items
                   </td>
                 </tr>
@@ -230,7 +230,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
           {/* Terms and Conditions */}
           {challan.termsAndConditions && (
-            <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <div className="mb-6 p-4 rounded-none bg-slate-50 border border-slate-200 text-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Terms & Conditions / Dispatch Note
               </span>
@@ -332,7 +332,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
         {/* Modal Bottom Footer (Hidden during Print) */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Building className="h-4 w-4 text-blue-600" />
+            <Building className="h-4 w-4 text-red-600" />
             <span>Standard Goods Movement Note • Majestronicz ERP</span>
           </div>
           <div className="flex items-center gap-2">
@@ -342,14 +342,14 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
                   onClose();
                   onCreateNew();
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs"
+                className="px-4 py-2 rounded-none text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 transition-colors shadow-none cursor-pointer"
               >
                 + Create New Challan
               </button>
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-colors"
+              className="px-4 py-2 rounded-none text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer shadow-none"
             >
               Close Preview
             </button>

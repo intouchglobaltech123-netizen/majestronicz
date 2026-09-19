@@ -167,7 +167,7 @@ export const DeliveryChallanView: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {/* History Search & Filters Bar */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="relative w-full sm:w-80">
               <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -175,7 +175,7 @@ export const DeliveryChallanView: React.FC = () => {
                 placeholder="Search recipient, challan no, location..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full pl-9 pr-3 py-1.5 rounded-none border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-600"
               />
             </div>
 
@@ -185,16 +185,16 @@ export const DeliveryChallanView: React.FC = () => {
               </span>
               <button
                 onClick={handleStartNew}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Create Challan</span>
+                <span>+ Create Challan</span>
               </button>
             </div>
           </div>
 
           {/* Challans Table */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-300 rounded-none shadow-none overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -212,7 +212,7 @@ export const DeliveryChallanView: React.FC = () => {
                   {filteredChallans.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400">
-                        <Truck className="h-8 w-8 mx-auto mb-2 opacity-40 text-blue-600" />
+                        <Truck className="h-8 w-8 mx-auto mb-2 opacity-40 text-red-600" />
                         <p className="font-semibold text-slate-600 text-sm">No delivery challans found</p>
                         <p className="text-xs text-slate-400 mt-1">
                           Click below to issue your first goods dispatch note.
@@ -221,7 +221,7 @@ export const DeliveryChallanView: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleStartNew}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors"
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-none border border-red-700 font-bold text-xs shadow-none transition-colors cursor-pointer"
                           >
                             + Create First Delivery Challan
                           </button>
@@ -232,7 +232,7 @@ export const DeliveryChallanView: React.FC = () => {
                     filteredChallans.map((ch) => (
                       <tr key={ch.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          <span className="font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
                             {ch.challanNumber}
                           </span>
                         </td>

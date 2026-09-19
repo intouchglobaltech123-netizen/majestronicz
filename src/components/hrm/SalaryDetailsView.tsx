@@ -63,8 +63,8 @@ export const SalaryDetailsView: React.FC = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
       {/* Employee list */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col max-h-[70vh]">
-        <div className="p-3 border-b border-slate-100">
+      <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden flex flex-col max-h-[70vh]">
+        <div className="p-3 border-b border-slate-300 bg-slate-50/50">
           <div className="relative">
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -72,11 +72,11 @@ export const SalaryDetailsView: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search employee…"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-hidden focus:border-red-600"
             />
           </div>
         </div>
-        <div className="overflow-y-auto divide-y divide-slate-100">
+        <div className="overflow-y-auto divide-y divide-slate-200">
           {filtered.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-400">No employees found.</div>
           ) : (
@@ -87,21 +87,21 @@ export const SalaryDetailsView: React.FC = () => {
                   key={emp.id}
                   onClick={() => setSelectedId(emp.id)}
                   className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                    isActive ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    isActive ? 'bg-red-50/80 border-l-4 border-l-red-600' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
-                    isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                  <div className={`h-9 w-9 rounded-none flex items-center justify-center shrink-0 text-xs font-bold ${
+                    isActive ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700 border border-slate-300'
                   }`}>
                     {emp.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-bold truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>
+                    <p className={`text-sm font-bold truncate ${isActive ? 'text-red-700' : 'text-slate-800'}`}>
                       {emp.name}
                     </p>
                     <p className="text-[11px] text-slate-500 truncate">{emp.designation}</p>
                   </div>
-                  <ChevronRight className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-300'}`} />
+                  <ChevronRight className={`h-4 w-4 shrink-0 ${isActive ? 'text-red-600' : 'text-slate-300'}`} />
                 </button>
               );
             })
@@ -118,7 +118,7 @@ export const SalaryDetailsView: React.FC = () => {
           standardHours={standardHours}
         />
       ) : (
-        <div className="bg-white rounded-xl border border-dashed border-slate-300 shadow-2xs flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
+        <div className="bg-white rounded-none border border-dashed border-slate-300 shadow-xs flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
           <UserRound className="h-12 w-12 text-slate-300 mb-3" />
           <p className="text-base font-bold text-slate-700">Select an employee</p>
           <p className="text-xs text-slate-400 mt-1">
@@ -225,8 +225,8 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 flex items-center gap-4">
-        <div className="h-14 w-14 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-bold shrink-0">
+      <div className="bg-white rounded-none border border-slate-300 shadow-xs p-5 flex items-center gap-4">
+        <div className="h-14 w-14 rounded-none bg-red-600 text-white flex items-center justify-center text-lg font-bold shrink-0">
           {employee.name.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
@@ -239,10 +239,10 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
             <span>Joined {employee.joinedDate || '—'} ({tenure})</span>
           </div>
         </div>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-none border ${
           employee.status === 'Active'
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            : 'bg-slate-100 text-slate-500 border-slate-200'
+            : 'bg-slate-100 text-slate-500 border-slate-300'
         }`}>
           {employee.status}
         </span>
@@ -250,20 +250,20 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
 
       {/* Compensation KPI cards */}
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Compensation</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Compensation</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <KpiCard icon={<DollarSign className="h-5 w-5" />} tone="blue" label="Monthly Salary" value={formatCurrency(employee.monthlySalary)} hint="Agreed fixed salary" />
+          <KpiCard icon={<DollarSign className="h-5 w-5" />} tone="red" label="Monthly Salary" value={formatCurrency(employee.monthlySalary)} hint="Agreed fixed salary" />
           <KpiCard icon={<Percent className="h-5 w-5" />} tone="slate" label="Hourly Rate" value={formatCurrency(hourlyRate)} hint={`Based on ${standardHours} std hrs`} />
           <KpiCard icon={<Wallet className="h-5 w-5" />} tone="emerald" label="Total Earned (Lifetime)" value={formatCurrency(stats.totalEarned)} hint="Attendance pay + incentives" />
-          <KpiCard icon={<TrendingUp className="h-5 w-5" />} tone="purple" label="Incentives Earned" value={formatCurrency(stats.totalIncentive)} hint="Net sales incentives" />
+          <KpiCard icon={<TrendingUp className="h-5 w-5" />} tone="slate" label="Incentives Earned" value={formatCurrency(stats.totalIncentive)} hint="Net sales incentives" />
         </div>
       </div>
 
       {/* Attendance (lifetime) KPI cards */}
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Work History</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Work History</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <KpiCard icon={<CalendarDays className="h-5 w-5" />} tone="blue" label="Months Worked" value={String(stats.monthsWorked)} hint="Months with attendance" />
+          <KpiCard icon={<CalendarDays className="h-5 w-5" />} tone="red" label="Months Worked" value={String(stats.monthsWorked)} hint="Months with attendance" />
           <KpiCard icon={<CalendarCheck className="h-5 w-5" />} tone="emerald" label="Total Days Present" value={String(stats.totalDaysPresent)} hint="Verified check-ins" />
           <KpiCard icon={<Clock className="h-5 w-5" />} tone="amber" label="Total Hours Worked" value={`${stats.totalHoursWorked.toFixed(1)} hrs`} hint="Sum of all shifts" />
           <KpiCard icon={<Timer className="h-5 w-5" />} tone="slate" label="Avg Work Hours / Day" value={`${stats.avgHoursPerDay.toFixed(1)} hrs`} hint="Per present day" />
@@ -272,7 +272,7 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
 
       {/* This month KPI cards */}
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">This Month</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">This Month</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <KpiCard icon={<CalendarCheck className="h-5 w-5" />} tone="emerald" label="Present Days" value={String(stats.presentThisMonth)} hint={`of ~${stats.expectedDays} working days`} />
           <KpiCard icon={<CalendarX className="h-5 w-5" />} tone="rose" label="Absent Days" value={String(stats.absentThisMonth)} hint="Excludes Sundays" />
@@ -286,12 +286,11 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
 // ---- KPI card ----
 
 const TONES: Record<string, string> = {
-  blue: 'bg-blue-50 text-blue-600 border-blue-200/60',
-  emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
-  amber: 'bg-amber-50 text-amber-600 border-amber-200/60',
-  purple: 'bg-purple-50 text-purple-600 border-purple-200/60',
-  rose: 'bg-rose-50 text-rose-600 border-rose-200/60',
-  slate: 'bg-slate-100 text-slate-600 border-slate-200',
+  red: 'bg-red-50 text-red-700 border-red-200',
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  slate: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 
 const KpiCard: React.FC<{
@@ -301,14 +300,14 @@ const KpiCard: React.FC<{
   value: string;
   hint?: string;
 }> = ({ icon, tone, label, value, hint }) => (
-  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-    <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>
+  <div className="bg-white p-4 rounded-none border border-slate-300 shadow-xs flex items-center gap-3.5">
+    <div className={`h-11 w-11 rounded-none flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>
       {icon}
     </div>
     <div className="min-w-0 flex-1">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 truncate">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">{label}</p>
       <p className="text-xl lg:text-2xl font-bold text-slate-900 truncate font-mono mt-0.5">{value}</p>
-      {hint && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{hint}</p>}
     </div>
   </div>
 );

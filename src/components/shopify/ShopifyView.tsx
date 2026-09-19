@@ -123,38 +123,38 @@ export const ShopifyView: React.FC = () => {
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Online Store</h1>
+        <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">Online Store</h1>
         <p className="text-xs text-slate-500 mt-0.5">Sync your Shopify orders into Sales, matched by item code (SKU).</p>
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">
+        <div className="bg-white rounded-none border border-slate-300 p-8 text-center text-sm text-slate-400">
           Checking Shopify connection…
         </div>
       ) : !status?.configured ? (
         <SetupGuide />
       ) : !status.connected ? (
-        <div className="bg-white rounded-xl border border-rose-200 shadow-xs p-5">
+        <div className="bg-white rounded-none border border-rose-300 shadow-xs p-5">
           <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
             <XCircle className="h-5 w-5" /> Not connected
           </div>
           <p className="text-xs text-slate-500 mt-1">{status.error || 'Shopify rejected the credentials. Check the Admin API access token and store domain.'}</p>
-          <button onClick={loadStatus} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+          <button onClick={loadStatus} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer">
             <RefreshCw className="h-3.5 w-3.5" /> Retry
           </button>
         </div>
       ) : (
         <>
           {/* Connected banner + actions */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-none border border-slate-300 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center">
+              <div className="h-11 w-11 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center">
                 <Store className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-bold text-slate-900">{status.shop?.name || 'Shopify Store'}</p>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-300">
                     <CheckCircle2 className="h-3 w-3" /> Connected
                   </span>
                 </div>
@@ -164,13 +164,13 @@ export const ShopifyView: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={loadOrders} disabled={syncing} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold disabled:opacity-50">
+              <button onClick={loadOrders} disabled={syncing} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-none bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold disabled:opacity-50 cursor-pointer">
                 <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} /> Refresh
               </button>
               <button
                 onClick={handleImport}
                 disabled={importing || newCount === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-bold uppercase tracking-wider shadow-none border border-red-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <DownloadCloud className={`h-4 w-4 ${importing ? 'animate-pulse' : ''}`} />
                 {importing ? 'Importing…' : `Import ${newCount || ''} new order${newCount === 1 ? '' : 's'}`}
@@ -180,16 +180,16 @@ export const ShopifyView: React.FC = () => {
 
           {/* Online sales metrics (from imported orders) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <MetricCard icon={<ShoppingCart className="h-5 w-5" />} tone="emerald" label="Online Orders" value={String(online.length)} />
-            <MetricCard icon={<Receipt className="h-5 w-5" />} tone="blue" label="Online Revenue" value={formatCurrency(onlineRevenue)} />
-            <MetricCard icon={<TrendingUp className="h-5 w-5" />} tone="purple" label="This Month" value={`${onlineThisMonth.length} • ${formatCurrency(onlineThisMonth.reduce((s, i) => s + (i.grandTotal || 0), 0))}`} />
+            <MetricCard icon={<ShoppingCart className="h-5 w-5" />} tone="red" label="Online Orders" value={String(online.length)} />
+            <MetricCard icon={<Receipt className="h-5 w-5" />} tone="slate" label="Online Revenue" value={formatCurrency(onlineRevenue)} />
+            <MetricCard icon={<TrendingUp className="h-5 w-5" />} tone="emerald" label="This Month" value={`${onlineThisMonth.length} • ${formatCurrency(onlineThisMonth.reduce((s, i) => s + (i.grandTotal || 0), 0))}`} />
             <MetricCard icon={<Receipt className="h-5 w-5" />} tone="slate" label="Avg Order" value={formatCurrency(avgOrder)} />
           </div>
 
           {/* Product sync */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-none border border-slate-300 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/60 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-none bg-slate-100 text-slate-700 border border-slate-300 flex items-center justify-center">
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
@@ -200,7 +200,7 @@ export const ShopifyView: React.FC = () => {
             <button
               onClick={handleImportProducts}
               disabled={importingProducts}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white text-xs font-bold uppercase tracking-wider shadow-none border border-slate-900 disabled:opacity-50 cursor-pointer"
             >
               <DownloadCloud className={`h-4 w-4 ${importingProducts ? 'animate-pulse' : ''}`} />
               {importingProducts ? 'Importing…' : 'Import Products'}
@@ -208,15 +208,15 @@ export const ShopifyView: React.FC = () => {
           </div>
 
           {/* Orders table */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <PackageCheck className="h-4 w-4 text-emerald-600" />
-              <h3 className="text-sm font-bold text-slate-800">Recent Orders ({orders.length})</h3>
+          <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-300 flex items-center gap-2 bg-slate-50">
+              <PackageCheck className="h-4 w-4 text-slate-700" />
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Recent Orders ({orders.length})</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3 px-4">Order</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Customer</th>
@@ -247,13 +247,13 @@ export const ShopifyView: React.FC = () => {
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(o.total)}</td>
                         <td className="py-3 px-4 text-center">
                           {o.alreadyImported ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-none bg-slate-100 text-slate-600 border border-slate-300">
                               <CheckCircle2 className="h-3 w-3" /> Imported
                             </span>
                           ) : o.financialStatus === 'paid' ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Ready</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-300">Ready</span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">{o.financialStatus}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-amber-50 text-amber-700 border border-amber-300">{o.financialStatus}</span>
                           )}
                         </td>
                       </tr>
@@ -264,7 +264,7 @@ export const ShopifyView: React.FC = () => {
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-500">
             Imported orders appear in <strong>Sales</strong> tagged as online. Stock is not auto-decremented in this version — reconcile inventory separately.
           </p>
         </>
@@ -274,30 +274,30 @@ export const ShopifyView: React.FC = () => {
 };
 
 const TONES: Record<string, string> = {
-  emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
-  blue: 'bg-blue-50 text-blue-600 border-blue-200/60',
-  purple: 'bg-purple-50 text-purple-600 border-purple-200/60',
-  slate: 'bg-slate-100 text-slate-600 border-slate-200',
+  red: 'bg-red-50 text-red-700 border-red-200',
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+  purple: 'bg-slate-100 text-slate-700 border-slate-300',
+  slate: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 const MetricCard: React.FC<{ icon: React.ReactNode; tone: string; label: string; value: string }> = ({ icon, tone, label, value }) => (
-  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>{icon}</div>
+  <div className="bg-white p-4 rounded-none border border-slate-300 shadow-xs flex items-center gap-3">
+    <div className={`h-10 w-10 rounded-none flex items-center justify-center shrink-0 border ${TONES[tone] || TONES.slate}`}>{icon}</div>
     <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">{label}</p>
-      <p className="text-base font-bold text-slate-900 truncate">{value}</p>
+      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">{label}</p>
+      <p className="text-base font-bold text-slate-900 truncate font-mono">{value}</p>
     </div>
   </div>
 );
 
 const SetupGuide: React.FC = () => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-3">
-    <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-      <Link2 className="h-5 w-5 text-blue-600" /> Connect your Shopify store
+  <div className="bg-white rounded-none border border-slate-300 shadow-xs p-5 space-y-3">
+    <div className="flex items-center gap-2 text-slate-800 font-bold text-sm uppercase tracking-wide">
+      <Link2 className="h-5 w-5 text-red-700" /> Connect your Shopify store
     </div>
     <p className="text-xs text-slate-500">
       Shopify isn't configured yet. In Railway (backend service → Variables), set:
     </p>
-    <pre className="text-[11px] bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto">
+    <pre className="text-[11px] bg-slate-900 text-slate-100 rounded-none p-3 overflow-x-auto border border-slate-800 font-mono">
 {`SHOPIFY_STORE_DOMAIN = your-store.myshopify.com
 SHOPIFY_ADMIN_TOKEN  = shpat_…   (Admin API access token)
 SHOPIFY_API_SECRET   = shpss_…   (API secret key)

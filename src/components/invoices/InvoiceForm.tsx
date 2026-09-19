@@ -1450,7 +1450,7 @@ export const InvoiceForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+              className="px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1459,7 +1459,7 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-none transition-colors shadow-none cursor-pointer"
           >
             <Share2 className="h-3.5 w-3.5 text-slate-500" />
             <span>Share</span>
@@ -1468,7 +1468,7 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handlePreview}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-none transition-colors shadow-none cursor-pointer"
           >
             <Printer className="h-3.5 w-3.5 text-slate-500" />
             <span>Preview PDF</span>
@@ -1478,7 +1478,7 @@ export const InvoiceForm: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleSaveDraft}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-none transition-colors shadow-none cursor-pointer"
               title="Park this as a draft to finish later (does not commit stock or a final number)"
             >
               <Save className="h-3.5 w-3.5 text-amber-600" />
@@ -1491,12 +1491,12 @@ export const InvoiceForm: React.FC<Props> = ({
             onClick={handleSave}
             disabled={documentType === 'Invoice' && !isPaymentReconciled}
             className={cn(
-              "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-xs cursor-pointer",
+              "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-none border transition-colors shadow-none cursor-pointer",
               documentType === 'Invoice' && !isPaymentReconciled
-                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                ? "bg-slate-400 border-slate-500 cursor-not-allowed opacity-60"
                 : documentType === 'Quotation'
-                ? "bg-purple-600 hover:bg-purple-700"
-                : "bg-blue-600 hover:bg-blue-700"
+                ? "bg-slate-800 hover:bg-slate-900 border-slate-900"
+                : "bg-red-600 hover:bg-red-700 border-red-700"
             )}
             title={
               documentType === 'Invoice' && !isPaymentReconciled
@@ -1511,7 +1511,7 @@ export const InvoiceForm: React.FC<Props> = ({
       </div>
 
       {/* Main Invoice Form Header Details Card */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+      <div className="bg-white border border-slate-200 rounded-none p-6 shadow-none space-y-6">
         {/* Top Header Row: Branch, Invoice No, Date, Time, State */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Branch Picker */}
@@ -1824,7 +1824,7 @@ export const InvoiceForm: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleApplyBulkTax(bulkTaxRate, true)}
-                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                        className="px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-none transition-colors border border-red-700 cursor-pointer"
                         title="Re-apply this tax rate to all invoice lines"
                       >
                         Apply
@@ -1835,7 +1835,7 @@ export const InvoiceForm: React.FC<Props> = ({
               )}
             </div>
 
-            <span className="text-[11px] text-blue-700 font-medium hidden xl:inline-block">
+            <span className="text-[11px] text-slate-600 font-medium hidden xl:inline-block">
               Price edits apply only to this invoice; catalog item prices are never modified.
             </span>
           </div>
@@ -2625,15 +2625,15 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Grand Total Box */}
+          {/* Grand Total Box (Vyapar Red / Slate for Quotation) */}
           <div className={cn(
-            "p-4 rounded-xl text-white shadow-xs space-y-1",
-            documentType === 'Quotation' ? "bg-purple-600" : "bg-blue-600"
+            "p-4 rounded-none text-white shadow-none space-y-1 border",
+            documentType === 'Quotation' ? "bg-slate-800 border-slate-900" : "bg-red-600 border-red-700"
           )}>
             <div className="flex justify-between items-baseline">
               <span className={cn(
                 "text-xs uppercase font-bold tracking-wider",
-                documentType === 'Quotation' ? "text-purple-100" : "text-blue-100"
+                documentType === 'Quotation' ? "text-slate-200" : "text-red-100"
               )}>
                 Grand Total
               </span>
@@ -2643,15 +2643,15 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
             <p className={cn(
               "text-[11px]",
-              documentType === 'Quotation' ? "text-purple-200" : "text-blue-200"
+              documentType === 'Quotation' ? "text-slate-300" : "text-red-200"
             )}>
               {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
             </p>
           </div>
 
           {/* Amount In Words */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-            <span className="text-[11px] uppercase font-bold text-slate-400 block mb-0.5">
+          <div className="p-3 rounded-none bg-slate-50 border border-slate-300 text-xs">
+            <span className="text-[11px] uppercase font-bold text-slate-500 block mb-0.5">
               Amount in Words
             </span>
             <p className="font-bold text-slate-900 italic leading-relaxed">
@@ -2659,18 +2659,18 @@ export const InvoiceForm: React.FC<Props> = ({
             </p>
           </div>
 
-          {/* Primary Save Action Button */}
+          {/* Primary Save Action Button (Vyapar Crimson Red) */}
           <button
             type="button"
             onClick={handleSave}
             disabled={documentType === 'Invoice' && !isPaymentReconciled}
             className={cn(
-              "w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer",
+              "w-full py-3 rounded-none text-white font-bold text-xs shadow-none border transition-colors flex items-center justify-center gap-2 cursor-pointer",
               documentType === 'Invoice' && !isPaymentReconciled
-                ? "bg-slate-400 cursor-not-allowed opacity-60"
+                ? "bg-slate-400 border-slate-400 cursor-not-allowed opacity-60"
                 : documentType === 'Quotation'
-                ? "bg-purple-600 hover:bg-purple-700"
-                : "bg-blue-600 hover:bg-blue-700"
+                ? "bg-slate-800 hover:bg-slate-900 border-slate-900"
+                : "bg-red-600 hover:bg-red-700 border-red-700"
             )}
             title={
               documentType === 'Invoice' && !isPaymentReconciled

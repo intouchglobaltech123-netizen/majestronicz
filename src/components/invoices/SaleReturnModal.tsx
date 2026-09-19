@@ -167,11 +167,11 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+            <div className="h-10 w-10 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-bold">
               <RotateCcw className="h-5 w-5" />
             </div>
             <div>
@@ -179,7 +179,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <h2 className="text-base font-extrabold text-slate-900">
                   Process Sales Return
                 </h2>
-                <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
                   {invoice.invoiceNumber}
                 </span>
               </div>
@@ -191,28 +191,28 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-none hover:bg-slate-200/60 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Sale Summary Strip */}
-        <div className="px-6 py-3 bg-blue-50/60 border-b border-blue-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-6 py-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-4 text-slate-700">
             <div>
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Customer</span>
               <span className="font-bold text-slate-900">{invoice.customerName}</span>
             </div>
-            <div className="border-l border-blue-200 pl-4">
+            <div className="border-l border-slate-300 pl-4">
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Branch</span>
-              <span className="font-bold uppercase font-mono text-blue-800">{invoice.branchId}</span>
+              <span className="font-bold uppercase font-mono text-slate-800">{invoice.branchId}</span>
             </div>
-            <div className="border-l border-blue-200 pl-4">
+            <div className="border-l border-slate-300 pl-4">
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Sale Date</span>
               <span className="font-medium text-slate-800">{invoice.date}</span>
             </div>
-            <div className="border-l border-blue-200 pl-4">
+            <div className="border-l border-slate-300 pl-4">
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Original Total</span>
               <span className="font-bold font-mono text-slate-900">{formatCurrency(invoice.grandTotal)}</span>
             </div>
@@ -222,14 +222,14 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={handleSetAllMax}
-              className="text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="text-[11px] font-bold text-red-700 hover:text-red-800 bg-red-100 hover:bg-red-200 px-2.5 py-1 rounded-none border border-red-200 transition-colors cursor-pointer"
             >
               Return All
             </button>
             <button
               type="button"
               onClick={handleClearAll}
-              className="text-[11px] font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="text-[11px] font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 px-2.5 py-1 rounded-none transition-colors cursor-pointer"
             >
               Reset
             </button>
@@ -239,7 +239,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Table of items */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="border border-slate-200 rounded-none overflow-hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
@@ -264,7 +264,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{line.itemName}</span>
                           {line.isCombo && (
-                            <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                            <span className="px-1.5 py-0.2 rounded-none text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase">
                               Combo
                             </span>
                           )}
@@ -280,7 +280,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
                       <td className="py-3 px-3 text-center font-mono">
                         {line.alreadyReturned > 0 ? (
-                          <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded text-[11px]">
+                          <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded-none border border-amber-200 text-[11px]">
                             {line.alreadyReturned} {line.unit}
                           </span>
                         ) : (
@@ -299,7 +299,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                               type="button"
                               onClick={() => handleQtyChange(line.itemId, line.currentReturnQty - 1, line.maxReturnable)}
                               disabled={line.currentReturnQty <= 0}
-                              className="p-1 rounded-md bg-slate-100 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                              className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
@@ -310,14 +310,14 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                               max={line.maxReturnable}
                               value={line.currentReturnQty}
                               onChange={(e) => handleQtyChange(line.itemId, parseInt(e.target.value) || 0, line.maxReturnable)}
-                              className="w-14 text-center py-1 border border-slate-300 rounded-md font-mono font-bold text-slate-900 text-xs focus:outline-none focus:border-blue-600"
+                              className="w-14 text-center py-1 border border-slate-300 rounded-none font-mono font-bold text-slate-900 text-xs focus:outline-none focus:border-red-600"
                             />
 
                             <button
                               type="button"
                               onClick={() => handleQtyChange(line.itemId, line.currentReturnQty + 1, line.maxReturnable)}
                               disabled={line.currentReturnQty >= line.maxReturnable}
-                              className="p-1 rounded-md bg-slate-100 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                              className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
@@ -351,7 +351,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
+                className="w-full px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:border-red-600"
               >
                 {COMMON_REASONS.map((r) => (
                   <option key={r} value={r}>
@@ -367,11 +367,11 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   required
-                  className="w-full mt-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                  className="w-full mt-2 px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-red-600"
                 />
               )}
               {/damag/i.test(reason) && (
-                <p className="mt-2 flex items-start gap-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-none px-2.5 py-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                   Damaged goods are written off — the returned quantity will NOT be added back to stock.
                 </p>
@@ -387,15 +387,15 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 placeholder="e.g. Returned with box & accessories, verified undamaged..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-600"
               />
             </div>
           </div>
 
           {/* Refund Total Summary Callout */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="p-4 rounded-none bg-slate-50 border border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-none">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <div className="h-9 w-9 rounded-none bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold">
                 <DollarSign className="h-5 w-5" />
               </div>
               <div>
@@ -423,14 +423,14 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-none border border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={totalUnitsToReturn <= 0}
-              className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-none border border-red-700 shadow-none transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <PackageCheck className="h-4 w-4" />
               <span>Confirm Return ({totalUnitsToReturn} Units)</span>

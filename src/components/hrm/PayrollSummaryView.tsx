@@ -114,29 +114,29 @@ export const PayrollSummaryView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-none border border-slate-300 shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Select Pay Period
             </label>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-blue-500"
+              className="px-3 py-1.5 text-xs font-bold rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"
             />
           </div>
 
           {currentUser.role !== 'Manager' && (
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                 Branch Scope
               </label>
               <select
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
-                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-blue-500"
+                className="px-3 py-1.5 text-xs font-medium rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"
               >
                 <option value="all">All Branches</option>
                 {BRANCHES.map((b) => (
@@ -150,18 +150,18 @@ export const PayrollSummaryView: React.FC = () => {
 
           {/* Standard Hours Pill */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Standard Baseline
             </label>
             <div className="flex items-center gap-1.5">
-              <span className="px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-bold text-slate-700">
+              <span className="px-2.5 py-1 rounded-none bg-slate-100 border border-slate-300 text-xs font-mono font-bold text-slate-700">
                 {standardHours} hrs/mo
               </span>
               {currentUser.role === 'CEO' && (
                 <button
                   onClick={() => setIsSettingsModalOpen(true)}
                   title="Configure standard working hours per month"
-                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                  className="p-1 rounded-none hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors border border-transparent hover:border-slate-300"
                 >
                   <Settings className="h-4 w-4" />
                 </button>
@@ -172,41 +172,41 @@ export const PayrollSummaryView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500 font-medium">
-            Staff Enrolled: <strong className="text-slate-900">{payrollRows.length}</strong>
+            Staff Enrolled: <strong className="text-slate-900 font-bold">{payrollRows.length}</strong>
           </span>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-xs flex items-center gap-3.5">
+          <div className="h-10 w-10 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-bold">
             <DollarSign className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Net Payable</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Net Payable</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{formatCurrency(totalGrossPayable)}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">{selectedMonth} Payroll Disbursal</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-xs flex items-center gap-3.5">
+          <div className="h-10 w-10 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold">
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Recorded Labor Hours</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recorded Labor Hours</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{totalHoursWorkedSum.toFixed(1)} hrs</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Sum of all verified shift durations</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-xs flex items-center gap-3.5">
+          <div className="h-10 w-10 rounded-none bg-slate-100 text-slate-700 border border-slate-300 flex items-center justify-center font-bold">
             <CreditCard className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Disbursement Status</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Disbursement Status</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">
               {paidCount} Paid <span className="text-slate-400 text-sm font-normal">/ {pendingCount} Draft</span>
             </p>
@@ -216,11 +216,11 @@ export const PayrollSummaryView: React.FC = () => {
       </div>
 
       {/* Payroll Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-slate-300 bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-4">Staff Member</th>
                 <th className="py-3 px-3">Branch</th>
                 <th className="py-3 px-3 text-right">Fixed Salary</th>
@@ -234,7 +234,7 @@ export const PayrollSummaryView: React.FC = () => {
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {payrollRows.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="py-12 text-center text-slate-400">
@@ -294,7 +294,7 @@ export const PayrollSummaryView: React.FC = () => {
                       {/* Salesperson incentive */}
                       <td className="py-3.5 px-3 text-right font-mono">
                         {(row.incentiveEarned || 0) > 0 ? (
-                          <span className="font-bold text-violet-700">+{formatCurrency(row.incentiveEarned || 0)}</span>
+                          <span className="font-bold text-emerald-700">+{formatCurrency(row.incentiveEarned || 0)}</span>
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
@@ -328,7 +328,7 @@ export const PayrollSummaryView: React.FC = () => {
                                 })
                               }
                               title="Edit adjustment / bonus / deduction"
-                              className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                              className="p-1 rounded-none hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors border border-transparent hover:border-slate-300"
                             >
                               <Edit className="h-3 w-3" />
                             </button>
@@ -342,14 +342,14 @@ export const PayrollSummaryView: React.FC = () => {
                       </td>
 
                       {/* Final Net Payable */}
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-blue-700 text-base">
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-red-700 text-base">
                         {formatCurrency(row.finalPayable)}
                       </td>
 
                       {/* Status */}
                       <td className="py-3.5 px-3 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-none text-xs font-bold border ${
                             row.status === 'Paid'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -377,7 +377,7 @@ export const PayrollSummaryView: React.FC = () => {
                                   reference: '',
                                 })
                               }
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-colors"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-none border border-emerald-700 shadow-none transition-colors"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               <span>Pay</span>
@@ -388,7 +388,7 @@ export const PayrollSummaryView: React.FC = () => {
                           <button
                             onClick={() => setActivePayslipRecord(row)}
                             title="Print / View Payslip"
-                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-none border border-transparent hover:border-slate-300 transition-colors"
                           >
                             <FileText className="h-4 w-4" />
                           </button>
@@ -406,14 +406,14 @@ export const PayrollSummaryView: React.FC = () => {
       {/* Manual Adjustment Modal */}
       {adjustmentTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-300 bg-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">
                 Adjust Pay: {adjustmentTarget.employee.name}
               </h3>
               <button
                 onClick={() => setAdjustmentTarget(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-none"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -434,7 +434,7 @@ export const PayrollSummaryView: React.FC = () => {
                     })
                   }
                   placeholder="e.g. +1500 for bonus, -500 for advance"
-                  className="w-full px-3 py-2 text-sm font-bold font-mono rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
                   autoFocus
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
@@ -456,21 +456,21 @@ export const PayrollSummaryView: React.FC = () => {
                     })
                   }
                   placeholder="e.g. Festival performance bonus, Cash advance deduction"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="pt-3 border-t border-slate-300 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setAdjustmentTarget(null)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl"
+                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs"
+                  className="px-5 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none cursor-pointer"
                 >
                   Apply Adjustment
                 </button>
@@ -483,8 +483,8 @@ export const PayrollSummaryView: React.FC = () => {
       {/* Mark As Paid Modal */}
       {markPaidTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-300 bg-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Mark Payroll Disbursed</h3>
                 <p className="text-xs text-slate-500">
@@ -493,7 +493,7 @@ export const PayrollSummaryView: React.FC = () => {
               </div>
               <button
                 onClick={() => setMarkPaidTarget(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-none"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -509,10 +509,10 @@ export const PayrollSummaryView: React.FC = () => {
                       type="button"
                       key={m}
                       onClick={() => setMarkPaidTarget({ ...markPaidTarget, mode: m })}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      className={`py-2 px-3 rounded-none border text-xs font-bold transition-all ${
                         markPaidTarget.mode === m
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-xs'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          ? 'border-red-700 bg-red-50 text-red-700'
+                          : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       {m}
@@ -535,23 +535,23 @@ export const PayrollSummaryView: React.FC = () => {
                     })
                   }
                   placeholder="e.g. IMPS Ref #99238411, Cash voucher #104"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="pt-3 border-t border-slate-300 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setMarkPaidTarget(null)}
                   disabled={isDisbursing}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isDisbursing}
-                  className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-none border border-emerald-700 shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isDisbursing ? 'Processing…' : 'Confirm Disbursal'}
                 </button>

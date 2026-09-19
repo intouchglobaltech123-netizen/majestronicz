@@ -101,7 +101,7 @@ export const PendingOrdersView: React.FC = () => {
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Pending Orders
             </h1>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-slate-100 text-slate-800 border border-slate-300 uppercase tracking-wider">
               {branchScopedOrders.length} Total
             </span>
           </div>
@@ -112,7 +112,7 @@ export const PendingOrdersView: React.FC = () => {
 
         {/* Branch Scope Badge */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-700 shadow-none">
             <Building className="h-3.5 w-3.5 text-slate-400" />
             <span>Scope: {isAllBranches ? 'All Branches' : currentBranchData?.name}</span>
           </div>
@@ -124,10 +124,10 @@ export const PendingOrdersView: React.FC = () => {
         <button
           type="button"
           onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
             statusFilter === 'ALL'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-none'
+              : 'bg-white border-slate-300 hover:border-slate-400 text-slate-700'
           }`}
         >
           <span className={`text-[11px] font-bold uppercase tracking-wider block ${
@@ -144,10 +144,10 @@ export const PendingOrdersView: React.FC = () => {
         <button
           type="button"
           onClick={() => setStatusFilter('Waiting')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
             statusFilter === 'Waiting'
-              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-              : 'bg-amber-50/60 border-amber-200/80 hover:border-amber-300 text-amber-900'
+              ? 'bg-amber-600 text-white border-amber-600 shadow-none'
+              : 'bg-amber-50/60 border-amber-300 hover:border-amber-400 text-amber-900'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -167,10 +167,10 @@ export const PendingOrdersView: React.FC = () => {
         <button
           type="button"
           onClick={() => setStatusFilter('Stock Arrived')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
             statusFilter === 'Stock Arrived'
-              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-              : 'bg-emerald-50/60 border-emerald-200/80 hover:border-emerald-300 text-emerald-900'
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-none'
+              : 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-400 text-emerald-900'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -190,22 +190,22 @@ export const PendingOrdersView: React.FC = () => {
         <button
           type="button"
           onClick={() => setStatusFilter('Fulfilled')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
             statusFilter === 'Fulfilled'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-blue-50/60 border-blue-200/80 hover:border-blue-300 text-blue-900'
+              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              : 'bg-slate-100 border-slate-300 hover:border-slate-400 text-slate-900'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              statusFilter === 'Fulfilled' ? 'text-blue-100' : 'text-blue-800'
+              statusFilter === 'Fulfilled' ? 'text-slate-200' : 'text-slate-700'
             }`}>
               Fulfilled
             </span>
-            <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === 'Fulfilled' ? 'text-white' : 'text-blue-600'}`} />
+            <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === 'Fulfilled' ? 'text-white' : 'text-slate-600'}`} />
           </div>
           <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{fulfilledCount}</div>
-          <span className={`text-[11px] ${statusFilter === 'Fulfilled' ? 'text-blue-200' : 'text-blue-700'}`}>
+          <span className={`text-[11px] ${statusFilter === 'Fulfilled' ? 'text-slate-300' : 'text-slate-600'}`}>
             Converted to sale
           </span>
         </button>
@@ -213,10 +213,10 @@ export const PendingOrdersView: React.FC = () => {
         <button
           type="button"
           onClick={() => setStatusFilter('Cancelled')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
             statusFilter === 'Cancelled'
-              ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-              : 'bg-rose-50/60 border-rose-200/80 hover:border-rose-300 text-rose-900'
+              ? 'bg-rose-600 text-white border-rose-600 shadow-none'
+              : 'bg-rose-50/60 border-rose-300 hover:border-rose-400 text-rose-900'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -235,7 +235,7 @@ export const PendingOrdersView: React.FC = () => {
       </div>
 
       {/* Search & Status Filter Bar */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-3.5 rounded-none border border-slate-300 shadow-none flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative w-full md:w-96">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -249,13 +249,13 @@ export const PendingOrdersView: React.FC = () => {
                 setPendingOrderFilterQuery('');
               }
             }}
-            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600 transition-colors"
+            className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-none text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={handleClearFilter}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-none text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -264,7 +264,7 @@ export const PendingOrdersView: React.FC = () => {
 
         {/* Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto justify-end">
-          <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 mr-1">
             <Filter className="h-3 w-3" /> Filter:
           </span>
           {(['ALL', 'Waiting', 'Stock Arrived', 'Fulfilled', 'Cancelled'] as const).map((status) => (
@@ -272,10 +272,10 @@ export const PendingOrdersView: React.FC = () => {
               key={status}
               type="button"
               onClick={() => setStatusFilter(status)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+              className={`px-2.5 py-1 rounded-none text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                 statusFilter === status
-                  ? 'bg-purple-600 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-red-600 text-white border border-red-700 shadow-none'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
               }`}
             >
               {status === 'ALL' ? 'All' : status}
@@ -286,12 +286,12 @@ export const PendingOrdersView: React.FC = () => {
 
       {/* Active Filter Pill */}
       {searchQuery && (
-        <div className="flex items-center gap-2 text-xs text-purple-800 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 w-fit">
+        <div className="flex items-center gap-2 text-xs text-slate-800 bg-slate-100 px-3 py-1.5 rounded-none border border-slate-300 w-fit">
           <span>Filtering by: <strong>"{searchQuery}"</strong></span>
           <button
             type="button"
             onClick={handleClearFilter}
-            className="text-purple-600 hover:text-purple-900 font-bold ml-1 hover:underline flex items-center gap-0.5"
+            className="text-slate-600 hover:text-slate-900 font-bold ml-1 hover:underline flex items-center gap-0.5 cursor-pointer"
           >
             <X className="h-3 w-3" /> Clear
           </button>

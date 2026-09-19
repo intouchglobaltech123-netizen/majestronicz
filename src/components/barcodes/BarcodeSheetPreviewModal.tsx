@@ -78,11 +78,11 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
 
   return (
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
-      <div id="barcode-print-modal" className="bg-white border border-slate-200 rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div id="barcode-print-modal" className="bg-white border border-slate-300 rounded-none w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Control Bar (Hidden when printing) */}
-        <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="px-6 py-3.5 border-b border-slate-300 bg-slate-50 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-7 w-7 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <Eye className="h-4 w-4" />
             </div>
             <div>
@@ -90,7 +90,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                 <h3 className="text-sm font-bold text-slate-900">
                   Label Sheet Print Preview
                 </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-slate-200 text-slate-800 border border-slate-300">
                   {preset.name}
                 </span>
               </div>
@@ -102,12 +102,12 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-slate-200 shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-none border border-slate-300 shadow-none">
               <button
                 type="button"
                 disabled={currentPage <= 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                className="p-1 rounded-none text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
                 title="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -119,7 +119,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                 type="button"
                 disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                className="p-1 rounded-none text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
                 title="Next page"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -132,7 +132,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-none border border-red-700 text-xs font-bold transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print Sheet{totalPages > 1 ? 's' : ''}</span>
@@ -140,7 +140,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              className="p-2 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent hover:border-slate-300 cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>

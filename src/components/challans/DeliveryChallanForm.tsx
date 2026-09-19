@@ -293,16 +293,16 @@ export const DeliveryChallanForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handlePreview}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
           >
-            <Printer className="h-3.5 w-3.5 text-blue-600" />
+            <Printer className="h-3.5 w-3.5 text-slate-600" />
             <span>Preview & Print PDF</span>
           </button>
 
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs"
+            className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer"
           >
             <Save className="h-4 w-4" />
             <span>Save Delivery Challan</span>
@@ -653,8 +653,8 @@ export const DeliveryChallanForm: React.FC<Props> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Delivered By */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
-              <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-slate-50 space-y-2 text-xs">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
                 Delivered By (Sender Dispatch)
               </span>
               <div className="space-y-2">
@@ -663,21 +663,21 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   placeholder="Dispatch Incharge Name"
                   value={deliveredByName}
                   onChange={(e) => setDeliveredByName(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600"
                 />
                 <input
                   type="text"
                   placeholder="Dispatch Comment / Vehicle / Courier No..."
                   value={deliveredByComment}
                   onChange={(e) => setDeliveredByComment(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600"
                 />
               </div>
             </div>
 
             {/* Received By */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
-              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-slate-50 space-y-2 text-xs">
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide block">
                 Received By (Recipient Acknowledgment)
               </span>
               <div className="space-y-2">
@@ -686,14 +686,14 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   placeholder="Receiver / Store Incharge Name"
                   value={receivedByName}
                   onChange={(e) => setReceivedByName(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600"
                 />
                 <input
                   type="text"
                   placeholder="Acknowledgment Comment (e.g. Received in Good Condition)"
                   value={receivedByComment}
                   onChange={(e) => setReceivedByComment(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600"
+                  className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600"
                 />
               </div>
             </div>
@@ -701,36 +701,36 @@ export const DeliveryChallanForm: React.FC<Props> = ({
         </div>
 
         {/* Terms and Conditions */}
-        <div className="pt-2 border-t border-slate-200 space-y-2">
-          <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 block">
+        <div className="pt-2 border-t border-slate-200 space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
             Terms & Conditions / Dispatch Note
           </label>
           <input
             type="text"
             value={termsAndConditions}
             onChange={(e) => setTermsAndConditions(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:border-blue-600"
+            className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-slate-800 text-xs font-medium focus:outline-none focus:border-red-600"
           />
         </div>
 
-        {/* Form Footer Actions */}
-        <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            *Delivery Challan prints on standard A4 format matching the company profile layout.
+        {/* Bottom Save Bar */}
+        <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-500">
+            Delivery challan documents physical stock movement without creating tax liabilities.
           </p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handlePreview}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
-              <Printer className="h-4 w-4 text-blue-600" />
+              <Printer className="h-3.5 w-3.5 text-slate-600" />
               <span>Preview PDF</span>
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs"
+              className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer"
             >
               <Save className="h-4 w-4" />
               <span>Save Delivery Challan</span>

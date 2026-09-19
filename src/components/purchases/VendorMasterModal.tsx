@@ -84,27 +84,27 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col">
+      <div className="bg-white rounded-none shadow-xl border border-slate-300 w-full max-w-lg overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200/60">
-              <Building2 className="h-5 w-5" />
+            <div className="h-8 w-8 rounded-none bg-red-50 text-red-700 flex items-center justify-center border border-red-200 shrink-0">
+              <Building2 className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900">
                 {vendorToEdit ? 'Edit Vendor Details' : 'Register New Vendor'}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 {vendorToEdit ? 'Update supplier contact & tax credentials' : 'Add supplier to procurement directory'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-none transition-colors border border-transparent hover:border-slate-300 cursor-pointer"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -200,20 +200,20 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
           </div>
 
           {/* Form Actions */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              className="px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-colors shadow-2xs cursor-pointer"
             >
-              <Check className="h-4 w-4" />
-              {vendorToEdit ? 'Save Changes' : 'Register Vendor'}
+              <Check className="h-3.5 w-3.5" />
+              <span>{vendorToEdit ? 'Save Changes' : 'Register Vendor'}</span>
             </button>
           </div>
         </form>

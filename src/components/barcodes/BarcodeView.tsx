@@ -135,26 +135,26 @@ export const BarcodeView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-5 rounded-none bg-white border border-slate-300 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Barcode
-              </h1>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                Code 128 Standard
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Print retail price stickers and product barcodes.
-            </p>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              Barcode
+            </h1>
+            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
+              Code 128 Standard
+            </span>
           </div>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Print retail price stickers and product barcodes.
+          </p>
+        </div>
 
         {/* Right Header Badges & Settings Gear */}
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-none text-xs text-slate-600">
             {isAllBranches ? (
-              <Layers className="h-3.5 w-3.5 text-blue-600" />
+              <Layers className="h-3.5 w-3.5 text-red-600" />
             ) : (
               <Building className="h-3.5 w-3.5 text-emerald-600" />
             )}
@@ -166,7 +166,7 @@ export const BarcodeView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 shadow-xs transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            className="p-2.5 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 shadow-none transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
             title="Printer and label size settings"
           >
             <Settings className="h-4 w-4 text-slate-500" />
@@ -207,9 +207,9 @@ export const BarcodeView: React.FC = () => {
           />
 
           {/* Helper Line & Generate Action Footer */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 via-white to-slate-50 border border-blue-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="p-4 rounded-none bg-slate-50 border border-slate-300 shadow-none flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+              <div className="h-10 w-10 rounded-none bg-red-600 flex items-center justify-center text-white shrink-0">
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
               <div>
@@ -217,7 +217,7 @@ export const BarcodeView: React.FC = () => {
                   <h4 className="text-xs font-bold text-slate-900">
                     Print Sheet Calculation
                   </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-blue-100 text-blue-800">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-slate-200 text-slate-800 border border-slate-300">
                     {activePreset.name.split('(')[0].trim()}
                   </span>
                 </div>
@@ -228,7 +228,7 @@ export const BarcodeView: React.FC = () => {
                   ) : (
                     <>
                       You will need{' '}
-                      <strong className="text-blue-700 font-extrabold text-sm">
+                      <strong className="text-slate-900 font-extrabold text-sm">
                         {requiredPages} page{requiredPages === 1 ? '' : 's'}
                       </strong>{' '}
                       (A4 size) for printing ({totalLabels} label{totalLabels === 1 ? '' : 's'} @ {activePreset.labelsPerPage} labels/sheet)
@@ -244,7 +244,7 @@ export const BarcodeView: React.FC = () => {
                 type="button"
                 onClick={handleOpenPreview}
                 disabled={queue.length === 0}
-                className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold shadow-none transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Eye className="h-4 w-4 text-slate-500" />
                 <span>Preview</span>
@@ -254,7 +254,7 @@ export const BarcodeView: React.FC = () => {
                 type="button"
                 onClick={handleGeneratePrint}
                 disabled={queue.length === 0}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2 rounded-none bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-bold shadow-none border border-red-700 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>Generate</span>

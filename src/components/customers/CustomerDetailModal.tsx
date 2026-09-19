@@ -119,48 +119,48 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="bg-white rounded-none border border-slate-300 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
           {/* Header */}
-          <div className="p-6 border-b border-slate-100 bg-slate-50/60 flex items-start justify-between gap-4">
+          <div className="p-5 border-b border-slate-200 bg-slate-50/80 flex items-start justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div
                 className={cn(
-                  'w-12 h-12 rounded-xl text-white flex items-center justify-center font-extrabold text-lg shadow-sm',
+                  'w-11 h-11 rounded-none text-white flex items-center justify-center font-extrabold text-base border shrink-0',
                   (currentCustomer.customerType || 'Retail') === 'Organization'
-                    ? 'bg-gradient-to-br from-purple-600 to-indigo-700'
-                    : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+                    ? 'bg-slate-800 border-slate-900'
+                    : 'bg-red-600 border-red-700'
                 )}
               >
                 {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
-                  <Building2 className="h-6 w-6 text-white" />
+                  <Building2 className="h-5 w-5 text-white" />
                 ) : (
                   cleanCustomerName(currentCustomer.name).charAt(0).toUpperCase()
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                  <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
                     {cleanCustomerName(currentCustomer.name)}
                   </h2>
                   {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 border border-purple-200 text-xs font-bold text-purple-700">
-                      <Building2 className="h-3 w-3 text-purple-600" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-[11px] font-bold text-slate-800">
+                      <Building2 className="h-3 w-3 text-slate-700" />
                       Organization Account
                     </span>
                   ) : (
                     <>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700">
-                        <User className="h-3 w-3 text-blue-600" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-red-50 border border-red-200 text-[11px] font-bold text-red-700">
+                        <User className="h-3 w-3 text-red-600" />
                         Retail Customer
                       </span>
                       {isEligible ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-xs font-bold text-amber-900 animate-pulse">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-900">
                           <Award className="h-3 w-3 text-amber-600" />
                           Milestone Reward Ready!
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                          <Award className="h-3 w-3 text-blue-600" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-600">
+                          <Award className="h-3 w-3 text-slate-500" />
                           {progress.label}
                         </span>
                       )}
@@ -192,7 +192,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPaymentModal(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors shadow-2xs cursor-pointer"
                 >
                   <ArrowDownCircle className="h-3.5 w-3.5" />
                   <span>Receive Payment</span>
@@ -202,7 +202,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => onEditCustomer(currentCustomer)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors shadow-2xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Edit2 className="h-3.5 w-3.5 text-slate-500" />
                   <span>Edit</span>
@@ -212,7 +212,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => onCreateSale(currentCustomer)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>New Sale</span>
@@ -221,7 +221,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-300 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -229,9 +229,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           </div>
 
           {/* Quick Metrics & Loyalty Card */}
-          <div className="p-6 border-b border-slate-100 bg-white grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="p-5 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-4 gap-3">
             {/* Purchase Count */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="p-3.5 rounded-none bg-slate-50 border border-slate-200">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'Total Orders' : 'Total Purchases'}
               </span>
@@ -295,38 +295,38 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
             {/* Loyalty Milestone Status or Organization Info */}
             {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
-              <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 flex flex-col justify-between">
+              <div className="p-3.5 rounded-none bg-slate-50 border border-slate-200 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Building2 className="h-4 w-4 text-purple-600" />
-                    <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                    <Building2 className="h-4 w-4 text-slate-700" />
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                       Institutional Account
                     </span>
                   </div>
-                  <span className="text-[11px] font-extrabold text-purple-800 bg-purple-200/70 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-extrabold text-slate-800 bg-slate-200 px-2 py-0.5 rounded-none border border-slate-300">
                     Bulk Relationship
                   </span>
                 </div>
 
-                <div className="space-y-1 mt-2 text-xs text-purple-900">
+                <div className="space-y-1 mt-2 text-xs text-slate-800">
                   <p className="font-semibold">
                     Commercial & Institutional Client
                   </p>
-                  <p className="text-[11px] text-purple-700 leading-relaxed">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
                     Retail loyalty reward milestone rules are disabled for this account. All transactions, billed items, and payment modes are tracked in the ledger below.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="md:col-span-2 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex flex-col justify-between">
+              <div className="md:col-span-2 p-3.5 rounded-none bg-amber-50/60 border border-amber-200 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Award className="h-4 w-4 text-amber-600" />
+                    <Award className="h-4 w-4 text-amber-700" />
                     <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
                       Loyalty Reward Engine
                     </span>
                   </div>
-                  <span className="text-[11px] font-extrabold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-none">
                     Every {loyaltySettings.purchaseThreshold} bills → {loyaltySettings.discountValue}
                     {loyaltySettings.discountType === 'percentage' ? '%' : '₹'} off
                   </span>
@@ -335,7 +335,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 <div className="space-y-1.5 mt-2">
                   <div className="flex items-center justify-between text-xs font-semibold text-amber-900">
                     <span>Progress to Reward:</span>
-                    <span className="font-bold">
+                    <span className="font-bold font-mono">
                       {isEligible
                         ? 'Milestone Ready to Redeem!'
                         : `${progress.currentCount} / ${progress.threshold} purchases (${progress.purchasesUntilNext} to next)`}
@@ -343,11 +343,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   </div>
 
                   {/* Progress bar */}
-                  <div className="w-full h-2.5 bg-amber-200/70 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-amber-200 rounded-none overflow-hidden border border-amber-300">
                     <div
                       className={cn(
-                        'h-full rounded-full transition-all duration-300',
-                        isEligible ? 'bg-amber-500 w-full animate-pulse' : 'bg-amber-600'
+                        'h-full rounded-none transition-all duration-300',
+                        isEligible ? 'bg-amber-600 w-full animate-pulse' : 'bg-amber-600'
                       )}
                       style={{
                         width: isEligible
@@ -363,35 +363,35 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
           {/* Notes Banner if present */}
           {currentCustomer.notes && (
-            <div className="px-6 py-2.5 bg-amber-50/50 border-b border-amber-100 flex items-center gap-2 text-xs text-amber-900">
-              <FileText className="h-4 w-4 text-amber-600 shrink-0" />
-              <span className="font-semibold">Notes:</span>
+            <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-xs text-amber-900">
+              <FileText className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+              <span className="font-bold">Notes:</span>
               <span>{currentCustomer.notes}</span>
             </div>
           )}
 
           {/* Purchase History Ledger */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-blue-600" />
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <Receipt className="h-4 w-4 text-red-600" />
                   <span>Linked Purchase History ({customerInvoices.length})</span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] text-slate-500">
                   Detailed ledger of all sales and items billed to this customer
                 </p>
               </div>
 
               {/* Filter pills & Search input */}
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-1 p-0.5 bg-slate-100 border border-slate-300 rounded-none text-xs font-bold text-slate-700">
                   <button
                     type="button"
                     onClick={() => setInvoiceFilter('all')}
                     className={cn(
-                      'px-2.5 py-1 rounded-lg transition-all',
-                      invoiceFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                      'px-2.5 py-1 rounded-none transition-all cursor-pointer',
+                      invoiceFilter === 'all' ? 'bg-white text-slate-950 border border-slate-300 shadow-2xs' : 'hover:text-slate-950'
                     )}
                   >
                     All ({customerInvoices.length})
@@ -400,10 +400,10 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     type="button"
                     onClick={() => setInvoiceFilter('unpaid')}
                     className={cn(
-                      'px-2.5 py-1 rounded-lg transition-all flex items-center gap-1',
+                      'px-2.5 py-1 rounded-none transition-all flex items-center gap-1 cursor-pointer',
                       invoiceFilter === 'unpaid'
                         ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'hover:text-slate-900'
+                        : 'hover:text-slate-950'
                     )}
                   >
                     <span>Unpaid ({outstandingSummary.unpaidInvoices.length})</span>
@@ -412,13 +412,13 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
                 {/* Search Invoice Filter */}
                 <div className="relative w-full sm:w-56">
-                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search invoice # or item..."
                     value={searchInvoiceQuery}
                     onChange={(e) => setSearchInvoiceQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-600"
                   />
                 </div>
               </div>
@@ -426,7 +426,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
             {/* Invoices Table */}
             {filteredInvoices.length > 0 ? (
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div className="border border-slate-300 rounded-none overflow-hidden shadow-2xs">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -456,13 +456,13 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setSelectedInvoiceForPdf(inv)}
-                              className="font-mono font-bold text-blue-600 hover:underline flex items-center gap-1"
+                              className="font-mono font-bold text-red-700 hover:underline flex items-center gap-1"
                             >
                               <span>{inv.invoiceNumber}</span>
                               <ExternalLink className="h-3 w-3 opacity-60" />
                             </button>
                             {inv.isVoided && (
-                              <span className="text-[11px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                              <span className="text-[11px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded-none mt-0.5 inline-block">
                                 Voided: {inv.voidReason}
                               </span>
                             )}
@@ -536,7 +536,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setSelectedInvoiceForPdf(inv)}
-                              className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-red-700 hover:bg-slate-100 rounded-none transition-colors"
                             >
                               View Bill
                             </button>
@@ -548,7 +548,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 </table>
               </div>
             ) : (
-              <div className="py-12 text-center bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+              <div className="py-12 text-center bg-slate-50 rounded-none border border-slate-200 space-y-2">
                 <Receipt className="h-8 w-8 text-slate-300 mx-auto" />
                 <p className="text-xs font-semibold text-slate-600">
                   {searchInvoiceQuery
@@ -559,7 +559,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onCreateSale(currentCustomer)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs mt-1"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors border border-red-700 shadow-none mt-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     <span>Create First Bill</span>

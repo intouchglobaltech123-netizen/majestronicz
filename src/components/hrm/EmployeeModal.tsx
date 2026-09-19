@@ -139,11 +139,11 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200/60">
+            <div className="h-10 w-10 rounded-none bg-red-50 text-red-700 flex items-center justify-center border border-red-200">
               <User className="h-5 w-5" />
             </div>
             <div>
@@ -157,7 +157,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-none transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -168,14 +168,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           {/* Full Name */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Full Employee Name <span className="text-rose-500">*</span>
+              Full Employee Name <span className="text-red-600">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. K. Ramachandran"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
               autoFocus
             />
             {errors.name && <p className="text-xs text-rose-600 mt-1">{errors.name}</p>}
@@ -185,14 +185,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Designation / Role <span className="text-rose-500">*</span>
+                Designation / Role <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
                 value={designation}
                 onChange={(e) => setDesignation(e.target.value)}
                 placeholder="e.g. Counter Staff"
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
               />
               {errors.designation && <p className="text-xs text-rose-600 mt-1">{errors.designation}</p>}
             </div>
@@ -204,7 +204,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as 'Active' | 'Inactive')}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 cursor-pointer"
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
@@ -216,13 +216,13 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Branch Assignment <span className="text-rose-500">*</span>
+                Branch Assignment <span className="text-red-600">*</span>
               </label>
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value as BranchId)}
                 disabled={currentUser.role === 'Manager'}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 disabled:bg-slate-100 disabled:text-slate-500 cursor-pointer"
               >
                 {accessibleBranches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -234,7 +234,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Attendance PIN (4-digit) <span className="text-rose-500">*</span>
+                Attendance PIN (4-digit) <span className="text-red-600">*</span>
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -244,7 +244,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   placeholder="1001"
-                  className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                  className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
                 />
               </div>
               {errors.pin && <p className="text-xs text-rose-600 mt-1">{errors.pin}</p>}
@@ -255,10 +255,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                Monthly Salary (₹ Fixed) <span className="text-rose-500">*</span>
+                Monthly Salary (₹ Fixed) <span className="text-red-600">*</span>
               </label>
               {!canEditSalaries && (
-                <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-none border border-amber-300 flex items-center gap-1 font-bold">
                   <Lock className="h-3 w-3" /> CEO Only
                 </span>
               )}
@@ -273,10 +273,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 onChange={(e) => setMonthlySalary(Number(e.target.value))}
                 disabled={!canEditSalaries}
                 placeholder="20000"
-                className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-400 mt-1 font-mono">
               Agreed full-month remuneration for 208 working hours (₹{(monthlySalary / 208).toFixed(2)}/hr)
             </p>
           </div>
@@ -302,7 +302,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 type="date"
                 value={joinedDate}
                 onChange={(e) => setJoinedDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
               />
             </div>
           </div>
@@ -317,20 +317,20 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="e.g. staff@majestronicz.com"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+              className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
             />
           </div>
 
           {/* App Login Access (CEO only) — unifies staff creation with account access */}
           {isCEO && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-800 mb-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> App Login Access
+            <div className="rounded-none border border-slate-300 bg-slate-50 p-3.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 mb-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-red-700" /> App Login Access
               </label>
               <select
                 value={loginRole}
                 onChange={(e) => setLoginRole(e.target.value as LoginRole)}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 cursor-pointer"
               >
                 <option value="">No app login (attendance only)</option>
                 {LOGIN_ROLES.map((r) => (
@@ -352,14 +352,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              className="px-4 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors disabled:opacity-60 cursor-pointer"
             >
               <Check className="h-4 w-4" />
               <span>{submitting ? 'Saving…' : employeeToEdit ? 'Save Changes' : 'Enroll Employee'}</span>

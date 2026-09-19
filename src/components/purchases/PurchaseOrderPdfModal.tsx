@@ -61,25 +61,25 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden during Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Purchase Order Preview
             </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {purchaseOrder.poNumber}
             </span>
             <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-none border ${
                 purchaseOrder.status === 'Received'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : purchaseOrder.status === 'Partially Received'
                   ? 'bg-amber-50 text-amber-700 border-amber-200'
                   : purchaseOrder.status === 'Cancelled'
                   ? 'bg-slate-100 text-slate-600 border-slate-200'
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-slate-100 text-slate-800 border-slate-300'
               }`}
             >
               {purchaseOrder.status}
@@ -90,7 +90,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopySummary}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors"
               title="Copy Summary"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
@@ -99,7 +99,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
             <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors"
               title="Share on WhatsApp"
             >
               <Share2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -108,7 +108,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print / PDF</span>
@@ -116,7 +116,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2"
+              className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2"
             >
               <X className="h-5 w-5" />
             </button>
@@ -125,13 +125,13 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
         {/* Linked Pending Order Link-Back Bar */}
         {pendingOrderRef && (
-          <div className="px-6 py-2.5 bg-purple-50 border-b border-purple-200 flex items-center justify-between text-xs print:hidden shrink-0">
+          <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs print:hidden shrink-0">
             <div className="flex items-center gap-2">
-              <span className="h-6 w-6 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+              <span className="h-6 w-6 rounded-none bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-200">
                 <Layers className="h-3.5 w-3.5" />
               </span>
-              <span className="text-purple-900">
-                Fulfills Pending Order: <strong className="font-mono font-bold text-purple-800">{pendingOrderRef}</strong>
+              <span className="text-slate-800">
+                Fulfills Pending Order: <strong className="font-mono font-bold text-red-700">{pendingOrderRef}</strong>
               </span>
               {linkedPendingOrder && (
                 <span className="text-slate-500 hidden sm:inline">
@@ -314,7 +314,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
               </div>
               <div className="flex justify-between py-2 border-b-2 border-slate-900 font-bold text-sm">
                 <span className="text-slate-900 uppercase">Total Order Value</span>
-                <span className="font-mono text-blue-700 text-base">
+                <span className="font-mono text-slate-900 text-base">
                   {formatCurrency(purchaseOrder.totalAmount)}
                 </span>
               </div>

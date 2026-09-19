@@ -38,11 +38,11 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-none max-w-lg w-full shadow-xl border border-slate-300 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="h-8 w-8 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <Sliders className="h-4 w-4" />
             </div>
             <div>
@@ -55,7 +55,7 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="p-1 rounded-none text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -74,18 +74,18 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
                 onClick={() =>
                   setLocalSettings({ ...localSettings, printerType: 'regular' })
                 }
-                className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                className={`p-3 rounded-none border text-left flex items-start gap-2.5 transition-all ${
                   localSettings.printerType === 'regular'
-                    ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
+                    ? 'border-red-600 bg-red-50/50 ring-1 ring-red-500/20'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <Printer className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <Printer className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <span>Regular Printer</span>
                     {localSettings.printerType === 'regular' && (
-                      <Check className="h-3 w-3 text-blue-600" />
+                      <Check className="h-3 w-3 text-red-600" />
                     )}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-0.5">
@@ -99,18 +99,18 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
                 onClick={() =>
                   setLocalSettings({ ...localSettings, printerType: 'thermal' })
                 }
-                className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                className={`p-3 rounded-none border text-left flex items-start gap-2.5 transition-all ${
                   localSettings.printerType === 'thermal'
-                    ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
+                    ? 'border-red-600 bg-red-50/50 ring-1 ring-red-500/20'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <LayoutGrid className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <LayoutGrid className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <span>Thermal Printer</span>
                     {localSettings.printerType === 'thermal' && (
-                      <Check className="h-3 w-3 text-blue-600" />
+                      <Check className="h-3 w-3 text-red-600" />
                     )}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-0.5">
@@ -131,7 +131,7 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
               onChange={(e) =>
                 setLocalSettings({ ...localSettings, labelPresetId: e.target.value })
               }
-              className="w-full text-xs font-medium bg-white border border-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full text-xs font-medium bg-white border border-slate-300 rounded-none px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-600"
             >
               {LABEL_SIZE_PRESETS.map((preset) => (
                 <option key={preset.id} value={preset.id}>
@@ -145,7 +145,7 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
           </div>
 
           {/* Preset Specifications Callout */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-none text-xs space-y-1.5">
             <div className="flex items-center justify-between text-slate-600 font-semibold">
               <span>Physical Dimensions:</span>
               <span className="font-bold text-slate-900">
@@ -160,7 +160,7 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
             </div>
             <div className="flex items-center justify-between text-slate-600">
               <span>Capacity:</span>
-              <span className="font-bold text-blue-700">
+              <span className="font-bold text-red-700">
                 {selectedPreset.labelsPerPage} labels per page
               </span>
             </div>
@@ -175,7 +175,7 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
                 onChange={(e) =>
                   setLocalSettings({ ...localSettings, showBorders: e.target.checked })
                 }
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                className="rounded-none border-slate-300 text-red-600 focus:ring-red-500 h-4 w-4"
               />
               <div>
                 <span className="text-xs font-semibold text-slate-800 block">
@@ -193,13 +193,13 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-none transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+              className="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-colors shadow-none"
             >
               Save Settings
             </button>

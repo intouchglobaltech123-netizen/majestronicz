@@ -104,29 +104,29 @@ export const AttendanceLogView: React.FC = () => {
       <TodayAttendanceBoard />
 
       {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 rounded-none border border-slate-300 shadow-xs">
         {/* Month Selector & Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Select Pay Period / Month
             </label>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-blue-500"
+              className="px-3 py-1.5 text-xs font-bold rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Staff Filter
             </label>
             <select
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-blue-500 min-w-[180px]"
+              className="px-3 py-1.5 text-xs font-medium rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600 min-w-[180px]"
             >
               <option value="all">All Staff ({branchEmployees.length})</option>
               {branchEmployees.map((e) => (
@@ -139,13 +139,13 @@ export const AttendanceLogView: React.FC = () => {
 
           {currentUser.role !== 'Manager' && (
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                 Branch Scope
               </label>
               <select
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
-                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-blue-500"
+                className="px-3 py-1.5 text-xs font-medium rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"
               >
                 <option value="all">All Branches</option>
                 {BRANCHES.map((b) => (
@@ -161,7 +161,7 @@ export const AttendanceLogView: React.FC = () => {
         {/* Quick Kiosk Launch Button */}
         <button
           onClick={() => setIsKioskOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none cursor-pointer transition-colors shrink-0"
         >
           <Camera className="h-4 w-4" />
           <span>Clock-In / Out Terminal</span>
@@ -170,43 +170,43 @@ export const AttendanceLogView: React.FC = () => {
 
       {/* Summary Stat Pills */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-3.5 rounded-none border border-slate-300 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold">
             <CheckCircle2 className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Recorded Shifts</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recorded Shifts</p>
             <p className="text-lg font-bold text-slate-900 font-mono">{totalShifts} Days Present</p>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-3.5 rounded-none border border-slate-300 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-bold">
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Hours Worked</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Hours Worked</p>
             <p className="text-lg font-bold text-slate-900 font-mono">{totalHours.toFixed(1)} hrs</p>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-3.5 rounded-none border border-slate-300 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-none bg-slate-100 text-slate-700 border border-slate-300 flex items-center justify-center font-bold">
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Average Shift</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Average Shift</p>
             <p className="text-lg font-bold text-slate-900 font-mono">{averageHoursPerShift} hrs/day</p>
           </div>
         </div>
       </div>
 
       {/* Attendance Log Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-slate-300 bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Employee</th>
                 <th className="py-3 px-4">Check-In Verification</th>
@@ -215,7 +215,7 @@ export const AttendanceLogView: React.FC = () => {
                 <th className="py-3 px-3 text-center">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {filteredRecords.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
@@ -266,7 +266,7 @@ export const AttendanceLogView: React.FC = () => {
                                 rec.checkInLocation
                               )
                             }
-                            className="relative group h-11 w-11 rounded-lg overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
+                            className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
                             title="Click to view full photo"
                           >
                             <img
@@ -282,14 +282,14 @@ export const AttendanceLogView: React.FC = () => {
                           {/* Time & Map Link */}
                           <div className="space-y-0.5 text-xs">
                             <div className="font-mono font-bold text-slate-900 flex items-center gap-1.5">
-                              <Clock className="h-3 w-3 text-blue-600" />
+                              <Clock className="h-3 w-3 text-red-700" />
                               <span>{rec.checkInTime}</span>
                             </div>
                             <a
                               href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[11px] text-blue-600 hover:text-blue-800 flex items-center gap-1 truncate max-w-[170px]"
+                              className="text-[11px] text-red-700 hover:text-red-900 font-medium flex items-center gap-1 truncate max-w-[170px]"
                               title={`${rec.checkInLocation.addressHint} (${rec.checkInLocation.latitude.toFixed(4)}, ${rec.checkInLocation.longitude.toFixed(4)})`}
                             >
                               <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
@@ -315,7 +315,7 @@ export const AttendanceLogView: React.FC = () => {
                                   rec.checkOutLocation
                                 )
                               }
-                              className="relative group h-11 w-11 rounded-lg overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
+                              className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
                               title="Click to view full photo"
                             >
                               <img
@@ -352,12 +352,12 @@ export const AttendanceLogView: React.FC = () => {
                           // A missing check-out on a PAST day is a stale shift (needs
                           // correction) — not a live "in progress" one.
                           (rec.date || '') < new Date().toISOString().slice(0, 10) ? (
-                            <span className="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded-md border border-rose-200 font-bold inline-flex items-center gap-1" title="No check-out recorded — correct before running payroll">
+                            <span className="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded-none border border-rose-200 font-bold inline-flex items-center gap-1" title="No check-out recorded — correct before running payroll">
                               <AlertTriangle className="h-3 w-3" />
                               <span>Missing check-out</span>
                             </span>
                           ) : (
-                            <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 font-medium inline-flex items-center gap-1">
+                            <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-none border border-amber-200 font-medium inline-flex items-center gap-1">
                               <Clock className="h-3 w-3 animate-spin" />
                               <span>Shift In Progress</span>
                             </span>
@@ -376,7 +376,7 @@ export const AttendanceLogView: React.FC = () => {
 
                       {/* Status */}
                       <td className="py-3 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
                           <CheckCircle2 className="h-3 w-3" />
                           <span>Present</span>
                         </span>

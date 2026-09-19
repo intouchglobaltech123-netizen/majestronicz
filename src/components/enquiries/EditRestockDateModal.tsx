@@ -30,22 +30,22 @@ export const EditRestockDateModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-md shadow-xl overflow-hidden">
         <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+            <div className="h-8 w-8 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
               <Calendar className="h-4 w-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">Update Expected Restock Date</h3>
               <p className="text-[11px] text-slate-500 font-mono">
-                {orderNumber} • {itemName}
+                <span className="text-red-700 font-bold">{orderNumber}</span> • {itemName}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -61,7 +61,7 @@ export const EditRestockDateModal: React.FC<Props> = ({
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600"
+              className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600"
             />
             <p className="text-[11px] text-slate-400 mt-1">
               Used to track waiting period countdowns and overdue restock alerts.
@@ -72,13 +72,13 @@ export const EditRestockDateModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-none transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+              className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
             >
               Save Restock Date
             </button>

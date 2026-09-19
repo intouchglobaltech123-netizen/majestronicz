@@ -80,11 +80,11 @@ export const TodayAttendanceBoard: React.FC = () => {
   });
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+    <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden">
       {/* Header */}
-      <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+      <div className="px-4 sm:px-5 py-3.5 border-b border-slate-300 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center">
             <CalendarCheck className="h-4 w-4" />
           </div>
           <div>
@@ -93,7 +93,7 @@ export const TodayAttendanceBoard: React.FC = () => {
           </div>
         </div>
         <span
-          className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+          className={`text-xs font-bold px-2.5 py-1 rounded-none border ${
             metrics.rate >= 80
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : metrics.rate >= 50
@@ -106,27 +106,27 @@ export const TodayAttendanceBoard: React.FC = () => {
       </div>
 
       {/* Metric chips */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 border-b border-slate-100 bg-slate-50/40">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 border-b border-slate-300 bg-slate-50/40">
         <Metric icon={<LogIn className="h-4 w-4" />} tone="amber" label="On shift" value={metrics.onShift} />
         <Metric icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" label="Checked out" value={metrics.checkedOut} />
         <Metric icon={<UserX className="h-4 w-4" />} tone="rose" label="Absent" value={metrics.absent} />
-        <Metric icon={<Timer className="h-4 w-4" />} tone="blue" label="Avg hrs" value={`${metrics.avgHours.toFixed(1)}h`} />
+        <Metric icon={<Timer className="h-4 w-4" />} tone="red" label="Avg hrs" value={`${metrics.avgHours.toFixed(1)}h`} />
       </div>
 
       {/* Roster */}
-      <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+      <div className="divide-y divide-slate-200 max-h-[420px] overflow-y-auto">
         {rows.length === 0 ? (
           <div className="py-10 text-center text-slate-400 text-xs">No active staff in scope.</div>
         ) : (
           rows.map(({ emp, rec, status }) => {
             const branchObj = BRANCHES.find((b) => b.id === emp.branchId);
             return (
-              <div key={emp.id} className="px-4 sm:px-5 py-3 flex items-center gap-3">
+              <div key={emp.id} className="px-4 sm:px-5 py-3 flex items-center gap-3 hover:bg-slate-50/70 transition-colors">
                 <div
-                  className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold border ${
+                  className={`h-9 w-9 rounded-none flex items-center justify-center shrink-0 text-xs font-bold border ${
                     status === 'absent'
-                      ? 'bg-slate-100 text-slate-400 border-slate-200'
-                      : 'bg-blue-50 text-blue-700 border-blue-200/60'
+                      ? 'bg-slate-100 text-slate-400 border-slate-300'
+                      : 'bg-red-50 text-red-700 border-red-200'
                   }`}
                 >
                   {emp.name.slice(0, 2).toUpperCase()}
@@ -142,21 +142,21 @@ export const TodayAttendanceBoard: React.FC = () => {
 
                 {/* Times + location */}
                 {status === 'absent' ? (
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-none bg-slate-100 text-slate-500 border border-slate-300 shrink-0">
                     Not checked in
                   </span>
                 ) : (
                   <div className="flex items-center gap-3 sm:gap-5 shrink-0">
                     <div className="text-right">
                       <div className="text-[11px] font-mono font-bold text-slate-800 flex items-center justify-end gap-1">
-                        <LogIn className="h-3 w-3 text-blue-600" /> {rec?.checkInTime}
+                        <LogIn className="h-3 w-3 text-red-700" /> {rec?.checkInTime}
                       </div>
                       {rec?.checkInLocation && (
                         <a
                           href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[10px] text-blue-600 hover:text-blue-800 inline-flex items-center gap-0.5"
+                          className="text-[10px] text-red-700 hover:text-red-900 font-medium inline-flex items-center gap-0.5"
                         >
                           <MapPin className="h-2.5 w-2.5 text-rose-500" />
                           <span className="truncate max-w-[90px]">{rec.checkInLocation.addressHint || 'GPS'}</span>
@@ -173,7 +173,7 @@ export const TodayAttendanceBoard: React.FC = () => {
                           <div className="text-[10px] text-slate-500 font-mono">{(rec?.hoursWorked || 0).toFixed(2)}h</div>
                         </>
                       ) : (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" /> On shift
                         </span>
                       )}
@@ -190,10 +190,11 @@ export const TodayAttendanceBoard: React.FC = () => {
 };
 
 const TONES: Record<string, string> = {
-  amber: 'bg-amber-50 text-amber-600 border-amber-200/60',
-  emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
-  rose: 'bg-rose-50 text-rose-600 border-rose-200/60',
-  blue: 'bg-blue-50 text-blue-600 border-blue-200/60',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  red: 'bg-red-50 text-red-700 border-red-200',
+  slate: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 
 const Metric: React.FC<{ icon: React.ReactNode; tone: string; label: string; value: React.ReactNode }> = ({
@@ -202,12 +203,12 @@ const Metric: React.FC<{ icon: React.ReactNode; tone: string; label: string; val
   label,
   value,
 }) => (
-  <div className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 px-3 py-2">
-    <div className={`h-8 w-8 rounded-lg flex items-center justify-center border shrink-0 ${TONES[tone] || TONES.blue}`}>
+  <div className="flex items-center gap-2.5 rounded-none bg-white border border-slate-300 px-3 py-2">
+    <div className={`h-8 w-8 rounded-none flex items-center justify-center border shrink-0 ${TONES[tone] || TONES.red}`}>
       {icon}
     </div>
     <div className="min-w-0">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">{label}</p>
       <p className="text-base font-bold text-slate-900 font-mono leading-tight">{value}</p>
     </div>
   </div>

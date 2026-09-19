@@ -89,19 +89,19 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-blue-300" />
+            <div className="h-9 w-9 rounded-none bg-white/10 flex items-center justify-center border border-white/20">
+              <Clock className="h-4 w-4 text-red-300" />
             </div>
             <div>
               <h3 className="text-sm font-bold">My Attendance</h3>
               <p className="text-[11px] text-slate-300 font-mono">{now.toLocaleTimeString()}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg">
+          <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-none transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -110,19 +110,19 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
           {loading ? (
             <p className="text-center text-xs text-slate-400 py-8">Loading your attendance…</p>
           ) : !linked ? (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-none text-amber-800 text-xs flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
               <span>No attendance profile is linked to your account yet. Please contact the administrator.</span>
             </div>
           ) : (
             <>
               {/* Status banner */}
-              <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
-                alreadyDone ? 'bg-slate-50 border-slate-200'
-                  : mode === 'in' ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'
+              <div className={`p-3.5 rounded-none border flex items-center gap-3 ${
+                alreadyDone ? 'bg-slate-50 border-slate-300'
+                  : mode === 'in' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'
               }`}>
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-white ${
-                  alreadyDone ? 'bg-slate-400' : mode === 'in' ? 'bg-blue-600' : 'bg-emerald-600'
+                <div className={`h-10 w-10 rounded-none flex items-center justify-center shrink-0 text-white ${
+                  alreadyDone ? 'bg-slate-400' : mode === 'in' ? 'bg-red-600' : 'bg-emerald-600'
                 }`}>
                   {alreadyDone ? <CheckCircle2 className="h-5 w-5" /> : mode === 'in' ? <LogIn className="h-5 w-5" /> : <LogOut className="h-5 w-5" />}
                 </div>
@@ -152,9 +152,9 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     />
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                  <div className="p-3 bg-slate-50 rounded-none border border-slate-300 flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                      <Navigation className="h-3.5 w-3.5 text-blue-600" /> Location
+                      <Navigation className="h-3.5 w-3.5 text-red-700" /> Location
                     </span>
                     {location ? (
                       <span className="text-[11px] font-mono text-slate-600">
@@ -171,8 +171,8 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3 shrink-0">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+        <div className="px-5 py-4 border-t border-slate-300 bg-slate-50/70 flex items-center justify-between gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300 transition-colors">
             Close
           </button>
           {linked && !alreadyDone && (
@@ -180,8 +180,8 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
               type="button"
               onClick={handleRecord}
               disabled={!photo || saving}
-              className={`inline-flex items-center gap-2 px-6 py-2 text-sm font-bold text-white rounded-xl shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                mode === 'in' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'
+              className={`inline-flex items-center gap-2 px-6 py-2 text-xs font-bold uppercase tracking-wider text-white rounded-none shadow-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                mode === 'in' ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700' : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 border border-emerald-700'
               }`}
             >
               {mode === 'in' ? <LogIn className="h-4 w-4" /> : <LogOut className="h-4 w-4" />}

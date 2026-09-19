@@ -70,7 +70,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
   return (
     <div className="space-y-4">
       {/* Control Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-none border border-slate-300 shadow-none">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -79,7 +79,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search employees by name, role, or phone..."
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-none border border-slate-300 focus:outline-none focus:border-red-600 bg-white"
           />
         </div>
 
@@ -89,7 +89,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
-              className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700 focus:outline-hidden focus:border-blue-500"
+              className="px-3 py-2 text-xs font-semibold rounded-none border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-red-600 cursor-pointer"
             >
               <option value="all">All Branches</option>
               {BRANCHES.map((b) => (
@@ -102,7 +102,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
 
           <button
             onClick={handleAddNew}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Enroll Employee</span>
@@ -111,7 +111,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
       </div>
 
       {/* Employee Directory Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-none border border-slate-300 shadow-none overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
@@ -145,11 +145,11 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                       {/* Name & ID */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/60 font-bold flex items-center justify-center shrink-0 text-sm">
+                          <div className="h-9 w-9 rounded-none bg-red-50 text-red-700 border border-red-200 font-bold flex items-center justify-center shrink-0 text-sm">
                             {emp.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <div className="font-semibold text-slate-900 group-hover:text-red-700 transition-colors">
                               {emp.name}
                             </div>
                             <div className="text-[11px] text-slate-400 font-mono">
@@ -172,7 +172,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
 
                       {/* Branch */}
                       <td className="py-3.5 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-300">
                           <Building2 className="h-3 w-3 text-slate-400" />
                           {branchObj?.name || emp.branchId}
                         </span>
@@ -191,7 +191,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
 
                       {/* Attendance PIN */}
                       <td className="py-3.5 px-3 text-center font-mono">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold">
                           <KeyRound className="h-3 w-3 text-slate-400" />
                           {emp.pin}
                         </span>
@@ -200,10 +200,10 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                       {/* Status */}
                       <td className="py-3.5 px-3 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-none text-xs font-semibold border ${
                             emp.status === 'Active'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : 'bg-slate-100 text-slate-500 border-slate-300'
                           }`}
                         >
                           {emp.status === 'Active' ? (
@@ -222,7 +222,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                           <button
                             onClick={() => setKioskEmployeeId(emp.id)}
                             title="Clock-In / Clock-Out for this employee"
-                            className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-1.5 text-red-700 hover:text-red-800 hover:bg-red-50 rounded-none transition-colors cursor-pointer"
                           >
                             <LogIn className="h-4 w-4" />
                           </button>
@@ -230,7 +230,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                           <button
                             onClick={() => handleEdit(emp)}
                             title="Edit profile"
-                            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-none transition-colors cursor-pointer"
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>
@@ -243,7 +243,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                                 }
                               }}
                               title="Remove employee"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-none transition-colors cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>

@@ -532,13 +532,13 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* Type filter */}
-              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-none border border-slate-300 text-xs font-bold text-slate-600">
                 <button
                   type="button"
                   onClick={() => setCustomerTypeFilter('all')}
                   className={cn(
-                    'px-2.5 py-1.5 rounded-lg transition-all cursor-pointer',
-                    customerTypeFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                    'px-2.5 py-1.5 rounded-none transition-all cursor-pointer',
+                    customerTypeFilter === 'all' ? 'bg-white text-slate-900 shadow-none border border-slate-300' : 'hover:text-slate-900'
                   )}
                 >
                   All Types
@@ -547,8 +547,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   type="button"
                   onClick={() => setCustomerTypeFilter('Retail')}
                   className={cn(
-                    'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer',
-                    customerTypeFilter === 'Retail' ? 'bg-blue-600 text-white shadow-2xs' : 'hover:text-slate-900'
+                    'px-2.5 py-1.5 rounded-none transition-all flex items-center gap-1 cursor-pointer',
+                    customerTypeFilter === 'Retail' ? 'bg-red-600 text-white shadow-none' : 'hover:text-slate-900'
                   )}
                 >
                   <User className="h-3 w-3" />
@@ -558,8 +558,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   type="button"
                   onClick={() => setCustomerTypeFilter('Organization')}
                   className={cn(
-                    'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer',
-                    customerTypeFilter === 'Organization' ? 'bg-purple-600 text-white shadow-2xs' : 'hover:text-slate-900'
+                    'px-2.5 py-1.5 rounded-none transition-all flex items-center gap-1 cursor-pointer',
+                    customerTypeFilter === 'Organization' ? 'bg-slate-800 text-white shadow-none' : 'hover:text-slate-900'
                   )}
                 >
                   <Building2 className="h-3 w-3" />
@@ -645,8 +645,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                           <td className="p-4">
                             <div className="flex items-center gap-3">
                               <div className={cn(
-                                'w-9 h-9 rounded-xl font-extrabold flex items-center justify-center shrink-0',
-                                isOrg ? 'bg-purple-100 text-purple-700' : 'bg-blue-600/10 text-blue-700'
+                                'w-9 h-9 rounded-none font-extrabold flex items-center justify-center shrink-0 border',
+                                isOrg ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-red-50 text-red-700 border-red-200'
                               )}>
                                 {isOrg ? <Building2 className="h-4 w-4" /> : cust.name.charAt(0).toUpperCase()}
                               </div>
@@ -654,7 +654,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                                 <button
                                   type="button"
                                   onClick={() => setDetailCustomer(cust)}
-                                  className="font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors text-left block"
+                                  className="font-bold text-slate-900 hover:text-red-600 hover:underline transition-colors text-left block cursor-pointer"
                                 >
                                   {cust.name}
                                 </button>
@@ -799,10 +799,10 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                     setCustomerToEdit(null);
                     setCustomerFormOpen(true);
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-none border border-red-700 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Add New Customer</span>
+                  <span>+ Add New Customer</span>
                 </button>
               </div>
             )}
@@ -1001,10 +1001,10 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                     setVendorToEdit(null);
                     setVendorFormOpen(true);
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-none border border-red-700 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Add New Supplier</span>
+                  <span>+ Add New Supplier</span>
                 </button>
               </div>
             )}

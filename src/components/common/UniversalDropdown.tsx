@@ -105,8 +105,8 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
           if (!disabled) setIsOpen((prev) => !prev);
         }}
         className={cn(
-          'w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm flex items-center justify-between text-left transition-colors focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed',
-          isOpen ? 'border-blue-600 ring-1 ring-blue-600' : 'hover:border-slate-400',
+          'w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm flex items-center justify-between text-left transition-colors focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed',
+          isOpen ? 'border-red-600 ring-1 ring-red-600' : 'hover:border-slate-400',
           buttonClassName
         )}
       >
@@ -116,7 +116,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
         <ChevronDown
           className={cn(
             'h-4 w-4 text-slate-400 transition-transform duration-150 shrink-0 ml-2',
-            isOpen && 'rotate-180 text-blue-600'
+            isOpen && 'rotate-180 text-red-600'
           )}
         />
       </button>
@@ -125,7 +125,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
       {isOpen && (
         <div
           className={cn(
-            'absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100 min-w-[200px]',
+            'absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-none shadow-lg overflow-hidden flex flex-col min-w-[200px]',
             menuClassName
           )}
         >
@@ -146,7 +146,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                     className={cn(
                       'w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors',
                       isSelected
-                        ? 'bg-blue-50/80 text-blue-900 font-bold'
+                        ? 'bg-red-50 text-red-900 font-bold'
                         : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                     )}
                   >
@@ -159,7 +159,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                       )}
                     </div>
                     {isSelected && (
-                      <Check className="h-4 w-4 text-blue-600 shrink-0 ml-2" />
+                      <Check className="h-4 w-4 text-red-600 shrink-0 ml-2" />
                     )}
                   </button>
                 );
@@ -169,7 +169,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
 
           {/* Bottom Row: + Add New / Inline Input */}
           {onAddNew && (
-            <div className="border-t border-slate-200 bg-slate-50/90">
+            <div className="border-t border-slate-200 bg-slate-50">
               {isAddingNew ? (
                 <div className="p-2 flex items-center gap-1.5">
                   <input
@@ -187,13 +187,13 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                       }
                     }}
                     placeholder={addNewPlaceholder}
-                    className="flex-1 px-2.5 py-1.5 text-xs bg-white border border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 placeholder-slate-400 font-medium"
+                    className="flex-1 px-2.5 py-1.5 text-xs bg-white border border-red-500 rounded-none focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-900 placeholder-slate-400 font-medium"
                   />
                   <button
                     type="button"
                     onClick={handleSaveNew}
                     disabled={!newOptionInput.trim()}
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0 shadow-xs"
+                    className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-none border border-red-700 text-xs font-bold transition-colors shrink-0 shadow-none"
                   >
                     Save
                   </button>
@@ -203,7 +203,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                       setIsAddingNew(false);
                       setNewOptionInput('');
                     }}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors shrink-0"
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-none transition-colors shrink-0"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -212,7 +212,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddingNew(true)}
-                  className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50/60 flex items-center gap-1.5 transition-colors"
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-700 hover:text-red-800 hover:bg-red-50 flex items-center gap-1.5 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {/* Strip any leading "+" from the label — the Plus icon already shows it. */}

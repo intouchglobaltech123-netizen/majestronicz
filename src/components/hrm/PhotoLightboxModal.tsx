@@ -29,7 +29,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col text-white">
+      <div className="bg-slate-900 border border-slate-700 rounded-none w-full max-w-lg overflow-hidden shadow-2xl flex flex-col text-white">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
           <div>
@@ -51,7 +51,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-none transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -87,7 +87,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
                 href={mapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-none bg-slate-800 hover:bg-slate-700 text-red-400 border border-slate-700 text-xs font-semibold transition-colors"
               >
                 <span>View on Map</span>
                 <ExternalLink className="h-3 w-3" />

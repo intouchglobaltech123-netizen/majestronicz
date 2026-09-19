@@ -33,18 +33,18 @@ export const AuditLogSection: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-      <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+    <div className="rounded-none border border-slate-300 bg-white shadow-xs overflow-hidden">
+      <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">
+          <div className="h-9 w-9 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700">
             <History className="h-4.5 w-4.5" />
           </div>
           <div>
-            <h2 className="text-sm font-extrabold text-slate-900">Activity &amp; Audit Log</h2>
+            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">Activity &amp; Audit Log</h2>
             <p className="text-xs text-slate-500">Append-only record of financial, payroll and access changes — who did what, when.</p>
           </div>
         </div>
-        <button onClick={load} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Refresh">
+        <button onClick={load} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-none hover:bg-slate-100 transition-colors cursor-pointer" title="Refresh">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -59,7 +59,7 @@ export const AuditLogSection: React.FC = () => {
             const when = new Date(r.timestamp);
             return (
               <div key={r.id} className="flex items-start gap-3 px-5 py-3 hover:bg-slate-50/60">
-                <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${meta.tone}`}>
+                <div className={`h-8 w-8 rounded-none border border-slate-200 flex items-center justify-center shrink-0 ${meta.tone}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">

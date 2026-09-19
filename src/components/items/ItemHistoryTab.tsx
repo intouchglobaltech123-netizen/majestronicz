@@ -460,25 +460,25 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       <div className={cn('grid gap-3', isSales ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 lg:grid-cols-5')}>
         {/* Total Purchased */}
         {!isSales && (
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-blue-50/40 shadow-2xs">
+          <div className="p-3.5 rounded-none border border-slate-300 bg-red-50/40 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-red-800">
                 Total Purchased
               </span>
-              <ShoppingBag className="h-4 w-4 text-blue-600" />
+              <ShoppingBag className="h-4 w-4 text-red-600" />
             </div>
             <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-xl font-bold text-blue-950 font-mono">
+              <span className="text-xl font-bold text-red-950 font-mono">
                 {summaryStats.totalPurchased}
               </span>
-              <span className="text-[11px] font-bold text-blue-700">{item.unit}</span>
+              <span className="text-[11px] font-bold text-red-700">{item.unit}</span>
             </div>
-            <span className="text-[11px] text-blue-700 mt-0.5 block">Lifetime procurement</span>
+            <span className="text-[11px] text-red-700 mt-0.5 block">Lifetime procurement</span>
           </div>
         )}
 
         {/* Total Sold */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-emerald-50/40 shadow-2xs">
+        <div className="p-3.5 rounded-none border border-slate-300 bg-emerald-50/40 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
               Total Sold
@@ -495,12 +495,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         </div>
 
         {/* Current Combined Stock */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Combined Stock
             </span>
-            <Building className="h-4 w-4 text-blue-600" />
+            <Building className="h-4 w-4 text-slate-700" />
           </div>
           <div className="mt-1.5 flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-slate-900 font-mono">
@@ -509,12 +509,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             <span className="text-[11px] font-semibold text-slate-500">{item.unit}</span>
             <span
               className={cn(
-                'text-[11px] font-bold px-1.5 py-0.2 rounded-full border',
+                'text-[11px] font-bold px-1.5 py-0.2 rounded-none border',
                 summaryStats.stockStatus === 'in-stock'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                   : summaryStats.stockStatus === 'low-stock'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-rose-50 text-rose-700 border-rose-300'
               )}
             >
               {summaryStats.stockStatus === 'in-stock'
@@ -529,12 +529,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
         {/* Most Frequent Vendor */}
         {!isSales && (
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+          <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Top Vendor
               </span>
-              <Users className="h-4 w-4 text-purple-600" />
+              <Users className="h-4 w-4 text-slate-700" />
             </div>
             <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topVendor}>
               {summaryStats.topVendor}
@@ -544,12 +544,12 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         )}
 
         {/* Most Frequent Customer */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Top Customer
             </span>
-            <User className="h-4 w-4 text-indigo-600" />
+            <User className="h-4 w-4 text-slate-700" />
           </div>
           <div className="mt-1.5 font-bold text-xs text-slate-900 truncate" title={summaryStats.topCustomer}>
             {summaryStats.topCustomer}
@@ -559,18 +559,18 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       </div>
 
       {/* CONTROLS: SUBTABS & DATE FILTERS */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 rounded-none bg-slate-50 border border-slate-300">
         {/* Subtabs Switcher */}
-        <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl w-full md:w-auto">
+        <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-none w-full md:w-auto">
           {!isSales && (
             <button
               type="button"
               onClick={() => setSubTab('purchases')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 md:flex-initial justify-center',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-bold transition-all flex-1 md:flex-initial justify-center cursor-pointer',
                 subTab === 'purchases'
-                  ? 'bg-white text-blue-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-red-600 text-white shadow-none'
+                  : 'text-slate-700 hover:text-slate-900'
               )}
             >
               <ShoppingBag className="h-3.5 w-3.5" />
@@ -581,10 +581,10 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             type="button"
             onClick={() => setSubTab('sales')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 md:flex-initial justify-center',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-bold transition-all flex-1 md:flex-initial justify-center cursor-pointer',
               subTab === 'sales'
-                ? 'bg-white text-emerald-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-800 text-white shadow-none'
+                : 'text-slate-700 hover:text-slate-900'
             )}
           >
             <Receipt className="h-3.5 w-3.5" />
@@ -594,10 +594,10 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
             type="button"
             onClick={() => setSubTab('adjustments')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 md:flex-initial justify-center',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-bold transition-all flex-1 md:flex-initial justify-center cursor-pointer',
               subTab === 'adjustments'
-                ? 'bg-white text-purple-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-800 text-white shadow-none'
+                : 'text-slate-700 hover:text-slate-900'
             )}
           >
             <History className="h-3.5 w-3.5" />
@@ -608,14 +608,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
         {/* Date Filter & Search Row */}
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           {/* Quick Preset Selector */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 text-[11px] font-semibold">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-none border border-slate-300 text-[11px] font-semibold">
             <Calendar className="h-3 w-3 text-slate-400 ml-1" />
             <button
               type="button"
               onClick={() => setDatePreset('all')}
               className={cn(
-                'px-2 py-0.5 rounded transition-colors',
-                datePreset === 'all' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
+                'px-2 py-0.5 rounded-none transition-colors cursor-pointer',
+                datePreset === 'all' ? 'bg-red-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               All Time
@@ -624,8 +624,8 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               type="button"
               onClick={() => setDatePreset('month')}
               className={cn(
-                'px-2 py-0.5 rounded transition-colors',
-                datePreset === 'month' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
+                'px-2 py-0.5 rounded-none transition-colors cursor-pointer',
+                datePreset === 'month' ? 'bg-red-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               This Month
@@ -634,8 +634,8 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               type="button"
               onClick={() => setDatePreset('30days')}
               className={cn(
-                'px-2 py-0.5 rounded transition-colors',
-                datePreset === '30days' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
+                'px-2 py-0.5 rounded-none transition-colors cursor-pointer',
+                datePreset === '30days' ? 'bg-red-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               30D
@@ -644,8 +644,8 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               type="button"
               onClick={() => setDatePreset('90days')}
               className={cn(
-                'px-2 py-0.5 rounded transition-colors',
-                datePreset === '90days' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
+                'px-2 py-0.5 rounded-none transition-colors cursor-pointer',
+                datePreset === '90days' ? 'bg-red-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               90D
@@ -654,8 +654,8 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               type="button"
               onClick={() => setDatePreset('custom')}
               className={cn(
-                'px-2 py-0.5 rounded transition-colors',
-                datePreset === 'custom' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
+                'px-2 py-0.5 rounded-none transition-colors cursor-pointer',
+                datePreset === 'custom' ? 'bg-red-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               Custom
@@ -669,14 +669,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-2 py-1 rounded-lg border border-slate-300 text-[11px] bg-white text-slate-800 focus:outline-none focus:border-blue-600"
+                className="px-2 py-1 rounded-none border border-slate-300 text-[11px] bg-white text-slate-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
               />
               <span className="text-slate-400 text-xs">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-2 py-1 rounded-lg border border-slate-300 text-[11px] bg-white text-slate-800 focus:outline-none focus:border-blue-600"
+                className="px-2 py-1 rounded-none border border-slate-300 text-[11px] bg-white text-slate-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
               />
             </div>
           )}
@@ -689,7 +689,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search in history..."
-              className="pl-8 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 w-36 sm:w-44"
+              className="pl-8 pr-2.5 py-1 text-xs rounded-none border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 w-36 sm:w-44"
             />
           </div>
         </div>
@@ -697,9 +697,9 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
       {/* 1. PURCHASE HISTORY SUBTAB */}
       {subTab === 'purchases' && !isSales && (
-        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+        <div className="border border-slate-300 rounded-none overflow-hidden shadow-xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+            <thead className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">PO Number</th>
                 <th className="py-2.5 px-3.5">Vendor</th>
@@ -728,7 +728,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                         type="button"
                         onClick={() => setSelectedPo(record.po)}
                         title="Click to view Purchase Order document"
-                        className="inline-flex items-center gap-1 font-mono text-blue-700 hover:text-blue-900 hover:underline"
+                        className="inline-flex items-center gap-1 font-mono text-red-700 hover:text-red-900 hover:underline cursor-pointer"
                       >
                         <span>{record.poNumber}</span>
                         <ExternalLink className="h-3 w-3 opacity-60" />
@@ -781,14 +781,14 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     <td className="py-2.5 px-3 text-center">
                       <span
                         className={cn(
-                          'text-[11px] font-bold px-2 py-0.5 rounded-full border',
+                          'text-[11px] font-bold px-2 py-0.5 rounded-none border',
                           record.status === 'Received'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                             : record.status === 'Partially Received'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            ? 'bg-amber-50 text-amber-700 border-amber-300'
                             : record.status === 'Ordered'
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                            ? 'bg-slate-100 text-slate-700 border-slate-300'
+                            : 'bg-rose-50 text-rose-700 border-rose-300'
                         )}
                       >
                         {record.status}
@@ -801,7 +801,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedPo(record.po)}
-                          className="px-2 py-1 rounded-md text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors"
+                          className="px-2 py-1 rounded-none text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
                         >
                           View PO
                         </button>
@@ -809,7 +809,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                           type="button"
                           onClick={() => handleJumpToPurchases(record.po)}
                           title="Open Purchases module"
-                          className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                          className="p-1 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <ArrowRight className="h-3.5 w-3.5" />
                         </button>
@@ -825,9 +825,9 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
       {/* 2. SALES HISTORY SUBTAB */}
       {subTab === 'sales' && (
-        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+        <div className="border border-slate-300 rounded-none overflow-hidden shadow-xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+            <thead className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">Sale No.</th>
                 <th className="py-2.5 px-3">Date & Time</th>
@@ -862,7 +862,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                         type="button"
                         onClick={() => setSelectedInvoice(record.invoice)}
                         title="Click to view full Invoice"
-                        className="inline-flex items-center gap-1 font-mono text-emerald-700 hover:text-emerald-900 hover:underline"
+                        className="inline-flex items-center gap-1 font-mono text-red-700 hover:text-red-900 hover:underline cursor-pointer"
                       >
                         <span>{record.invoiceNumber}</span>
                         <ExternalLink className="h-3 w-3 opacity-60" />
@@ -898,7 +898,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                       </div>
                       {record.isPriceOverridden && (
                         <span
-                          className="inline-block text-[11px] font-bold px-1 rounded bg-amber-100 text-amber-800"
+                          className="inline-block text-[11px] font-bold px-1 rounded-none bg-amber-100 text-amber-800"
                           title={`Overridden from master catalog price ₹${item.salePrice}`}
                         >
                           Override
@@ -917,16 +917,16 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                     {/* Type / Voided Badge */}
                     <td className="py-2.5 px-3 text-center">
                       {record.isVoided ? (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-rose-100 text-rose-800 border border-rose-200">
                           Voided
                         </span>
                       ) : (
                         <span
                           className={cn(
-                            'text-[11px] font-bold px-2 py-0.5 rounded-full border',
+                            'text-[11px] font-bold px-2 py-0.5 rounded-none border',
                             record.transactionType === 'Cash'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
                           )}
                         >
                           {record.transactionType}
@@ -940,7 +940,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedInvoice(record.invoice)}
-                          className="px-2 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                          className="px-2 py-1 rounded-none text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
                         >
                           View Bill
                         </button>
@@ -948,7 +948,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                           type="button"
                           onClick={() => handleJumpToInvoices(record.invoice)}
                           title="Open Invoices module"
-                          className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                          className="p-1 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <ArrowRight className="h-3.5 w-3.5" />
                         </button>
@@ -964,9 +964,9 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
       {/* 3. STOCK ADJUSTMENT HISTORY SUBTAB */}
       {subTab === 'adjustments' && (
-        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+        <div className="border border-slate-300 rounded-none overflow-hidden shadow-xs bg-white">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+            <thead className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
               <tr>
                 <th className="py-2.5 px-3.5">Timestamp</th>
                 <th className="py-2.5 px-3 text-center">Branch</th>
@@ -1011,7 +1011,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
                       <td className="py-2.5 px-3 text-center font-mono font-extrabold text-sm">
                         <span
                           className={cn(
-                            'inline-flex items-center gap-0.5 px-2 py-0.5 rounded',
+                            'inline-flex items-center gap-0.5 px-2 py-0.5 rounded-none',
                             isPositive
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-rose-100 text-rose-800'
@@ -1054,17 +1054,17 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
       {/* ADJUSTMENT DETAIL POPUP (IF CLICKED) */}
       {selectedAdjustment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-md p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-none border border-slate-300 shadow-2xl w-full max-w-md p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-300">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="h-5 w-5 text-blue-600" />
-                <h3 className="font-bold text-sm text-slate-900">Stock Adjustment Audit Details</h3>
+                <ShieldAlert className="h-5 w-5 text-red-600" />
+                <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">Stock Adjustment Audit Details</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedAdjustment(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1100,7 +1100,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               {selectedAdjustment.notes && (
                 <div className="pt-1">
                   <span className="text-slate-500 font-medium block mb-1">Remarks / Notes:</span>
-                  <p className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-[11px] leading-relaxed">
+                  <p className="p-2.5 rounded-none bg-slate-50 border border-slate-300 text-slate-800 text-[11px] leading-relaxed">
                     {selectedAdjustment.notes}
                   </p>
                 </div>
@@ -1108,16 +1108,16 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
               {selectedAdjustment.linkedChallanNumber && (
                 <div className="flex justify-between py-1">
                   <span className="text-slate-500 font-medium">Delivery Challan:</span>
-                  <span className="font-mono font-bold text-blue-700">{selectedAdjustment.linkedChallanNumber}</span>
+                  <span className="font-mono font-bold text-red-700">{selectedAdjustment.linkedChallanNumber}</span>
                 </div>
               )}
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex justify-end border-t border-slate-300">
               <button
                 type="button"
                 onClick={() => setSelectedAdjustment(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                className="px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
               >
                 Close
               </button>

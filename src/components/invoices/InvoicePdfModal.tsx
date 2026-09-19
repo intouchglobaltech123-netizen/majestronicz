@@ -145,24 +145,24 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Metadata Header (Clean document metadata, No action buttons) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
           <div className="flex items-center flex-wrap gap-2">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Tax Invoice Document Preview
             </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {invoice.invoiceNumber}
             </span>
             {invoice.isVoided ? (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 flex items-center gap-1">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-none bg-rose-100 text-rose-700 border border-rose-300 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
                 <span>VOIDED SALE</span>
               </span>
             ) : (
               <span
-                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-none border ${
                   invoice.transactionType === 'Cash'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -171,15 +171,15 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 {invoice.transactionType} Sale
               </span>
             )}
-            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-none">
               Mode: {invoice.paymentMode}
             </span>
             {invoice.withGst ? (
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-none border border-emerald-200">
                 GST Invoice
               </span>
             ) : (
-              <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-none">
                 Non-GST
               </span>
             )}
@@ -189,7 +189,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             type="button"
             onClick={onClose}
             title="Close Preview (Esc)"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -199,7 +199,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         <div id="printable-invoice-doc" className="p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
           {/* Voided Alert Banner */}
           {invoice.isVoided && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center justify-between font-bold print:border-2 print:border-rose-600">
+            <div className="mb-4 p-3 rounded-none bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center justify-between font-bold print:border-2 print:border-rose-600">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
                 <span>THIS SALE HAS BEEN VOIDED — REVERSED FROM WAREHOUSE STOCK</span>
@@ -212,12 +212,12 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
           )}
 
-          {/* Header Block with Blue Bar Accent */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
-            {/* Top Blue Accent Title Strip */}
+          {/* Header Block with Red Bar Accent */}
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
+            {/* Top Red Accent Title Strip */}
             <div className={cn(
               "text-white px-6 py-2.5 flex items-center justify-between",
-              invoice.isVoided ? "bg-slate-700" : "bg-blue-600"
+              invoice.isVoided ? "bg-slate-700" : "bg-red-600"
             )}>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black uppercase tracking-widest">
@@ -346,11 +346,11 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
           </div>
 
-          {/* Line Items Table with Blue Header Bar */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
+          {/* Line Items Table with Red Header Bar */}
+          <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-blue-600 text-white font-bold uppercase text-[10px] tracking-wider">
+                <tr className="bg-red-600 text-white font-bold uppercase text-[10px] tracking-wider">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3">Item Description</th>
                   <th className="py-2.5 px-3 w-24">HSN / SAC</th>
@@ -556,12 +556,12 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               )}
 
               {/* Grand Total Bar */}
-              <div className="mt-3 p-3.5 rounded-xl bg-blue-600 text-white flex items-baseline justify-between shadow-xs">
+              <div className="mt-3 p-3.5 rounded-none bg-red-600 text-white flex items-baseline justify-between shadow-none">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider block text-blue-100">
+                  <span className="text-[10px] uppercase font-bold tracking-wider block text-red-100">
                     Grand Total
                   </span>
-                  <span className="text-[10px] text-blue-200">
+                  <span className="text-[10px] text-red-200">
                     {invoice.withGst ? '(Inclusive of all GST taxes)' : '(Net Invoice Total)'}
                   </span>
                 </div>
@@ -578,13 +578,13 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                     const splits = getInvoicePaymentSplits(invoice);
                     if (splits.length > 1) {
                       return (
-                        <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded border border-slate-200 text-right">
+                        <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded-none border border-slate-300 text-right">
                           {splits.map((s) => `${s.mode} ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')} ({invoice.transactionType})
                         </span>
                       );
                     }
                     return (
-                      <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded border border-slate-200">
+                      <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white rounded-none border border-slate-300">
                         {invoice.paymentMode} ({invoice.transactionType})
                       </span>
                     );
@@ -592,7 +592,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 </div>
 
                 {invoice.isPartialPayment ? (
-                  <div className="space-y-1 bg-amber-50/80 p-2 rounded-lg border border-amber-200 text-xs">
+                  <div className="space-y-1 bg-amber-50/80 p-2 rounded-none border border-amber-300 text-xs">
                     <div className="flex justify-between text-amber-900 font-semibold">
                       <span>Partial Paid Amount (PP):</span>
                       <span className="font-mono font-bold text-emerald-700">
@@ -607,7 +607,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                     </div>
                   </div>
                 ) : (
-                  <div className="flex justify-between text-xs text-emerald-700 font-semibold bg-emerald-50/80 p-2 rounded-lg border border-emerald-200">
+                  <div className="flex justify-between text-xs text-emerald-700 font-semibold bg-emerald-50/80 p-2 rounded-none border border-emerald-300">
                     <span>Payment Status:</span>
                     <span>Paid in Full</span>
                   </div>
@@ -639,7 +639,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         {/* Single Unified Bottom Action Bar (Hidden during Print) */}
         <div className="p-4 sm:px-6 sm:py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden">
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
-            <Building className="h-4 w-4 text-blue-600 shrink-0" />
+            <Building className="h-4 w-4 text-red-600 shrink-0" />
             <span className="font-medium">
               A4 Format &bull; {invoice.invoiceNumber}
             </span>
@@ -650,7 +650,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={handleCopySummary}
-              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               {copied ? (
                 <Check className="h-4 w-4 text-emerald-600" />
@@ -666,7 +666,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               onClick={handleShareWhatsApp}
               disabled={isDownloadingPdf}
               title={invoice.customerPhone ? `Send to ${invoice.customerPhone} on WhatsApp` : 'Share on WhatsApp'}
-              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+              className="h-10 px-4 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 border border-emerald-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
             >
               <Share2 className="h-4 w-4 text-emerald-600" />
               <span>WhatsApp</span>
@@ -676,7 +676,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={handlePrint}
-              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               <Printer className="h-4 w-4 text-slate-600" />
               <span>Print</span>
@@ -687,10 +687,10 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               type="button"
               onClick={handleSavePdf}
               disabled={isDownloadingPdf}
-              className="h-10 px-5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
+              className="h-10 px-5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
             >
               {isDownloadingPdf ? (
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-none animate-spin" />
               ) : (
                 <Download className="h-4 w-4 text-white" />
               )}
@@ -701,7 +701,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <X className="h-4 w-4 text-slate-500" />
               <span>Close</span>

@@ -169,7 +169,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     <div className="space-y-6">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Total Scheduled Amounts</span>
             <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 mt-1 block">
@@ -177,12 +177,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             </span>
             <span className="text-[11px] text-slate-400">Configured expenses</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="h-10 w-10 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <Wallet className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Monthly Commitment</span>
             <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 mt-1 block">
@@ -190,12 +190,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             </span>
             <span className="text-[11px] text-slate-400">Sum of defaults</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+          <div className="h-10 w-10 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700">
             <DollarSign className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Approved for {currentMonthKey}</span>
             <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 mt-1 block">
@@ -203,12 +203,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             </span>
             <span className="text-[11px] text-emerald-600 font-medium">Logged in Cash Register</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+          <div className="h-10 w-10 rounded-none bg-emerald-50 border border-emerald-300 flex items-center justify-center text-emerald-700">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-500 block">Action Due / Overdue</span>
             <span className={`text-xl sm:text-2xl font-bold font-mono mt-1 block ${
@@ -218,10 +218,10 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
             </span>
             <span className="text-[11px] text-slate-400">Needs approval this month</span>
           </div>
-          <div className={`h-10 w-10 rounded-xl border flex items-center justify-center ${
+          <div className={`h-10 w-10 rounded-none border flex items-center justify-center ${
             stats.pendingActionCount > 0
-              ? 'bg-amber-50 border-amber-200 text-amber-700'
-              : 'bg-slate-50 border-slate-200 text-slate-400'
+              ? 'bg-amber-50 border-amber-300 text-amber-700'
+              : 'bg-slate-50 border-slate-300 text-slate-400'
           }`}>
             <AlertTriangle className="h-5 w-5" />
           </div>
@@ -229,16 +229,16 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       </div>
 
       {/* Action & Filter Toolbar */}
-      <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 bg-white border border-slate-300 rounded-none shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-            <Building className="h-3.5 w-3.5 text-blue-600" />
+            <Building className="h-3.5 w-3.5 text-red-700" />
             <span>Filter Branch:</span>
           </span>
           <select
             value={selectedBranchFilter}
             onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-none px-3 py-1.5 focus:outline-none focus:border-red-600 cursor-pointer"
           >
             <option value="all">All Branches (Consolidated)</option>
             {BRANCHES.map((b) => (
@@ -253,7 +253,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
           <button
             type="button"
             onClick={handleOpenAddModal}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-none border border-red-700 text-xs font-bold transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Add Scheduled Amount</span>
@@ -262,7 +262,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       </div>
 
       {/* Templates Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-white border border-slate-300 rounded-none shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-sm font-extrabold text-slate-900">
@@ -353,28 +353,28 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                       <td className="py-3.5 px-4">
                         {isApproved ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-700" />
                             <span>Approved for {currentMonthKey}</span>
                           </span>
                         ) : !isDueThisMonth ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                            <Clock className="h-3 w-3 text-slate-400" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-300">
+                            <Clock className="h-3 w-3 text-slate-500" />
                             <span>Not due this month</span>
                           </span>
                         ) : isOverdue ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                            <AlertTriangle className="h-3 w-3 text-rose-600" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-800 border border-red-300">
+                            <AlertTriangle className="h-3 w-3 text-red-700" />
                             <span>Overdue (Day {template.dueDay})</span>
                           </span>
                         ) : isDueToday ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            <Clock className="h-3 w-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-amber-50 text-amber-900 border border-amber-300">
+                            <Clock className="h-3 w-3 text-amber-700" />
                             <span>Due Today</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                            <Clock className="h-3 w-3 text-slate-400" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-300">
+                            <Clock className="h-3 w-3 text-slate-500" />
                             <span>Upcoming on {template.dueDay}th</span>
                           </span>
                         )}
@@ -387,7 +387,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                             <button
                               type="button"
                               onClick={() => onQuickApprove(template)}
-                              className="px-2.5 py-1 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                              className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-colors flex items-center gap-1 shadow-none cursor-pointer"
                               title="Approve into today's Cash Register"
                             >
                               <CheckCircle2 className="h-3 w-3" />
@@ -395,13 +395,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                             </button>
                           )}
 
-
                           {/* Edit Template */}
                           {canManageItems && (
                             <button
                               type="button"
                               onClick={() => handleOpenEditModal(template)}
-                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-none border border-transparent hover:border-slate-300 transition-colors cursor-pointer"
                               title="Edit Template"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
@@ -413,7 +412,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                             <button
                               type="button"
                               onClick={() => handleDelete(template.id, template.name)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-none border border-transparent hover:border-red-200 transition-colors cursor-pointer"
                               title="Delete Template"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -433,11 +432,11 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       {/* Add / Edit Scheduled Amount Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="bg-white border border-slate-300 rounded-none w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+                <div className="h-9 w-9 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
                   <Repeat className="h-4 w-4" />
                 </div>
                 <div>
@@ -452,7 +451,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-none transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -463,7 +462,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
               {/* Template Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Expense Name / Description *
+                  Expense Name / Description <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="text"
@@ -471,7 +470,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g. Showroom Rent, EB Electricity Bill, Airtel Internet"
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900"
                 />
               </div>
 
@@ -479,12 +478,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">
-                    Branch Facility *
+                    Branch Facility <span className="text-red-600">*</span>
                   </label>
                   <select
                     value={formBranchId}
                     onChange={(e) => setFormBranchId(e.target.value as BranchId)}
-                    className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 cursor-pointer"
                   >
                     {BRANCHES.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -496,7 +495,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">
-                    Default Amount (₹) *
+                    Default Amount (₹) <span className="text-red-600">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-mono text-xs">
@@ -510,7 +509,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                       value={formAmount || ''}
                       onChange={(e) => setFormAmount(Math.max(0, Number(e.target.value)))}
                       placeholder="e.g. 15000.50"
-                      className="w-full pl-8 pr-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                      className="w-full pl-8 pr-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900"
                     />
                   </div>
                 </div>
@@ -521,12 +520,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700">
-                      Frequency *
+                      Frequency <span className="text-red-600">*</span>
                     </label>
                     <select
                       value={formFrequency}
                       onChange={(e) => setFormFrequency(e.target.value as ExpenseFrequency)}
-                      className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                      className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900 cursor-pointer"
                     >
                       <option value="Monthly">Monthly</option>
                       <option value="Quarterly">Quarterly</option>
@@ -538,12 +537,12 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                   {formFrequency !== 'Monthly' && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700">
-                        Starting Month *
+                        Starting Month <span className="text-red-600">*</span>
                       </label>
                       <select
                         value={formStartMonth}
                         onChange={(e) => setFormStartMonth(Number(e.target.value))}
-                        className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                        className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900 cursor-pointer"
                       >
                         {MONTH_NAMES.map((name, idx) => (
                           <option key={idx + 1} value={idx + 1}>
@@ -556,7 +555,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                   <div className={`space-y-1.5 ${formFrequency === 'Monthly' ? '' : 'sm:col-span-2'}`}>
                     <label className="text-xs font-bold text-slate-700">
-                      Due Day of Month (1–31) *
+                      Due Day of Month (1–31) <span className="text-red-600">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -569,7 +568,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                           setFormDueDay(Math.min(31, Math.max(1, Number(e.target.value))))
                         }
                         placeholder="e.g. 5 for 5th"
-                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-slate-900"
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900"
                       />
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-xs">
                         th of month
@@ -580,8 +579,8 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
                 {/* Explanatory cycle pill for non-monthly */}
                 {formFrequency !== 'Monthly' && (
-                  <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <div className="p-2.5 rounded-none bg-slate-50 border border-slate-300 text-xs text-slate-800 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                     <span>
                       Cycle: Due on day {formDueDay} in{' '}
                       <strong>
@@ -604,31 +603,31 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 )}
               </div>
 
-              {/* Payment Mode Default */}
+              {/* Default Payment Mode */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Default Payment Mode *
+                  Default Payment Mode <span className="text-red-600">*</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setFormPaymentMode('Cash')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-3 rounded-none border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       formPaymentMode === 'Cash'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/20 shadow-2xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-400 shadow-none'
+                        : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
                     <DollarSign className="h-3.5 w-3.5" />
-                    <span>Cash</span>
+                    <span>Physical Cash</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormPaymentMode('GPay')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-3 rounded-none border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       formPaymentMode === 'GPay'
-                        ? 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-500/20 shadow-2xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-slate-100 text-slate-900 border-slate-400 shadow-none'
+                        : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
                     <CreditCard className="h-3.5 w-3.5" />
@@ -642,13 +641,13 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
+                  className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
                 >
                   {editingTemplate ? 'Update Scheduled Amount' : 'Save Scheduled Amount'}
                 </button>

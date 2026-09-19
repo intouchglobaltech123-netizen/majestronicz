@@ -197,26 +197,26 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl lg:max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl lg:max-w-5xl shadow-xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
-          <div className="flex items-center gap-3.5">
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => { if (imageUrl || item.imageUrl) setZoomImage(true); }}
-              className={cn('shrink-0 rounded-xl', (imageUrl || item.imageUrl) ? 'cursor-zoom-in hover:ring-2 hover:ring-blue-300 transition-all' : 'cursor-default')}
+              className={cn('shrink-0 rounded-none', (imageUrl || item.imageUrl) ? 'cursor-zoom-in hover:ring-2 hover:ring-red-300 transition-all' : 'cursor-default')}
               title={(imageUrl || item.imageUrl) ? 'Click to enlarge' : undefined}
             >
               <ItemImage
                 src={imageUrl || item.imageUrl}
                 alt={item.itemName}
-                className="h-16 w-16 rounded-xl shadow-xs object-cover"
-                iconClassName="h-7 w-7"
+                className="h-14 w-14 rounded-none border border-slate-300 object-cover"
+                iconClassName="h-6 w-6"
               />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-sm font-bold text-slate-900">
                   {activeTab === 'history'
                     ? 'Item History & Analytics'
                     : canManageItems
@@ -224,13 +224,13 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     : 'Item Details'}
                 </h2>
                 {!canManageItems && (
-                  <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-300">
                     Read-Only
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500">
-                Item Code: <span className="font-mono text-blue-700 font-semibold">{item.itemCode}</span>
+              <p className="text-[11px] text-slate-500">
+                Item Code: <span className="font-mono text-red-700 font-bold">{item.itemCode}</span>
                 {item.subcategory && (
                   <span className="text-slate-400"> • {item.category} / {item.subcategory}</span>
                 )}
@@ -239,7 +239,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-300 cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -248,7 +248,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-white">
           {/* Item Details */}
-          <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-4">
+          <div className="bg-slate-50 p-4 rounded-none border border-slate-200 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-bold text-slate-700">
@@ -259,7 +259,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   required
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                  className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -274,7 +274,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Enter detailed technical specifications, voltage/pinout ratings, variations, or internal staff notes..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors resize-y"
+                  className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-500 transition-colors resize-y"
                 />
               </div>
 
@@ -285,7 +285,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   value={itemHSN}
                   inputMode="numeric"
                   onChange={(e) => setItemHSN(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-blue-600"
+                  className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -332,7 +332,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   type="text"
                   value={itemCode}
                   onChange={(e) => setItemCode(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-blue-600"
+                  className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-red-600"
                 />
               </div>
 
@@ -363,9 +363,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
               {/* Physical Shelf Locations per branch */}
               {item && (
-                <div className="md:col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="md:col-span-2 p-3 rounded-none bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                    <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                    <MapPin className="h-3.5 w-3.5 text-red-700" />
                     <span>Physical Shelf Locations (Rack/Row):</span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -376,15 +376,14 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         <span
                           key={b.id}
                           className={cn(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono border',
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-mono border',
                             loc
-                              ? 'bg-amber-50 text-amber-900 border-amber-200 font-bold'
-                              : 'bg-white text-slate-400 border-slate-200'
+                              ? 'bg-white border-slate-300 text-slate-800'
+                              : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'
                           )}
-                          title={`${b.name}: ${loc || 'No rack assigned'}`}
                         >
-                          <span className="font-sans font-semibold text-slate-500">{b.shortCode}:</span>
-                          <span>{loc || '—'}</span>
+                          <span className="font-semibold text-slate-600">{b.name}:</span>
+                          <span>{loc || 'Unassigned'}</span>
                         </span>
                       );
                     })}
@@ -403,7 +402,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 className={cn(
                   'pb-2.5 px-4 text-xs font-bold transition-all relative border-b-2 -mb-[1px]',
                   activeTab === 'pricing'
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-red-600 text-red-700'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 )}
               >
@@ -416,12 +415,12 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 className={cn(
                   'pb-2.5 px-4 text-xs font-bold transition-all relative border-b-2 -mb-[1px] flex items-center gap-1.5',
                   activeTab === 'stock'
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-red-600 text-red-700'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 )}
               >
                 <span>Stock by Branch</span>
-                <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
+                <span className="text-[11px] px-1.5 py-0.2 rounded-none bg-slate-100 text-slate-600 font-semibold">
                   Read-Only
                 </span>
               </button>
@@ -432,7 +431,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 className={cn(
                   'pb-2.5 px-4 text-xs font-bold transition-all relative border-b-2 -mb-[1px] flex items-center gap-1.5',
                   activeTab === 'history'
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-red-600 text-red-700'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 )}
               >
@@ -460,12 +459,12 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         onChange={(e) =>
                           setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
                         }
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                        className="flex-1 px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-red-600"
                       />
                       <select
                         value={salePriceTaxMode}
                         onChange={(e) => setSalePriceTaxMode(e.target.value as SalePriceTaxMode)}
-                        className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none"
+                        className="px-3 py-2 rounded-none bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none"
                       >
                         <option value="without">Without Tax</option>
                         <option value="with">With Tax</option>
@@ -490,12 +489,12 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                             e.target.value === '' ? '' : Number(e.target.value)
                           )
                         }
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                        className="flex-1 px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-red-600"
                       />
                       <select
                         value={discountType}
                         onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-                        className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none"
+                        className="px-3 py-2 rounded-none bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none"
                       >
                         <option value="%">% (Percentage)</option>
                         <option value="amount">₹ (Fixed Amount)</option>
@@ -519,7 +518,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           onChange={(e) =>
                             setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))
                           }
-                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                         />
                       </div>
 
@@ -538,7 +537,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           onChange={(e) =>
                             setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))
                           }
-                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                         />
                         <p className="text-[11px] text-slate-500">
                           Default cost — used as starting point for Purchase Orders, editable per order
@@ -559,7 +558,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           onChange={(e) =>
                             setMinWholesaleQty(e.target.value === '' ? '' : Number(e.target.value))
                           }
-                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600"
+                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                         />
                       </div>
                     </>
@@ -587,15 +586,15 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 </div>
 
                 {/* Net Price breakdown */}
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 rounded-none bg-slate-50 border border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-blue-600" />
+                    <Calculator className="h-4 w-4 text-slate-600" />
                     <span className="text-xs font-semibold text-slate-700">
                       Standard Net Billing Price:
                     </span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-base font-extrabold text-blue-700">
+                    <span className="text-base font-extrabold text-slate-900 font-mono">
                       ₹{effective.finalPrice.toFixed(2)}
                     </span>
                     <span className="text-[11px] text-slate-500">
@@ -609,7 +608,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
             {/* READ-ONLY STOCK BY BRANCH TAB */}
             {activeTab === 'stock' && (
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-300 rounded-none">
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">Branch Stock Overview</h3>
                     <p className="text-[11px] text-slate-600 mt-0.5">
@@ -619,7 +618,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   <button
                     type="button"
                     onClick={handleNavigateToInventory}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-none border border-red-700 text-xs font-bold shadow-none transition-colors shrink-0 cursor-pointer"
                   >
                     <span>Manage Stock</span>
                     <ArrowRight className="h-3.5 w-3.5" />
@@ -627,7 +626,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 </div>
 
                 {/* Read-Only Mini-Table */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <div className="border border-slate-200 rounded-none overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                       <tr>
@@ -646,10 +645,10 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3 px-4 font-bold text-slate-900">
                               <div className="flex items-center gap-2">
-                                <Building className="h-3.5 w-3.5 text-blue-600" />
+                                <Building className="h-3.5 w-3.5 text-slate-600" />
                                 <span>{b.name}</span>
                                 {b.isHq && (
-                                  <span className="text-[11px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  <span className="text-[11px] uppercase font-bold px-1.5 py-0.2 rounded-none bg-slate-100 text-slate-700 border border-slate-200">
                                     HQ
                                   </span>
                                 )}
@@ -659,7 +658,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                               <div className="text-slate-700 font-medium">{b.location}</div>
                               <div className="text-slate-500 font-mono mt-0.5">
                                 {stock?.location?.trim() ? (
-                                  <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                  <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded-none border border-slate-300">
                                     Rack: {stock.location.trim()}
                                   </span>
                                 ) : (
@@ -675,15 +674,15 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                             </td>
                             <td className="py-3 px-4 text-center">
                               {qty > threshold ? (
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   In Stock
                                 </span>
                               ) : qty > 0 ? (
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-amber-50 text-amber-700 border border-amber-200">
                                   Low Stock
                                 </span>
                               ) : (
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-rose-50 text-rose-700 border border-rose-200">
                                   Out of Stock
                                 </span>
                               )}
@@ -692,27 +691,27 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         );
                       })}
                     </tbody>
-                    <tfoot className="bg-blue-50/70 border-t-2 border-slate-300 font-bold text-slate-900">
+                    <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-900">
                       <tr>
                         <td colSpan={2} className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wide">
                           Total (All Branches)
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <span className="text-base font-bold text-blue-700 font-mono">
+                          <span className="text-base font-bold text-slate-900 font-mono">
                             {BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0)}
                           </span>{' '}
-                          <span className="text-[11px] text-blue-700 font-bold">{unit}</span>
+                          <span className="text-[11px] text-slate-700 font-bold">{unit}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {(() => {
                             const totalQty = BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0);
                             const threshold = Number(reorderThreshold) || (item.reorderThreshold ?? 10);
                             if (totalQty === 0) {
-                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Out of Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-rose-50 text-rose-700 border border-rose-200">Out of Stock</span>;
                             } else if (totalQty <= threshold) {
-                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Low Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-amber-50 text-amber-700 border border-amber-200">Low Stock</span>;
                             } else {
-                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">In Stock</span>;
+                              return <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200">In Stock</span>;
                             }
                           })()}
                         </td>
@@ -752,11 +751,11 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-colors"
+            className="px-3.5 py-1.5 rounded-none text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer transition-colors"
           >
             {activeTab === 'history' || !canManageItems ? 'Close' : 'Cancel'}
           </button>
@@ -765,7 +764,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
             <button
               type="button"
               onClick={handleSave}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+              className="px-4 py-1.5 rounded-none text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 shadow-2xs transition-all cursor-pointer"
             >
               Save Changes
             </button>

@@ -18,18 +18,18 @@ export const BarcodeQueueTable: React.FC<Props> = ({
   const totalLabels = queue.reduce((sum, item) => sum + item.noOfLabels, 0);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+    <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-xs">
       {/* Table Header Controls */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="h-7 w-7 rounded-none bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <ShoppingCart className="h-4 w-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Queued Items for Printing</h3>
             <p className="text-[11px] text-slate-500">
               {queue.length} {queue.length === 1 ? 'Item' : 'Items'} queued •{' '}
-              <strong className="text-blue-700 font-bold">{totalLabels} total labels</strong>
+              <strong className="text-slate-900 font-bold">{totalLabels} total labels</strong>
             </p>
           </div>
         </div>
@@ -38,7 +38,7 @@ export const BarcodeQueueTable: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClearQueue}
-            className="text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 font-semibold transition-colors flex items-center gap-1"
+            className="text-xs text-rose-700 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1 rounded-none border border-rose-300 font-semibold transition-colors flex items-center gap-1 cursor-pointer"
           >
             <Trash2 className="h-3 w-3" />
             <span>Clear Queue</span>
@@ -49,7 +49,7 @@ export const BarcodeQueueTable: React.FC<Props> = ({
       {/* Table Content */}
       {queue.length === 0 ? (
         <div className="py-12 px-4 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mx-auto mb-2">
+          <div className="h-12 w-12 rounded-none bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mx-auto mb-2">
             <ShoppingCart className="h-6 w-6" />
           </div>
           <h4 className="text-xs font-bold text-slate-700">Print Queue is Empty</h4>
@@ -87,11 +87,11 @@ export const BarcodeQueueTable: React.FC<Props> = ({
 
                   {/* Quantity Stepper */}
                   <td className="py-2.5 px-3">
-                    <div className="flex items-center justify-center border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+                    <div className="flex items-center justify-center border border-slate-300 rounded-none overflow-hidden bg-white">
                       <button
                         type="button"
                         onClick={() => onUpdateQuantity(item.id, -1)}
-                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 text-xs"
+                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-300 text-xs cursor-pointer"
                       >
                         -
                       </button>
@@ -101,7 +101,7 @@ export const BarcodeQueueTable: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => onUpdateQuantity(item.id, 1)}
-                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 text-xs"
+                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-300 text-xs cursor-pointer"
                       >
                         +
                       </button>
@@ -138,7 +138,7 @@ export const BarcodeQueueTable: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => onRemoveItem(item.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      className="p-1.5 rounded-none text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       title="Remove from queue"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

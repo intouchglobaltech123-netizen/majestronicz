@@ -202,11 +202,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-5xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Header Bar */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200 shrink-0">
+            <div className="h-10 w-10 rounded-none bg-red-50 text-red-700 flex items-center justify-center border border-red-200 shrink-0">
               <ShoppingBag className="h-5 w-5" />
             </div>
             <div>
@@ -214,20 +214,20 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 <h2 className="text-base font-bold text-slate-900">
                   Purchase Order Detail
                 </h2>
-                <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded border border-blue-200">
+                <span className="font-mono text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
                   {purchaseOrder.poNumber}
                 </span>
                 {/* Status Badge */}
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border',
+                    'inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-none border',
                     purchaseOrder.status === 'Received'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : purchaseOrder.status === 'Partially Received'
                       ? 'bg-amber-50 text-amber-700 border-amber-200'
                       : purchaseOrder.status === 'Cancelled'
                       ? 'bg-slate-100 text-slate-500 border-slate-200'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-100 text-slate-800 border-slate-300'
                   )}
                 >
                   {purchaseOrder.status === 'Received' && <CheckCircle2 className="h-3 w-3" />}
@@ -299,9 +299,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             type="button"
             onClick={() => setActiveTab('overview')}
             className={cn(
-              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors',
+              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors cursor-pointer',
               activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-red-600 text-red-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             )}
           >
@@ -313,9 +313,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             type="button"
             onClick={() => setActiveTab('history')}
             className={cn(
-              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors',
+              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors cursor-pointer',
               activeTab === 'history'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-red-600 text-red-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             )}
           >
@@ -323,7 +323,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             <span>Receiving History</span>
             <span
               className={cn(
-                'px-1.5 py-0.2 rounded-full text-[11px] font-mono',
+                'px-1.5 py-0.2 rounded-none text-[11px] font-mono',
                 receivingHistory.length > 0
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-slate-100 text-slate-500'
@@ -337,9 +337,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             type="button"
             onClick={() => setActiveTab('bills')}
             className={cn(
-              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors',
+              'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors cursor-pointer',
               activeTab === 'bills'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-red-600 text-red-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             )}
           >
@@ -347,9 +347,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             <span>Vendor Bills</span>
             <span
               className={cn(
-                'px-1.5 py-0.2 rounded-full text-[11px] font-mono',
+                'px-1.5 py-0.2 rounded-none text-[11px] font-mono',
                 attachments.length > 0
-                  ? 'bg-blue-100 text-blue-800'
+                  ? 'bg-slate-100 text-slate-800 font-bold'
                   : 'bg-slate-100 text-slate-500'
               )}
             >
@@ -362,15 +362,15 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               type="button"
               onClick={() => setActiveTab('linked')}
               className={cn(
-                'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors',
+                'py-3 border-b-2 -mb-[1px] flex items-center gap-2 transition-colors cursor-pointer',
                 activeTab === 'linked'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-red-600 text-red-700 font-bold'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               )}
             >
               <Layers className="h-3.5 w-3.5" />
               <span>Linked Records</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-purple-100 text-purple-800 font-mono">
+              <span className="px-1.5 py-0.2 rounded-none bg-slate-100 text-slate-800 font-mono">
                 1
               </span>
             </button>
@@ -445,23 +445,23 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 {/* Vendor Bills Attached */}
                 <div
                   onClick={() => setActiveTab('bills')}
-                  className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:border-blue-300 hover:bg-blue-50/20 transition-all group"
+                  className="bg-white p-4 rounded-none border border-slate-200 shadow-none cursor-pointer hover:border-red-600 hover:bg-red-50/20 transition-all group"
                 >
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block group-hover:text-blue-600">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block group-hover:text-red-700">
                     Vendor Bills
                   </span>
                   <div className="text-lg font-mono font-bold text-slate-900 mt-1 flex items-center justify-between">
                     <span>{attachments.length} attached</span>
-                    <Paperclip className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
+                    <Paperclip className="h-4 w-4 text-slate-400 group-hover:text-red-700" />
                   </div>
-                  <span className="text-[11px] text-blue-600 font-semibold mt-0.5 block group-hover:underline">
+                  <span className="text-[11px] text-red-700 font-semibold mt-0.5 block group-hover:underline">
                     {attachments.length > 0 ? 'Click to view bills' : '+ Upload bill'}
                   </span>
                 </div>
               </div>
 
               {/* Vendor & Delivery Meta */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-none border border-slate-200 shadow-none grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Vendor Info */}
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
@@ -491,13 +491,13 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     Receiving Hub & Destination
                   </h4>
                   <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-                    <Building2 className="h-4 w-4 text-blue-600" />
+                    <Building2 className="h-4 w-4 text-slate-600" />
                     <span>{branchData?.name || purchaseOrder.branchId}</span>
                   </div>
                   {branchData?.location && (
                     <p className="text-xs text-slate-500 mt-1">{branchData.location}</p>
                   )}
-                  <div className="mt-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600">
+                  <div className="mt-3 p-2.5 bg-slate-50 rounded-none border border-slate-200 text-xs text-slate-600">
                     <span className="font-bold text-slate-700">Remarks / PO Notes:</span>{' '}
                     {purchaseOrder.notes || 'No special notes specified.'}
                   </div>
@@ -577,7 +577,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                                   Partial ({rec}/{item.quantityOrdered})
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-none border border-slate-300">
                                   Awaiting
                                 </span>
                               )}
@@ -600,7 +600,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         <td className="py-3 px-3 text-center font-mono text-amber-700">
                           {Math.max(0, totalOrdered - totalReceived)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-base text-blue-700">
+                        <td className="py-3 px-4 text-right font-mono text-base text-slate-900">
                           {formatCurrency(purchaseOrder.totalAmount)}
                         </td>
                         <td className="py-3 px-4 text-center text-xs text-slate-500">
@@ -803,11 +803,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
           {activeTab === 'bills' && (
             <div className="space-y-6">
               {/* Header with Explanatory Notice */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-none border border-slate-300 shadow-none">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <span>Vendor Bills & Invoices</span>
-                    <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                    <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-none bg-slate-100 text-slate-800 border border-slate-300">
                       {attachments.length} attached
                     </span>
                   </h3>
@@ -830,10 +830,10 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       disabled={isUploading}
                       onClick={() => fileInputRef.current?.click()}
                       className={cn(
-                        'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl text-white shadow-xs transition-colors',
+                        'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-none text-white transition-colors cursor-pointer border border-red-700 shadow-none',
                         isUploading
-                          ? 'bg-blue-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                          ? 'bg-red-400 cursor-not-allowed'
+                          : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
                       )}
                     >
                       <Upload className="h-3.5 w-3.5" />
@@ -844,7 +844,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               </div>
 
               {/* Stopgap Architecture Reminder */}
-              <div className="px-4 py-2.5 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+              <div className="px-4 py-2.5 bg-amber-50/70 border border-amber-200 rounded-none text-xs text-amber-800 flex items-center gap-2">
                 <Info className="h-4 w-4 text-amber-600 shrink-0" />
                 <span>
                   <strong>Client Storage Architecture:</strong> Bills are stored client-side in local storage
@@ -866,7 +866,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     handleFileUpload(e.dataTransfer.files);
                   }}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 rounded-xl p-6 text-center cursor-pointer transition-all bg-white"
+                  className="border-2 border-dashed border-slate-300 hover:border-red-600 hover:bg-red-50/20 rounded-none p-6 text-center cursor-pointer transition-all bg-white"
                 >
                   <Upload className="h-8 w-8 mx-auto text-slate-400 mb-2" />
                   <p className="text-xs font-bold text-slate-700">
@@ -921,7 +921,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         <div className="flex items-start justify-between gap-1">
                           <h4
                             onClick={() => handleOpenAttachment(att)}
-                            className="text-xs font-bold text-slate-900 truncate hover:text-blue-600 cursor-pointer"
+                            className="text-xs font-bold text-slate-900 truncate hover:text-red-700 cursor-pointer"
                             title={att.name}
                           >
                             {att.name}
@@ -934,7 +934,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                                   deletePurchaseOrderAttachment(purchaseOrder.id, att.id);
                                 }
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-md transition-colors"
+                              className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-none transition-colors"
                               title="Delete attachment"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -959,7 +959,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           <button
                             type="button"
                             onClick={() => handleOpenAttachment(att)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-red-700 px-2 py-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors cursor-pointer"
                           >
                             <Eye className="h-3 w-3" />
                             <span>Preview</span>
@@ -968,7 +968,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           <button
                             type="button"
                             onClick={() => handleDownloadAttachment(att)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 px-2 py-1 rounded-none bg-white hover:bg-slate-100 border border-slate-300 transition-colors cursor-pointer"
                           >
                             <Download className="h-3 w-3" />
                             <span>Download</span>

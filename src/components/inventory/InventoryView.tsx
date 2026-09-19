@@ -1098,67 +1098,67 @@ export const InventoryView: React.FC = () => {
       {activeInventoryTab === 'combos' && (
         <div className="space-y-4">
           {/* Read-only verification notice banner */}
-          <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 flex items-start gap-3 text-purple-900">
-            <Info className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-none bg-slate-50 border border-slate-300 flex items-start gap-3 text-slate-800">
+            <Info className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div className="text-xs space-y-1">
-              <p className="font-bold text-purple-950">
+              <p className="font-bold text-slate-900 uppercase tracking-wider">
                 Read-Only Verification View: Live Computed Combo Availability
               </p>
-              <p className="text-purple-700 leading-relaxed">
+              <p className="text-slate-600 leading-relaxed">
                 Combos are dynamic, bundled product offerings with zero independent stock. Available quantities are computed in real-time from the available branch stock of their individual components. Click any combo row to expand and inspect its component breakdown and bottleneck constraints. To replenish or adjust stock, adjust the component items under the <strong>Regular Items</strong> tab.
               </p>
             </div>
           </div>
 
           {/* Combos KPI Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>
-                <Layers className="h-4 w-4 text-purple-600" />
+                <Layers className="h-4 w-4 text-slate-600" />
               </div>
-              <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">In Stock Combos</span>
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               </div>
-              <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-emerald-700 mt-1">{comboMetrics.inStock}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-emerald-700 mt-1">{comboMetrics.inStock}</p>
               <span className="text-[11px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Unavailable</span>
                 <XCircle className="h-4 w-4 text-rose-600" />
               </div>
-              <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-rose-700 mt-1">{comboMetrics.outOfStock}</p>
               <span className="text-[11px] text-rose-600 mt-0.5 block">Component shortage at branch</span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Total Units Ready</span>
-                <Package className="h-4 w-4 text-purple-600" />
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Total Units Ready</span>
+                <Package className="h-4 w-4 text-slate-600" />
               </div>
-              <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-purple-700 mt-1">{comboMetrics.totalAvailableKits}</p>
-              <span className="text-[11px] text-purple-600 mt-0.5 block">Sum of assembleable kits</span>
+              <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-slate-900 mt-1">{comboMetrics.totalAvailableKits}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Sum of assembleable kits</span>
             </div>
           </div>
 
           {/* Action / Search Bar for Combos */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="bg-white border border-slate-300 rounded-none p-3.5 shadow-none flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
-              <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search combo by name or code (e.g. CB-0001)..."
                 value={comboSearchQuery}
                 onChange={(e) => setComboSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600"
+                className="w-full pl-9 pr-4 py-2 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-colors"
               />
             </div>
             <div className="text-xs text-slate-500 font-medium">
@@ -1167,7 +1167,7 @@ export const InventoryView: React.FC = () => {
           </div>
 
           {/* Combos Inventory Table */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-none">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -1218,12 +1218,12 @@ export const InventoryView: React.FC = () => {
                             onClick={() => setExpandedComboId(isExpanded ? null : combo.id)}
                             className={cn(
                               'cursor-pointer transition-colors select-none',
-                              isExpanded ? 'bg-purple-50/40' : 'hover:bg-slate-50/80'
+                              isExpanded ? 'bg-red-50/20' : 'hover:bg-slate-50/80'
                             )}
                           >
                             <td className="py-3 px-3 text-center text-slate-400">
                               {isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-purple-600 mx-auto" />
+                                <ChevronDown className="h-4 w-4 text-red-600 mx-auto" />
                               ) : (
                                 <ChevronUp className="h-4 w-4 text-slate-400 rotate-90 mx-auto" />
                               )}
@@ -1237,18 +1237,18 @@ export const InventoryView: React.FC = () => {
                                   src={combo.imageUrl}
                                   alt={combo.comboName}
                                   isCombo={true}
-                                  className="h-10 w-10 rounded-xl shrink-0"
+                                  className="h-10 w-10 rounded-none border border-slate-300 shrink-0"
                                   iconClassName="h-4 w-4"
                                   previewable
                                 />
                                 <div>
                                   <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                                     <span>{combo.comboName}</span>
-                                    <span className="px-1.5 py-0.2 rounded text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 uppercase">
+                                    <span className="px-1.5 py-0.2 rounded-none text-[11px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider">
                                       Combo
                                     </span>
                                   </div>
-                                  <span className="font-mono text-[11px] text-purple-700 font-bold">
+                                  <span className="font-mono text-[11px] text-red-700 font-bold">
                                     {combo.comboCode}
                                   </span>
                                 </div>
@@ -1286,12 +1286,12 @@ export const InventoryView: React.FC = () => {
                             </td>
                             <td className="py-3 px-4 text-center">
                               {avail > 0 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 uppercase tracking-wider">
                                   <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                   <span>In Stock ({avail})</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 uppercase tracking-wider">
                                   <XCircle className="h-3 w-3 text-rose-600" />
                                   <span>Unavailable (0)</span>
                                 </span>
@@ -1302,11 +1302,11 @@ export const InventoryView: React.FC = () => {
                           {/* Expanded Component Breakdown Accordion */}
                           {isExpanded && (
                             <tr className="bg-slate-50/60">
-                              <td colSpan={7} className="p-4 pl-12 border-b border-purple-100">
-                                <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                                  <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+                              <td colSpan={7} className="p-4 pl-12 border-b border-slate-300">
+                                <div className="bg-white rounded-none border border-slate-300 shadow-none overflow-hidden">
+                                  <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-300 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                      <Boxes className="h-4 w-4 text-purple-600" />
+                                      <Boxes className="h-4 w-4 text-red-600" />
                                       <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                         Component Stock Breakdown ({combo.comboName})
                                       </span>
@@ -1359,7 +1359,7 @@ export const InventoryView: React.FC = () => {
                                                   <ItemImage
                                                     src={item?.imageUrl}
                                                     alt={item?.itemName || 'Item'}
-                                                    className="h-7 w-7 rounded-lg shrink-0"
+                                                    className="h-7 w-7 rounded-none border border-slate-300 shrink-0"
                                                     iconClassName="h-3.5 w-3.5"
                                                     previewable
                                                   />
@@ -1403,17 +1403,17 @@ export const InventoryView: React.FC = () => {
                                               </td>
                                               <td className="py-2.5 px-3 text-center">
                                                 {isDepleted ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 uppercase tracking-wider">
                                                     <AlertTriangle className="h-3 w-3 text-rose-600" />
                                                     <span>Depleted (Shortage)</span>
                                                   </span>
                                                 ) : isBottleneck ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 uppercase tracking-wider">
                                                     <AlertOctagon className="h-3 w-3 text-amber-600" />
                                                     <span>Limiting Bottleneck</span>
                                                   </span>
                                                 ) : (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 uppercase tracking-wider">
                                                     <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                                     <span>Sufficient Stock</span>
                                                   </span>
@@ -1426,7 +1426,7 @@ export const InventoryView: React.FC = () => {
                                     </table>
                                   </div>
 
-                                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-300 flex items-center justify-between text-[11px] text-slate-500">
                                     <span>
                                       Max available combo kits ({avail}) is determined by the bottleneck component with the lowest supported count ({lowestSupported === Infinity ? 0 : lowestSupported}).
                                     </span>
@@ -1446,12 +1446,12 @@ export const InventoryView: React.FC = () => {
               </table>
             </div>
 
-            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500">
+            <div className="px-6 py-3.5 border-t border-slate-300 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500">
               <span>
                 Showing <strong className="text-slate-800 font-bold">{filteredCombos.length}</strong> of{' '}
                 <strong className="text-slate-800 font-bold">{combos.length}</strong> combo offerings
               </span>
-              <span className="text-[11px] text-purple-700 font-medium">
+              <span className="text-[11px] text-slate-500 font-medium">
                 Live availability derived from component inventory
               </span>
             </div>

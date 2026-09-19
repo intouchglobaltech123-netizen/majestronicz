@@ -111,77 +111,71 @@ export const EnquiryDetailModal: React.FC<Props> = ({
   const statusBadge = () => {
     if (enquiry.isNewItemRequest && !enquiry.itemId) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs">
-          <PackagePlus className="h-3.5 w-3.5 text-purple-600" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs uppercase tracking-wider">
+          <PackagePlus className="h-3.5 w-3.5 text-slate-700" />
           New Item Request (Awaiting Catalog)
         </span>
       );
     }
     if (enquiry.status === 'Converted') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs uppercase tracking-wider">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
           Converted
         </span>
       );
     }
     if (enquiry.status === 'Cancelled') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs">
-          <XCircle className="h-3.5 w-3.5 text-rose-600" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-red-50 text-red-800 border border-red-300 font-bold text-xs uppercase tracking-wider">
+          <XCircle className="h-3.5 w-3.5 text-red-700" />
           Cancelled
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs">
-        <Clock className="h-3.5 w-3.5 text-amber-600" />
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-none bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs uppercase tracking-wider">
+        <Clock className="h-3.5 w-3.5 text-amber-700" />
         Follow-up Active
         {enquiry.isNewItemRequest && (
-          <span className="ml-1 text-[11px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded-full font-semibold">New Item</span>
+          <span className="ml-1 text-[11px] bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded-none font-bold uppercase tracking-wider">New Item</span>
         )}
       </span>
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
-        {/* Top Header Bar (Matching Sales PDF Modal pattern) */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
+        {/* Modal Top Bar (Hidden on Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
-          <div className="flex items-center flex-wrap gap-2.5">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-              Customer Enquiry Detail Preview
-            </span>
-            <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-none border border-red-200">
               {enquiry.enquiryNumber}
             </span>
             {statusBadge()}
           </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
-              type="button"
               onClick={handlePrint}
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
-              title="Print Enquiry Sheet"
+              title="Print Enquiry Form"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-none transition-colors cursor-pointer"
             >
               <Printer className="h-4 w-4" />
             </button>
             <button
-              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
-              title="Close (Esc)"
+              title="Close modal"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-none transition-colors cursor-pointer"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Scrollable Printable Document Container */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-4 sm:p-6 space-y-6 print:p-0">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs print:border-none print:shadow-none space-y-6">
+          <div className="bg-white border border-slate-300 rounded-none p-6 sm:p-8 shadow-xs print:border-none print:shadow-none space-y-6">
             {/* 1. Header with Company Profile & Document Meta */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-slate-200">
               <div className="space-y-2">
@@ -195,11 +189,11 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="sm:text-right space-y-1.5 shrink-0 bg-slate-50 sm:bg-transparent p-4 sm:p-0 rounded-xl">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
+              <div className="sm:text-right space-y-1.5 shrink-0 bg-slate-50 sm:bg-transparent p-4 sm:p-0 rounded-none border border-slate-200 sm:border-0">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500 block">
                   Customer Requirement Record
                 </span>
-                <h2 className="text-xl sm:text-2xl font-bold font-mono text-blue-700">
+                <h2 className="text-xl sm:text-2xl font-bold font-mono text-red-700">
                   {enquiry.enquiryNumber}
                 </h2>
                 <div className="text-xs text-slate-600 font-mono space-y-0.5">
@@ -221,12 +215,12 @@ export const EnquiryDetailModal: React.FC<Props> = ({
 
             {/* 2. Customer & Branch Information Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
+              <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block">
                   Prospective Buyer / Customer
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <div className="h-8 w-8 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center shrink-0">
                     <User className="h-4 w-4" />
                   </div>
                   <div>
@@ -243,14 +237,14 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
+              <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 block">
                   Fulfillment Location & Live Stock Status
                 </span>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 font-bold text-sm text-slate-900">
-                      <Building className="h-4 w-4 text-blue-600" />
+                      <Building className="h-4 w-4 text-slate-700" />
                       <span>{branchObj?.name || enquiry.branchId}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">
@@ -262,15 +256,15 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       Hub Inventory
                     </span>
                     {!enquiry.itemId ? (
-                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded border inline-block mt-0.5 bg-purple-50 text-purple-700 border-purple-200">
+                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-none border inline-block mt-0.5 bg-slate-100 text-slate-700 border-slate-300">
                         Not in Catalog
                       </span>
                     ) : (
                       <span className={cn(
-                        'text-sm font-bold font-mono px-2 py-0.5 rounded border inline-block mt-0.5',
+                        'text-sm font-bold font-mono px-2 py-0.5 rounded-none border inline-block mt-0.5',
                         hasSufficientStock
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : 'bg-red-50 text-red-700 border-red-300'
                       )}>
                         {currentStock} {enquiry.unit} Available
                       </span>
@@ -282,16 +276,16 @@ export const EnquiryDetailModal: React.FC<Props> = ({
 
             {/* New Item Request Banner if not in catalog */}
             {enquiry.isNewItemRequest && !enquiry.itemId && (
-              <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 rounded-none bg-slate-50 border border-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="h-9 w-9 rounded-none bg-red-50 text-red-700 border border-red-200 flex items-center justify-center shrink-0 mt-0.5">
                     <PackagePlus className="h-5 w-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wide">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                       New Item Request — Not in Catalog
                     </h4>
-                    <p className="text-xs text-purple-800 mt-0.5">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       This item was requested by the customer but does not exist in the inventory catalog yet.
                       {canApproveCatalogRequests
                         ? ' Click "Add to Catalog" to register the master product specifications and assign pricing.'
@@ -306,7 +300,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       onClose();
                       onAddToCatalog(enquiry);
                     }}
-                    className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs transition-colors shrink-0 flex items-center gap-1.5 self-start sm:self-auto"
+                    className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors shrink-0 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider cursor-pointer"
                   >
                     <PlusCircle className="h-3.5 w-3.5" />
                     <span>Add to Catalog</span>
@@ -320,7 +314,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               <div className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2">
                 Item Requested Details
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-slate-300 rounded-none overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200">
@@ -339,25 +333,25 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                             <img
                               src={enquiry.itemImageUrl}
                               alt={enquiry.itemName}
-                              className="h-12 w-12 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50 shadow-2xs"
+                              className="h-12 w-12 rounded-none object-cover border border-slate-300 shrink-0 bg-slate-50"
                             />
                           )}
                           <div>
                             <div className="font-bold text-slate-900 flex items-center gap-2">
                               <span>{enquiry.itemName}</span>
                               {enquiry.isNewItemRequest && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                  <PackagePlus className="h-2.5 w-2.5" />
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase">
+                                  <PackagePlus className="h-3 w-3 text-slate-700" />
                                   New Item Request
                                 </span>
                               )}
                             </div>
                             {enquiry.itemCode ? (
-                              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 inline-block">
+                              <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded-none border border-slate-300 mt-0.5 inline-block font-bold">
                                 {enquiry.itemCode}
                               </span>
                             ) : (
-                              <span className="text-[11px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 mt-0.5 inline-block italic font-semibold">
+                              <span className="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded-none border border-slate-300 mt-0.5 inline-block italic font-semibold">
                                 Awaiting Catalog Registration
                               </span>
                             )}
@@ -375,18 +369,18 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         {!enquiry.itemId ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-none border border-slate-300 uppercase tracking-wider">
                             <PackagePlus className="h-3 w-3" />
                             Not in Catalog
                           </span>
                         ) : hasSufficientStock ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            <CheckCircle2 className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-none border border-emerald-300 uppercase tracking-wider">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-700" />
                             Sufficient Stock
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                            <AlertTriangle className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-none border border-red-300 uppercase tracking-wider">
+                            <AlertTriangle className="h-3 w-3 text-red-700" />
                             Shortage ({enquiry.quantity - currentStock} {enquiry.unit})
                           </span>
                         )}
@@ -398,28 +392,28 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             </div>
 
             {/* 4. Related Records Section (Clean, dedicated cross-links) */}
-            <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100 space-y-3">
+            <div className="p-4 rounded-none bg-slate-50 border border-slate-300 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-slate-700" />
                   <span>Related Business Records</span>
                 </span>
-                <span className="text-[11px] text-blue-600">Cross-module traceability</span>
+                <span className="text-[11px] text-slate-500">Cross-module traceability</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Linked Pending Order */}
-                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+                <div className="p-3 rounded-none bg-white border border-slate-300 shadow-none flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-500 block">
                       Linked Pending Stock Order
                     </span>
                     {linkedPo || enquiry.hasPendingOrder ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-purple-700">
+                        <span className="font-mono font-bold text-xs text-slate-900">
                           {linkedPo ? linkedPo.orderNumber : `PO-WAIT-${enquiry.enquiryNumber}`}
                         </span>
-                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                        <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-slate-100 text-slate-700 border border-slate-300 uppercase">
                           {linkedPo?.status || 'Waiting'}
                         </span>
                       </div>
@@ -432,7 +426,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={handleJumpToPendingOrder}
-                      className="px-2.5 py-1 text-xs font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-none border border-slate-300 transition-colors flex items-center gap-1 uppercase tracking-wider cursor-pointer"
                     >
                       <span>View Order</span>
                       <ExternalLink className="h-3 w-3" />
@@ -441,17 +435,17 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                 </div>
 
                 {/* Converted Quote / Invoice */}
-                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+                <div className="p-3 rounded-none bg-white border border-slate-300 shadow-none flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[11px] font-bold uppercase text-slate-400 block">
+                    <span className="text-[11px] font-bold uppercase text-slate-500 block">
                       Resulting Sales Document
                     </span>
                     {enquiry.convertedTo ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-emerald-700">
+                        <span className="font-mono font-bold text-xs text-emerald-800">
                           {enquiry.convertedTo.number}
                         </span>
-                        <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                        <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-emerald-50 text-emerald-800 border border-emerald-300 uppercase">
                           {enquiry.convertedTo.type}
                         </span>
                       </div>
@@ -464,7 +458,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={handleJumpToConvertedRecord}
-                      className="px-2.5 py-1 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-none border border-slate-300 transition-colors flex items-center gap-1 uppercase tracking-wider cursor-pointer"
                     >
                       <span>Open {enquiry.convertedTo.type === 'invoice' ? 'Sale' : 'Quote'}</span>
                       <ExternalLink className="h-3 w-3" />
@@ -475,7 +469,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             </div>
 
             {/* 5. Editable Staff Notes Section */}
-            <div className="p-4 rounded-xl border border-slate-200 space-y-2">
+            <div className="p-4 rounded-none border border-slate-300 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">
                   Staff Notes & Customer Instructions
@@ -499,7 +493,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Enter notes about customer requirements, discounts agreed, or follow-up feedback..."
-                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                    className="w-full p-2.5 rounded-none bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-red-600"
                   />
                   <div className="flex items-center justify-end gap-2">
                     <button
@@ -508,14 +502,14 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                         setNotes(enquiry.notes || '');
                         setIsEditingNotes(false);
                       }}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-none border border-slate-300 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveNotes}
-                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1 shadow-2xs"
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 flex items-center gap-1 shadow-none cursor-pointer"
                     >
                       <Save className="h-3.5 w-3.5" />
                       <span>Save Notes</span>
@@ -523,7 +517,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-slate-600 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-600 italic bg-slate-50 p-3 rounded-none border border-slate-200">
                   {enquiry.notes || 'No customer notes recorded yet. Click "Edit Notes" to add.'}
                 </p>
               )}
@@ -599,7 +593,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onOpenScheduleReminder(enquiry)}
-                className="px-3.5 py-2 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-xl border border-amber-300 transition-colors flex items-center gap-1.5 shadow-2xs"
+                className="px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-none border border-amber-300 transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
               >
                 <Bell className="h-3.5 w-3.5 text-amber-700" />
                 <span>{enquiry.reminderDate ? 'Reschedule Reminder' : 'Set Follow-up Reminder'}</span>
@@ -611,7 +605,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onCancelEnquiry(enquiry)}
-                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-red-700 hover:text-red-800 hover:bg-red-50 rounded-none border border-transparent hover:border-red-300 transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <XCircle className="h-3.5 w-3.5" />
                 <span>Cancel Enquiry</span>
@@ -623,7 +617,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+              className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -638,7 +632,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                       onClose();
                       onAddToCatalog(enquiry);
                     }}
-                    className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
+                    className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-900 border border-slate-900 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
                   >
                     <PlusCircle className="h-3.5 w-3.5" />
                     <span>Add to Catalog</span>
@@ -653,10 +647,10 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                         onClose();
                         onConvertToQuote(enquiry.id);
                       }}
-                      className="px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
+                      className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
                     >
-                      <FileText className="h-3.5 w-3.5" />
-                      <span>To Quote</span>
+                      <FileText className="h-3.5 w-3.5 text-slate-500" />
+                      <span>+ Quote</span>
                     </button>
 
                     <button
@@ -665,10 +659,10 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                         onClose();
                         onConvertToInvoice(enquiry.id);
                       }}
-                      className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
+                      className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700 rounded-none transition-colors flex items-center gap-1.5 shadow-none cursor-pointer"
                     >
                       <Receipt className="h-3.5 w-3.5" />
-                      <span>To Invoice</span>
+                      <span>+ Invoice</span>
                     </button>
                   </>
                 )}

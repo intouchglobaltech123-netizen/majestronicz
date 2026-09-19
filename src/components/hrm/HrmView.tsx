@@ -97,7 +97,7 @@ export const HrmView: React.FC = () => {
                 ? 'Salary Structure'
                 : 'Staff Directory'}
             </h1>
-            <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
               {activeTab === 'attendance'
                 ? 'Shifts & Clock-ins'
                 : activeTab === 'payroll'
@@ -116,14 +116,14 @@ export const HrmView: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsKioskModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
           >
             <Camera className="h-4 w-4" />
             <span>Clock-In / Out Terminal</span>
           </button>
           <button
             onClick={() => setIsEmployeeModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-2xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-none shadow-none transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4 text-slate-500" />
             <span>Enroll Staff</span>
@@ -137,10 +137,10 @@ export const HrmView: React.FC = () => {
           type="button"
           onClick={() => setActiveTab('attendance')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'attendance'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
           )}
         >
           <Clock className="h-3.5 w-3.5" />
@@ -151,10 +151,10 @@ export const HrmView: React.FC = () => {
           type="button"
           onClick={() => setActiveTab('payroll')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'payroll'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
           )}
         >
           <DollarSign className="h-3.5 w-3.5" />
@@ -165,17 +165,17 @@ export const HrmView: React.FC = () => {
           type="button"
           onClick={() => setActiveTab('employees')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'employees'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
           )}
         >
           <Users className="h-3.5 w-3.5" />
           <span>Staff Directory</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'employees' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px] font-bold border',
+            activeTab === 'employees' ? 'bg-white text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-300'
           )}>
             {employees.length}
           </span>
@@ -185,10 +185,10 @@ export const HrmView: React.FC = () => {
           type="button"
           onClick={() => setActiveTab('salary')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'salary'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
           )}
         >
           <Percent className="h-3.5 w-3.5" />
@@ -199,8 +199,8 @@ export const HrmView: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Attendance rate today */}
-        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${attendanceRate >= 80 ? 'bg-emerald-50/50 border-emerald-200' : attendanceRate >= 50 ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
-          <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
+        <div className={`p-4 rounded-none border shadow-none flex items-center gap-3.5 ${attendanceRate >= 80 ? 'bg-emerald-50/50 border-emerald-300' : attendanceRate >= 50 ? 'bg-amber-50/50 border-amber-300' : 'bg-white border-slate-300'}`}>
+          <div className="h-11 w-11 rounded-none bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-300">
             <Percent className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -211,8 +211,8 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Absent today */}
-        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${absentToday > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
-          <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
+        <div className={`p-4 rounded-none border shadow-none flex items-center gap-3.5 ${absentToday > 0 ? 'bg-rose-50/50 border-rose-300' : 'bg-white border-slate-300'}`}>
+          <div className="h-11 w-11 rounded-none bg-rose-50 text-rose-700 flex items-center justify-center shrink-0 border border-rose-300">
             <UserX className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -223,8 +223,8 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Active Staff */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/60 font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-none bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-300 font-bold">
             <Users className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -239,8 +239,8 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Today's Check-Ins */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60 font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-none bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-300 font-bold">
             <CheckCircle2 className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -257,8 +257,8 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Monthly Hours Worked */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60 font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-none bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-300 font-bold">
             <Clock className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -273,8 +273,8 @@ export const HrmView: React.FC = () => {
         </div>
 
         {/* Monthly Payroll */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/60 font-bold">
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-none bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-300 font-bold">
             <DollarSign className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
