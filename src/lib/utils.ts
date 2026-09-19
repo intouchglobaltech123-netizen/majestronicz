@@ -68,3 +68,67 @@ export function formatPhoneWithCountryCode(raw?: string): string {
   if (digits.length <= 5) return `+91 ${digits}`;
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
+
+/**
+ * Cross-browser check for native fullscreen mode (supports macOS Safari webkit prefix).
+ */
+export function getIsFullscreen(): boolean {
+  if (typeof document === 'undefined') return false;
+  const doc = document as any;
+  return Boolean(
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.webkitIsFullScreen ||
+    doc.mozFullScreenElement ||
+    doc.msFullscreenElement
+  );
+}
+
+/**
+ * Cross-browser request for native fullscreen.
+ */
+export async function enterNativeFullscreen(): Promise<boolean> {
+  if (typeof document === 'undefined') return false;
+  const elem = document.documentElement as any;
+  try {
+    if (elem.requestFullscreen) {
+      await elem.requestFullscreen();
+      return true;
+    } else if (elem.webkitRequestFullscreen) {
+      await elem.webkitRequestFullscreen();
+      return true;
+    } else if (elem.msRequestFullscreen) {
+      await elem.msRequestFullscreen();
+      return true;
+    }
+  } catch (err) {
+    console.warn('Enter fullscreen error:', err);
+  }
+  return false;
+}
+
+/**
+ * Cross-browser exit from native fullscreen (supports macOS Safari webkitExitFullscreen).
+ */
+export async function exitNativeFullscreen(): Promise<boolean> {
+  if (typeof document === 'undefined') return false;
+  const doc = document as any;
+  try {
+    if (doc.exitFullscreen) {
+      await doc.exitFullscreen();
+      return true;
+    } else if (doc.webkitExitFullscreen) {
+      await doc.webkitExitFullscreen();
+      return true;
+    } else if (doc.mozCancelFullScreen) {
+      await doc.mozCancelFullScreen();
+      return true;
+    } else if (doc.msExitFullscreen) {
+      await doc.msExitFullscreen();
+      return true;
+    }
+  } catch (err) {
+    console.warn('Exit fullscreen error:', err);
+  }
+  return false;
+}

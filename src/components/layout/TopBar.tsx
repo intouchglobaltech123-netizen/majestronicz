@@ -16,7 +16,7 @@ import {
   Minimize2,
   Menu,
 } from 'lucide-react';
-import { cn, formatCurrency } from '../../lib/utils';
+import { cn, formatCurrency, getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
@@ -60,7 +60,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
-  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const [internalFullscreen, setInternalFullscreen] = useState(() => getIsFullscreen());
   const isFullscreen = propIsFullscreen ?? internalFullscreen;
 
   const toggleFullscreen = () => {
@@ -68,16 +68,18 @@ export const TopBar: React.FC<TopBarProps> = ({
       propToggleFullscreen();
       return;
     }
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
+    if (getIsFullscreen()) {
+      exitNativeFullscreen();
     } else {
-      document.exitFullscreen?.().catch(() => {});
+      enterNativeFullscreen();
     }
   };
+
   useEffect(() => {
-    const onFs = () => setInternalFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFs);
-    return () => document.removeEventListener('fullscreenchange', onFs);
+    const onFs = () => setInternalFullscreen(getIsFullscreen());
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange', 'resize'];
+    events.forEach((ev) => document.addEventListener(ev, onFs));
+    return () => events.forEach((ev) => document.removeEventListener(ev, onFs));
   }, []);
 
   // Close dropdown when clicking outside

@@ -538,11 +538,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser.role === 'Billing' ? 'items' : 'dashboard';
   });
 
-  const [activeSubTab, setActiveSubTab] = useState<ActiveSubTabState | null>(null);
+  const SUBTAB_STORAGE_KEY = 'majestronicz_active_subtab';
+
+  const [activeSubTab, setActiveSubTab] = useState<ActiveSubTabState | null>(() => {
+    try {
+      const saved = localStorage.getItem(SUBTAB_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.view && parsed.tab) {
+          return { view: parsed.view, tab: parsed.tab, nonce: Date.now() };
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
 
   const setCurrentView = useCallback((view: ActiveNavView) => {
     const target = view === 'customers' ? 'parties' : view;
     setCurrentViewRaw(target);
+    try {
+      localStorage.removeItem(SUBTAB_STORAGE_KEY);
+    } catch {}
+    setActiveSubTab(null);
     try {
       if (window.history.state?.view !== target) {
         window.history.pushState({ view: target }, '');
@@ -554,7 +573,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const navigateToTab = useCallback((view: ActiveNavView, tab: string) => {
     const target = view === 'customers' ? 'parties' : view;
-    setActiveSubTab({ view: target, tab, nonce: Date.now() });
+    const subState = { view: target, tab, nonce: Date.now() };
+    setActiveSubTab(subState);
+    try {
+      localStorage.setItem(SUBTAB_STORAGE_KEY, JSON.stringify({ view: target, tab }));
+    } catch {}
     setCurrentViewRaw(target);
     try {
       if (window.history.state?.view !== target) {

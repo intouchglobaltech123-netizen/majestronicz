@@ -237,32 +237,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const DEFAULT_GROUPS_STATE: Record<string, boolean> = {
+    parties: true,
+    items: true,
+    sales: true,
+    purchases: true,
+    'cash-bank': true,
+    reports: true,
+    utilities: true,
+  };
+
   // Accordion open/close state for each group (persisted in localStorage)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('majestronicz_sidebar_groups');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return { ...DEFAULT_GROUPS_STATE, ...parsed };
+        }
+      }
     } catch {
       /* ignore */
     }
-    return {
-      sales: true,
-      parties: true,
-      items: true,
-      purchases: false,
-      'cash-bank': false,
-      reports: false,
-      utilities: false,
-    };
+    return { ...DEFAULT_GROUPS_STATE };
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('majestronicz_sidebar_groups', JSON.stringify(expandedGroups));
-    } catch {
-      /* ignore */
-    }
-  }, [expandedGroups]);
 
   // Automatically keep the group of the active view open
   useEffect(() => {
@@ -271,17 +270,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         (it) => it.id === currentView || (it.id === 'parties' && currentView === 'customers')
       );
       if (match) {
-        setExpandedGroups((prev) => ({ ...prev, [grp.id]: true }));
+        setExpandedGroups((prev) => {
+          if (prev[grp.id]) return prev;
+          const next = { ...prev, [grp.id]: true };
+          try {
+            localStorage.setItem('majestronicz_sidebar_groups', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
         break;
       }
     }
   }, [currentView]);
 
   const toggleGroup = (groupId: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }));
+    setExpandedGroups((prev) => {
+      const next = {
+        ...prev,
+        [groupId]: !prev[groupId],
+      };
+      try {
+        localStorage.setItem('majestronicz_sidebar_groups', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const handleItemClick = useCallback(

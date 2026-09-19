@@ -171,38 +171,38 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header Banner with Month Selector & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-none border border-slate-300 shadow-none">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-600" />
+              <Users className="h-5 w-5 text-red-700" />
               <span>Payroll Cost & Labor Expense Summary</span>
             </h2>
-            <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded-none bg-amber-50 text-amber-800 border border-amber-300">
               CEO Restricted
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Attendance-computed labor costs and staff remuneration disbursement schedule
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600"
+            className="px-2.5 py-1 rounded-none border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-red-600"
           />
 
           <button
             onClick={() => setCurrentView('hrm')}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5"
+            className="px-2.5 py-1 rounded-none text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer uppercase font-mono"
           >
-            <span>Full HRM View</span>
-            <ExternalLink className="h-3.5 w-3.5" />
+            <span>Full HRM</span>
+            <ExternalLink className="h-3 w-3" />
           </button>
 
           <ReportExportButtons onExport={handleExport} />
@@ -210,61 +210,61 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
       </div>
 
       {filteredRecords.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
+        <div className="p-12 text-center bg-white rounded-none border border-slate-300 shadow-none">
           <Clock className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No payroll records generated for {selectedMonth}</h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
             Payroll records are automatically computed from check-in/out attendance logs in the HRM module.
           </p>
         </div>
       ) : (
         <>
           {/* Summary Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-red-700">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 Total Payroll Cost
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-red-800 mt-1 font-mono tabular-nums">
                 ₹{summary.totalLiability.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-500 mt-0.5 block font-mono">
                 {summary.activeCount} employees processed
               </span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-slate-700">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 Productive Hours Logged
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
-                {summary.totalHoursWorked.toFixed(1)} <span className="text-sm font-normal text-slate-500">hrs</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tabular-nums">
+                {summary.totalHoursWorked.toFixed(1)} <span className="text-sm font-bold text-slate-500 font-sans">hrs</span>
               </p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
                 From biometric selfie kiosk
               </span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-emerald-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
                 Disbursed / Paid
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1 font-mono tabular-nums">
                 {summary.paidCount}
               </p>
-              <span className="text-[11px] text-emerald-600 mt-0.5 block">
+              <span className="text-[11px] text-emerald-700 mt-0.5 block">
                 Completed disbursements
               </span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 block">
+            <div className="p-3.5 rounded-none border border-amber-300 bg-amber-50/50 shadow-none border-t-3 border-t-amber-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                 Pending Approval / Draft
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-amber-900 mt-1 font-mono tabular-nums">
                 {summary.draftCount}
               </p>
-              <span className="text-[11px] text-amber-600 mt-0.5 block">
+              <span className="text-[11px] text-amber-800 mt-0.5 block">
                 Ready for payment
               </span>
             </div>
@@ -272,41 +272,41 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
 
           {/* Branch-Wise Payroll Allocation (If All Branches) */}
           {branchScope === 'all' && (
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Building className="h-4 w-4 text-blue-600" />
+                  <Building className="h-4 w-4 text-red-700" />
                   <span>Branch-Wise Payroll Liability Allocation</span>
                 </h3>
-                <span className="text-[11px] text-slate-400 font-medium">Departmental salary spend</span>
+                <span className="text-[11px] text-slate-500 font-semibold">Departmental salary spend</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {BRANCHES.map((b) => {
                   const data = summary.branchLiability[b.id];
                   const share =
                     summary.totalLiability > 0 ? (data.total / summary.totalLiability) * 100 : 0;
 
                   return (
-                    <div key={b.id} className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
+                    <div key={b.id} className="p-3 rounded-none bg-slate-50 border border-slate-300 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-xs font-bold text-slate-900">{b.name}</span>
-                          <span className="text-[11px] text-slate-400 block">{b.location}</span>
+                          <span className="text-[11px] text-slate-500 block">{b.location}</span>
                         </div>
-                        <span className="text-xs font-extrabold text-blue-700">{share.toFixed(1)}%</span>
+                        <span className="text-xs font-extrabold font-mono text-red-800">{share.toFixed(1)}%</span>
                       </div>
 
                       <div className="flex items-baseline justify-between pt-1">
-                        <span className="text-lg font-extrabold text-slate-900">
+                        <span className="text-base font-extrabold text-slate-900 font-mono tabular-nums">
                           ₹{data.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                         </span>
-                        <span className="text-[11px] font-bold text-slate-600">{data.count} staff</span>
+                        <span className="text-[11px] font-bold text-slate-600 font-mono">{data.count} staff</span>
                       </div>
 
-                      <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden mt-1">
+                      <div className="w-full h-1.5 rounded-none bg-slate-200 overflow-hidden mt-1">
                         <div
-                          className="h-full bg-blue-600 rounded-full"
+                          className="h-full bg-red-700 rounded-none"
                           style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
                         />
                       </div>
@@ -318,12 +318,12 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
           )}
 
           {/* Employee-by-Employee Breakdown Table */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+          <div className="bg-white rounded-none border border-slate-300 shadow-none overflow-hidden">
+            <div className="p-3.5 border-b border-slate-300 bg-slate-100 flex items-center justify-between">
+              <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
                 Staff Compensation Roster ({filteredRecords.length})
               </h3>
-              <span className="text-[11px] text-slate-500 font-medium">
+              <span className="text-[11px] text-slate-600 font-mono font-bold">
                 Period: {selectedMonth}
               </span>
             </div>
@@ -331,64 +331,64 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3 px-4">Employee</th>
-                    <th className="py-3 px-3">Designation & Branch</th>
-                    <th className="py-3 px-3 text-right">Fixed Monthly (₹)</th>
-                    <th className="py-3 px-3 text-center">Hours Worked</th>
-                    <th className="py-3 px-3 text-right">Computed Pay (₹)</th>
-                    <th className="py-3 px-3 text-right">Bonus / Adj (₹)</th>
-                    <th className="py-3 px-4 text-right">Net Payable (₹)</th>
-                    <th className="py-3 px-3 text-center">Status</th>
+                  <tr className="border-b border-slate-300 bg-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                    <th className="py-2.5 px-4">Employee</th>
+                    <th className="py-2.5 px-3">Designation & Branch</th>
+                    <th className="py-2.5 px-3 text-right">Fixed Monthly (₹)</th>
+                    <th className="py-2.5 px-3 text-center">Hours Worked</th>
+                    <th className="py-2.5 px-3 text-right">Computed Pay (₹)</th>
+                    <th className="py-2.5 px-3 text-right">Bonus / Adj (₹)</th>
+                    <th className="py-2.5 px-4 text-right">Net Payable (₹)</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-200">
                   {filteredRecords.map((r) => {
                     const bObj = BRANCHES.find((b) => b.id === r.branchId);
 
                     return (
-                      <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4">
+                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2.5 px-4">
                           <div className="font-bold text-slate-900">{r.employeeName}</div>
-                          <span className="font-mono text-[11px] text-slate-400">{r.employeeId}</span>
+                          <span className="font-mono text-[11px] text-slate-500">{r.employeeId}</span>
                         </td>
-                        <td className="py-3 px-3">
-                          <div className="text-slate-800 font-medium">{r.designation}</div>
-                          <span className="text-[11px] text-blue-700 font-semibold">{bObj?.name}</span>
+                        <td className="py-2.5 px-3">
+                          <div className="text-slate-900 font-semibold">{r.designation}</div>
+                          <span className="text-[11px] text-slate-600 font-mono">{bObj?.name}</span>
                         </td>
-                        <td className="py-3 px-3 text-right text-slate-600 font-semibold">
+                        <td className="py-2.5 px-3 text-right text-slate-800 font-mono tabular-nums font-semibold">
                           ₹{r.monthlySalary.toLocaleString('en-IN')}
                         </td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-800">
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-900 font-mono">
                           {r.totalHoursWorked.toFixed(1)} hrs
                         </td>
-                        <td className="py-3 px-3 text-right text-slate-700 font-semibold">
+                        <td className="py-2.5 px-3 text-right text-slate-900 font-mono tabular-nums font-semibold">
                           ₹{r.computedPay.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-2.5 px-3 text-right">
                           <span
                             className={cn(
-                              'font-bold',
+                              'font-bold font-mono tabular-nums',
                               r.manualAdjustment > 0
-                                ? 'text-emerald-700'
+                                ? 'text-emerald-800'
                                 : r.manualAdjustment < 0
-                                ? 'text-rose-700'
-                                : 'text-slate-400'
+                                ? 'text-rose-800'
+                                : 'text-slate-500'
                             )}
                           >
                             {r.manualAdjustment > 0 ? `+₹${r.manualAdjustment}` : r.manualAdjustment < 0 ? `-₹${Math.abs(r.manualAdjustment)}` : '₹0'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-extrabold text-blue-700 text-sm">
+                        <td className="py-2.5 px-4 text-right font-extrabold text-slate-900 font-mono tabular-nums text-sm">
                           ₹{r.finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                         </td>
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center">
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border',
+                              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase border',
                               r.status === 'Paid'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                : 'bg-amber-100 text-amber-800 border-amber-200'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
                             )}
                           >
                             {r.status === 'Paid' ? (

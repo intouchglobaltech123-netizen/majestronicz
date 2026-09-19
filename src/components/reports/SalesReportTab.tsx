@@ -253,15 +253,15 @@ export const SalesReportTab: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Top Header with CSV Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-none border border-slate-300 shadow-none">
         <div>
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-blue-600" />
+            <Receipt className="h-5 w-5 text-red-700" />
             <span>Sales & Revenue Summary</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Aggregated from official Sales Invoices for the period {startDate} to {endDate}
           </p>
         </div>
@@ -270,79 +270,79 @@ export const SalesReportTab: React.FC<Props> = ({
       </div>
 
       {filteredInvoices.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
+        <div className="p-12 text-center bg-white rounded-none border border-slate-300 shadow-none">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No sales invoices found for this range</h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
             Try adjusting the date range or switching the branch filter to view invoice transactions.
           </p>
         </div>
       ) : (
         <>
           {/* Gross → Returns → Net reconciliation */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono">
-            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales reconciliation:</span>
-            <span className="font-bold text-slate-800">₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            <span className="font-sans text-[11px] text-slate-400">gross</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 rounded-none bg-slate-50 border border-slate-300 text-xs font-mono">
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-600">Sales reconciliation:</span>
+            <span className="font-bold text-slate-900">₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-sans text-[11px] text-slate-500">gross</span>
             <span className="text-rose-600 font-bold">−</span>
             <span className="font-bold text-rose-700">₹{summary.totalReturns.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            <span className="font-sans text-[11px] text-slate-400">returns</span>
+            <span className="font-sans text-[11px] text-slate-500">returns</span>
             <span className="text-slate-400 font-bold">=</span>
-            <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            <span className="font-sans text-[11px] text-slate-400">net sales</span>
+            <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-none">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-sans text-[11px] text-slate-500">net sales</span>
           </div>
 
           {/* KPI Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-red-700">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 Total Revenue
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-red-800 mt-1 font-mono tabular-nums">
                 ₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
                 Gross sales inclusive of tax
               </span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-slate-700">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 Billed Invoices
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">{summary.invoiceCount}</p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">Completed sale records</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tabular-nums">{summary.invoiceCount}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Completed sale records</span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-emerald-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 Average Order Value
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1 font-mono tabular-nums">
                 ₹{summary.averageInvoice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">Average ticket size</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Average ticket size</span>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+            <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none border-t-3 border-t-slate-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
                 GST Tax Collected
               </span>
-              <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tabular-nums">
                 ₹{summary.totalTax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">CGST + SGST remittance</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">CGST + SGST remittance</span>
             </div>
 
             {/* Loyalty Rewards Given */}
-            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 shadow-2xs">
+            <div className="p-3.5 rounded-none border border-amber-300 bg-amber-50/50 shadow-none border-t-3 border-t-amber-600">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
                   Loyalty Rewards
                 </span>
                 <Award className="h-4 w-4 text-amber-600" />
               </div>
-              <p className="text-xl sm:text-2xl font-extrabold text-amber-950 mt-1">
+              <p className="text-xl sm:text-2xl font-extrabold text-amber-950 mt-1 font-mono tabular-nums">
                 {summary.loyaltyRewardCount}{' '}
                 <span className="text-xs text-amber-700 font-bold">bills</span>
               </p>
@@ -353,16 +353,16 @@ export const SalesReportTab: React.FC<Props> = ({
           </div>
 
           {/* Payment Mode Distribution */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-blue-600" />
+                <CreditCard className="h-4 w-4 text-red-700" />
                 <span>Payment Mode Breakdown</span>
               </h3>
-              <span className="text-[11px] text-slate-400 font-medium">Reconciled to Cash Register</span>
+              <span className="text-[11px] text-slate-500 font-semibold">Reconciled to Cash Register</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               {(['HDFC', 'Cash', 'GPay', 'COD-Credit'] as PaymentMode[]).map((mode) => {
                 const data = summary.paymentModes[mode];
                 const pct = summary.totalGross > 0 ? (data.total / summary.totalGross) * 100 : 0;
@@ -370,29 +370,29 @@ export const SalesReportTab: React.FC<Props> = ({
                 return (
                   <div
                     key={mode}
-                    className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2"
+                    className="p-3 rounded-none bg-slate-50 border border-slate-300 space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {getModeIcon(mode)}
                         <span className="text-xs font-bold text-slate-900">{mode}</span>
                       </div>
-                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                      <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-none bg-white text-slate-700 border border-slate-300">
                         {data.count} bills
                       </span>
                     </div>
 
                     <div className="flex items-baseline justify-between">
-                      <span className="text-lg font-extrabold text-slate-900">
+                      <span className="text-base font-extrabold text-slate-900 font-mono tabular-nums">
                         ₹{data.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                       </span>
-                      <span className="text-xs font-bold text-slate-500">{pct.toFixed(1)}%</span>
+                      <span className="text-xs font-bold text-slate-600 font-mono">{pct.toFixed(1)}%</span>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div className="w-full h-1.5 rounded-none bg-slate-200 overflow-hidden">
                       <div
-                        className="h-full bg-blue-600 rounded-full transition-all"
+                        className="h-full bg-red-700 rounded-none transition-all"
                         style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                       />
                     </div>
@@ -403,25 +403,25 @@ export const SalesReportTab: React.FC<Props> = ({
           </div>
 
           {/* Top 10 Selling Items Table */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="bg-white rounded-none border border-slate-300 shadow-none overflow-hidden">
+            <div className="p-3.5 border-b border-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <TrendingUp className="h-4 w-4 text-red-700" />
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
                   Top 10 Selling Products
                 </h3>
               </div>
 
               {/* Metric Toggle: By Revenue vs By Quantity */}
-              <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <div className="flex flex-wrap items-center bg-white border border-slate-300 p-0.5 rounded-none text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setTopItemsMetric('revenue')}
                   className={cn(
-                    'px-3 py-1 rounded-lg transition-all',
+                    'px-2.5 py-1 rounded-none transition-all cursor-pointer',
                     topItemsMetric === 'revenue'
-                      ? 'bg-white text-blue-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-red-700 text-white shadow-none font-bold'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                   )}
                 >
                   By Revenue (₹)
@@ -430,10 +430,10 @@ export const SalesReportTab: React.FC<Props> = ({
                   type="button"
                   onClick={() => setTopItemsMetric('qty')}
                   className={cn(
-                    'px-3 py-1 rounded-lg transition-all',
+                    'px-2.5 py-1 rounded-none transition-all cursor-pointer',
                     topItemsMetric === 'qty'
-                      ? 'bg-white text-blue-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-red-700 text-white shadow-none font-bold'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                   )}
                 >
                   By Quantity (Units)
@@ -444,28 +444,28 @@ export const SalesReportTab: React.FC<Props> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3 px-4 w-12 text-center">#</th>
-                    <th className="py-3 px-4">Item Name & Code</th>
-                    <th className="py-3 px-4 text-right">Units Sold</th>
-                    <th className="py-3 px-4 text-right">Total Revenue (₹)</th>
-                    <th className="py-3 px-4 text-right">% of Gross Sales</th>
+                  <tr className="border-b border-slate-300 bg-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                    <th className="py-2.5 px-4 w-12 text-center">#</th>
+                    <th className="py-2.5 px-4">Item Name & Code</th>
+                    <th className="py-2.5 px-4 text-right font-bold">Units Sold</th>
+                    <th className="py-2.5 px-4 text-right font-bold">Total Revenue (₹)</th>
+                    <th className="py-2.5 px-4 text-right font-bold">% of Gross Sales</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-200">
                   {(topItemsMetric === 'revenue' ? summary.topByRevenue : summary.topByQty).map(
                     (item, idx) => {
                       const share = summary.totalGross > 0 ? (item.revenue / summary.totalGross) * 100 : 0;
                       return (
-                        <tr key={item.itemName + idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 text-center font-bold text-slate-400">
+                        <tr key={item.itemName + idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2.5 px-4 text-center font-bold text-slate-500 font-mono">
                             {idx + 1}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2.5 px-4">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900">{item.itemName}</span>
                               {item.isCombo && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-none text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 uppercase">
                                   Combo
                                 </span>
                               )}
@@ -474,14 +474,14 @@ export const SalesReportTab: React.FC<Props> = ({
                               {item.itemCode}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right font-extrabold text-slate-800">
+                          <td className="py-2.5 px-4 text-right font-bold font-mono tabular-nums text-slate-900">
                             {item.quantity.toLocaleString('en-IN')}
                           </td>
-                          <td className="py-3 px-4 text-right font-extrabold text-blue-700">
+                          <td className="py-2.5 px-4 text-right font-bold font-mono tabular-nums text-slate-900">
                             ₹{item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                           </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          <td className="py-2.5 px-4 text-right">
+                            <span className="inline-block px-1.5 py-0.5 rounded-none text-[11px] font-mono font-bold bg-slate-100 text-slate-800 border border-slate-300">
                               {share.toFixed(1)}%
                             </span>
                           </td>

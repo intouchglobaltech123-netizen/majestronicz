@@ -22,6 +22,7 @@ import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
 import { Maximize2, X } from 'lucide-react';
+import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
 
 const NAV_STORAGE_KEY = 'majestronicz_sidebar_open';
 
@@ -43,26 +44,23 @@ const AppContent: React.FC = () => {
     }
   });
 
-  // Track native fullscreen status
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
-    return typeof document !== 'undefined' && !!document.fullscreenElement;
-  });
+  // Track native fullscreen status (with Mac Safari WebKit support)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
 
   // Recommend fullscreen banner on each open if not already in fullscreen
-  const [showFsRecommend, setShowFsRecommend] = useState<boolean>(() => {
-    return typeof document !== 'undefined' && !document.fullscreenElement;
-  });
+  const [showFsRecommend, setShowFsRecommend] = useState<boolean>(() => !getIsFullscreen());
 
   useEffect(() => {
     const handleFsChange = () => {
-      const active = !!document.fullscreenElement;
+      const active = getIsFullscreen();
       setIsFullscreen(active);
       if (active) {
         setShowFsRecommend(false);
       }
     };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange', 'resize'];
+    events.forEach((ev) => document.addEventListener(ev, handleFsChange));
+    return () => events.forEach((ev) => document.removeEventListener(ev, handleFsChange));
   }, []);
 
   const handleToggleDesktopNav = () => {
@@ -91,17 +89,17 @@ const AppContent: React.FC = () => {
   };
 
   const handleToggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
+    if (getIsFullscreen()) {
+      exitNativeFullscreen();
     } else {
-      document.exitFullscreen?.().catch(() => {});
+      enterNativeFullscreen();
     }
   };
 
   const handleEnterFullscreen = () => {
-    document.documentElement.requestFullscreen?.().then(() => {
-      setShowFsRecommend(false);
-    }).catch(() => {});
+    enterNativeFullscreen().then((ok) => {
+      if (ok) setShowFsRecommend(false);
+    });
   };
 
   // Close the drawer whenever the active view changes (e.g. tapping a nav item).
