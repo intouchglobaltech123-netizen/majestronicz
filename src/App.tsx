@@ -26,6 +26,8 @@ import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
+  // Sales & Quotations share one always-mounted billing view (keeps open tabs alive).
+  const isBilling = currentView === 'invoices' || currentView === 'estimates';
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -194,42 +196,47 @@ const AppContent: React.FC = () => {
 
         {/* Scrollable Content Body */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
-          {currentView === 'dashboard' ? (
-            <DashboardView />
-          ) : currentView === 'customers' ? (
-            <CustomersView />
-          ) : currentView === 'parties' ? (
-            <PartiesView />
-          ) : currentView === 'inventory' ? (
-            <InventoryView />
-          ) : currentView === 'enquiries' ? (
-            <EnquiryView />
-          ) : currentView === 'pending-orders' ? (
-            <PendingOrdersView />
-          ) : currentView === 'estimates' ? (
-            <InvoiceView initialTab="estimates" />
-          ) : currentView === 'challans' ? (
-            <DeliveryChallanView />
-          ) : currentView === 'invoices' ? (
-            <InvoiceView />
-          ) : currentView === 'barcodes' ? (
-            <BarcodeView />
-          ) : currentView === 'cash-register' ? (
-            <DailyCashRegisterView />
-          ) : currentView === 'purchases' ? (
-            <PurchaseManagementView />
-          ) : currentView === 'hrm' ? (
-            <HrmView />
-          ) : currentView === 'reports' ? (
-            <ReportsView />
-          ) : currentView === 'shopify' ? (
-            <ShopifyView />
-          ) : currentView === 'ai-assistant' ? (
-            <AiAssistantView />
-          ) : currentView === 'access' ? (
-            <AccessManagementView />
-          ) : (
-            <ItemMasterView />
+          {/* Billing (Sales / Quotations) stays MOUNTED even when you switch to
+              another section, so any open bill tabs and their in-progress work are
+              still there when you come back. It is just hidden while off-screen. */}
+          <div className={isBilling ? undefined : 'hidden'}>
+            <InvoiceView initialTab={currentView === 'estimates' ? 'estimates' : 'ledger'} />
+          </div>
+
+          {!isBilling && (
+            currentView === 'dashboard' ? (
+              <DashboardView />
+            ) : currentView === 'customers' ? (
+              <CustomersView />
+            ) : currentView === 'parties' ? (
+              <PartiesView />
+            ) : currentView === 'inventory' ? (
+              <InventoryView />
+            ) : currentView === 'enquiries' ? (
+              <EnquiryView />
+            ) : currentView === 'pending-orders' ? (
+              <PendingOrdersView />
+            ) : currentView === 'challans' ? (
+              <DeliveryChallanView />
+            ) : currentView === 'barcodes' ? (
+              <BarcodeView />
+            ) : currentView === 'cash-register' ? (
+              <DailyCashRegisterView />
+            ) : currentView === 'purchases' ? (
+              <PurchaseManagementView />
+            ) : currentView === 'hrm' ? (
+              <HrmView />
+            ) : currentView === 'reports' ? (
+              <ReportsView />
+            ) : currentView === 'shopify' ? (
+              <ShopifyView />
+            ) : currentView === 'ai-assistant' ? (
+              <AiAssistantView />
+            ) : currentView === 'access' ? (
+              <AccessManagementView />
+            ) : (
+              <ItemMasterView />
+            )
           )}
         </main>
       </div>
