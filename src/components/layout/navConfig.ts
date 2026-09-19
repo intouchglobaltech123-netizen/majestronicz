@@ -55,7 +55,6 @@ export const NAV_MODULES: NavModule[] = [
     title: 'Sales',
     icon: Receipt,
     primaryActions: [
-      { label: '+ New Sale', subTabId: 'new', color: 'red' },
       { label: '+ New Quote', subTabId: 'new-quote', color: 'slate' },
       { label: '+ Challan', subTabId: 'new-challan', color: 'emerald' },
     ],

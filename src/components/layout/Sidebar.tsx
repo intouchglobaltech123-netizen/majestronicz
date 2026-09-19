@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   ChevronDown,
+  ChevronRight,
   Plus,
   LogOut,
   PanelLeftClose,
@@ -12,6 +13,12 @@ import {
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { cn } from '../../lib/utils';
 import { NAV_MODULES, isModuleActive, NavModule, NavSub } from './navConfig';
+
+const ACTION_COLOR: Record<string, string> = {
+  red: 'bg-red-600 hover:bg-red-700 text-white border-red-700',
+  slate: 'bg-slate-800 hover:bg-slate-900 text-white border-slate-900',
+  emerald: 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800',
+};
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -33,6 +40,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const isMobileDrawerOpen = Boolean(mobileOpen);
+
+  // Desktop: which module's sub-nav flyout is click-pinned open (hover also opens).
+  const [flyoutModule, setFlyoutModule] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!flyoutModule) return;
+    const onDown = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setFlyoutModule(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [flyoutModule]);
 
   // Track mobile viewport (< lg): mobile drawer shows an accordion (no secondary
   // column there); desktop shows a modules-only rail + the SecondarySidebar.
@@ -88,15 +107,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
       )}
 
       <aside
+        ref={navRef}
         className={cn(
           'bg-white border-r border-slate-300 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none',
           'fixed inset-y-0 left-0 z-50 max-w-[85vw] transition-transform duration-200 ease-in-out',
           isMobileDrawerOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
-          // Desktop: a compact modules rail (sub-nav lives in the SecondarySidebar)
+          // Desktop: a compact modules rail; sub-nav appears as a hover/click flyout
           'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:w-48 lg:opacity-100 lg:pointer-events-auto'
         )}
       >
-        <div className="w-64 lg:w-48 min-w-0 h-full flex flex-col overflow-hidden">
+        <div className="w-64 lg:w-48 min-w-0 h-full flex flex-col overflow-hidden lg:overflow-visible">
           {/* Brand Header */}
           <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
             <MajestroniczLogo size="sm" />
@@ -125,15 +145,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
           </div>
 
           {/* Modules */}
-          <div className="flex-1 min-h-0 overflow-y-auto py-1 text-slate-800">
+          <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-visible py-1 text-slate-800">
             {modules.map((mod) => {
               const Icon = mod.icon;
               const active = isModuleActive(mod, currentView);
               const visItems = mod.items.filter((it) => canAccessView(it.cap));
               const single = visItems.length <= 1;
 
-              // Desktop rail OR single-item module → one clickable row
-              if (!isMobile || single) {
+              // Single-item module (any viewport) → one clickable row, no flyout
+              if (single) {
                 return (
                   <button
                     key={mod.id}
@@ -152,7 +172,80 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
                 );
               }
 
-              // Mobile accordion (no secondary column on mobile)
+              // Desktop multi-item module → hover/click flyout that hides on pick
+              if (!isMobile) {
+                const pinned = flyoutModule === mod.id;
+                const actionView = mod.items[0]?.id ?? currentView;
+                return (
+                  <div key={mod.id} className="relative group/nav">
+                    <button
+                      type="button"
+                      onClick={() => setFlyoutModule(pinned ? null : mod.id)}
+                      className={cn(
+                        'w-full text-left flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold transition-colors cursor-pointer border-l-4',
+                        active
+                          ? 'bg-red-50 text-red-900 border-red-600'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-transparent'
+                      )}
+                    >
+                      <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-red-700' : 'text-slate-500')} />
+                      <span className="truncate flex-1">{mod.title}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    </button>
+
+                    {/* Flyout: shows on hover, or stays open when the module is clicked */}
+                    <div
+                      className={cn(
+                        'absolute left-full top-0 z-50 w-56 pl-1',
+                        pinned ? 'block' : 'hidden group-hover/nav:block'
+                      )}
+                    >
+                      <div className="rounded-none border border-slate-300 bg-white shadow-xl overflow-hidden">
+                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                          {mod.title}
+                        </div>
+                        {mod.primaryActions && mod.primaryActions.length > 0 && (
+                          <div className="p-1.5 border-b border-slate-200 space-y-1">
+                            {mod.primaryActions.map((a) => (
+                              <button
+                                key={a.subTabId}
+                                type="button"
+                                onClick={() => { navigateToTab(actionView, a.subTabId); setFlyoutModule(null); }}
+                                className={cn(
+                                  'w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-none text-[11px] font-bold border transition-colors cursor-pointer',
+                                  ACTION_COLOR[a.color || 'slate']
+                                )}
+                              >
+                                <Plus className="h-3 w-3 stroke-[3]" />
+                                <span>{a.label.replace(/^\+\s*/, '')}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="py-1">
+                          {visItems.map((it) => (
+                            <button
+                              key={`${it.id}-${it.subTabId || ''}`}
+                              type="button"
+                              onClick={() => { goSub(it); setFlyoutModule(null); }}
+                              className={cn(
+                                'w-full px-3 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate border-l-4',
+                                isSubActive(it)
+                                  ? 'bg-red-50 text-red-900 font-extrabold border-red-600'
+                                  : 'text-slate-700 hover:bg-slate-100 border-transparent font-medium'
+                              )}
+                            >
+                              {it.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Mobile accordion (no flyout on touch)
               const isOpen = expanded === mod.id || active;
               return (
                 <div key={mod.id}>
