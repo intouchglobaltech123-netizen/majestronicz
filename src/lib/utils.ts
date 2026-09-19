@@ -70,33 +70,20 @@ export function formatPhoneWithCountryCode(raw?: string): string {
 }
 
 /**
- * Cross-browser check for native fullscreen mode (supports macOS Safari webkit prefix,
- * standard HTML5 fullscreen, and OS window fullscreen).
+ * Cross-browser check for native HTML5 fullscreen mode (supports macOS Safari webkit prefix,
+ * standard HTML5 fullscreen, and mobile).
  */
 export function getIsFullscreen(): boolean {
   if (typeof document === 'undefined') return false;
   const doc = document as any;
-  if (
-    Boolean(
-      doc.fullscreenElement ||
-      doc.webkitFullscreenElement ||
-      doc.webkitIsFullScreen ||
-      doc.mozFullScreenElement ||
-      doc.msFullscreenElement
-    )
-  ) {
-    return true;
-  }
-  // Check if browser window occupies full screen dimensions (macOS window zoom / F11)
-  if (typeof window !== 'undefined' && window.screen) {
-    if ((window as any).fullScreen) return true;
-    const isHeightFull = Math.abs(window.screen.height - window.innerHeight) <= 4;
-    const isWidthFull = Math.abs(window.screen.width - window.innerWidth) <= 4;
-    if (isHeightFull && isWidthFull && window.innerHeight > 0) {
-      return true;
-    }
-  }
-  return false;
+  return Boolean(
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.webkitCurrentFullScreenElement ||
+    doc.mozFullScreenElement ||
+    doc.msFullscreenElement ||
+    doc.webkitIsFullScreen
+  );
 }
 
 /**
@@ -110,6 +97,7 @@ export async function enterNativeFullscreen(): Promise<boolean> {
   const methods = [
     () => (elem.requestFullscreen ? elem.requestFullscreen() : null),
     () => (elem.webkitRequestFullscreen ? elem.webkitRequestFullscreen() : null),
+    () => (elem.webkitRequestFullScreen ? elem.webkitRequestFullScreen() : null),
     () => (elem.mozRequestFullScreen ? elem.mozRequestFullScreen() : null),
     () => (elem.msRequestFullscreen ? elem.msRequestFullscreen() : null),
   ];
@@ -120,7 +108,7 @@ export async function enterNativeFullscreen(): Promise<boolean> {
       if (res && typeof res.then === 'function') {
         await res;
         return true;
-      } else if (res !== null) {
+      } else if (res !== null && res !== false) {
         return true;
       }
     } catch {
@@ -139,10 +127,9 @@ export async function exitNativeFullscreen(): Promise<boolean> {
 
   // Prioritize active fullscreen element exit if available
   const methods = [
-    () => (doc.webkitFullscreenElement && doc.webkitExitFullscreen ? doc.webkitExitFullscreen() : null),
-    () => (doc.fullscreenElement && doc.exitFullscreen ? doc.exitFullscreen() : null),
     () => (doc.exitFullscreen ? doc.exitFullscreen() : null),
     () => (doc.webkitExitFullscreen ? doc.webkitExitFullscreen() : null),
+    () => (doc.webkitCancelFullScreen ? doc.webkitCancelFullScreen() : null),
     () => (doc.mozCancelFullScreen ? doc.mozCancelFullScreen() : null),
     () => (doc.msExitFullscreen ? doc.msExitFullscreen() : null),
   ];
@@ -153,7 +140,7 @@ export async function exitNativeFullscreen(): Promise<boolean> {
       if (res && typeof res.then === 'function') {
         await res;
         return true;
-      } else if (res !== null) {
+      } else if (res !== null && res !== false) {
         return true;
       }
     } catch {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
@@ -21,7 +21,7 @@ import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import { Minimize2 } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
 
 const AppContent: React.FC = () => {
@@ -29,44 +29,45 @@ const AppContent: React.FC = () => {
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Track native fullscreen status (with Mac Safari WebKit support)
+  // Track native fullscreen status
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
 
-  // Recommend fullscreen banner on each open if not already in fullscreen
-  const [showFsRecommend, setShowFsRecommend] = useState<boolean>(() => !getIsFullscreen());
+  // Track whether user explicitly opted out / exited fullscreen during this active session.
+  // Resets on page refresh, allowing the app to automatically open in full screen every time!
+  const userOptedOutFullscreenRef = useRef<boolean>(false);
 
   useEffect(() => {
     const handleFsChange = () => {
       const active = getIsFullscreen();
       setIsFullscreen(active);
-      if (active) {
-        setShowFsRecommend(false);
+      // If user exited natively (e.g. Esc key or browser UI), record that they chose to exit
+      if (!active) {
+        userOptedOutFullscreenRef.current = true;
       }
     };
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange', 'resize'];
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
     events.forEach((ev) => document.addEventListener(ev, handleFsChange));
     return () => events.forEach((ev) => document.removeEventListener(ev, handleFsChange));
   }, []);
 
   const handleToggleFullscreen = async () => {
     if (isFullscreen || getIsFullscreen()) {
+      userOptedOutFullscreenRef.current = true;
       await exitNativeFullscreen();
       setIsFullscreen(false);
     } else {
+      userOptedOutFullscreenRef.current = false;
       const ok = await enterNativeFullscreen();
       if (ok) {
         setIsFullscreen(true);
-        setShowFsRecommend(false);
       }
     }
   };
 
-  const handleEnterFullscreen = async () => {
-    const ok = await enterNativeFullscreen();
-    if (ok) {
-      setIsFullscreen(true);
-      setShowFsRecommend(false);
-    }
+  const handleExitFullscreen = async () => {
+    userOptedOutFullscreenRef.current = true;
+    await exitNativeFullscreen();
+    setIsFullscreen(false);
   };
 
   const handleCloseNav = () => {
@@ -100,24 +101,24 @@ const AppContent: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Default open to full screen on initial load & first user interaction
+  // Automatically enter full screen when opening or refreshing the site
   useEffect(() => {
-    // Attempt fullscreen immediately (works in kiosk, PWA, or if allowed by browser)
+    // 1. Try immediate native fullscreen on mount (works in PWA, kiosk mode, or permitted contexts)
     enterNativeFullscreen().catch(() => {});
 
-    // Browser security restricts requestFullscreen to user activation gestures.
-    // Attach one-time listeners to auto-enter fullscreen on the very first click or keypress.
+    // 2. In standard browsers, fullscreen requires a user interaction gesture.
+    // The very first user click, tap, or keydown anywhere on the screen will automatically launch fullscreen like a native desktop app.
     const autoFullscreenOnFirstGesture = () => {
-      if (!getIsFullscreen()) {
+      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
         enterNativeFullscreen().catch(() => {});
       }
     };
 
-    window.addEventListener('click', autoFullscreenOnFirstGesture, { once: true, capture: true });
-    window.addEventListener('keydown', autoFullscreenOnFirstGesture, { once: true, capture: true });
+    window.addEventListener('pointerdown', autoFullscreenOnFirstGesture, { capture: true });
+    window.addEventListener('keydown', autoFullscreenOnFirstGesture, { capture: true });
 
     return () => {
-      window.removeEventListener('click', autoFullscreenOnFirstGesture, { capture: true });
+      window.removeEventListener('pointerdown', autoFullscreenOnFirstGesture, { capture: true });
       window.removeEventListener('keydown', autoFullscreenOnFirstGesture, { capture: true });
     };
   }, []);
@@ -150,14 +151,10 @@ const AppContent: React.FC = () => {
               <span className="text-amber-400 font-mono font-bold tracking-wider shrink-0">
                 {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
               </span>
-              <span className="hidden md:inline text-slate-600">|</span>
-              <span className="hidden md:inline text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                MAJESTRONICZ ERP
-              </span>
             </div>
             <button
               type="button"
-              onClick={handleToggleFullscreen}
+              onClick={handleExitFullscreen}
               className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-600 hover:bg-red-700 text-white font-mono text-[11px] font-bold rounded-none transition-colors cursor-pointer shrink-0 ml-2"
               title="Exit Full Screen (Esc)"
             >
@@ -172,39 +169,6 @@ const AppContent: React.FC = () => {
           navOpen={true}
           onOpenNav={() => setMobileNavOpen(true)}
         />
-
-        {/* Fullscreen Recommendation Banner (shown on open if not fullscreen) */}
-        {showFsRecommend && !isFullscreen && (
-          <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-900 text-white px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs shadow-inner shrink-0 transition-all">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="px-1.5 py-0.5 bg-white/20 text-white font-mono text-[10px] font-bold uppercase tracking-wider shrink-0">
-                Recommended
-              </span>
-              <span className="truncate text-red-50 text-xs">
-                Run in <strong>Full Screen mode</strong> for optimal accounting workspace, billing speed, and keyboard shortcuts.
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleEnterFullscreen}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white text-red-800 hover:bg-red-50 font-bold font-mono text-[11px] rounded-none shadow-sm transition-colors cursor-pointer uppercase"
-              >
-                <Maximize2 className="h-3 w-3" />
-                <span>Enter Full Screen</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowFsRecommend(false)}
-                title="Dismiss recommendation"
-                aria-label="Dismiss recommendation"
-                className="p-1 text-red-200 hover:text-white hover:bg-white/10 rounded-none transition-colors cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Scrollable Content Body */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
