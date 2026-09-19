@@ -93,10 +93,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
           'fixed inset-y-0 left-0 z-50 max-w-[85vw] transition-transform duration-200 ease-in-out',
           isMobileDrawerOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
           // Desktop: a compact modules rail (sub-nav lives in the SecondarySidebar)
-          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:w-52 lg:opacity-100 lg:pointer-events-auto'
+          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:w-48 lg:opacity-100 lg:pointer-events-auto'
         )}
       >
-        <div className="w-64 lg:w-52 min-w-0 h-full flex flex-col overflow-hidden">
+        <div className="w-64 lg:w-48 min-w-0 h-full flex flex-col overflow-hidden">
           {/* Brand Header */}
           <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
             <MajestroniczLogo size="sm" />
