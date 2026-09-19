@@ -37,7 +37,6 @@ interface NavGroup {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  isOpen,
   mobileOpen,
   onClose,
 }) => {
@@ -53,8 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Separate desktop sidebar state from mobile overlay drawer
-  const isDesktopOpen = isOpen ?? true;
+  // Mobile overlay drawer state (< lg only)
   const isMobileDrawerOpen = Boolean(mobileOpen);
 
   // Grouped Navigation Definition (Classic Vyapar Desktop accounting modules)
@@ -339,28 +337,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         className={cn(
           'bg-white border-r border-slate-300 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none',
-          // Smooth transition for hide/show
-          'transition-all duration-200 ease-in-out',
           // Mobile drawer mode (< lg)
-          'fixed inset-y-0 left-0 z-50 max-w-[85vw]',
+          'fixed inset-y-0 left-0 z-50 max-w-[85vw] transition-transform duration-200 ease-in-out',
           isMobileDrawerOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
-          // Desktop sidebar mode (>= lg)
-          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0',
-          isDesktopOpen
-            ? 'lg:w-60 lg:opacity-100 lg:pointer-events-auto'
-            : 'lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0 lg:pointer-events-none'
+          // Desktop sidebar mode (>= lg) — permanently open and fixed
+          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:w-60 lg:opacity-100 lg:pointer-events-auto'
         )}
       >
         <div className="w-60 min-w-60 h-full flex flex-col overflow-hidden">
           {/* Brand Header */}
           <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
             <MajestroniczLogo size="sm" />
+            {/* Mobile drawer close button (< lg only) */}
             <button
               type="button"
               onClick={onClose}
-              title="Hide navigation bar (Minimize to 3 lines)"
-              aria-label="Hide navigation bar"
-              className="h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+              title="Close menu"
+              aria-label="Close menu"
+              className="lg:hidden h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
             >
               <PanelLeftClose className="h-3.5 w-3.5" />
             </button>

@@ -21,28 +21,13 @@ import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
-import { Maximize2, X } from 'lucide-react';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
-
-const NAV_STORAGE_KEY = 'majestronicz_sidebar_open';
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  // Desktop sidebar persistent open/closed state (stored in localStorage)
-  const [desktopNavOpen, setDesktopNavOpen] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(NAV_STORAGE_KEY);
-      if (saved !== null) {
-        return saved === 'true';
-      }
-      return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
-    } catch {
-      return true;
-    }
-  });
 
   // Track native fullscreen status (with Mac Safari WebKit support)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
@@ -62,31 +47,6 @@ const AppContent: React.FC = () => {
     events.forEach((ev) => document.addEventListener(ev, handleFsChange));
     return () => events.forEach((ev) => document.removeEventListener(ev, handleFsChange));
   }, []);
-
-  const handleToggleDesktopNav = () => {
-    setDesktopNavOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(NAV_STORAGE_KEY, String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const handleCloseDesktopNav = () => {
-    setDesktopNavOpen(false);
-    try {
-      localStorage.setItem(NAV_STORAGE_KEY, 'false');
-    } catch {}
-  };
-
-  const handleUniversalToggleNav = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setMobileNavOpen((prev) => !prev);
-    } else {
-      handleToggleDesktopNav();
-    }
-  };
 
   const handleToggleFullscreen = async () => {
     if (isFullscreen || getIsFullscreen()) {
@@ -111,7 +71,6 @@ const AppContent: React.FC = () => {
 
   const handleCloseNav = () => {
     setMobileNavOpen(false);
-    handleCloseDesktopNav();
   };
 
   // Support F11 keyboard shortcut to toggle full screen
@@ -133,20 +92,38 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* Left Navigation Shell */}
+      {/* Left Navigation Shell (permanently open on desktop) */}
       <Sidebar
-        isOpen={desktopNavOpen}
+        isOpen={true}
         onClose={handleCloseNav}
-        onToggle={handleToggleDesktopNav}
         mobileOpen={mobileNavOpen}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+        {/* Fullscreen top safety bar (protects buttons from macOS menu bar / notch click interception) */}
+        {isFullscreen && (
+          <div className="bg-slate-900 text-slate-200 px-4 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-none bg-emerald-500 animate-pulse" />
+              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                Full Screen Workspace
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-600 hover:bg-red-700 text-white font-mono text-[11px] font-bold rounded-none transition-colors cursor-pointer"
+            >
+              <Minimize2 className="h-3 w-3" />
+              <span>Exit Full Screen (Esc)</span>
+            </button>
+          </div>
+        )}
+
         {/* Global Top Bar with Location Scope Switcher */}
         <TopBar
-          navOpen={desktopNavOpen}
-          onToggleNav={handleUniversalToggleNav}
+          navOpen={true}
           onOpenNav={() => setMobileNavOpen(true)}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}

@@ -20,7 +20,6 @@ import { cn, formatCurrency, getIsFullscreen, enterNativeFullscreen, exitNativeF
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
-import { MajestroniczLogo } from '../common/MajestroniczLogo';
 
 interface TopBarProps {
   /** Whether the navigation bar is currently open. */
@@ -36,8 +35,6 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
-  navOpen = true,
-  onToggleNav,
   onOpenNav,
   isFullscreen: propIsFullscreen,
   onToggleFullscreen: propToggleFullscreen,
@@ -174,34 +171,19 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-40 shadow-none">
-      {/* Left: Hamburger (3-line menu) nav toggle / minimize + Logo when collapsed + Global Branch Switcher */}
+    <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 relative shrink-0 z-40 shadow-none">
+      {/* Left: Mobile Menu (< lg only) + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* 3-line Hamburger nav toggle / minimize button — ALWAYS visible on mobile & desktop */}
+        {/* Mobile-only menu toggle button (< lg only) */}
         <button
           type="button"
-          onClick={onToggleNav || onOpenNav}
-          aria-label={navOpen ? 'Minimize sidebar' : 'Open navigation menu'}
-          title={navOpen ? 'Minimize sidebar (Hide navigation)' : 'Show sidebar menu (3 lines)'}
-          className={cn(
-            'h-8 px-2.5 shrink-0 rounded-none border flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-colors',
-            !navOpen
-              ? 'bg-red-700 border-red-800 text-white hover:bg-red-800 shadow-sm'
-              : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-red-700'
-          )}
+          onClick={onOpenNav}
+          aria-label="Open navigation menu"
+          title="Open navigation menu"
+          className="lg:hidden h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
         >
           <Menu className="h-4 w-4" />
-          <span className="hidden sm:inline font-mono text-[11px] uppercase tracking-wider">
-            {navOpen ? 'Hide Nav' : 'Menu'}
-          </span>
         </button>
-
-        {/* Brand logo in topbar when sidebar is minimized */}
-        {!navOpen && (
-          <div className="hidden sm:flex items-center shrink-0 pr-2 border-r border-slate-200 mr-1">
-            <MajestroniczLogo size="sm" />
-          </div>
-        )}
 
         <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
           <MapPin className="h-3.5 w-3.5 text-red-700" />

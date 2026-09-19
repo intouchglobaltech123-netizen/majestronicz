@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, LogIn, LogOut, Clock, Navigation, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture } from '../../types';
@@ -87,7 +88,7 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
       <div className="bg-white rounded-none shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
@@ -190,6 +191,7 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
