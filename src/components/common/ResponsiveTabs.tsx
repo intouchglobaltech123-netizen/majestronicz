@@ -29,7 +29,7 @@ export const ResponsiveTabs: React.FC<Props> = ({ items, activeId, onChange, cla
           <select
             value={activeId}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full appearance-none pl-3 pr-9 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+            className="w-full appearance-none pl-3 pr-9 py-2 rounded-none border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-red-600"
           >
             {items.map((t) => (
               <option key={t.id} value={t.id}>
@@ -43,7 +43,7 @@ export const ResponsiveTabs: React.FC<Props> = ({ items, activeId, onChange, cla
       </div>
 
       {/* Desktop / tablet: underline tab row */}
-      <div className="hidden sm:flex items-center gap-5 overflow-x-auto">
+      <div className="hidden sm:flex items-center gap-4 overflow-x-auto">
         {items.map((t) => {
           const active = t.id === activeId;
           return (
@@ -52,18 +52,18 @@ export const ResponsiveTabs: React.FC<Props> = ({ items, activeId, onChange, cla
               type="button"
               onClick={() => onChange(t.id)}
               className={cn(
-                'pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap',
+                'pb-2.5 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap cursor-pointer',
                 active
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-red-600 text-red-700'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
               )}
             >
               <span>{t.label}</span>
               {typeof t.count === 'number' && (
                 <span
                   className={cn(
-                    'text-[11px] px-2 py-0.5 rounded-full font-semibold',
-                    active ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                    'text-[10px] px-1.5 py-0.2 rounded-none border font-bold',
+                    active ? 'bg-red-50 text-red-800 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'
                   )}
                 >
                   {t.count}

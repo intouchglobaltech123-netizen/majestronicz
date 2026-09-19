@@ -97,39 +97,39 @@ export const PurchaseManagementView: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsVendorModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-2xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-none shadow-none transition-colors cursor-pointer"
             >
               <Building2 className="h-4 w-4 text-slate-500" />
-              <span>Add Supplier</span>
+              <span>+ Add Supplier</span>
             </button>
             <button
               onClick={handleOpenGeneralPo}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              <span>Issue Purchase Order</span>
+              <span>+ Issue Purchase Order</span>
             </button>
           </div>
         )}
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveTab('orders')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'orders'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <ShoppingBag className="h-3.5 w-3.5" />
           <span>Purchase Orders</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'orders' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'orders' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {purchaseOrders.length}
           </span>
@@ -139,17 +139,17 @@ export const PurchaseManagementView: React.FC = () => {
           type="button"
           onClick={() => setActiveTab('vendors')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'vendors'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Building2 className="h-3.5 w-3.5" />
           <span>Suppliers Directory</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'vendors' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'vendors' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {vendors.length}
           </span>

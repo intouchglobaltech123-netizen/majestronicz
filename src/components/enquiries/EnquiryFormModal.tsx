@@ -5,7 +5,6 @@ import { cn } from '../../lib/utils';
 import {
   X,
   User,
-  Phone,
   Calendar,
   Clock,
   Boxes,
@@ -20,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { ImageUploadField } from '../common/ImageUploadField';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface Props {
   isOpen: boolean;
@@ -263,19 +263,12 @@ export const EnquiryFormModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Phone / Mobile Number
-              </label>
-              <div className="relative">
-                <input
-                  type="tel"
-                  placeholder="e.g. 9842100000"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
-                />
-                <Phone className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              </div>
+              <PhoneInput
+                label="Phone / Mobile Number"
+                placeholder="98421 00000"
+                value={customerPhone}
+                onChange={setCustomerPhone}
+              />
             </div>
           </div>
 

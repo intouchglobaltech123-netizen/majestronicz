@@ -14,13 +14,13 @@ import {
   Calendar,
   Clock,
   User,
-  Phone,
   MapPin,
   Truck,
   RotateCcw,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface Props {
   initialChallan?: DeliveryChallan | null;
@@ -399,19 +399,13 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                    Contact No.
-                  </label>
-                  <div className="relative">
-                    <Phone className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Phone or Mobile Number"
-                      value={contactNo}
-                      onChange={(e) => setContactNo(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
+                  <PhoneInput
+                    label="Contact No."
+                    placeholder="98421 00000"
+                    value={contactNo}
+                    onChange={setContactNo}
+                    size="sm"
+                  />
                 </div>
               </div>
             </div>

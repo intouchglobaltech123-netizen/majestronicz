@@ -273,16 +273,16 @@ export const DailyCashRegisterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveSubView('register')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeSubView === 'register'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Wallet className="h-3.5 w-3.5" />
@@ -294,18 +294,18 @@ export const DailyCashRegisterView: React.FC = () => {
             type="button"
             onClick={() => setActiveSubView('recurring')}
             className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+              'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
               activeSubView === 'recurring'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
             )}
           >
             <Clock className="h-3.5 w-3.5" />
             <span>Scheduled Expenses</span>
             {pendingRecurringCount > 0 && (
               <span className={cn(
-                'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
-                activeSubView === 'recurring' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-800'
+                'px-1.5 py-0.2 rounded-none text-[10px] font-bold border',
+                activeSubView === 'recurring' ? 'bg-amber-400 text-slate-900 border-amber-500' : 'bg-amber-100 text-amber-800 border-amber-200'
               )}>
                 {pendingRecurringCount} Due
               </span>

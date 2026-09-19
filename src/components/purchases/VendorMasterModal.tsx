@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, Phone, MapPin, Hash, Check } from 'lucide-react';
+import { X, Building2, MapPin, Hash, Check } from 'lucide-react';
 import { Vendor } from '../../types';
 import { useErp } from '../../context/ErpContext';
+import { cleanPhoneDigits } from '../../lib/utils';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface VendorMasterModalProps {
   isOpen: boolean;
@@ -46,8 +48,11 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
     if (!vendorName.trim()) {
       errs.vendorName = 'Vendor name is required';
     }
-    if (!contactNo.trim()) {
+    const cleanPhone = cleanPhoneDigits(contactNo);
+    if (!cleanPhone) {
       errs.contactNo = 'Contact phone number is required';
+    } else if (cleanPhone.length !== 10) {
+      errs.contactNo = 'Please enter a valid 10-digit phone number';
     }
     if (!address.trim()) {
       errs.address = 'Office / warehouse address is required';
@@ -66,7 +71,7 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
     const saved = saveVendor({
       id: vendorToEdit?.id,
       vendorName: vendorName.trim(),
-      contactNo: contactNo.trim(),
+      contactNo: cleanPhoneDigits(contactNo),
       address: address.trim(),
       gstin: gstin.trim().toUpperCase() || undefined,
     });
@@ -131,28 +136,14 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
           </div>
 
           {/* Contact Number */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Contact Number <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                value={contactNo}
-                onChange={(e) => setContactNo(e.target.value)}
-                placeholder="e.g. 044-42898000 or 9842100000"
-                className={`w-full pl-9.5 pr-3 py-2 text-sm rounded-xl border bg-white focus:outline-hidden focus:ring-2 transition-all ${
-                  errors.contactNo
-                    ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-100 text-rose-900'
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-100 text-slate-900'
-                }`}
-              />
-            </div>
-            {errors.contactNo && (
-              <p className="text-xs text-rose-600 mt-1">{errors.contactNo}</p>
-            )}
-          </div>
+          <PhoneInput
+            label="Contact Number"
+            required
+            value={contactNo}
+            onChange={setContactNo}
+            error={errors.contactNo}
+            placeholder="98421 00000"
+          />
 
           {/* Office Address */}
           <div>

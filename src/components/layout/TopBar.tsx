@@ -150,7 +150,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-xs">
+    <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-none">
       {/* Left: Hamburger (mobile) + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {/* Mobile nav toggle */}
@@ -158,17 +158,17 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           type="button"
           onClick={onOpenNav}
           aria-label="Open menu"
-          className="lg:hidden h-9 w-9 shrink-0 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 flex items-center justify-center"
+          className="lg:hidden h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4 w-4" />
         </button>
 
         <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
-          <MapPin className="h-3.5 w-3.5 text-blue-600" />
+          <MapPin className="h-3.5 w-3.5 text-red-700" />
           <span>Branch:</span>
         </div>
 
-        {/* Branch Selector Dropdown (was segmented pills) */}
+        {/* Branch Selector Dropdown */}
         <div className="w-36 sm:w-56 min-w-0">
           <UniversalDropdown
             value={isAllBranches ? 'all' : currentBranch}
@@ -177,23 +177,23 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
               ...(currentUser.role === 'CEO' ? [{ value: 'all', label: 'All Branches', sublabel: 'Erode · Coimbatore · Chennai' }] : []),
               ...BRANCHES.filter((b) =>
                 currentUser.role === 'CEO' ? true : b.id === (currentUser.assignedBranchId || 'coimbatore')
-              ).map((b) => ({ value: b.id, label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
+              ).map((b) => ({ value: b.name + (b.isHq ? ' (HQ)' : ''), label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
             ]}
-            buttonClassName="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800"
+            buttonClassName="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-800"
           />
         </div>
       </div>
 
       {/* Right: Notifications Bell & Role Profile */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        {/* My Attendance — self check-in/out, available to every logged-in role */}
+      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* My Attendance — self check-in/out */}
         <button
           type="button"
           onClick={() => setIsSelfAttendanceOpen(true)}
           title="My Attendance — check in / out"
-          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
         >
-          <Clock className="h-4 w-4" />
+          <Clock className="h-3.5 w-3.5 text-slate-600" />
           <span className="hidden md:inline">My Attendance</span>
         </button>
 
@@ -203,9 +203,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           onClick={toggleFullscreen}
           aria-label="Toggle full screen"
           title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-          className="hidden sm:flex h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 items-center justify-center transition-all shadow-xs"
+          className="hidden sm:flex h-8 w-8 rounded-none border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 items-center justify-center transition-all cursor-pointer"
         >
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
 
         {/* Notification Bell Dropdown Container */}
@@ -215,16 +215,16 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
             onClick={() => setIsNotificationsOpen((prev) => !prev)}
             aria-label="Notification alerts"
             className={cn(
-              'relative h-9 w-9 rounded-xl border flex items-center justify-center transition-all shadow-xs',
+              'relative h-8 w-8 rounded-none border flex items-center justify-center transition-all cursor-pointer',
               totalAlertCount > 0
-                ? 'bg-amber-50/70 border-amber-300 text-amber-700 hover:bg-amber-100/70'
-                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-amber-50 border-amber-400 text-amber-800'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
             )}
             title={totalAlertCount > 0 ? `${totalAlertCount} action items due` : 'No new notifications'}
           >
-            <Bell className="h-4 w-4" />
+            <Bell className="h-3.5 w-3.5" />
             {totalAlertCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-600 text-white font-mono font-bold text-[11px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
+              <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-red-600 text-white font-mono font-bold text-[10px] rounded-none flex items-center justify-center">
                 {totalAlertCount}
               </span>
             )}
@@ -233,12 +233,12 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           {/* Interactive Notifications Popover — full-width sheet on mobile,
               anchored dropdown on >= sm */}
           {isNotificationsOpen && (
-            <div className="fixed left-3 right-3 top-[4.25rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed left-3 right-3 top-[3.75rem] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-1 sm:w-96 sm:max-w-[calc(100vw-2rem)] bg-white border border-slate-300 rounded-none shadow-lg z-50 overflow-hidden">
               {/* Popover Header */}
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-                    <Bell className="h-4 w-4" />
+                  <div className="h-6 w-6 rounded-none bg-amber-100 text-amber-800 flex items-center justify-center">
+                    <Bell className="h-3.5 w-3.5" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">Follow-up Reminders & Alerts</h3>
@@ -248,7 +248,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
                   </div>
                 </div>
                 {totalAlertCount > 0 && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-none bg-red-100 text-red-800 border border-red-200">
                     {totalAlertCount} Due
                   </span>
                 )}

@@ -333,10 +333,10 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                 setCustomerToEdit(null);
                 setCustomerFormOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              <span>Add Customer</span>
+              <span>+ Add Customer</span>
             </button>
           )}
           {canManagePurchases && (
@@ -346,32 +346,32 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                 setVendorToEdit(null);
                 setVendorFormOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-none shadow-none transition-colors cursor-pointer"
             >
               <Building2 className="h-4 w-4 text-slate-500" />
-              <span>Add Supplier</span>
+              <span>+ Add Supplier</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Segmented Navigation Tabs */}
-      <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar">
+      {/* Segmented Navigation Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveTab('customers')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'customers'
-              ? 'bg-white text-blue-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <UserRound className="h-4 w-4" />
           <span>Customers</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'customers' ? 'bg-blue-50 text-blue-700 font-bold' : 'bg-slate-300/60 text-slate-700'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'customers' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {totalCustomers}
           </span>
@@ -381,17 +381,17 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('suppliers')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'suppliers'
-              ? 'bg-white text-blue-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Building2 className="h-4 w-4" />
           <span>Suppliers</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'suppliers' ? 'bg-blue-50 text-blue-700 font-bold' : 'bg-slate-300/60 text-slate-700'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'suppliers' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {totalSuppliers}
           </span>
@@ -401,17 +401,17 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('all')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'all'
-              ? 'bg-white text-blue-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Users className="h-4 w-4" />
           <span>All Parties Ledger</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'all' ? 'bg-blue-50 text-blue-700 font-bold' : 'bg-slate-300/60 text-slate-700'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'all' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {parties.length}
           </span>
@@ -421,10 +421,10 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
           type="button"
           onClick={() => setActiveTab('loyalty')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'loyalty'
-              ? 'bg-white text-blue-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Award className="h-4 w-4" />

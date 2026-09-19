@@ -17,7 +17,8 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
-import { cn, formatCurrency } from '../../lib/utils';
+import { cn, formatCurrency, cleanPhoneDigits } from '../../lib/utils';
+import { PhoneInput } from './PhoneInput';
 
 export interface CustomerSearchSelectProps {
   label?: React.ReactNode;
@@ -178,7 +179,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     e.preventDefault();
     setQuickAddError('');
 
-    const cleanPhone = newPhone.trim().replace(/\D/g, '');
+    const cleanPhone = cleanPhoneDigits(newPhone);
     const cleanName = cleanCustomerName(newName, newNotes);
     if (!newType) {
       setQuickAddError('Please select Customer Type (Retail or Organization)');
@@ -186,6 +187,10 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     }
     if (!cleanPhone) {
       setQuickAddError('Phone number is required');
+      return;
+    }
+    if (cleanPhone.length !== 10) {
+      setQuickAddError('Please enter a valid 10-digit mobile number');
       return;
     }
     if (!cleanName) {
@@ -198,7 +203,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
       id: `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: cleanName,
       customerType: newType,
-      phone: newPhone.trim(),
+      phone: cleanPhone,
       address: newAddress.trim(),
       notes: newNotes.trim() || undefined,
       firstPurchaseDate: now.split('T')[0],
@@ -591,20 +596,14 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Phone Number (Unique Key) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. 9842100000"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Used to prevent duplicates & track order history</p>
-              </div>
+              <PhoneInput
+                label="Phone Number (Unique Key)"
+                required
+                placeholder="98421 00000"
+                value={newPhone}
+                onChange={setNewPhone}
+                helperText="Used to prevent duplicates & track order history"
+              />
 
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">

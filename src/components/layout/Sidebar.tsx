@@ -1,33 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useErp, ActiveNavView } from '../../context/ErpContext';
 import {
-  LayoutDashboard,
-  Boxes,
-  Barcode,
-  BarChart3,
-  ShieldCheck,
-  ShoppingCart,
-  Building2,
-  Lock,
-  Truck,
-  Receipt,
-  ClipboardList,
-  Wallet,
-  Users,
-  Clock,
-  Sparkles,
-  PanelLeftClose,
-  PanelLeftOpen,
   X,
   ChevronDown,
   Plus,
-  Package,
-  CalendarCheck,
-  Store,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Building2,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
-import { NAV_SUB_CONFIG } from './navSubItems';
 import { cn } from '../../lib/utils';
 
 const COLLAPSE_KEY = 'majestronicz_sidebar_collapsed';
@@ -37,6 +21,19 @@ interface SidebarProps {
   mobileOpen?: boolean;
   /** Close the mobile drawer. */
   onClose?: () => void;
+}
+
+interface NavItem {
+  id: ActiveNavView;
+  subTabId?: string;
+  label: string;
+  visible: boolean;
+}
+
+interface NavGroup {
+  id: string;
+  title: string;
+  items: NavItem[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose }) => {
@@ -52,34 +49,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const asideRef = useRef<HTMLElement | null>(null);
-
-  // Hover & Choose Flyout state for desktop
-  const [hoveredNavView, setHoveredNavView] = useState<ActiveNavView | null>(null);
-  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Mobile accordion expanded state
-  const [mobileExpandedNav, setMobileExpandedNav] = useState<ActiveNavView | null>(null);
-
+  // Desktop collapse state
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+    try {
+      return localStorage.getItem(COLLAPSE_KEY) === '1';
+    } catch {
+      return false;
+    }
   });
+
   useEffect(() => {
-    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
   }, [collapsed]);
 
-  // Clean up hover timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Track whether we're on a mobile viewport (< lg). The desktop-only "collapse"
-  // preference must NOT hide labels in the mobile drawer.
+  // Track mobile viewport (< lg)
   const [isMobile, setIsMobile] = useState<boolean>(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
   );
@@ -90,124 +77,254 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const handleSubOptionClick = useCallback((navView: ActiveNavView, subOptionId: string) => {
-    setHoveredNavView(null);
-    if (subOptionId === 'new-challan') {
-      navigateToTab('challans', 'new');
-    } else if (subOptionId === 'challans') {
-      navigateToTab('challans', 'history');
-    } else {
-      navigateToTab(navView, subOptionId);
-    }
-    onClose?.();
-  }, [navigateToTab, onClose]);
-
-  const handleNavClick = useCallback((id: ActiveNavView) => {
-    setHoveredNavView(null);
-    setCurrentView(id);
-    onClose?.();
-  }, [setCurrentView, onClose]);
-
-  const handleItemMouseEnter = (id: ActiveNavView, e: React.MouseEvent<HTMLElement>) => {
-    if (isMobile) return;
-    // Only show hover flyout on devices with fine pointer and hover support
-    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      return;
-    }
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    const subConfig = NAV_SUB_CONFIG[id];
-    const hasContent =
-      subConfig &&
-      (subConfig.primaryAction ||
-        (subConfig.primaryActions && subConfig.primaryActions.length > 0) ||
-        subConfig.subOptions.length > 0);
-    if (!hasContent) {
-      setHoveredNavView(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const primaryCount = subConfig.primaryActions?.length ?? (subConfig.primaryAction ? 1 : 0);
-    const primaryHeight = primaryCount * 42;
-    const subOptionsHeight = subConfig.subOptions.reduce(
-      (acc, opt) => acc + (opt.description ? 52 : 40),
-      0
-    );
-    // Header ~58px, Operations title ~24px, padding & borders ~24px
-    const approxHeight = 58 + primaryHeight + (subConfig.subOptions.length > 0 ? 24 : 0) + subOptionsHeight + 24;
-
-    const viewportHeight = window.innerHeight;
-    const maxAllowedTop = Math.max(16, viewportHeight - approxHeight - 16);
-
-    // If hovering an item in the bottom half of the screen (like Reports), anchor upward relative to the item
-    let targetTop = rect.top - 6;
-    if (targetTop + approxHeight > viewportHeight - 16) {
-      // Anchor bottom-to-bottom with the hovered item, but clamped within viewport bounds
-      const bottomAlignedTop = rect.bottom - approxHeight + 6;
-      targetTop = Math.min(bottomAlignedTop, maxAllowedTop);
-    }
-    const clampedTop = Math.max(16, Math.min(targetTop, maxAllowedTop));
-
-    setFlyoutPos({ top: clampedTop, left: rect.right + 8 });
-    setHoveredNavView(id);
-  };
-
-  const handleItemMouseLeave = () => {
-    if (isMobile) return;
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredNavView(null);
-    }, 180);
-  };
-
-  const handleFlyoutMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-  };
-
-  // On mobile the drawer always shows full labels; collapse only applies on desktop.
   const showLabels = isMobile || !collapsed;
 
-  const navItems: {
-    id: ActiveNavView;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    visible: boolean;
-    badge?: string;
-  }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: canAccessView('dashboard') },
-    { id: 'items', label: 'Items', icon: Package, visible: canAccessView('items') },
-    { id: 'parties', label: 'Parties', icon: Users, visible: canAccessView('parties') || canAccessView('customers') },
-    { id: 'enquiries', label: 'Enquiries', icon: ClipboardList, visible: canAccessView('enquiries') },
-    { id: 'pending-orders', label: 'Pending Orders', icon: Clock, visible: canAccessView('pending-orders') },
-    { id: 'challans', label: 'Delivery Challan', icon: Truck, visible: canAccessView('challans') },
-    { id: 'inventory', label: 'Inventory', icon: Boxes, visible: canAccessView('inventory') },
-    { id: 'invoices', label: 'Sales', icon: Receipt, visible: canAccessView('invoices') },
-    { id: 'barcodes', label: 'Barcode', icon: Barcode, visible: canAccessView('barcodes') },
-    { id: 'cash-register', label: 'Cash Register', icon: Wallet, visible: canAccessView('cash-register') },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingCart, visible: canAccessView('purchases') },
-    { id: 'hrm', label: 'Attendance', icon: CalendarCheck, visible: canAccessView('hrm') },
-    { id: 'reports', label: 'Reports', icon: BarChart3, visible: canAccessView('reports') },
-    { id: 'shopify', label: 'Online Store', icon: Store, visible: canAccessView('shopify') },
-    { id: 'ai-assistant', label: 'Beta AI', icon: Sparkles, visible: canAccessView('ai-assistant'), badge: 'Beta' },
-    { id: 'access', label: 'Access Control', icon: ShieldCheck, visible: canAccessView('access') },
+  // Grouped Navigation Definition (Classic Vyapar Desktop accounting modules)
+  const groups: NavGroup[] = [
+    {
+      id: 'parties',
+      title: 'Parties',
+      items: [
+        {
+          id: 'parties',
+          subTabId: 'customers',
+          label: 'Customers',
+          visible: canAccessView('parties') || canAccessView('customers'),
+        },
+        {
+          id: 'parties',
+          subTabId: 'suppliers',
+          label: 'Suppliers',
+          visible: canAccessView('parties'),
+        },
+      ],
+    },
+    {
+      id: 'items',
+      title: 'Items & Stock',
+      items: [
+        {
+          id: 'items',
+          subTabId: 'products',
+          label: 'Item Catalog',
+          visible: canAccessView('items'),
+        },
+        {
+          id: 'inventory',
+          label: 'Stock Inventory',
+          visible: canAccessView('inventory'),
+        },
+        {
+          id: 'barcodes',
+          label: 'Barcode Generator',
+          visible: canAccessView('barcodes'),
+        },
+      ],
+    },
+    {
+      id: 'sales',
+      title: 'Sales',
+      items: [
+        {
+          id: 'invoices',
+          subTabId: 'ledger',
+          label: 'Sale Invoices',
+          visible: canAccessView('invoices'),
+        },
+        {
+          id: 'estimates',
+          subTabId: 'estimates',
+          label: 'Quotations / Estimates',
+          visible: canAccessView('estimates') || canAccessView('invoices'),
+        },
+        {
+          id: 'challans',
+          subTabId: 'history',
+          label: 'Delivery Challans',
+          visible: canAccessView('challans'),
+        },
+        {
+          id: 'invoices',
+          subTabId: 'returns',
+          label: 'Sale Returns',
+          visible: canAccessView('invoices'),
+        },
+        {
+          id: 'enquiries',
+          label: 'Enquiries',
+          visible: canAccessView('enquiries'),
+        },
+        {
+          id: 'pending-orders',
+          label: 'Pending Orders',
+          visible: canAccessView('pending-orders'),
+        },
+      ],
+    },
+    {
+      id: 'purchases',
+      title: 'Purchases',
+      items: [
+        {
+          id: 'purchases',
+          subTabId: 'bills',
+          label: 'Purchase Bills',
+          visible: canAccessView('purchases'),
+        },
+        {
+          id: 'purchases',
+          subTabId: 'orders',
+          label: 'Purchase Orders',
+          visible: canAccessView('purchases'),
+        },
+        {
+          id: 'purchases',
+          subTabId: 'vendors',
+          label: 'Vendors Directory',
+          visible: canAccessView('purchases'),
+        },
+      ],
+    },
+    {
+      id: 'cash-bank',
+      title: 'Cash & Bank',
+      items: [
+        {
+          id: 'cash-register',
+          label: 'Daily Cash Register',
+          visible: canAccessView('cash-register'),
+        },
+      ],
+    },
+    {
+      id: 'reports',
+      title: 'Reports',
+      items: [
+        {
+          id: 'reports',
+          subTabId: 'sales',
+          label: 'Sales Register',
+          visible: canAccessView('reports'),
+        },
+        {
+          id: 'reports',
+          subTabId: 'pnl',
+          label: 'Profit & Loss Statement',
+          visible: canAccessView('reports'),
+        },
+        {
+          id: 'reports',
+          subTabId: 'stock-valuation',
+          label: 'Stock Valuation',
+          visible: canAccessView('reports'),
+        },
+        {
+          id: 'reports',
+          subTabId: 'gst',
+          label: 'GST Filing (GSTR-1 & 3B)',
+          visible: canAccessView('reports'),
+        },
+        {
+          id: 'reports',
+          subTabId: 'payroll',
+          label: 'Payroll Summary',
+          visible: canAccessView('reports'),
+        },
+      ],
+    },
+    {
+      id: 'utilities',
+      title: 'Settings & More',
+      items: [
+        {
+          id: 'hrm',
+          label: 'Staff & Attendance',
+          visible: canAccessView('hrm'),
+        },
+        {
+          id: 'shopify',
+          label: 'Online Store',
+          visible: canAccessView('shopify'),
+        },
+        {
+          id: 'access',
+          label: 'Access Control',
+          visible: canAccessView('access'),
+        },
+        {
+          id: 'ai-assistant',
+          label: 'AI Assistant',
+          visible: canAccessView('ai-assistant'),
+        },
+      ],
+    },
   ];
 
-  const RoleIcon = currentUser.role === 'CEO' ? ShieldCheck : currentUser.role === 'Manager' ? Building2 : Lock;
-  const activeFlyoutConfig = hoveredNavView ? NAV_SUB_CONFIG[hoveredNavView] : null;
+  // Accordion open/close state for each group
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {
+      sales: true,
+      parties: true,
+      items: true,
+      purchases: false,
+      'cash-bank': false,
+      reports: false,
+      utilities: false,
+    };
+    return initial;
+  });
+
+  // Automatically keep the group of the active view open
+  useEffect(() => {
+    for (const grp of groups) {
+      const match = grp.items.some(
+        (it) => it.id === currentView || (it.id === 'parties' && currentView === 'customers')
+      );
+      if (match) {
+        setExpandedGroups((prev) => ({ ...prev, [grp.id]: true }));
+        break;
+      }
+    }
+  }, [currentView]);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  };
+
+  const handleItemClick = useCallback(
+    (item: NavItem) => {
+      if (item.subTabId) {
+        if (item.subTabId === 'new-challan') {
+          navigateToTab('challans', 'new');
+        } else if (item.subTabId === 'history' && item.id === 'challans') {
+          navigateToTab('challans', 'history');
+        } else {
+          navigateToTab(item.id, item.subTabId);
+        }
+      } else {
+        setCurrentView(item.id);
+      }
+      onClose?.();
+    },
+    [navigateToTab, setCurrentView, onClose]
+  );
+
+  const RoleIcon =
+    currentUser.role === 'CEO'
+      ? ShieldCheck
+      : currentUser.role === 'Manager'
+      ? Building2
+      : Lock;
 
   return (
     <>
-      {/* Mobile backdrop (only when the drawer is open on < lg) */}
+      {/* Mobile backdrop */}
       <div
         className={cn(
-          'fixed inset-0 bg-slate-900/40 z-30 lg:hidden transition-opacity duration-200',
+          'fixed inset-0 bg-slate-900/50 z-30 lg:hidden transition-opacity duration-150',
           mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
         onClick={onClose}
@@ -215,231 +332,242 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       />
 
       <aside
-        ref={asideRef}
         className={cn(
-          'bg-white border-r border-slate-200 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-xs',
-          // Mobile: fixed off-canvas drawer that slides in/out.
-          'fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] transition-transform duration-200',
+          'bg-white border-r border-slate-300 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none',
+          // Mobile drawer
+          'fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] transition-transform duration-150',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
-          // Desktop: static in-flow column; width follows the collapse pref.
+          // Desktop sidebar
           'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:transition-[width]',
-          collapsed ? 'lg:w-20' : 'lg:w-68'
+          collapsed ? 'lg:w-16' : 'lg:w-60'
         )}
       >
-        {/* Brand Header + collapse toggle (kept inside the sidebar, always aligned) */}
-        <div className={cn('border-b border-slate-200', showLabels ? 'p-5' : 'p-3')}>
+        {/* Brand Header */}
+        <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
           {/* Mobile close button */}
           <button
             onClick={onClose}
             aria-label="Close menu"
-            className="lg:hidden absolute top-3 right-3 h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-800 flex items-center justify-center"
+            className="lg:hidden h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-900 flex items-center justify-center cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
+
           {!showLabels ? (
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-2 w-full">
               <MajestroniczLogo collapsed={true} />
               <button
                 onClick={() => setCollapsed(false)}
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
-                className="h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <PanelLeftOpen className="h-4 w-4" />
+                <PanelLeftOpen className="h-3.5 w-3.5" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-2">
-              <MajestroniczLogo />
+            <div className="flex items-center justify-between gap-2 w-full">
+              <MajestroniczLogo size="sm" />
               <button
                 onClick={() => setCollapsed(true)}
                 title="Collapse sidebar"
                 aria-label="Collapse sidebar"
-                className="hidden lg:flex h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-300 items-center justify-center transition-colors shrink-0 cursor-pointer"
+                className="hidden lg:flex h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 items-center justify-center transition-colors shrink-0 cursor-pointer"
               >
-                <PanelLeftClose className="h-4 w-4" />
+                <PanelLeftClose className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
         </div>
 
-        {/* Main Navigation (thin scrollbar visible) */}
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-12 space-y-1 overscroll-contain"
-          onScroll={() => setHoveredNavView(null)}
-        >
-          {navItems
-            .filter((item) => item.visible)
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.id || (item.id === 'parties' && currentView === 'customers');
-              const subConfig = NAV_SUB_CONFIG[item.id];
-              const hasSubOptions = subConfig && subConfig.subOptions.length > 0;
+        {/* Vyapar-Style Quick Action: + Add Sale */}
+        {showLabels && (
+          <div className="p-2.5 border-b border-slate-200 bg-slate-50/70 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                navigateToTab('invoices', 'new');
+                onClose?.();
+              }}
+              className="w-full py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-none flex items-center justify-center gap-1.5 transition-colors border border-red-700 cursor-pointer shadow-2xs"
+              title="Create New Sale"
+            >
+              <Plus className="h-3.5 w-3.5 stroke-[3]" />
+              <span>+ ADD SALE</span>
+            </button>
+            <div className="grid grid-cols-2 gap-1 mt-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  navigateToTab('invoices', 'new-quote');
+                  onClose?.();
+                }}
+                className="py-1 px-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-none border border-slate-300 text-center transition-colors cursor-pointer"
+                title="Create Quotation / Estimate"
+              >
+                + Add Quote
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigateToTab('challans', 'new');
+                  onClose?.();
+                }}
+                className="py-1 px-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-none border border-slate-300 text-center transition-colors cursor-pointer"
+                title="Create Delivery Challan"
+              >
+                + Challan
+              </button>
+            </div>
+          </div>
+        )}
 
+        {/* Main Grouped Navigation (Classic Accounting Dropdown / Accordion) */}
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-200/80 pb-8 text-slate-800">
+          {/* Dashboard link (always visible at top) */}
+          {canAccessView('dashboard') && (
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentView('dashboard');
+                onClose?.();
+              }}
+              title={!showLabels ? 'Dashboard' : undefined}
+              className={cn(
+                'w-full text-left font-bold transition-colors flex items-center cursor-pointer',
+                showLabels ? 'px-3 py-2 text-xs' : 'p-2 justify-center',
+                currentView === 'dashboard'
+                  ? 'bg-red-50 text-red-900 border-l-4 border-red-600 font-extrabold'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
+              )}
+            >
+              {showLabels ? <span>Dashboard</span> : <span className="text-xs font-black">DB</span>}
+            </button>
+          )}
+
+          {/* Grouped Modules */}
+          {groups.map((grp) => {
+            const visibleItems = grp.items.filter((it) => it.visible);
+            if (visibleItems.length === 0) return null;
+
+            const isExpanded = expandedGroups[grp.id] ?? false;
+            const isGroupActive = visibleItems.some((it) => {
+              if (it.id === 'parties' && currentView === 'customers') return true;
+              return it.id === currentView;
+            });
+
+            // When sidebar is collapsed on desktop, show compact group marker
+            if (!showLabels) {
               return (
-                <div
-                  key={item.id}
-                  className="w-full relative"
-                  onMouseEnter={(e) => handleItemMouseEnter(item.id, e)}
-                  onMouseLeave={handleItemMouseLeave}
-                >
-                  <div className="flex items-center gap-1 w-full">
-                    <button
-                      onClick={() => handleNavClick(item.id)}
-                      title={!showLabels ? item.label : undefined}
-                      className={cn(
-                        'relative flex-1 flex items-center rounded-xl text-sm font-medium transition-all group cursor-pointer',
-                        !showLabels ? 'justify-center px-0 py-2.5' : 'gap-3 px-3.5 py-2.5 text-left',
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition-colors',
-                          isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'
-                        )}
-                      />
-                      {showLabels && <span className="truncate">{item.label}</span>}
-                      {showLabels && item.badge && (
-                        <span
-                          className={cn(
-                            'ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide border',
-                            isActive
-                              ? 'bg-white/20 text-white border-white/30'
-                              : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
-                          )}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                      {/* Beta dot indicator when collapsed (desktop) */}
-                      {!showLabels && item.badge && (
-                        <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-fuchsia-500 border border-white" />
-                      )}
-                    </button>
-
-                    {/* Mobile Accordion Toggle Icon */}
-                    {isMobile && hasSubOptions && (
-                      <button
-                        type="button"
-                        onClick={() => setMobileExpandedNav(mobileExpandedNav === item.id ? null : item.id)}
-                        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
-                        title="View Sub-options"
-                        aria-label={`Toggle ${item.label} sub-options`}
-                      >
-                        <ChevronDown
-                          className={cn(
-                            'h-4 w-4 transition-transform duration-200',
-                            mobileExpandedNav === item.id ? 'rotate-180 text-blue-600' : ''
-                          )}
-                        />
-                      </button>
+                <div key={grp.id} className="py-1 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollapsed(false);
+                      setExpandedGroups((prev) => ({ ...prev, [grp.id]: true }));
+                    }}
+                    title={grp.title}
+                    className={cn(
+                      'h-8 w-8 rounded-none border text-[11px] font-bold flex items-center justify-center cursor-pointer',
+                      isGroupActive
+                        ? 'bg-red-600 text-white border-red-700'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     )}
-                  </div>
-
-                  {/* Mobile Sub-Options Accordion Drawer */}
-                  {isMobile && mobileExpandedNav === item.id && subConfig && (
-                    <div className="pl-4 pr-1 py-1 space-y-0.5 mt-1 border-l-2 border-blue-200 ml-5">
-                      {subConfig.primaryActions && subConfig.primaryActions.length > 0 ? (
-                        <div className="space-y-1 mb-1.5">
-                          {subConfig.primaryActions.map((act) => {
-                            const ActionIcon = act.icon || Plus;
-                            return (
-                              <button
-                                key={act.id}
-                                type="button"
-                                onClick={() => handleSubOptionClick(item.id, act.id)}
-                                className={cn(
-                                  'w-full py-2 px-2.5 rounded-lg flex items-center gap-2 text-left text-xs font-bold transition-all cursor-pointer text-white shadow-2xs',
-                                  act.color === 'purple'
-                                    ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
-                                    : act.color === 'emerald'
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
-                                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-                                )}
-                              >
-                                <ActionIcon className="h-3.5 w-3.5 stroke-[2.5]" />
-                                <span>{act.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : subConfig.primaryAction ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSubOptionClick(item.id, subConfig.primaryAction!.id)}
-                          className="w-full py-2 px-2.5 rounded-lg flex items-center gap-2 text-left text-xs font-bold text-blue-700 bg-blue-50/80 mb-1 cursor-pointer"
-                        >
-                          <Plus className="h-3.5 w-3.5 text-blue-600" />
-                          <span>{subConfig.primaryAction.label}</span>
-                        </button>
-                      ) : null}
-                      {subConfig.subOptions.map((sub) => {
-                        const SubIcon = sub.icon;
-                        const isCurrentActive =
-                          currentView === item.id &&
-                          activeSubTab?.view === item.id &&
-                          activeSubTab.tab === sub.id;
-                        return (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => handleSubOptionClick(item.id, sub.id)}
-                            className={cn(
-                              'w-full py-2 px-2.5 rounded-lg flex items-center gap-2.5 text-left text-xs font-medium transition-colors cursor-pointer',
-                              isCurrentActive
-                                ? 'bg-blue-50 text-blue-800 font-semibold'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                            )}
-                          >
-                            <SubIcon className={cn('h-3.5 w-3.5 shrink-0', isCurrentActive ? 'text-blue-600' : 'text-slate-400')} />
-                            <span className="truncate flex-1">{sub.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  >
+                    {grp.title.substring(0, 2).toUpperCase()}
+                  </button>
                 </div>
               );
-            })}
+            }
+
+            return (
+              <div key={grp.id} className="py-0.5">
+                {/* Group Accordion Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(grp.id)}
+                  className={cn(
+                    'w-full px-3 py-2 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer select-none',
+                    isGroupActive
+                      ? 'text-slate-900 bg-slate-100/70 border-l-4 border-red-600'
+                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
+                  )}
+                >
+                  <span className="uppercase tracking-wider text-[11px] font-extrabold text-slate-600">
+                    {grp.title}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 text-slate-400 transition-transform duration-150',
+                      isExpanded ? 'rotate-180 text-red-600' : ''
+                    )}
+                  />
+                </button>
+
+                {/* Sub-Items List (Clean Text-First, No Icons) */}
+                {isExpanded && (
+                  <div className="bg-slate-50/60 py-0.5 border-l-2 border-slate-300 ml-3 my-0.5 space-y-0.5">
+                    {visibleItems.map((sub) => {
+                      const isSubActive =
+                        (currentView === sub.id || (sub.id === 'parties' && currentView === 'customers')) &&
+                        (!sub.subTabId || activeSubTab?.tab === sub.subTabId);
+
+                      return (
+                        <button
+                          key={`${sub.id}-${sub.subTabId || ''}`}
+                          type="button"
+                          onClick={() => handleItemClick(sub)}
+                          className={cn(
+                            'w-full px-3 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate font-medium',
+                            isSubActive
+                              ? 'bg-red-50 text-red-900 font-extrabold border-l-3 border-red-600 -ml-[2px]'
+                              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                          )}
+                        >
+                          {sub.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* User footer with Logout */}
-        <div
-          className={cn(
-            'shrink-0 border-t border-slate-200 bg-slate-50/80 mt-auto sticky bottom-0 z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
-            showLabels ? 'p-3' : 'p-2'
-          )}
-        >
+        {/* User Footer with Sign Out */}
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50 mt-auto sticky bottom-0 z-10 p-2.5">
           {!showLabels ? (
             <div className="flex flex-col items-center gap-2">
               <div
-                className="h-9 w-9 mx-auto rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-2xs"
+                className="h-8 w-8 rounded-none bg-white border border-slate-300 flex items-center justify-center text-slate-700"
                 title={`${currentUser.name} (${currentUser.role})`}
               >
-                <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
+                <RoleIcon className="h-4 w-4" />
               </div>
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(true)}
                 title="Sign out"
                 aria-label="Sign out"
-                className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center transition-colors shrink-0 shadow-2xs cursor-pointer"
+                className="h-8 w-8 rounded-none border border-slate-300 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div className="h-8 w-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs">
-                  <RoleIcon className={cn('h-4 w-4', currentUser.role === 'CEO' ? 'text-amber-600' : currentUser.role === 'Manager' ? 'text-blue-600' : 'text-slate-600')} />
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="h-7 w-7 rounded-none bg-white border border-slate-300 flex items-center justify-center shrink-0 text-slate-700">
+                  <RoleIcon className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</p>
-                  <p className="text-[10px] text-slate-500 font-medium truncate">{currentUser.role}</p>
+                  <p className="text-xs font-bold text-slate-900 truncate leading-tight">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-semibold truncate leading-tight">
+                    {currentUser.role}
+                  </p>
                 </div>
               </div>
 
@@ -448,156 +576,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 onClick={() => setShowLogoutConfirm(true)}
                 title="Sign out"
                 aria-label="Sign out"
-                className="h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center transition-colors shrink-0 shadow-2xs cursor-pointer"
+                className="h-7 px-2 rounded-none border border-slate-300 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Exit</span>
               </button>
             </div>
           )}
         </div>
       </aside>
 
-      {/* Sleek Desktop Floating Hover-and-Choose Flyout Popover */}
-      {!isMobile && activeFlyoutConfig && (activeFlyoutConfig.primaryAction || (activeFlyoutConfig.primaryActions && activeFlyoutConfig.primaryActions.length > 0) || activeFlyoutConfig.subOptions.length > 0) && (
-        <div
-          onMouseEnter={handleFlyoutMouseEnter}
-          onMouseLeave={handleItemMouseLeave}
-          style={{
-            top: `${flyoutPos.top}px`,
-            left: `${flyoutPos.left}px`,
-            maxHeight: `calc(100vh - ${flyoutPos.top + 16}px)`,
-          }}
-          className={cn(
-            'fixed z-50 w-72 bg-white/98 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-2xl p-3 select-none text-slate-800 flex flex-col overflow-hidden',
-            'animate-in fade-in-50 zoom-in-95 duration-150',
-            "before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3 before:content-['']"
-          )}
-        >
-          {/* Flyout Header */}
-          <div className="flex items-center gap-2.5 pb-2.5 mb-2.5 border-b border-slate-100 shrink-0">
-            <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center shrink-0">
-              <activeFlyoutConfig.icon className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs font-bold text-slate-900 tracking-tight truncate">
-                {activeFlyoutConfig.title}
-              </h4>
-              <p className="text-[10px] text-slate-500 truncate">
-                {activeFlyoutConfig.subtitle}
-              </p>
-            </div>
-          </div>
-
-          {/* Primary Action Buttons (Vyapar-style e.g. + Add Sale, + Add Quote, + Delivery Challan) */}
-          {activeFlyoutConfig.primaryActions && activeFlyoutConfig.primaryActions.length > 0 ? (
-            <div className="mb-2 shrink-0 space-y-1.5">
-              {activeFlyoutConfig.primaryActions.map((act) => {
-                const ActionIcon = act.icon || Plus;
-                return (
-                  <button
-                    key={act.id}
-                    type="button"
-                    onClick={() => handleSubOptionClick(activeFlyoutConfig.id, act.id)}
-                    className={cn(
-                      'w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer text-white',
-                      act.color === 'purple'
-                        ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
-                        : act.color === 'emerald'
-                        ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
-                        : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-                    )}
-                  >
-                    <ActionIcon className="h-3.5 w-3.5 stroke-[2.5]" />
-                    <span>{act.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : activeFlyoutConfig.primaryAction ? (
-            <div className="mb-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => handleSubOptionClick(activeFlyoutConfig.id, activeFlyoutConfig.primaryAction!.id)}
-                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-                <span>{activeFlyoutConfig.primaryAction.label}</span>
-              </button>
-            </div>
-          ) : null}
-
-          {/* Operations List */}
-          {activeFlyoutConfig.subOptions.length > 0 && (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 overscroll-contain">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-0.5">
-                Operations
-              </div>
-              {activeFlyoutConfig.subOptions.map((opt) => {
-                const SubIcon = opt.icon;
-                const isCurrentActive =
-                  currentView === activeFlyoutConfig.id &&
-                  activeSubTab?.view === activeFlyoutConfig.id &&
-                  activeSubTab.tab === opt.id;
-
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleSubOptionClick(activeFlyoutConfig.id, opt.id)}
-                    className={cn(
-                      'w-full px-2.5 py-2 rounded-xl text-xs font-medium flex items-center gap-2.5 transition-all text-left cursor-pointer border',
-                      isCurrentActive
-                        ? 'bg-blue-50/90 border-blue-200 text-blue-800 font-bold shadow-2xs'
-                        : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-200/60'
-                    )}
-                  >
-                    <SubIcon
-                      className={cn(
-                        'h-4 w-4 shrink-0 transition-colors',
-                        isCurrentActive ? 'text-blue-600' : 'text-slate-500'
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate font-semibold">{opt.label}</div>
-                      {opt.description && (
-                        <div className="text-[10px] text-slate-500 truncate font-normal leading-tight">
-                          {opt.description}
-                        </div>
-                      )}
-                    </div>
-                    {opt.badge && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
-                        {opt.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Logout confirmation modal */}
+      {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4"
           onClick={() => setShowLogoutConfirm(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-center animate-in fade-in-50 zoom-in-95 duration-150"
+            className="w-full max-w-sm rounded-none bg-white border border-slate-400 shadow-lg p-5 text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <LogOut className="h-6 w-6" />
-            </div>
-            <h2 className="text-base font-extrabold text-slate-900">Sign out?</h2>
-            <p className="text-xs text-slate-500 mt-1">You'll need to enter your PIN again to sign back in.</p>
-            <div className="flex items-center gap-2 mt-5">
+            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+              Sign out of ERP?
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              You will need to enter your PIN to log back in.
+            </p>
+            <div className="flex items-center gap-2 mt-4">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                className="flex-1 py-2 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer"
               >
                 Cancel
               </button>
@@ -607,9 +616,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                   setShowLogoutConfirm(false);
                   logout();
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                className="flex-1 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 cursor-pointer"
               >
-                Sign out
+                Sign Out
               </button>
             </div>
           </div>
@@ -618,3 +627,5 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     </>
   );
 };
+
+export default Sidebar;

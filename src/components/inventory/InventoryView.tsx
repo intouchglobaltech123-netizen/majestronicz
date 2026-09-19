@@ -389,23 +389,23 @@ export const InventoryView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveInventoryTab('items')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeInventoryTab === 'items'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Package className="h-3.5 w-3.5" />
           <span>Regular Items Stock</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeInventoryTab === 'items' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeInventoryTab === 'items' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {items.length}
           </span>
@@ -415,17 +415,17 @@ export const InventoryView: React.FC = () => {
           type="button"
           onClick={() => setActiveInventoryTab('combos')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeInventoryTab === 'combos'
-              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Layers className="h-3.5 w-3.5" />
           <span>Combos & Kits Inventory</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeInventoryTab === 'combos' ? 'bg-purple-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeInventoryTab === 'combos' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {combos.length}
           </span>
@@ -436,38 +436,38 @@ export const InventoryView: React.FC = () => {
         <>
           {/* Inventory Worth — money locked in stock */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
-            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/60 to-white shadow-2xs">
+            <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Value (Cost)</span>
-                <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"><IndianRupee className="h-4 w-4" /></div>
+                <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><IndianRupee className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">Capital tied up at purchase cost</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Capital tied up at purchase cost</span>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50/60 to-white shadow-2xs">
+            <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Retail Value</span>
-                <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600"><TrendingUp className="h-4 w-4" /></div>
+                <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><TrendingUp className="h-3.5 w-3.5" /></div>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">If sold at listed sale price</span>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">If sold at listed sale price</span>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-violet-50/60 to-white shadow-2xs">
+            <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Potential Margin</span>
-                <div className="h-8 w-8 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center text-violet-600"><Percent className="h-4 w-4" /></div>
+                <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><Percent className="h-3.5 w-3.5" /></div>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-violet-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-800 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">{metrics.marginPct}% blended margin on hand</span>
             </div>
             <div
               onClick={() => setMovementFilter(movementFilter === 'not-moving' ? 'all' : 'not-moving')}
-              className={cn('p-4 rounded-xl border bg-gradient-to-br from-rose-50/60 to-white shadow-2xs cursor-pointer transition-all hover:border-rose-400',
-                movementFilter === 'not-moving' ? 'ring-2 ring-rose-500/20 border-rose-500' : 'border-slate-200')}
+              className={cn('p-4 rounded-none border bg-white shadow-none cursor-pointer transition-all',
+                movementFilter === 'not-moving' ? 'border-red-600 bg-red-50/20' : 'border-slate-300 hover:border-slate-400')}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Locked in Dead Stock</span>
-                <div className="h-8 w-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600"><AlertOctagon className="h-4 w-4" /></div>
+                <div className="h-7 w-7 rounded-none bg-rose-50 border border-rose-300 flex items-center justify-center text-rose-700"><AlertOctagon className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
               <span className="text-[11px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>

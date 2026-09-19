@@ -212,13 +212,13 @@ export const ItemMasterView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner: Catalog Pricing & Stock Callout */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Items — Stock Location: {isAllBranches ? 'All Branches' : currentBranchData?.name}
             </h1>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-800 border border-red-200">
               {isAllBranches ? 'All Branches' : currentBranchData?.name}
             </span>
           </div>
@@ -231,15 +231,15 @@ export const ItemMasterView: React.FC = () => {
         </div>
 
         {/* Quick Branch Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-0.5 rounded-none border border-slate-300 shrink-0">
           <span className="text-[11px] uppercase font-bold text-slate-500 px-2">Branch:</span>
           {currentUser.role === 'CEO' && (
             <button
               onClick={() => switchBranch('all')}
               className={cn(
-                'px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer',
+                'px-2.5 py-1 text-xs font-semibold rounded-none transition-all cursor-pointer',
                 isAllBranches
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-red-600 text-white shadow-none'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               )}
             >
@@ -254,9 +254,9 @@ export const ItemMasterView: React.FC = () => {
               key={b.id}
               onClick={() => switchBranch(b.id as BranchScope)}
               className={cn(
-                'px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer',
+                'px-2.5 py-1 text-xs font-semibold rounded-none transition-all cursor-pointer',
                 !isAllBranches && currentBranch === b.id
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-red-600 text-white shadow-none'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               )}
             >
@@ -266,23 +266,23 @@ export const ItemMasterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveMainTab('products')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeMainTab === 'products'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Package className="h-3.5 w-3.5" />
           <span>Master Items</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeMainTab === 'products' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeMainTab === 'products' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {items.length}
           </span>
@@ -292,17 +292,17 @@ export const ItemMasterView: React.FC = () => {
           type="button"
           onClick={() => setActiveMainTab('combos')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeMainTab === 'combos'
-              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Layers className="h-3.5 w-3.5" />
-          <span>Combo Bundles</span>
+          <span>Combos & Kits</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeMainTab === 'combos' ? 'bg-purple-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeMainTab === 'combos' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {combos.length}
           </span>

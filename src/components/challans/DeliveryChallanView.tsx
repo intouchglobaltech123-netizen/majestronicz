@@ -96,37 +96,37 @@ export const DeliveryChallanView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs (Classic Desktop ERP) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={handleStartNew}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'new'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Plus className="h-3.5 w-3.5" />
-          <span>New Challan</span>
+          <span>+ New Challan</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('history')}
           className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeTab === 'history'
-              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           <Truck className="h-3.5 w-3.5" />
           <span>Challan History</span>
           <span className={cn(
-            'px-1.5 py-0.2 rounded-full text-[10px]',
-            activeTab === 'history' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-600'
+            'px-1.5 py-0.2 rounded-none text-[10px]',
+            activeTab === 'history' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {challans.length}
           </span>
@@ -135,22 +135,22 @@ export const DeliveryChallanView: React.FC = () => {
 
       {/* Dispatch metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Challans</span>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{challanStats.count}</p>
           <span className="text-[11px] text-slate-400">Dispatch notes issued</span>
         </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">This Month</span>
-          <p className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">{challanStats.monthCount}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{challanStats.monthCount}</p>
           <span className="text-[11px] text-slate-400">Dispatched this month</span>
         </div>
-        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/60 to-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Units Dispatched</span>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-800 mt-1 font-mono">{challanStats.totalUnits.toLocaleString('en-IN')}</p>
           <span className="text-[11px] text-slate-400">Across all challans</span>
         </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recipients</span>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{challanStats.recipients}</p>
           <span className="text-[11px] text-slate-400">Unique delivery parties</span>

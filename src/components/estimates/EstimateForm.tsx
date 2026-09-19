@@ -19,7 +19,6 @@ import {
   Printer,
   Calendar,
   Clock,
-  Phone,
   MapPin,
   Link,
   Copy,
@@ -28,6 +27,7 @@ import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { CustomerSearchSelect } from '../common/CustomerSearchSelect';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface Props {
   onSaved: (estimate: Estimate) => void;
@@ -531,16 +531,12 @@ export const EstimateForm: React.FC<Props> = ({
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="relative">
-                  <Phone className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="tel"
-                    placeholder="Contact Number (e.g. 9842100000)"
-                    value={customerContact}
-                    onChange={(e) => setCustomerContact(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
-                  />
-                </div>
+                <PhoneInput
+                  placeholder="98421 00000"
+                  value={customerContact}
+                  onChange={setCustomerContact}
+                  size="sm"
+                />
 
                 <div className="relative">
                   <MapPin className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

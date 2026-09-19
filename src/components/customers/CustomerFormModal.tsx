@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Customer, CustomerType, cleanCustomerName } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { X, User, Phone, MapPin, FileText, Building2 } from 'lucide-react';
+import { X, User, MapPin, FileText, Building2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -76,7 +77,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       id: customerToEdit ? customerToEdit.id : `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: cleanName,
       customerType,
-      phone: phone.trim(),
+      phone: normalizedPhone,
       address: address.trim(),
       notes: notes.trim() || undefined,
       firstPurchaseDate: customerToEdit?.firstPurchaseDate || new Date().toISOString().split('T')[0],
@@ -221,27 +222,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Phone Number (Unique Identifier) <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type="tel"
-                required
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="e.g. 9842100000"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-              />
-              <Phone className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Used to match customers in Sales and prevent duplicate master records.
-            </p>
-          </div>
+          <PhoneInput
+            label="Phone Number (Unique Identifier)"
+            required
+            placeholder="98421 00000"
+            value={phone}
+            onChange={setPhone}
+            helperText="Used to match customers in Sales and prevent duplicate master records."
+          />
 
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">

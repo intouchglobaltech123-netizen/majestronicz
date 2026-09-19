@@ -2,20 +2,72 @@
 
 @layer base {
   * {
-    border-color: #e2e8f0; /* slate-200 */
+    border-color: #cbd5e1; /* slate-300: crisp solid ERP borders */
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    color: #0f172a; /* slate-900 */
-    background-color: #f8fafc; /* slate-50 */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #0f172a; /* slate-900: sharp high-contrast text */
+    background-color: #f1f5f9; /* slate-100: classic accounting desktop gray */
   }
 }
 
-/* Crisp light theme scrollbar */
+/* Classic Vyapar / Old Style ERP: eliminate bubbly AI curves across the application */
+@utility rounded-full {
+  border-radius: 2px;
+}
+@utility rounded-3xl {
+  border-radius: 2px;
+}
+@utility rounded-2xl {
+  border-radius: 2px;
+}
+@utility rounded-xl {
+  border-radius: 2px;
+}
+@utility rounded-lg {
+  border-radius: 2px;
+}
+@utility rounded-md {
+  border-radius: 2px;
+}
+@utility rounded {
+  border-radius: 2px;
+}
+@utility rounded-sm {
+  border-radius: 1px;
+}
+
+/* Eliminate AI-style excessive drop shadows; replace with sharp 1px borders */
+@utility shadow-2xl {
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.12);
+}
+@utility shadow-xl {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+@utility shadow-lg {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+@utility shadow-md {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+@utility shadow-xs {
+  box-shadow: none;
+}
+@utility shadow-2xs {
+  box-shadow: none;
+}
+
+/* Eliminate modern glassmorphism blur across modals and panels */
+[class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Classic ERP Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -23,19 +75,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
+  background: #94a3b8;
+  border-radius: 0px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748b;
 }
 
-/* ---- Responsive tables (mobile + tablet) ----
-   On <=1024px, let every data table scroll horizontally inside its own box
-   instead of overflowing the page or being clipped. The table element becomes
-   a scroll container while its rows/cells keep table layout. Print tables and
-   any table that opts out with .no-responsive-scroll are excluded. */
+/* Responsive tables (mobile + tablet) */
 @media screen and (max-width: 1024px) {
   table:not(.no-responsive-scroll) {
     display: block;
@@ -45,16 +93,19 @@
   }
 }
 
-/* Light Theme Card Panels */
+/* Classic Crisp Card Panels */
 .card-clean {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+  border-radius: 2px;
 }
 
 .card-subtle {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+  border-radius: 2px;
 }
 
 /* Crisp Vector Print & PDF Styles */
@@ -84,4 +135,3 @@
     margin: 8mm;
   }
 }
-

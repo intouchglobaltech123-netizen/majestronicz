@@ -32,7 +32,6 @@ import {
   Printer,
   Calendar,
   Clock,
-  Phone,
   MapPin,
   FileText,
   Paperclip,
@@ -52,6 +51,7 @@ import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { CustomerSearchSelect } from '../common/CustomerSearchSelect';
+import { PhoneInput } from '../common/PhoneInput';
 
 interface Props {
   onSaved: (invoice: Invoice) => void;
@@ -1664,21 +1664,13 @@ export const InvoiceForm: React.FC<Props> = ({
 
           {/* Customer Phone */}
           <div className="md:col-span-3">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Phone / Mobile
-            </label>
-            <div className="relative">
-              <input
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="e.g. 9842100000"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-mono"
-              />
-              <Phone className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            </div>
+            <PhoneInput
+              label="Phone / Mobile"
+              placeholder="98421 00000"
+              value={customerPhone}
+              onChange={setCustomerPhone}
+              size="sm"
+            />
           </div>
 
           {/* Payment Terms */}

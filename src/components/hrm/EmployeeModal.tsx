@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, User, KeyRound, Check, Lock, ShieldCheck } from 'lucide-react';
 import { Employee, BranchId, Role } from '../../types';
 import { useErp } from '../../context/ErpContext';
+import { cleanPhoneDigits } from '../../lib/utils';
+import { PhoneInput } from '../common/PhoneInput';
 
 type LoginRole = '' | Extract<Role, 'Manager' | 'Billing' | 'Purchase' | 'Sales'>;
 const LOGIN_ROLES: Exclude<LoginRole, ''>[] = ['Manager', 'Billing', 'Purchase', 'Sales'];
@@ -92,6 +94,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     // App login requires an exact 4-digit PIN (it doubles as the sign-in PIN).
     if (loginRole && !/^\d{4}$/.test(pin.trim())) errs.pin = 'App login needs an exact 4-digit PIN';
     if (monthlySalary <= 0) errs.salary = 'Monthly salary must be greater than 0';
+    if (phone.trim()) {
+      const clean = cleanPhoneDigits(phone);
+      if (clean.length !== 10) errs.phone = 'Please enter a valid 10-digit mobile number';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -109,7 +115,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       monthlySalary: Number(monthlySalary),
       pin: pin.trim(),
       status,
-      phone: phone.trim() || undefined,
+      phone: cleanPhoneDigits(phone) || undefined,
       email: email.trim() || undefined,
       joinedDate,
     });
@@ -278,15 +284,13 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           {/* Phone & Joined Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Contact Phone
-              </label>
-              <input
-                type="text"
+              <PhoneInput
+                label="Contact Phone"
+                placeholder="98421 00000"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 9842100000"
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
+                onChange={setPhone}
+                error={errors.phone}
+                size="sm"
               />
             </div>
 

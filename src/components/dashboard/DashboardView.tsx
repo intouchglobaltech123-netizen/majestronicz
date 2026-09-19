@@ -242,9 +242,9 @@ export const DashboardView: React.FC = () => {
   const salesMonthDelta = pct(money.salesMonth, money.salesPrevMonth);
 
   return (
-    <div ref={rootRef} className="p-6 space-y-5 w-full">
+    <div ref={rootRef} className="p-4 sm:p-6 space-y-4 w-full">
       {/* Header */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">
             {isAllBranches ? 'Business Overview — All Branches' : `${currentBranchData?.name} Dashboard`}
@@ -255,12 +255,12 @@ export const DashboardView: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           {!isAllBranches && currentUser.role === 'CEO' && (
-            <button onClick={() => switchBranch('all')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors">
+            <button onClick={() => switchBranch('all')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300 transition-colors cursor-pointer">
               ← All Branches
             </button>
           )}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600">
-            {currentUser.role === 'CEO' ? <ShieldCheck className="h-4 w-4 text-amber-600" /> : <Building2 className="h-4 w-4 text-blue-600" />}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-none bg-slate-50 border border-slate-300 text-xs font-bold text-slate-700">
+            {currentUser.role === 'CEO' ? <ShieldCheck className="h-4 w-4 text-red-700" /> : <Building2 className="h-4 w-4 text-slate-700" />}
             <span><strong>{currentUser.name}</strong></span>
           </div>
         </div>
@@ -269,9 +269,9 @@ export const DashboardView: React.FC = () => {
       {/* ---- Money KPI row ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
-          icon={IndianRupee} tone="blue" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
+          icon={IndianRupee} tone="red" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
-          icon={TrendingUp} tone="indigo" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
+          icon={TrendingUp} tone="slate" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`${profit.margin}% margin`}
           icon={Percent} tone="emerald" onClick={() => setCurrentView('reports')} />
         <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
@@ -287,7 +287,7 @@ export const DashboardView: React.FC = () => {
       {/* ---- Charts row ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sales trend (14 days) */}
-        <div ref={trendRef} className="lg:col-span-2 p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div ref={trendRef} className="lg:col-span-2 p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900">Sales — Last {trendDays} Days</h3>
@@ -295,10 +295,10 @@ export const DashboardView: React.FC = () => {
                 Total {formatCurrency(trend.days.reduce((t, d) => t + d.total, 0))} {isAllBranches ? '· all branches' : ''}
               </p>
             </div>
-            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-none border border-slate-300 text-[11px] font-bold text-slate-700">
               {([7, 14, 30] as const).map((n) => (
                 <button key={n} onClick={() => setTrendDays(n)}
-                  className={cn('px-2 py-1 rounded-md transition-colors', trendDays === n ? 'bg-white text-blue-700 shadow-2xs' : 'hover:text-slate-800')}>
+                  className={cn('px-2 py-1 rounded-none transition-colors cursor-pointer', trendDays === n ? 'bg-red-600 text-white shadow-none' : 'hover:text-slate-900')}>
                   {n}d
                 </button>
               ))}
@@ -306,7 +306,7 @@ export const DashboardView: React.FC = () => {
           </div>
           <div className="relative">
             {trendHover !== null && (
-              <div className="absolute -top-1 z-10 -translate-x-1/2 rounded-lg bg-slate-900 text-white text-[11px] font-semibold px-2 py-1 shadow-lg pointer-events-none"
+              <div className="absolute -top-1 z-10 -translate-x-1/2 rounded-none bg-slate-900 text-white text-[11px] font-semibold px-2 py-1 shadow-none border border-slate-700 pointer-events-none"
                 style={{ left: `${((trendHover + 0.5) / trend.days.length) * 100}%` }}>
                 {trend.days[trendHover].label} · {formatCurrency(trend.days[trendHover].total)}
               </div>
@@ -315,10 +315,10 @@ export const DashboardView: React.FC = () => {
               {trend.days.map((d, i) => (
                 <div key={d.date} className="flex-1 h-full flex flex-col justify-end items-center group"
                   onMouseEnter={() => setTrendHover(i)} onMouseLeave={() => setTrendHover(null)}>
-                  <div className={cn('w-full rounded-t-md transition-all cursor-pointer',
-                    i === trendHover ? 'bg-blue-600' : d.date === today ? 'bg-blue-400' : 'bg-blue-200 group-hover:bg-blue-300')}
+                  <div className={cn('w-full rounded-none transition-all cursor-pointer',
+                    i === trendHover ? 'bg-red-600' : d.date === today ? 'bg-red-500' : 'bg-slate-200 group-hover:bg-slate-300')}
                     style={{ height: `${Math.max(2, (d.total / trend.max) * 100)}%` }} />
-                  <span className="text-[11px] text-slate-400 mt-1 h-2.5">{trendDays <= 14 || i % 3 === 0 ? d.label.slice(3) : ''}</span>
+                  <span className="text-[10px] font-mono text-slate-500 mt-1 h-2.5">{trendDays <= 14 || i % 3 === 0 ? d.label.slice(3) : ''}</span>
                 </div>
               ))}
             </div>
@@ -326,7 +326,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Payment mode split */}
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <h3 className="text-sm font-extrabold text-slate-900 mb-1">Payment Modes</h3>
           <p className="text-[11px] text-slate-500 mb-4">This month · by collection</p>
           {modeSplit.rows.length === 0 ? (
@@ -559,30 +559,34 @@ export const DashboardView: React.FC = () => {
 
 // ---- KPI card ----
 const TONES: Record<string, string> = {
-  blue: 'bg-blue-50 border-blue-200 text-blue-700', indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-  emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700', rose: 'bg-rose-50 border-rose-200 text-rose-700',
-  cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700', slate: 'bg-slate-100 border-slate-200 text-slate-600',
-  amber: 'bg-amber-50 border-amber-200 text-amber-700',
+  red: 'bg-red-50 border-red-200 text-red-700',
+  blue: 'bg-slate-100 border-slate-300 text-slate-800',
+  indigo: 'bg-slate-100 border-slate-300 text-slate-800',
+  emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+  rose: 'bg-rose-50 border-rose-200 text-rose-800',
+  cyan: 'bg-slate-100 border-slate-300 text-slate-800',
+  slate: 'bg-slate-100 border-slate-300 text-slate-700',
+  amber: 'bg-amber-50 border-amber-200 text-amber-800',
 };
 const KpiCard: React.FC<{
   label: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>;
   tone: string; delta?: number; deltaLabel?: string; onClick?: () => void; accent?: boolean;
 }> = ({ label, value, sub, icon: Icon, tone, delta, deltaLabel, onClick, accent }) => (
   <button onClick={onClick} className={cn(
-    'text-left p-4 rounded-xl bg-white border shadow-2xs transition-all hover:shadow-xs hover:border-slate-300',
-    accent ? 'border-slate-300' : 'border-slate-200')}>
+    'text-left p-3.5 rounded-none bg-white border shadow-none transition-all hover:bg-slate-50 cursor-pointer',
+    accent ? 'border-red-600 ring-1 ring-red-600/20' : 'border-slate-300')}>
     <div className="flex items-center justify-between">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
-      <div className={cn('h-7 w-7 rounded-lg border flex items-center justify-center', TONES[tone])}><Icon className="h-3.5 w-3.5" /></div>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{label}</span>
+      <div className={cn('h-7 w-7 rounded-none border flex items-center justify-center', TONES[tone] || TONES.slate)}><Icon className="h-3.5 w-3.5" /></div>
     </div>
-    <div className="mt-2 text-lg lg:text-xl font-bold text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
+    <div className="mt-1.5 text-lg lg:text-xl font-bold text-slate-900 tracking-tight font-mono tabular-nums break-words leading-tight">{value}</div>
     <div className="mt-0.5 flex items-center gap-1.5">
       {typeof delta === 'number' && (
-        <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-bold px-1 py-0.5 rounded', delta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50')}>
+        <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.2 rounded-none border', delta >= 0 ? 'text-emerald-800 bg-emerald-50 border-emerald-200' : 'text-rose-800 bg-rose-50 border-rose-200')}>
           {delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{Math.abs(delta)}%
         </span>
       )}
-      {sub && <span className="text-[11px] text-slate-400">{deltaLabel || sub}</span>}
+      {sub && <span className="text-[11px] text-slate-500">{deltaLabel || sub}</span>}
     </div>
   </button>
 );
@@ -592,8 +596,8 @@ const HealthCard: React.FC<{
   label: string; count: number; unit: string; tone: string; hint: string;
   icon: React.ComponentType<{ className?: string }>; onClick?: () => void;
 }> = ({ label, count, unit, tone, hint, icon: Icon, onClick }) => (
-  <button onClick={onClick} className="text-left p-4 rounded-xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-3.5">
-    <div className={cn('h-11 w-11 rounded-xl border flex items-center justify-center shrink-0', TONES[tone])}><Icon className="h-5 w-5" /></div>
+  <button onClick={onClick} className="text-left p-3.5 rounded-none bg-white border border-slate-300 shadow-none hover:bg-slate-50 transition-all flex items-center gap-3 cursor-pointer">
+    <div className={cn('h-10 w-10 rounded-none border flex items-center justify-center shrink-0', TONES[tone] || TONES.slate)}><Icon className="h-5 w-5" /></div>
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
         <span className="text-xl font-bold text-slate-900">{count}</span>
@@ -602,6 +606,6 @@ const HealthCard: React.FC<{
       <p className="text-xs font-bold text-slate-700">{label}</p>
       <p className="text-[11px] text-slate-400 truncate">{hint}</p>
     </div>
-    <ArrowRight className="h-4 w-4 text-slate-300 ml-auto shrink-0" />
+    <ArrowRight className="h-4 w-4 text-slate-400 ml-auto shrink-0" />
   </button>
 );

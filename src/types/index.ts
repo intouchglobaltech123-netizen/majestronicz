@@ -1126,9 +1126,9 @@ export const computeInvoiceFinance = (
  */
 export const normalizePhone = (raw?: string): string => {
   let d = (raw || '').replace(/\D/g, '');
-  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length > 10 && d.startsWith('91')) d = d.slice(2);
   if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
-  return d;
+  return d.slice(0, 10);
 };
 
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {

@@ -137,14 +137,14 @@ export const ReportsView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 space-y-5 w-full">
       {/* Top Banner */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-3.5">
+      <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none flex items-center justify-between gap-3.5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               {tabs.find((t) => t.id === activeTab)?.label || 'Reports'}
             </h1>
-            <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              Live Analytics
+            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-800 border border-red-200">
+              Live Audits
             </span>
           </div>
           <p className="text-xs text-slate-600 mt-0.5">
@@ -153,7 +153,7 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Scrollable Report Tabs Strip (Fully accessible on mobile & desktop) */}
+      {/* Scrollable Report Tabs Strip (Classic Desktop ERP) */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -164,10 +164,10 @@ export const ReportsView: React.FC = () => {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
+                'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
                 isActive
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-red-600 text-white border-red-700 shadow-none'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
               )}
             >
               <Icon className={cn('h-3.5 w-3.5', isActive ? 'text-white' : 'text-slate-500')} />
@@ -180,15 +180,15 @@ export const ReportsView: React.FC = () => {
       {/* The opened report: filters + date range + summary + body + download */}
       <div className="space-y-4">
           {/* Filter + date-range bar */}
-          <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-3.5 flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="rounded-none border border-slate-300 bg-white shadow-none p-3 flex flex-col lg:flex-row lg:items-center gap-3">
             {/* Branch scope */}
             {currentUser.role === 'CEO' ? (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 shrink-0">
-                <Building className="h-3.5 w-3.5 text-blue-600" />
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2.5 py-1.5 rounded-none text-xs font-semibold text-slate-700 shrink-0">
+                <Building className="h-3.5 w-3.5 text-slate-600" />
                 <select
                   value={branchScope}
                   onChange={(e) => setBranchScope(e.target.value as BranchScope)}
-                  className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
+                  className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs"
                 >
                   <option value="all">All Branches</option>
                   {BRANCHES.map((b) => (
@@ -197,21 +197,21 @@ export const ReportsView: React.FC = () => {
                 </select>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 shrink-0">
-                <Building className="h-3.5 w-3.5 text-blue-600" />
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2.5 py-1.5 rounded-none text-xs font-bold text-slate-800 shrink-0">
+                <Building className="h-3.5 w-3.5 text-slate-600" />
                 <span>{BRANCHES.find((b) => b.id === branchScope)?.name || branchScope}</span>
               </div>
             )}
 
-            {/* Preset pills */}
-            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0">
+            {/* Preset buttons */}
+            <div className="flex flex-wrap items-center bg-slate-100 p-0.5 rounded-none border border-slate-300 text-xs font-bold shrink-0">
               {([['month', 'This Month'], ['today', 'Today'], ['30days', 'Last 30D'], ['all', 'Full Year']] as const).map(([preset, label]) => (
                 <button
                   key={preset}
                   onClick={() => applyPreset(preset)}
                   className={cn(
-                    'px-2.5 py-1 rounded-lg transition-all',
-                    activePreset === preset ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                    'px-2.5 py-1 rounded-none transition-all cursor-pointer text-xs font-bold',
+                    activePreset === preset ? 'bg-red-600 text-white shadow-none' : 'text-slate-700 hover:text-slate-900'
                   )}
                 >
                   {label}
@@ -221,8 +221,8 @@ export const ReportsView: React.FC = () => {
 
             {/* Precise date window */}
             <div className="flex items-center gap-2 flex-wrap lg:ml-auto">
-              <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
+              <Calendar className="h-4 w-4 text-slate-600 shrink-0" />
+              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-none border border-slate-300">
                 <span className="text-[11px] uppercase font-bold text-slate-400">From</span>
                 <input
                   type="date"
