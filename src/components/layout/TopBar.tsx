@@ -20,13 +20,28 @@ import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
+import { MajestroniczLogo } from '../common/MajestroniczLogo';
 
 interface TopBarProps {
-  /** Opens the mobile navigation drawer (< lg). */
+  /** Whether the navigation bar is currently open. */
+  navOpen?: boolean;
+  /** Toggles or opens the navigation bar. */
+  onToggleNav?: () => void;
+  /** Backward compatibility */
   onOpenNav?: () => void;
+  /** External fullscreen state */
+  isFullscreen?: boolean;
+  /** Callback to toggle fullscreen */
+  onToggleFullscreen?: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
+export const TopBar: React.FC<TopBarProps> = ({
+  navOpen = true,
+  onToggleNav,
+  onOpenNav,
+  isFullscreen: propIsFullscreen,
+  onToggleFullscreen: propToggleFullscreen,
+}) => {
   const {
     currentBranch,
     isAllBranches,
@@ -45,9 +60,14 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const isFullscreen = propIsFullscreen ?? internalFullscreen;
 
   const toggleFullscreen = () => {
+    if (propToggleFullscreen) {
+      propToggleFullscreen();
+      return;
+    }
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
     } else {
@@ -55,7 +75,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
     }
   };
   useEffect(() => {
-    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFs = () => setInternalFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
@@ -151,17 +171,31 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
 
   return (
     <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-none">
-      {/* Left: Hamburger (mobile) + Global Branch Switcher */}
+      {/* Left: Hamburger (3-line menu) + Logo when collapsed + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* Mobile nav toggle */}
+        {/* 3-line Hamburger nav toggle (shows on mobile, and on desktop when nav is closed/minimized) */}
         <button
           type="button"
-          onClick={onOpenNav}
-          aria-label="Open menu"
-          className="lg:hidden h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+          onClick={onToggleNav || onOpenNav}
+          aria-label={navOpen ? 'Hide navigation menu' : 'Open navigation menu'}
+          title={navOpen ? 'Hide sidebar' : 'Show sidebar menu (3 lines)'}
+          className={cn(
+            'h-8 px-2 shrink-0 rounded-none border flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-colors',
+            !navOpen
+              ? 'bg-red-700 border-red-800 text-white hover:bg-red-800 shadow-sm'
+              : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 lg:hidden'
+          )}
         >
           <Menu className="h-4 w-4" />
+          {!navOpen && <span className="hidden sm:inline font-mono text-[11px] uppercase tracking-wider">Menu</span>}
         </button>
+
+        {/* Brand logo in topbar when sidebar is minimized */}
+        {!navOpen && (
+          <div className="hidden sm:flex items-center shrink-0 pr-2 border-r border-slate-200 mr-1">
+            <MajestroniczLogo size="sm" />
+          </div>
+        )}
 
         <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
           <MapPin className="h-3.5 w-3.5 text-red-700" />
@@ -202,10 +236,16 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenNav }) => {
           type="button"
           onClick={toggleFullscreen}
           aria-label="Toggle full screen"
-          title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-          className="hidden sm:flex h-8 w-8 rounded-none border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 items-center justify-center transition-all cursor-pointer"
+          title={isFullscreen ? 'Exit full screen (F11 / Esc)' : 'Full screen mode (F11)'}
+          className={cn(
+            'hidden sm:flex h-8 px-2 rounded-none border items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-bold font-mono',
+            isFullscreen
+              ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+              : 'bg-white border-slate-300 text-red-700 hover:bg-red-50 hover:border-red-400'
+          )}
         >
-          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5 text-red-700" />}
+          <span className="hidden lg:inline">{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
         </button>
 
         {/* Notification Bell Dropdown Container */}

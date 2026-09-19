@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useErp, ActiveNavView } from '../../context/ErpContext';
 import {
-  X,
   ChevronDown,
   Plus,
   LogOut,
   PanelLeftClose,
-  PanelLeftOpen,
   Building2,
   ShieldCheck,
   Lock,
@@ -14,13 +12,15 @@ import {
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { cn } from '../../lib/utils';
 
-const COLLAPSE_KEY = 'majestronicz_sidebar_collapsed';
-
 interface SidebarProps {
-  /** Whether the off-canvas drawer is open on mobile (< lg). */
-  mobileOpen?: boolean;
-  /** Close the mobile drawer. */
+  /** Whether the navigation bar is open / visible. */
+  isOpen?: boolean;
+  /** Close / hide the navigation bar. */
   onClose?: () => void;
+  /** Toggle the navigation bar. */
+  onToggle?: () => void;
+  /** Backward compatibility for mobile drawer */
+  mobileOpen?: boolean;
 }
 
 interface NavItem {
@@ -36,7 +36,11 @@ interface NavGroup {
   items: NavItem[];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  isOpen,
+  mobileOpen,
+  onClose,
+}) => {
   const {
     currentUser,
     currentView,
@@ -49,35 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Desktop collapse state
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(COLLAPSE_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }, [collapsed]);
-
-  // Track mobile viewport (< lg)
-  const [isMobile, setIsMobile] = useState<boolean>(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  const showLabels = isMobile || !collapsed;
+  // Determine whether navigation is open (defaults to true if unspecified)
+  const isNavOpen = isOpen ?? mobileOpen ?? true;
 
   // Grouped Navigation Definition (Classic Vyapar Desktop accounting modules)
   const groups: NavGroup[] = [
@@ -260,9 +237,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
     },
   ];
 
-  // Accordion open/close state for each group
+  // Accordion open/close state for each group (persisted in localStorage)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {
+    try {
+      const saved = localStorage.getItem('majestronicz_sidebar_groups');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      /* ignore */
+    }
+    return {
       sales: true,
       parties: true,
       items: true,
@@ -271,8 +254,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       reports: false,
       utilities: false,
     };
-    return initial;
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('majestronicz_sidebar_groups', JSON.stringify(expandedGroups));
+    } catch {
+      /* ignore */
+    }
+  }, [expandedGroups]);
 
   // Automatically keep the group of the active view open
   useEffect(() => {
@@ -307,7 +297,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       } else {
         setCurrentView(item.id);
       }
-      onClose?.();
+      // On mobile / tablet (< lg), close the drawer on navigation
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        onClose?.();
+      }
     },
     [navigateToTab, setCurrentView, onClose]
   );
@@ -324,8 +317,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       {/* Mobile backdrop */}
       <div
         className={cn(
-          'fixed inset-0 bg-slate-900/50 z-30 lg:hidden transition-opacity duration-150',
-          mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          'fixed inset-0 bg-slate-900/50 z-30 lg:hidden transition-opacity duration-200',
+          isNavOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
         onClick={onClose}
         aria-hidden="true"
@@ -334,62 +327,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
       <aside
         className={cn(
           'bg-white border-r border-slate-300 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none',
-          // Mobile drawer
-          'fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] transition-transform duration-150',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full',
-          // Desktop sidebar
-          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:transition-[width]',
-          collapsed ? 'lg:w-16' : 'lg:w-60'
+          // Smooth transition for hide/show
+          'transition-all duration-200 ease-in-out',
+          // Mobile drawer mode (< lg)
+          'fixed inset-y-0 left-0 z-40 max-w-[85vw]',
+          isNavOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
+          // Desktop sidebar mode (>= lg)
+          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0',
+          isNavOpen
+            ? 'lg:w-60 lg:opacity-100 lg:pointer-events-auto'
+            : 'lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0 lg:pointer-events-none'
         )}
       >
-        {/* Brand Header */}
-        <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
-          {/* Mobile close button */}
-          <button
-            onClick={onClose}
-            aria-label="Close menu"
-            className="lg:hidden h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-900 flex items-center justify-center cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="w-60 min-w-60 h-full flex flex-col overflow-hidden">
+          {/* Brand Header */}
+          <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
+            <MajestroniczLogo size="sm" />
+            <button
+              type="button"
+              onClick={onClose}
+              title="Hide navigation bar (Minimize to 3 lines)"
+              aria-label="Hide navigation bar"
+              className="h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
-          {!showLabels ? (
-            <div className="flex flex-col items-center gap-2 w-full">
-              <MajestroniczLogo collapsed={true} />
-              <button
-                onClick={() => setCollapsed(false)}
-                title="Expand sidebar"
-                aria-label="Expand sidebar"
-                className="h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <PanelLeftOpen className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-2 w-full">
-              <MajestroniczLogo size="sm" />
-              <button
-                onClick={() => setCollapsed(true)}
-                title="Collapse sidebar"
-                aria-label="Collapse sidebar"
-                className="hidden lg:flex h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 items-center justify-center transition-colors shrink-0 cursor-pointer"
-              >
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Vyapar-Style Quick Action: + Add Sale */}
-        {showLabels && (
+          {/* Vyapar-Style Quick Action: + Add Sale */}
           <div className="p-2.5 border-b border-slate-200 bg-slate-50/70 shrink-0">
             <button
               type="button"
               onClick={() => {
                 navigateToTab('invoices', 'new');
-                onClose?.();
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose?.();
               }}
-              className="w-full py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-none flex items-center justify-center gap-1.5 transition-colors border border-red-700 cursor-pointer shadow-2xs"
+              className="w-full py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-none flex items-center justify-center gap-1.5 transition-colors border border-red-700 cursor-pointer shadow-none"
               title="Create New Sale"
             >
               <Plus className="h-3.5 w-3.5 stroke-[3]" />
@@ -400,7 +373,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 type="button"
                 onClick={() => {
                   navigateToTab('invoices', 'new-quote');
-                  onClose?.();
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose?.();
                 }}
                 className="py-1 px-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-none border border-slate-300 text-center transition-colors cursor-pointer"
                 title="Create Quotation / Estimate"
@@ -411,7 +384,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 type="button"
                 onClick={() => {
                   navigateToTab('challans', 'new');
-                  onClose?.();
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose?.();
                 }}
                 className="py-1 px-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-none border border-slate-300 text-center transition-colors cursor-pointer"
                 title="Create Delivery Challan"
@@ -420,142 +393,96 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
               </button>
             </div>
           </div>
-        )}
 
-        {/* Main Grouped Navigation (Classic Accounting Dropdown / Accordion) */}
-        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-200/80 pb-8 text-slate-800">
-          {/* Dashboard link (always visible at top) */}
-          {canAccessView('dashboard') && (
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentView('dashboard');
-                onClose?.();
-              }}
-              title={!showLabels ? 'Dashboard' : undefined}
-              className={cn(
-                'w-full text-left font-bold transition-colors flex items-center cursor-pointer',
-                showLabels ? 'px-3 py-2 text-xs' : 'p-2 justify-center',
-                currentView === 'dashboard'
-                  ? 'bg-red-50 text-red-900 border-l-4 border-red-600 font-extrabold'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
-              )}
-            >
-              {showLabels ? <span>Dashboard</span> : <span className="text-xs font-black">DB</span>}
-            </button>
-          )}
-
-          {/* Grouped Modules */}
-          {groups.map((grp) => {
-            const visibleItems = grp.items.filter((it) => it.visible);
-            if (visibleItems.length === 0) return null;
-
-            const isExpanded = expandedGroups[grp.id] ?? false;
-            const isGroupActive = visibleItems.some((it) => {
-              if (it.id === 'parties' && currentView === 'customers') return true;
-              return it.id === currentView;
-            });
-
-            // When sidebar is collapsed on desktop, show compact group marker
-            if (!showLabels) {
-              return (
-                <div key={grp.id} className="py-1 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCollapsed(false);
-                      setExpandedGroups((prev) => ({ ...prev, [grp.id]: true }));
-                    }}
-                    title={grp.title}
-                    className={cn(
-                      'h-8 w-8 rounded-none border text-[11px] font-bold flex items-center justify-center cursor-pointer',
-                      isGroupActive
-                        ? 'bg-red-600 text-white border-red-700'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    )}
-                  >
-                    {grp.title.substring(0, 2).toUpperCase()}
-                  </button>
-                </div>
-              );
-            }
-
-            return (
-              <div key={grp.id} className="py-0.5">
-                {/* Group Accordion Header */}
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(grp.id)}
-                  className={cn(
-                    'w-full px-3 py-2 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer select-none',
-                    isGroupActive
-                      ? 'text-slate-900 bg-slate-100/70 border-l-4 border-red-600'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
-                  )}
-                >
-                  <span className="uppercase tracking-wider text-[11px] font-extrabold text-slate-600">
-                    {grp.title}
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      'h-3.5 w-3.5 text-slate-400 transition-transform duration-150',
-                      isExpanded ? 'rotate-180 text-red-600' : ''
-                    )}
-                  />
-                </button>
-
-                {/* Sub-Items List (Clean Text-First, No Icons) */}
-                {isExpanded && (
-                  <div className="bg-slate-50/60 py-0.5 border-l-2 border-slate-300 ml-3 my-0.5 space-y-0.5">
-                    {visibleItems.map((sub) => {
-                      const isSubActive =
-                        (currentView === sub.id || (sub.id === 'parties' && currentView === 'customers')) &&
-                        (!sub.subTabId || activeSubTab?.tab === sub.subTabId);
-
-                      return (
-                        <button
-                          key={`${sub.id}-${sub.subTabId || ''}`}
-                          type="button"
-                          onClick={() => handleItemClick(sub)}
-                          className={cn(
-                            'w-full px-3 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate font-medium',
-                            isSubActive
-                              ? 'bg-red-50 text-red-900 font-extrabold border-l-3 border-red-600 -ml-[2px]'
-                              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                          )}
-                        >
-                          {sub.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* User Footer with Sign Out */}
-        <div className="shrink-0 border-t border-slate-200 bg-slate-50 mt-auto sticky bottom-0 z-10 p-2.5">
-          {!showLabels ? (
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className="h-8 w-8 rounded-none bg-white border border-slate-300 flex items-center justify-center text-slate-700"
-                title={`${currentUser.name} (${currentUser.role})`}
-              >
-                <RoleIcon className="h-4 w-4" />
-              </div>
+          {/* Main Grouped Navigation (Classic Accounting Dropdown / Accordion) */}
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-200/80 pb-8 text-slate-800">
+            {/* Dashboard link (always visible at top) */}
+            {canAccessView('dashboard') && (
               <button
                 type="button"
-                onClick={() => setShowLogoutConfirm(true)}
-                title="Sign out"
-                aria-label="Sign out"
-                className="h-8 w-8 rounded-none border border-slate-300 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 flex items-center justify-center transition-colors cursor-pointer"
+                onClick={() => {
+                  setCurrentView('dashboard');
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) onClose?.();
+                }}
+                className={cn(
+                  'w-full text-left font-bold transition-colors flex items-center cursor-pointer px-3 py-2 text-xs',
+                  currentView === 'dashboard'
+                    ? 'bg-red-50 text-red-900 border-l-4 border-red-600 font-extrabold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
+                )}
               >
-                <LogOut className="h-4 w-4" />
+                <span>Dashboard</span>
               </button>
-            </div>
-          ) : (
+            )}
+
+            {/* Grouped Modules */}
+            {groups.map((grp) => {
+              const visibleItems = grp.items.filter((it) => it.visible);
+              if (visibleItems.length === 0) return null;
+
+              const isExpanded = expandedGroups[grp.id] ?? false;
+              const isGroupActive = visibleItems.some((it) => {
+                if (it.id === 'parties' && currentView === 'customers') return true;
+                return it.id === currentView;
+              });
+
+              return (
+                <div key={grp.id} className="py-0.5">
+                  {/* Group Accordion Header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(grp.id)}
+                    className={cn(
+                      'w-full px-3 py-2 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer select-none',
+                      isGroupActive
+                        ? 'text-slate-900 bg-slate-100/70 border-l-4 border-red-600'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'
+                    )}
+                  >
+                    <span className="uppercase tracking-wider text-[11px] font-extrabold text-slate-600">
+                      {grp.title}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 text-slate-400 transition-transform duration-150',
+                        isExpanded ? 'rotate-180 text-red-600' : ''
+                      )}
+                    />
+                  </button>
+
+                  {/* Sub-Items List (Clean Text-First, No Icons) */}
+                  {isExpanded && (
+                    <div className="bg-slate-50/60 py-0.5 border-l-2 border-slate-300 ml-3 my-0.5 space-y-0.5">
+                      {visibleItems.map((sub) => {
+                        const isSubActive =
+                          (currentView === sub.id || (sub.id === 'parties' && currentView === 'customers')) &&
+                          (!sub.subTabId || activeSubTab?.tab === sub.subTabId);
+
+                        return (
+                          <button
+                            key={`${sub.id}-${sub.subTabId || ''}`}
+                            type="button"
+                            onClick={() => handleItemClick(sub)}
+                            className={cn(
+                              'w-full px-3 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate font-medium',
+                              isSubActive
+                                ? 'bg-red-50 text-red-900 font-extrabold border-l-3 border-red-600 -ml-[2px]'
+                                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                            )}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* User Footer with Sign Out */}
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50 mt-auto sticky bottom-0 z-10 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className="h-7 w-7 rounded-none bg-white border border-slate-300 flex items-center justify-center shrink-0 text-slate-700">
@@ -582,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onClose })
                 <span>Exit</span>
               </button>
             </div>
-          )}
+          </div>
         </div>
       </aside>
 

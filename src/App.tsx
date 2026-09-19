@@ -21,11 +21,88 @@ import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
+import { Maximize2, X } from 'lucide-react';
+
+const NAV_STORAGE_KEY = 'majestronicz_sidebar_open';
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
-  // Mobile off-canvas nav drawer. On desktop (lg+) the sidebar is always in-flow.
+  // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Desktop sidebar persistent open/closed state (stored in localStorage)
+  const [desktopNavOpen, setDesktopNavOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(NAV_STORAGE_KEY);
+      if (saved !== null) {
+        return saved === 'true';
+      }
+      return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+    } catch {
+      return true;
+    }
+  });
+
+  // Track native fullscreen status
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    return typeof document !== 'undefined' && !!document.fullscreenElement;
+  });
+
+  // Recommend fullscreen banner on each open if not already in fullscreen
+  const [showFsRecommend, setShowFsRecommend] = useState<boolean>(() => {
+    return typeof document !== 'undefined' && !document.fullscreenElement;
+  });
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      const active = !!document.fullscreenElement;
+      setIsFullscreen(active);
+      if (active) {
+        setShowFsRecommend(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const handleToggleDesktopNav = () => {
+    setDesktopNavOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(NAV_STORAGE_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleCloseDesktopNav = () => {
+    setDesktopNavOpen(false);
+    try {
+      localStorage.setItem(NAV_STORAGE_KEY, 'false');
+    } catch {}
+  };
+
+  const handleUniversalToggleNav = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setMobileNavOpen((prev) => !prev);
+    } else {
+      handleToggleDesktopNav();
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const handleEnterFullscreen = () => {
+    document.documentElement.requestFullscreen?.().then(() => {
+      setShowFsRecommend(false);
+    }).catch(() => {});
+  };
 
   // Close the drawer whenever the active view changes (e.g. tapping a nav item).
   useEffect(() => {
@@ -34,13 +111,57 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex h-screen h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* Left Navigation Shell (off-canvas drawer on mobile) */}
-      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      {/* Left Navigation Shell */}
+      <Sidebar
+        isOpen={desktopNavOpen}
+        onClose={handleCloseDesktopNav}
+        onToggle={handleToggleDesktopNav}
+        mobileOpen={mobileNavOpen}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
         {/* Global Top Bar with Location Scope Switcher */}
-        <TopBar onOpenNav={() => setMobileNavOpen(true)} />
+        <TopBar
+          navOpen={desktopNavOpen}
+          onToggleNav={handleUniversalToggleNav}
+          onOpenNav={() => setMobileNavOpen(true)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
+        />
+
+        {/* Fullscreen Recommendation Banner (shown on open if not fullscreen) */}
+        {showFsRecommend && !isFullscreen && (
+          <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-900 text-white px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs shadow-inner shrink-0 transition-all">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-1.5 py-0.5 bg-white/20 text-white font-mono text-[10px] font-bold uppercase tracking-wider shrink-0">
+                Recommended
+              </span>
+              <span className="truncate text-red-50 text-xs">
+                Run in <strong>Full Screen mode</strong> for optimal accounting workspace, billing speed, and keyboard shortcuts.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleEnterFullscreen}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white text-red-800 hover:bg-red-50 font-bold font-mono text-[11px] rounded-none shadow-sm transition-colors cursor-pointer uppercase"
+              >
+                <Maximize2 className="h-3 w-3" />
+                <span>Enter Full Screen</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFsRecommend(false)}
+                title="Dismiss recommendation"
+                aria-label="Dismiss recommendation"
+                className="p-1 text-red-200 hover:text-white hover:bg-white/10 rounded-none transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Content Body */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
