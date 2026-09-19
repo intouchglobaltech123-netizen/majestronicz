@@ -153,8 +153,8 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Scrollable Report Tabs Strip (Classic Desktop ERP) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+      {/* Scrollable Report Tabs Strip — mobile only (desktop uses the secondary sidebar) */}
+      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

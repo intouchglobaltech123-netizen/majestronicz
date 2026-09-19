@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
+import { SecondarySidebar } from './components/layout/SecondarySidebar';
 import { TopBar } from './components/layout/TopBar';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ItemMasterView } from './components/items/ItemMasterView';
@@ -152,6 +153,9 @@ const AppContent: React.FC = () => {
         onClose={handleCloseNav}
         mobileOpen={mobileNavOpen}
       />
+
+      {/* Secondary navigation column — sub-sections of the active module (desktop) */}
+      <SecondarySidebar />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">

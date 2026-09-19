@@ -32,7 +32,6 @@ import {
   PlayCircle,
   Clock,
   X,
-  Truck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -467,148 +466,18 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             </button>
           )}
 
-          {activeTab === 'new' && (
+          {/* Return to in-progress bills (kept — this is document state, not sub-nav) */}
+          {activeTab !== 'new' && openBills.length > 0 && (
             <button
               type="button"
-              onClick={() => setActiveTab('ledger')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-none bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-300 shadow-none transition-colors cursor-pointer"
+              onClick={() => setActiveTab('new')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-none bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 text-xs font-bold transition-colors cursor-pointer"
             >
-              <Receipt className="h-3.5 w-3.5 text-slate-500" />
-              <span>See Sales Invoices</span>
+              <Receipt className="h-3.5 w-3.5" />
+              <span>Open Bills ({openBills.length})</span>
             </button>
           )}
         </div>
-      </div>
-
-      {/* Responsive In-Page Tab Navigation (Full touch & mobile accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ledger')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'ledger'
-              ? 'bg-red-600 text-white border-red-700 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <Receipt className="h-3.5 w-3.5" />
-          <span>Sales Invoices</span>
-          <span className={cn(
-            'px-1.5 py-0.2 rounded-none text-[10px]',
-            activeTab === 'ledger' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-          )}>
-            {filteredInvoices.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('estimates')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'estimates'
-              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          <span>Quotations</span>
-          <span className={cn(
-            'px-1.5 py-0.2 rounded-none text-[10px]',
-            activeTab === 'estimates' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-          )}>
-            {estimates.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setChallanTab('history'); setActiveTab('challans'); }}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'challans'
-              ? 'bg-emerald-700 text-white border-emerald-800 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <Truck className="h-3.5 w-3.5" />
-          <span>Delivery Challans</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('returns')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-            activeTab === 'returns'
-              ? 'bg-amber-700 text-white border-amber-800 shadow-none'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span>Sales Returns</span>
-        </button>
-
-        {(draftSales.length > 0 || activeTab === 'draft-sales') && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('draft-sales')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-              activeTab === 'draft-sales'
-                ? 'bg-slate-700 text-white border-slate-800 shadow-none'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-            )}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Sale Drafts</span>
-            <span className={cn(
-              'px-1.5 py-0.2 rounded-none text-[10px]',
-              activeTab === 'draft-sales' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-            )}>
-              {draftSales.length}
-            </span>
-          </button>
-        )}
-
-        {(draftQuotes.length > 0 || activeTab === 'draft-quotes') && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('draft-quotes')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
-              activeTab === 'draft-quotes'
-                ? 'bg-slate-800 text-white border-slate-900 shadow-none'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-            )}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Quote Drafts</span>
-            <span className={cn(
-              'px-1.5 py-0.2 rounded-none text-[10px]',
-              activeTab === 'draft-quotes' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
-            )}>
-              {draftQuotes.length}
-            </span>
-          </button>
-        )}
-
-        {openBills.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('new')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ml-auto',
-              activeTab === 'new'
-                ? 'bg-red-600 text-white border-red-700 shadow-none'
-                : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-            )}
-          >
-            <Receipt className="h-3.5 w-3.5" />
-            <span>Active POS Tabs ({openBills.length})</span>
-          </button>
-        )}
       </div>
 
       {/* VIEW CONTENT */}

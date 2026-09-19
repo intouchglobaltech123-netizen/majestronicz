@@ -355,8 +355,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
         </div>
       </div>
 
-      {/* Segmented Navigation Tabs (Classic Desktop ERP) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+      {/* Segmented Navigation Tabs — mobile only (desktop uses the secondary sidebar) */}
+      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveTab('customers')}

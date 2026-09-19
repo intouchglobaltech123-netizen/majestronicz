@@ -389,8 +389,8 @@ export const InventoryView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Classic Desktop ERP) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+      {/* Segmented View Tabs — mobile only (desktop uses the secondary sidebar) */}
+      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveInventoryTab('items')}

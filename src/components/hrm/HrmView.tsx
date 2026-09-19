@@ -131,8 +131,8 @@ export const HrmView: React.FC = () => {
         </div>
       </div>
 
-      {/* Segmented View Tabs (Touch & Mobile Accessible) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      {/* Segmented View Tabs — mobile only (desktop uses the secondary sidebar) */}
+      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab('attendance')}
