@@ -124,6 +124,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [estimateSearchQuery, setEstimateSearchQuery] = useState('');
 
+  // Automatically collapse sidebar navigation by default when Add Sale / Billing screen is active
+  useEffect(() => {
+    if (activeTab === 'new') {
+      window.dispatchEvent(new CustomEvent('majestronicz:collapse-sidebar'));
+    }
+  }, [activeTab]);
+
   // ---- Multi-tab billing helpers -------------------------------------------
   const makeBillId = () => `bill-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 

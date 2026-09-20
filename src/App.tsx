@@ -76,6 +76,22 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('majestronicz:toggle-sidebar', handleToggleEvent);
   }, []);
 
+  // Automatically collapse sidebar navigation by default when Add Sale / Billing screen is opened
+  useEffect(() => {
+    const handleCollapseEvent = () => {
+      setIsSidebarCollapsed(true);
+      setMobileNavOpen(false);
+    };
+    window.addEventListener('majestronicz:collapse-sidebar', handleCollapseEvent);
+    return () => window.removeEventListener('majestronicz:collapse-sidebar', handleCollapseEvent);
+  }, []);
+
+  const handleOpenAddSale = () => {
+    setIsSidebarCollapsed(true);
+    setMobileNavOpen(false);
+    navigateToTab('invoices', 'new');
+  };
+
   // Track native fullscreen status
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
 
@@ -206,17 +222,19 @@ const AppContent: React.FC = () => {
           onToggleFullscreen={handleToggleFullscreen}
         />
 
-        {/* Quick Action: + Add Sale (static button below notification icon) */}
-        <div className="flex justify-end px-3 sm:px-4 py-1.5 shrink-0 bg-transparent select-none">
-          <button
-            type="button"
-            onClick={() => navigateToTab('invoices', 'new')}
-            title="Create New Sale Invoice (Alt+S)"
-            className="inline-flex items-center gap-1.5 h-8 px-3.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-extrabold text-xs uppercase tracking-wider border border-red-700 shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5 stroke-[3]" />
-            <span>+ Add Sale</span>
-          </button>
+        {/* Quick Action: + Add Sale (anchored below notification icon without taking any block-level height/width) */}
+        <div className="relative z-30 w-full h-0 pointer-events-none select-none">
+          <div className="absolute top-1.5 right-3 sm:right-4 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleOpenAddSale}
+              title="Create New Sale Invoice (Alt+S)"
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-extrabold text-xs uppercase tracking-wider border border-red-700 shadow-md transition-colors cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5 stroke-[3]" />
+              <span>+ Add Sale</span>
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content Body */}
