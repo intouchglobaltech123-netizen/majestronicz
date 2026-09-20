@@ -1484,7 +1484,7 @@ export const InvoiceForm: React.FC<Props> = ({
       </div>
 
       {/* Main Invoice Form Header Details Card */}
-      <div className="bg-white border border-slate-200 rounded-none p-4 shadow-none space-y-4">
+      <div className="bg-white border border-slate-200 rounded-none p-3 shadow-none space-y-2.5">
         {/* Compact meta — branch · number · date · time, tucked top-right */}
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 text-[11px]">
           <label className="flex items-center gap-1.5">
@@ -1541,13 +1541,11 @@ export const InvoiceForm: React.FC<Props> = ({
           />
         </div>
 
-        {/* Salesperson Incentive (sales bills only) */}
+        {/* Salesperson incentive — one slim line; % + amount appear once picked */}
         {documentType !== 'Quotation' && (
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-2.5 rounded-lg bg-violet-50/40 border border-violet-200/70">
-            <div className="sm:col-span-5">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1">
-                Salesperson (incentive credit)
-              </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-violet-700 shrink-0">Salesperson</span>
+            <div className="w-52">
               <UniversalDropdown
                 value={salespersonId}
                 onChange={(v) => setSalespersonId(String(v))}
@@ -1556,29 +1554,27 @@ export const InvoiceForm: React.FC<Props> = ({
                   ...employees.filter((e) => e.status === 'Active').map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
                 ]}
                 placeholder="Select employee…"
-                buttonClassName="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-900"
+                buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"
               />
             </div>
-            <div className="sm:col-span-3">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Incentive %</label>
-              <div className="relative">
-                <input
-                  type="number" min={0} max={100} step={0.5}
-                  value={incentivePercent || ''}
-                  onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                  disabled={!salespersonId}
-                  placeholder="0"
-                  className="w-full pr-7 pl-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 disabled:bg-slate-100 disabled:text-slate-400"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-              </div>
-            </div>
-            <div className="sm:col-span-4">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Incentive Amount</label>
-              <div className="px-3 py-2 rounded-xl bg-white border border-violet-200 text-sm font-bold font-mono text-violet-800">
-                {formatCurrency(salespersonId && incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : 0)}
-              </div>
-            </div>
+            {salespersonId && (
+              <>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-violet-700 ml-1">Incentive</span>
+                <div className="relative w-20">
+                  <input
+                    type="number" min={0} max={100} step={0.5}
+                    value={incentivePercent || ''}
+                    onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                    placeholder="0"
+                    className="w-full pr-6 pl-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                </div>
+                <span className="text-xs font-bold font-mono text-violet-800">
+                  = {formatCurrency(incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : 0)}
+                </span>
+              </>
+            )}
           </div>
         )}
 
@@ -1626,7 +1622,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
           {/* Billing Address */}
           <div className="md:col-span-5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Billing Address (Optional)
             </label>
             <div className="relative">
@@ -1643,8 +1639,8 @@ export const InvoiceForm: React.FC<Props> = ({
 
           {/* GST Toggle Control */}
           <div className="md:col-span-3 flex flex-col justify-end">
-            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-xs font-bold text-slate-700">GST Invoice Mode</span>
+            <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-700">GST Mode</span>
               <button
                 type="button"
                 onClick={() => handleToggleGst(!withGst)}
