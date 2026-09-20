@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Package, Layers } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Item, ComboItem, BranchId, BRANCHES } from '../../types';
@@ -52,6 +53,27 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // The dropdown renders in a portal (fixed) so it is never clipped by a scroll
+  // or resizable container around the invoice item table.
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const updateMenuPos = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 6, left: r.left, width: r.width });
+  };
+  useEffect(() => {
+    if (!isOpen) return;
+    updateMenuPos();
+    const onMove = () => updateMenuPos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [isOpen]);
 
   const effectiveBranchId = selectedBranchId ?? (currentBranch === 'all' ? 'erode-hq' : currentBranch);
   const targetBranch = BRANCHES.find((b) => b.id === effectiveBranchId) || BRANCHES[0];
@@ -59,7 +81,10 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      const inContainer = containerRef.current?.contains(t);
+      const inMenu = menuRef.current?.contains(t);
+      if (!inContainer && !inMenu) {
         setIsOpen(false);
       }
     };
@@ -256,13 +281,14 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && menuPos && createPortal(
         <div
+          ref={menuRef}
           className={cn(
-            'absolute z-50 left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-80 flex flex-col',
+            'fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-80 flex flex-col',
             dropdownWidth
           )}
-          style={{ maxWidth: '95vw' }}
+          style={{ top: menuPos.top, left: menuPos.left, maxWidth: '95vw' }}
         >
           {/* Header Row */}
           <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-2 shrink-0">
@@ -565,7 +591,8 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
