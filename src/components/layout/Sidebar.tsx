@@ -96,7 +96,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
 
   const isSubActive = (it: NavSub): boolean => {
     const viewMatch = currentView === it.id || (it.id === 'parties' && currentView === 'customers');
-    return viewMatch && (!it.subTabId || activeSubTab?.tab === it.subTabId);
+    if (!viewMatch) return false;
+    if (it.id === 'settings') {
+      const currentTab = activeSubTab?.tab || 'appearance';
+      return it.subTabId ? it.subTabId === currentTab : currentTab === 'appearance';
+    }
+    return !it.subTabId || activeSubTab?.tab === it.subTabId;
   };
 
   const RoleIcon =

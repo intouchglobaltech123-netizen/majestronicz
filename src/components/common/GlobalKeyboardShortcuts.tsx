@@ -195,7 +195,7 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
               type="button"
               onClick={() => {
                 setShowHelp(false);
-                setCurrentView('settings');
+                navigateToTab('settings', 'shortcuts');
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 transition-colors cursor-pointer"
             >
@@ -300,7 +300,7 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
             type="button"
             onClick={() => {
               setShowHelp(false);
-              setCurrentView('settings');
+              navigateToTab('settings', 'shortcuts');
             }}
             className="text-red-600 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
           >

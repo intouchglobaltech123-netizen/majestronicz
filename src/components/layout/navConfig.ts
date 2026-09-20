@@ -11,6 +11,7 @@ import {
   Settings,
   ClipboardList,
   CalendarCheck,
+  Store,
 } from 'lucide-react';
 
 /**
@@ -147,12 +148,28 @@ export const NAV_MODULES: NavModule[] = [
     ],
   },
   {
-    id: 'utilities',
-    title: 'Settings & More',
+    id: 'shopify',
+    title: 'Online Store',
+    icon: Store,
+    primaryActions: [
+      { label: '+ Import Orders', subTabId: 'orders', color: 'red' },
+      { label: 'Sync Stock', subTabId: 'inventory', color: 'slate' },
+    ],
+    items: [
+      { id: 'shopify', subTabId: 'orders', label: 'Orders & Shipments', cap: 'shopify' },
+      { id: 'shopify', subTabId: 'inventory', label: 'Stock & Inventory Sync', cap: 'shopify' },
+      { id: 'shopify', subTabId: 'products', label: 'Product Catalog', cap: 'shopify' },
+      { id: 'shopify', subTabId: 'customers', label: 'Online Customers', cap: 'shopify' },
+      { id: 'shopify', subTabId: 'settings', label: 'Connection & Settings', cap: 'shopify' },
+    ],
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
     icon: Settings,
     items: [
-      { id: 'settings', label: 'App Preferences & Themes', cap: 'settings' },
-      { id: 'shopify', label: 'Online Store', cap: 'shopify' },
+      { id: 'settings', subTabId: 'appearance', label: 'Themes & Typography', cap: 'settings' },
+      { id: 'settings', subTabId: 'shortcuts', label: 'Keyboard Shortcuts', cap: 'settings' },
       { id: 'access', label: 'Access Control', cap: 'access' },
       { id: 'ai-assistant', label: 'AI Assistant', cap: 'ai-assistant' },
     ],

@@ -89,15 +89,65 @@ export interface ShopifyOrderPreview {
   externalOrderId: string;
   orderName: string;
   date: string;
+  createdAt: string;
   customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  shippingAddress?: {
+    name?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    province?: string;
+    zip?: string;
+    country?: string;
+    phone?: string;
+  };
+  billingAddress?: {
+    name?: string;
+    address1?: string;
+    city?: string;
+    province?: string;
+    zip?: string;
+    country?: string;
+    phone?: string;
+  };
   total: number;
+  subtotal: number;
+  tax: number;
+  shippingFee: number;
+  discount: number;
   financialStatus: string;
+  fulfillmentStatus: string;
+  paymentGateway: string;
+  fulfillments?: Array<{
+    trackingCompany?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+    status?: string;
+  }>;
+  trackingNumber?: string;
+  trackingCompany?: string;
+  trackingUrl?: string;
+  note?: string;
   alreadyImported: boolean;
-  lines: { sku: string; title: string; qty: number; price: number; matched: boolean; itemName?: string }[];
+  linkedInvoiceNumber?: string;
+  linkedInvoiceId?: string;
+  lines: {
+    id?: string;
+    sku: string;
+    title: string;
+    variantTitle?: string;
+    qty: number;
+    price: number;
+    matched: boolean;
+    itemName?: string;
+    erpStockOnHand?: number;
+  }[];
   unmatchedCount: number;
 }
 
-/** Pull recent orders from Shopify and match line items to ERP items by SKU. */
+/** Pull recent orders from Shopify and match line items to ERP items by SKU with live ERP stock. */
 export async function previewOrders(limit = 50): Promise<{ configured: boolean; orders: ShopifyOrderPreview[] }> {
   const cfg = getShopifyConfig();
   if (!cfg) return { configured: false, orders: [] };
@@ -109,30 +159,87 @@ export async function previewOrders(limit = 50): Promise<{ configured: boolean; 
   const bySku = new Map<string, any>();
   for (const it of items) if (it.itemCode) bySku.set(String(it.itemCode).toLowerCase(), it);
 
-  const existing = await prisma.invoice.findMany({ where: { sourceChannel: 'shopify' }, select: { externalOrderId: true } });
-  const importedIds = new Set(existing.map((i) => i.externalOrderId).filter(Boolean));
+  const allStocks = await prisma.branchStock.findMany();
+  const stockMap = new Map<string, number>();
+  for (const s of allStocks) {
+    stockMap.set(s.itemId, (stockMap.get(s.itemId) || 0) + Number(s.quantity));
+  }
+
+  const existing = await prisma.invoice.findMany({ where: { sourceChannel: 'shopify' }, select: { id: true, invoiceNumber: true, externalOrderId: true } });
+  const existingMap = new Map<string, { id: string; invoiceNumber: string }>();
+  for (const inv of existing) {
+    if (inv.externalOrderId) existingMap.set(inv.externalOrderId, inv);
+  }
 
   const previews: ShopifyOrderPreview[] = orders.map((o) => {
     const lines = (o.line_items || []).map((li: any) => {
       const sku = String(li.sku || '').toLowerCase();
       const match = sku ? bySku.get(sku) : undefined;
+      const erpStockOnHand = match ? (stockMap.get(match.id) || 0) : undefined;
       return {
+        id: String(li.id),
         sku: li.sku || '',
         title: li.title || li.name || '',
+        variantTitle: li.variant_title || '',
         qty: Number(li.quantity) || 0,
         price: Number(li.price) || 0,
         matched: Boolean(match),
         itemName: match?.itemName,
+        erpStockOnHand,
       };
     });
+
+    const linked = existingMap.get(String(o.id));
+    const fulfillments = (o.fulfillments || []).map((f: any) => ({
+      trackingCompany: f.tracking_company,
+      trackingNumber: f.tracking_number,
+      trackingUrl: f.tracking_url,
+      status: f.status,
+    }));
+
     return {
       externalOrderId: String(o.id),
       orderName: o.name || `#${o.order_number}`,
       date: (o.created_at || '').split('T')[0],
+      createdAt: o.created_at || '',
       customerName: [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(' ') || o.email || 'Online Customer',
+      customerEmail: o.customer?.email || o.email || '',
+      customerPhone: o.customer?.phone || o.phone || o.shipping_address?.phone || '',
+      shippingAddress: o.shipping_address ? {
+        name: [o.shipping_address.first_name, o.shipping_address.last_name].filter(Boolean).join(' ') || o.shipping_address.name,
+        address1: o.shipping_address.address1,
+        address2: o.shipping_address.address2,
+        city: o.shipping_address.city,
+        province: o.shipping_address.province,
+        zip: o.shipping_address.zip,
+        country: o.shipping_address.country,
+        phone: o.shipping_address.phone,
+      } : undefined,
+      billingAddress: o.billing_address ? {
+        name: [o.billing_address.first_name, o.billing_address.last_name].filter(Boolean).join(' ') || o.billing_address.name,
+        address1: o.billing_address.address1,
+        city: o.billing_address.city,
+        province: o.billing_address.province,
+        zip: o.billing_address.zip,
+        country: o.billing_address.country,
+        phone: o.billing_address.phone,
+      } : undefined,
       total: Number(o.total_price) || 0,
+      subtotal: Number(o.subtotal_price) || 0,
+      tax: Number(o.total_tax) || 0,
+      shippingFee: Number(o.total_shipping_price_set?.shop_money?.amount) || 0,
+      discount: Number(o.total_discounts) || 0,
       financialStatus: o.financial_status || 'unknown',
-      alreadyImported: importedIds.has(String(o.id)),
+      fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+      paymentGateway: (o.payment_gateway_names || []).join(', ') || 'Online',
+      fulfillments,
+      trackingNumber: fulfillments[0]?.trackingNumber,
+      trackingCompany: fulfillments[0]?.trackingCompany,
+      trackingUrl: fulfillments[0]?.trackingUrl,
+      note: o.note || '',
+      alreadyImported: Boolean(linked),
+      linkedInvoiceNumber: linked?.invoiceNumber,
+      linkedInvoiceId: linked?.id,
       lines,
       unmatchedCount: lines.filter((l: any) => !l.matched).length,
     };
@@ -326,4 +433,212 @@ export function verifyWebhookHmac(rawBody: Buffer | string, hmacHeader?: string)
   } catch {
     return false;
   }
+}
+
+// ---- Inventory Sync & Push ----
+export interface ShopifyInventoryRow {
+  sku: string;
+  title: string;
+  variantTitle?: string;
+  productId: string;
+  variantId: string;
+  inventoryItemId?: string;
+  shopifyPrice: number;
+  compareAtPrice?: number;
+  shopifyInventory: number;
+  matched: boolean;
+  erpItemId?: string;
+  erpItemName?: string;
+  erpPrice?: number;
+  erpStockOnHand: number;
+  status: 'synced' | 'mismatch' | 'out_of_stock' | 'unlinked';
+}
+
+export async function previewInventory(limit = 100): Promise<{ configured: boolean; items: ShopifyInventoryRow[] }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { configured: false, items: [] };
+
+  const data = await shopifyFetch<{ products: any[] }>(`products.json?limit=${Math.min(250, limit)}`);
+  const bySku = await buildSkuMap();
+  const allStocks = await prisma.branchStock.findMany();
+  const stockMap = new Map<string, number>();
+  for (const s of allStocks) {
+    stockMap.set(s.itemId, (stockMap.get(s.itemId) || 0) + Number(s.quantity));
+  }
+
+  const rows: ShopifyInventoryRow[] = [];
+  for (const p of data.products || []) {
+    for (const v of p.variants || []) {
+      const sku = String(v.sku || '').trim();
+      if (!sku) continue;
+      const match = bySku.get(sku.toLowerCase());
+      const erpStock = match ? (stockMap.get(match.id) || 0) : 0;
+      const shopifyQty = Number(v.inventory_quantity) || 0;
+
+      let status: 'synced' | 'mismatch' | 'out_of_stock' | 'unlinked' = 'unlinked';
+      if (match) {
+        if (erpStock === 0 && shopifyQty === 0) status = 'out_of_stock';
+        else if (erpStock === shopifyQty) status = 'synced';
+        else status = 'mismatch';
+      }
+
+      rows.push({
+        sku,
+        title: p.title,
+        variantTitle: v.title !== 'Default Title' ? v.title : undefined,
+        productId: String(p.id),
+        variantId: String(v.id),
+        inventoryItemId: String(v.inventory_item_id || ''),
+        shopifyPrice: Number(v.price) || 0,
+        compareAtPrice: v.compare_at_price ? Number(v.compare_at_price) : undefined,
+        shopifyInventory: shopifyQty,
+        matched: Boolean(match),
+        erpItemId: match?.id,
+        erpItemName: match?.itemName,
+        erpPrice: match?.salePrice,
+        erpStockOnHand: erpStock,
+        status,
+      });
+    }
+  }
+
+  return { configured: true, items: rows };
+}
+
+export async function pushInventoryToShopify(inventoryItemId: string, availableQuantity: number): Promise<{ success: boolean; error?: string }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { success: false, error: 'Shopify not configured' };
+  try {
+    const locData = await shopifyFetch<{ locations: any[] }>('locations.json');
+    const loc = locData.locations?.find((l) => l.active) || locData.locations?.[0];
+    if (!loc) return { success: false, error: 'No active location found in Shopify' };
+
+    await shopifyFetch('inventory_levels/set.json', {
+      method: 'POST',
+      body: JSON.stringify({
+        location_id: loc.id,
+        inventory_item_id: Number(inventoryItemId),
+        available: Math.max(0, Math.floor(availableQuantity)),
+      }),
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Inventory update failed' };
+  }
+}
+
+export async function pushAllErpStockToShopify(): Promise<{ updated: number; failed: number; errors: string[] }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { updated: 0, failed: 0, errors: ['Shopify not configured'] };
+
+  const { items } = await previewInventory(250);
+  let updated = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const item of items) {
+    if (!item.matched || !item.inventoryItemId || item.status === 'synced') continue;
+    const res = await pushInventoryToShopify(item.inventoryItemId, item.erpStockOnHand);
+    if (res.success) {
+      updated++;
+    } else {
+      failed++;
+      errors.push(`${item.sku}: ${res.error}`);
+    }
+  }
+
+  return { updated, failed, errors };
+}
+
+// ---- Order Fulfillment & Tracking ----
+export async function fulfillShopifyOrder(
+  orderId: string,
+  trackingNumber?: string,
+  carrier?: string
+): Promise<{ success: boolean; error?: string }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { success: false, error: 'Shopify not configured' };
+  try {
+    const foData = await shopifyFetch<{ fulfillment_orders: any[] }>(`orders/${orderId}/fulfillment_orders.json`);
+    const openFo = (foData.fulfillment_orders || []).find((fo) => fo.status === 'open');
+
+    if (openFo) {
+      await shopifyFetch('fulfillments.json', {
+        method: 'POST',
+        body: JSON.stringify({
+          fulfillment: {
+            line_items_by_fulfillment_order: [
+              {
+                fulfillment_order_id: openFo.id,
+              },
+            ],
+            tracking_info: trackingNumber ? {
+              number: trackingNumber,
+              company: carrier || 'Delhivery',
+            } : undefined,
+            notify_customer: true,
+          },
+        }),
+      });
+      return { success: true };
+    }
+
+    await shopifyFetch(`orders/${orderId}/fulfillments.json`, {
+      method: 'POST',
+      body: JSON.stringify({
+        fulfillment: {
+          tracking_number: trackingNumber,
+          tracking_company: carrier || 'Delhivery',
+          notify_customer: true,
+        },
+      }),
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Fulfillment failed' };
+  }
+}
+
+// ---- Online Customers ----
+export interface ShopifyCustomerSummary {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  province?: string;
+  ordersCount: number;
+  totalSpent: number;
+  lastOrderDate?: string;
+  syncedToErp: boolean;
+}
+
+export async function getShopifyCustomers(limit = 100): Promise<{ configured: boolean; customers: ShopifyCustomerSummary[] }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { configured: false, customers: [] };
+
+  const data = await shopifyFetch<{ customers: any[] }>(`customers.json?limit=${Math.min(250, limit)}`);
+  const erpCustomers = await prisma.customer.findMany();
+  const erpPhones = new Set(erpCustomers.map((c) => (c.phone || '').trim()).filter(Boolean));
+
+  const list: ShopifyCustomerSummary[] = (data.customers || []).map((c: any) => {
+    const email = c.email?.trim().toLowerCase() || '';
+    const phone = c.phone?.trim() || c.default_address?.phone?.trim() || '';
+    const synced = Boolean(phone && erpPhones.has(phone));
+
+    return {
+      id: String(c.id),
+      name: [c.first_name, c.last_name].filter(Boolean).join(' ') || email || 'Online Customer',
+      email,
+      phone,
+      city: c.default_address?.city || '',
+      province: c.default_address?.province || '',
+      ordersCount: Number(c.orders_count) || 0,
+      totalSpent: Number(c.total_spent) || 0,
+      lastOrderDate: c.updated_at ? c.updated_at.split('T')[0] : undefined,
+      syncedToErp: Boolean(synced),
+    };
+  });
+
+  return { configured: true, customers: list };
 }

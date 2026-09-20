@@ -25,7 +25,19 @@ import {
 } from '../services/user.service.js';
 import { recordAudit, listAudit } from '../services/audit.service.js';
 import { selfClock, getSelfToday } from '../services/hrm.service.js';
-import { getShopInfo, previewOrders, importOrders, previewProducts, importProducts, handleOrderWebhook } from '../services/shopify.service.js';
+import {
+  getShopInfo,
+  previewOrders,
+  importOrders,
+  previewProducts,
+  importProducts,
+  handleOrderWebhook,
+  previewInventory,
+  pushInventoryToShopify,
+  pushAllErpStockToShopify,
+  fulfillShopifyOrder,
+  getShopifyCustomers,
+} from '../services/shopify.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
 
@@ -238,19 +250,36 @@ router.post('/attendance/self-clock', asyncHandler(async (req, res) => {
 }));
 
 // ---- Shopify integration ----
-router.get('/shopify/status', requireCapability('admin'), asyncHandler(async (_req, res) => res.json(await getShopInfo())));
-router.get('/shopify/orders', requireCapability('admin'), asyncHandler(async (req, res) => res.json(await previewOrders(Number(req.query.limit) || 50))));
-router.post('/shopify/import', requireCapability('admin'), asyncHandler(async (req, res) => {
+router.get('/shopify/status', requireCapability('sales:write'), asyncHandler(async (_req, res) => res.json(await getShopInfo())));
+router.get('/shopify/orders', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewOrders(Number(req.query.limit) || 50))));
+router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await fulfillShopifyOrder(req.params.id, req.body?.trackingNumber, req.body?.carrier);
+  broadcastChange('shopify-fulfillment');
+  res.json(result);
+}));
+router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await importOrders(Number(req.body?.limit) || 50);
   broadcastChange('shopify-import');
   res.json(result);
 }));
-router.get('/shopify/products', requireCapability('admin'), asyncHandler(async (req, res) => res.json(await previewProducts(Number(req.query.limit) || 100))));
-router.post('/shopify/import-products', requireCapability('admin'), asyncHandler(async (req, res) => {
+router.get('/shopify/inventory', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewInventory(Number(req.query.limit) || 100))));
+router.post('/shopify/inventory/sync', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await pushInventoryToShopify(req.body?.inventoryItemId, Number(req.body?.quantity) || 0);
+  broadcastChange('shopify-inventory');
+  res.json(result);
+}));
+router.post('/shopify/inventory/sync-all', requireCapability('sales:write'), asyncHandler(async (_req, res) => {
+  const result = await pushAllErpStockToShopify();
+  broadcastChange('shopify-inventory');
+  res.json(result);
+}));
+router.get('/shopify/products', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewProducts(Number(req.query.limit) || 100))));
+router.post('/shopify/import-products', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await importProducts(Number(req.body?.limit) || 100);
   broadcastChange('shopify-products');
   res.json(result);
 }));
+router.get('/shopify/customers', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await getShopifyCustomers(Number(req.query.limit) || 100))));
 // Auto-sync webhook (Shopify orders/paid). PUBLIC — verified by HMAC, not RBAC.
 router.post('/shopify/webhook/orders', asyncHandler(async (req, res) => {
   const result = await handleOrderWebhook((req as any).rawBody, req.header('X-Shopify-Hmac-Sha256'), req.body);

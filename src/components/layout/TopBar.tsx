@@ -15,7 +15,6 @@ import {
   Menu,
   Maximize2,
   Minimize2,
-  Settings,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -49,7 +48,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     setSelectedEnquiryForDetail,
     setSelectedPendingOrderForDetail,
     setCurrentView,
-    currentView,
   } = useErp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -510,23 +508,6 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           )}
         </div>
-
-        {/* Settings & Preferences Button */}
-        <button
-          type="button"
-          onClick={() => setCurrentView('settings')}
-          aria-label="App Preferences & Themes"
-          title="App Preferences, Themes & Shortcuts"
-          className={cn(
-            'h-8 px-2.5 rounded-none border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer',
-            currentView === 'settings'
-              ? 'bg-slate-900 border-slate-900 text-white'
-              : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-          )}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          <span className="hidden md:inline">Settings</span>
-        </button>
       </div>
 
       {/* Self attendance (My Attendance) */}

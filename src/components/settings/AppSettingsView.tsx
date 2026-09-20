@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useThemeSettings, ErpTheme, ErpFontSize, ErpFontFamily, ShortcutConfig } from '../../context/ThemeSettingsContext';
 import { useErp } from '../../context/ErpContext';
 import {
@@ -29,9 +29,24 @@ export const AppSettingsView: React.FC = () => {
     formatShortcut,
   } = useThemeSettings();
 
-  const { setCurrentView, navigateToTab } = useErp();
+  const { setCurrentView, navigateToTab, activeSubTab } = useErp();
 
-  const [activeTab, setActiveTab] = useState<'appearance' | 'shortcuts'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'shortcuts'>(() => {
+    if (activeSubTab?.view === 'settings' && activeSubTab.tab === 'shortcuts') {
+      return 'shortcuts';
+    }
+    return 'appearance';
+  });
+
+  useEffect(() => {
+    if (activeSubTab?.view === 'settings') {
+      if (activeSubTab.tab === 'shortcuts') {
+        setActiveTab('shortcuts');
+      } else if (activeSubTab.tab === 'appearance') {
+        setActiveTab('appearance');
+      }
+    }
+  }, [activeSubTab]);
   const [editingShortcut, setEditingShortcut] = useState<ShortcutConfig | null>(null);
   const [editKey, setEditKey] = useState<string>('');
   const [editCtrl, setEditCtrl] = useState<boolean>(false);
@@ -212,7 +227,10 @@ export const AppSettingsView: React.FC = () => {
           <div className="flex items-center gap-1 border border-slate-300 p-0.5 bg-slate-100 shrink-0">
             <button
               type="button"
-              onClick={() => setActiveTab('appearance')}
+              onClick={() => {
+                setActiveTab('appearance');
+                navigateToTab('settings', 'appearance');
+              }}
               className={cn(
                 'px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5',
                 activeTab === 'appearance'
@@ -225,7 +243,10 @@ export const AppSettingsView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('shortcuts')}
+              onClick={() => {
+                setActiveTab('shortcuts');
+                navigateToTab('settings', 'shortcuts');
+              }}
               className={cn(
                 'px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5',
                 activeTab === 'shortcuts'
