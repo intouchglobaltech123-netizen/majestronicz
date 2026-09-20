@@ -736,6 +736,11 @@ export const InvoiceForm: React.FC<Props> = ({
       comboId: undefined,
       comboComponents: undefined,
     });
+    // Picking a product on the last row instantly readies the next entry row
+    // and focuses it — type → pick → type → pick, hands-free billing.
+    if (lineItems.length > 0 && lineItems[lineItems.length - 1].id === rowId) {
+      addNewRow();
+    }
   };
 
   const selectComboForRow = (rowId: string, combo: ComboItem) => {
@@ -759,6 +764,9 @@ export const InvoiceForm: React.FC<Props> = ({
       comboId: combo.id,
       comboComponents: combo.components,
     });
+    if (lineItems.length > 0 && lineItems[lineItems.length - 1].id === rowId) {
+      addNewRow();
+    }
   };
 
   // ---- Barcode / item-code scan → add straight to the bill (counter speed) ----
@@ -1535,9 +1543,9 @@ export const InvoiceForm: React.FC<Props> = ({
 
         {/* Salesperson Incentive (sales bills only) */}
         {documentType !== 'Quotation' && (
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end p-3 rounded-xl bg-violet-50/40 border border-violet-200/70">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-2.5 rounded-lg bg-violet-50/40 border border-violet-200/70">
             <div className="sm:col-span-5">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-violet-700 mb-1">
                 Salesperson (incentive credit)
               </label>
               <UniversalDropdown
@@ -1574,12 +1582,12 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Customer & Payment Terms Details Row */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2 border-t border-slate-100">
+        {/* Customer Details Row (compact) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-100">
           {/* Customer Search & Select (Customer Master) */}
           <div className="md:col-span-4">
             <CustomerSearchSelect
-              label="Customer / Organization Name"
+              label="Customer"
               required
               selectedCustomerId={customerId}
               customerName={customerName}
@@ -1627,7 +1635,7 @@ export const InvoiceForm: React.FC<Props> = ({
                 placeholder="Street address, city, pin code..."
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
               />
               <MapPin className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
