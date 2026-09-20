@@ -23,10 +23,17 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onToggle?: () => void;
+  onToggleCollapse?: () => void;
+  isCollapsed?: boolean;
   mobileOpen?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  mobileOpen,
+  onClose,
+  onToggleCollapse,
+  isCollapsed = false,
+}) => {
   const {
     currentUser,
     currentView,
@@ -119,41 +126,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
 
       <aside
         className={cn(
-          'bg-white border-r border-slate-300 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none',
-          'fixed inset-y-0 left-0 z-50 max-w-[85vw] transition-transform duration-200 ease-in-out',
-          isMobileDrawerOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 pointer-events-none',
-          // Desktop: permanently anchored clean navigation
-          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0 lg:w-56 lg:opacity-100 lg:pointer-events-auto'
+          'bg-white flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none transition-all duration-200 ease-in-out',
+          'fixed inset-y-0 left-0 z-50 max-w-[85vw]',
+          isMobileDrawerOpen ? 'translate-x-0 w-64 border-r border-slate-300' : '-translate-x-full w-64 pointer-events-none',
+          // Desktop: collapsible navigation
+          'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0',
+          isCollapsed
+            ? 'lg:w-0 lg:border-r-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none'
+            : 'lg:w-56 lg:border-r lg:border-slate-300 lg:overflow-hidden lg:opacity-100 lg:pointer-events-auto'
         )}
       >
-        <div className="w-64 lg:w-56 min-w-0 h-full flex flex-col overflow-hidden">
+        <div className="w-64 lg:w-56 min-w-[14rem] h-full flex flex-col overflow-hidden">
           {/* Brand Header */}
           <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
             <MajestroniczLogo size="sm" />
             <button
               type="button"
-              onClick={onClose}
-              title="Close menu"
-              aria-label="Close menu"
-              className="lg:hidden h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+              onClick={onToggleCollapse || onClose}
+              title="Minimize navigation menu (Ctrl+B)"
+              aria-label="Minimize navigation menu"
+              className="h-7 w-7 rounded-none border border-slate-300 bg-slate-50 text-slate-600 hover:text-red-700 hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
             >
               <PanelLeftClose className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {/* Quick Action: + Add Sale (global CTA) */}
-          <div className="p-2.5 border-b border-slate-200 bg-slate-50/70 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                navigateToTab('invoices', 'new');
-                closeOnMobile();
-              }}
-              className="w-full py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-none flex items-center justify-center gap-1.5 transition-colors border border-red-700 cursor-pointer shadow-none"
-              title="Create New Sale"
-            >
-              <Plus className="h-3.5 w-3.5 stroke-[3]" />
-              <span>+ ADD SALE</span>
             </button>
           </div>
 

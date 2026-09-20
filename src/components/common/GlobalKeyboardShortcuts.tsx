@@ -103,6 +103,8 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
             setCurrentView('cash-register');
           } else if (s.id === 'nav_reports') {
             setCurrentView('reports');
+          } else if (s.id === 'toggle_sidebar') {
+            window.dispatchEvent(new CustomEvent('majestronicz:toggle-sidebar'));
           } else if (s.id === 'toggle_fullscreen') {
             if (getIsFullscreen()) {
               exitNativeFullscreen();

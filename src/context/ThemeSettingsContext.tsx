@@ -117,6 +117,16 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
     shift: false,
   },
   {
+    id: 'toggle_sidebar',
+    name: 'Toggle Navigation Sidebar',
+    description: 'Minimize or expand the left navigation bar',
+    category: 'Navigation',
+    key: 'b',
+    ctrl: true,
+    alt: false,
+    shift: false,
+  },
+  {
     id: 'toggle_fullscreen',
     name: 'Toggle Full Screen',
     description: 'Expand to or exit full screen mode',

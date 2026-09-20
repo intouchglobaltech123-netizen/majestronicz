@@ -15,6 +15,10 @@ import {
   Menu,
   Maximize2,
   Minimize2,
+  Plus,
+  ShieldCheck,
+  Building2,
+  Lock,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -26,12 +30,16 @@ interface TopBarProps {
   /** Backward compatibility / navigation open */
   navOpen?: boolean;
   onOpenNav?: () => void;
+  onToggleNav?: () => void;
+  isNavCollapsed?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   onOpenNav,
+  onToggleNav,
+  isNavCollapsed = false,
   isFullscreen = false,
   onToggleFullscreen,
 }) => {
@@ -48,6 +56,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     setSelectedEnquiryForDetail,
     setSelectedPendingOrderForDetail,
     setCurrentView,
+    navigateToTab,
   } = useErp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -147,13 +156,18 @@ export const TopBar: React.FC<TopBarProps> = ({
     <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 relative shrink-0 z-40 shadow-none">
       {/* Left: Mobile Menu (< lg only) + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* Mobile-only menu toggle button (< lg only) */}
+        {/* 3-line Menu toggle button (desktop collapse/expand + mobile drawer) */}
         <button
           type="button"
-          onClick={onOpenNav}
-          aria-label="Open navigation menu"
-          title="Open navigation menu"
-          className="lg:hidden h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+          onClick={onToggleNav || onOpenNav}
+          aria-label={isNavCollapsed ? 'Expand navigation menu (Ctrl+B)' : 'Minimize navigation menu (Ctrl+B)'}
+          title={isNavCollapsed ? 'Expand navigation menu (Ctrl+B)' : 'Minimize navigation menu (Ctrl+B)'}
+          className={cn(
+            'h-8 w-8 shrink-0 rounded-none border flex items-center justify-center cursor-pointer transition-colors',
+            isNavCollapsed
+              ? 'border-red-600 bg-red-50 text-red-700 hover:bg-red-100 font-bold shadow-xs'
+              : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100'
+          )}
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -182,17 +196,28 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Center: Global search (Vyapar-style) */}
       <GlobalSearch />
 
-      {/* Right: Notifications Bell & Role Profile */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      {/* Right: Actions, Full Screen, Notifications & Role Profile */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* + Add Sale (Primary Action on Right Side) */}
+        <button
+          type="button"
+          onClick={() => navigateToTab('invoices', 'new')}
+          title="Create New Sale Invoice (Alt+S)"
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-extrabold text-xs uppercase tracking-wider border border-red-700 shadow-xs transition-colors cursor-pointer shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5 stroke-[3]" />
+          <span>+ Add Sale</span>
+        </button>
+
         {/* My Attendance — self check-in/out */}
         <button
           type="button"
           onClick={() => setIsSelfAttendanceOpen(true)}
           title="My Attendance — check in / out"
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
+          className="hidden lg:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
         >
           <Clock className="h-3.5 w-3.5 text-slate-600" />
-          <span className="hidden md:inline">My Attendance</span>
+          <span>Attendance</span>
         </button>
 
         {/* Full Screen Toggle Button */}
@@ -507,6 +532,30 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* User Role Profile Badge with CEO text */}
+        <div
+          title={`Logged in as ${currentUser.name} (${currentUser.role})`}
+          className="flex items-center gap-2 h-8 px-2 sm:px-2.5 bg-slate-50 border border-slate-300 rounded-none shrink-0 select-none"
+        >
+          <div className="h-5.5 w-5.5 bg-red-100 border border-red-200 text-red-700 flex items-center justify-center shrink-0">
+            {currentUser.role === 'CEO' ? (
+              <ShieldCheck className="h-3.5 w-3.5" />
+            ) : currentUser.role === 'Manager' ? (
+              <Building2 className="h-3.5 w-3.5" />
+            ) : (
+              <Lock className="h-3.5 w-3.5" />
+            )}
+          </div>
+          <div className="flex flex-col text-left leading-none justify-center">
+            <span className="text-[10px] text-slate-600 font-semibold truncate max-w-[90px] hidden sm:block">
+              {currentUser.name}
+            </span>
+            <span className="text-[10px] font-extrabold text-red-700 uppercase tracking-wider font-mono mt-0.5">
+              {currentUser.role}
+            </span>
+          </div>
         </div>
       </div>
 
