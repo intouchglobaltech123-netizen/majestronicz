@@ -30,8 +30,6 @@ import {
   Trash2,
   Save,
   Printer,
-  Calendar,
-  Clock,
   MapPin,
   FileText,
   Paperclip,
@@ -93,7 +91,6 @@ export const InvoiceForm: React.FC<Props> = ({
     branchStocks,
     getComboAvailability,
     paymentTermsOptions,
-    addPaymentTerm,
     customers,
     loyaltySettings,
     hasFlag,
@@ -259,24 +256,7 @@ export const InvoiceForm: React.FC<Props> = ({
     initialInvoice?.sourceEnquiryNumber || convertedFromEstimate?.sourceEnquiryNumber
   );
 
-  // Update Due Date when Payment Terms or Invoice Date changes
-  const handlePaymentTermsChange = (newTerms: string) => {
-    setPaymentTerms(newTerms);
-    const matched = paymentTermsOptions.find((t) => t.value === newTerms);
-    if (matched && matched.days > 0) {
-      const parts = date.split('-').map(Number);
-      const d = new Date(parts[0], parts[1] - 1, parts[2]);
-      d.setDate(d.getDate() + matched.days);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      setDueDate(`${y}-${m}-${day}`);
-    } else if (newTerms !== 'Custom') {
-      setDueDate(date);
-    }
-  };
-
-  // Sync date changes with due date if not custom
+  // Keep the (now-hidden) due date sensible from payment terms + invoice date.
   useEffect(() => {
     const matched = paymentTermsOptions.find((t) => t.value === paymentTerms);
     if (matched && matched.days > 0) {
@@ -1512,82 +1492,60 @@ export const InvoiceForm: React.FC<Props> = ({
 
       {/* Main Invoice Form Header Details Card */}
       <div className="bg-white border border-slate-200 rounded-none p-6 shadow-none space-y-6">
-        {/* Top Header Row: Branch, Invoice No, Date, Time, State */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Branch Picker */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Billing Branch
-            </label>
-            <UniversalDropdown
+        {/* Compact meta — branch · number · date · time, tucked top-right */}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 text-[11px]">
+          <label className="flex items-center gap-1.5">
+            <span className="uppercase font-bold text-slate-400">Branch</span>
+            <select
               value={selectedBranch}
-              onChange={(v) => setSelectedBranch(v as BranchId)}
+              onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
               disabled={!isAllBranches && currentBranch !== 'all'}
-              options={BRANCHES.map((b) => ({ value: b.id, label: `${b.name} (${b.shortCode})` }))}
-            />
-          </div>
+              className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 disabled:opacity-70 cursor-pointer"
+            >
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>{b.shortCode}</option>
+              ))}
+            </select>
+          </label>
 
-          {/* Auto Invoice / Quotation Number */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              {documentType === 'Quotation' ? 'Quotation Number' : 'Invoice Number'}
-            </label>
-            <div className="relative">
+          <label className="flex items-center gap-1.5">
+            <span className="uppercase font-bold text-slate-400">{documentType === 'Quotation' ? 'Quote No' : 'Inv No'}</span>
+            <span className="relative">
               <input
                 type="text"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 className={cn(
-                  "w-full px-3 py-2 rounded-xl text-xs font-mono font-bold focus:outline-none",
+                  'w-40 pr-10 pl-2 py-1 rounded-none text-xs font-mono font-bold focus:outline-none',
                   documentType === 'Quotation'
-                    ? "bg-purple-50/50 border border-purple-200 text-purple-800 focus:border-purple-600"
-                    : "bg-blue-50/50 border border-blue-200 text-blue-800 focus:border-blue-600"
+                    ? 'bg-purple-50/60 border border-purple-200 text-purple-800 focus:border-purple-600'
+                    : 'bg-blue-50/60 border border-blue-200 text-blue-800 focus:border-blue-600'
                 )}
               />
               <span className={cn(
-                "absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold uppercase px-1.5 py-0.5 rounded",
-                documentType === 'Quotation'
-                  ? "text-purple-600 bg-purple-100/70"
-                  : "text-blue-600 bg-blue-100/70"
-              )}>
-                Auto
-              </span>
-            </div>
-          </div>
+                'absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase px-1 rounded',
+                documentType === 'Quotation' ? 'text-purple-600 bg-purple-100/70' : 'text-blue-600 bg-blue-100/70'
+              )}>Auto</span>
+            </span>
+          </label>
 
-          {/* Invoice Date */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              {documentType === 'Quotation' ? 'Quotation Date' : 'Invoice Date'}
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600"
-              />
-              <Calendar className="h-3.5 w-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
+          <label className="flex items-center gap-1.5">
+            <span className="uppercase font-bold text-slate-400">Date</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
+            />
+          </label>
 
-          {/* Invoice Time */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Time
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
-              />
-              <Clock className="h-3.5 w-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-          {/* State of Supply field removed per client request — value defaults to
-              the home state (33-Tamil Nadu) and still drives GST intra/inter split. */}
+          <input
+            type="text"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            title="Time"
+            className="w-20 bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
+          />
         </div>
 
         {/* Salesperson Incentive (sales bills only) */}
@@ -1673,41 +1631,8 @@ export const InvoiceForm: React.FC<Props> = ({
             />
           </div>
 
-          {/* Payment Terms */}
-          <div className="md:col-span-3">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Payment Terms
-            </label>
-            <UniversalDropdown
-              options={paymentTermsOptions.map((opt) => ({
-                value: opt.value,
-                label: opt.label,
-              }))}
-              value={paymentTerms}
-              onChange={(val) => handlePaymentTermsChange(val)}
-              addNewLabel="+ Add New Payment Term"
-              onAddNew={(name) => {
-                addPaymentTerm(name);
-                handlePaymentTermsChange(name);
-              }}
-            />
-          </div>
-
-          {/* Due Date */}
-          <div className="md:col-span-2">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Due Date
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600"
-            />
-          </div>
-
           {/* Billing Address */}
-          <div className="md:col-span-9">
+          <div className="md:col-span-5">
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Billing Address (Optional)
             </label>
@@ -1957,6 +1882,13 @@ export const InvoiceForm: React.FC<Props> = ({
                         step="1"
                         value={item.quantity}
                         onChange={(e) => updateLineItem(item.id, { quantity: Number(e.target.value) })}
+                        onKeyDown={(e) => {
+                          // Real-billing shortcut: Enter on the last row's qty adds a fresh item row.
+                          if (e.key === 'Enter' && item.itemName.trim() && idx === lineItems.length - 1) {
+                            e.preventDefault();
+                            addNewRow();
+                          }
+                        }}
                         className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono"
                       />
                     </td>
