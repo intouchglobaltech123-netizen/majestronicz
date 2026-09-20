@@ -32,6 +32,50 @@ const AppContent: React.FC = () => {
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Desktop sidebar collapsed state (persisted in localStorage)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('majestronicz_sidebar_collapsed');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleNav = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setMobileNavOpen((prev) => !prev);
+    } else {
+      setIsSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem('majestronicz_sidebar_collapsed', String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  const handleCollapseSidebar = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setMobileNavOpen(false);
+    } else {
+      setIsSidebarCollapsed(true);
+      try {
+        localStorage.setItem('majestronicz_sidebar_collapsed', 'true');
+      } catch {}
+    }
+  };
+
+  // Support custom event for toggling sidebar from shortcuts (Ctrl+B)
+  useEffect(() => {
+    const handleToggleEvent = () => {
+      handleToggleNav();
+    };
+    window.addEventListener('majestronicz:toggle-sidebar', handleToggleEvent);
+    return () => window.removeEventListener('majestronicz:toggle-sidebar', handleToggleEvent);
+  }, []);
+
   // Track native fullscreen status
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
 
@@ -113,8 +157,10 @@ const AppContent: React.FC = () => {
     <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Left Navigation Shell */}
       <Sidebar
-        isOpen={true}
+        isOpen={!isSidebarCollapsed}
+        isCollapsed={isSidebarCollapsed}
         onClose={handleCloseNav}
+        onToggleCollapse={handleCollapseSidebar}
         mobileOpen={mobileNavOpen}
       />
 
@@ -152,7 +198,10 @@ const AppContent: React.FC = () => {
 
         {/* Global Top Bar with Location Scope Switcher & Full Screen button */}
         <TopBar
-          onOpenNav={() => setMobileNavOpen(true)}
+          navOpen={!isSidebarCollapsed}
+          onOpenNav={handleToggleNav}
+          onToggleNav={handleToggleNav}
+          isNavCollapsed={isSidebarCollapsed}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
         />

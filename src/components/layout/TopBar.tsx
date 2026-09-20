@@ -26,12 +26,16 @@ interface TopBarProps {
   /** Backward compatibility / navigation open */
   navOpen?: boolean;
   onOpenNav?: () => void;
+  onToggleNav?: () => void;
+  isNavCollapsed?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   onOpenNav,
+  onToggleNav,
+  isNavCollapsed = false,
   isFullscreen = false,
   onToggleFullscreen,
 }) => {
@@ -147,13 +151,16 @@ export const TopBar: React.FC<TopBarProps> = ({
     <header className="h-13 bg-white border-b border-slate-300 px-3 sm:px-4 flex items-center justify-between gap-2 relative shrink-0 z-40 shadow-none">
       {/* Left: Mobile Menu (< lg only) + Global Branch Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* Mobile-only menu toggle button (< lg only) */}
+        {/* 3-line Menu toggle button (shows on desktop ONLY when navbar is minimized, and on mobile) */}
         <button
           type="button"
-          onClick={onOpenNav}
-          aria-label="Open navigation menu"
-          title="Open navigation menu"
-          className="lg:hidden h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+          onClick={onToggleNav || onOpenNav}
+          aria-label="Expand navigation menu"
+          title="Expand navigation menu (Ctrl+B)"
+          className={cn(
+            'h-8 w-8 shrink-0 rounded-none border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors',
+            !isNavCollapsed && 'lg:hidden'
+          )}
         >
           <Menu className="h-4 w-4" />
         </button>
