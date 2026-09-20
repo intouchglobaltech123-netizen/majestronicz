@@ -406,6 +406,22 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   );
   const voidedCount = filteredInvoices.filter((i) => i.isVoided).length;
 
+  // Today's at-a-glance metrics for the billing header (branch-scoped).
+  const todayStats = useMemo(() => {
+    const t = new Date();
+    const todayStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    const scoped = invoices.filter(
+      (i) => !i.isVoided && (i.date || '').startsWith(todayStr) && (isAllBranches || i.branchId === currentBranch)
+    );
+    let amount = 0, gst = 0, cash = 0;
+    for (const inv of scoped) {
+      amount += Math.max(0, (inv.grandTotal || 0) - (inv.totalReturnedAmount || 0));
+      if (inv.withGst) gst += inv.totalTax || 0;
+      cash += getInvoicePaymentSplits(inv).filter((s) => s.mode === 'Cash').reduce((sum, s) => sum + s.amount, 0);
+    }
+    return { count: scoped.length, amount, gst, cash };
+  }, [invoices, isAllBranches, currentBranch]);
+
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner & Module Header */}
@@ -440,7 +456,24 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         </div>
 
         {/* Action Buttons specific to current sub-view */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end">
+          {/* Neat today's metrics — fills the heading's right-side gap */}
+          {activeTab === 'new' && (
+            <div className="flex items-center gap-3 sm:gap-4 mr-1">
+              {[
+                { label: 'Sales Today', value: String(todayStats.count) },
+                { label: 'Amount', value: formatCurrency(todayStats.amount) },
+                { label: 'GST', value: formatCurrency(todayStats.gst) },
+                { label: 'Cash', value: formatCurrency(todayStats.cash) },
+              ].map((m) => (
+                <div key={m.label} className="text-right">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">{m.label}</div>
+                  <div className="text-sm font-bold font-mono text-slate-900 leading-tight mt-0.5">{m.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {activeTab !== 'new' && (
             <>
               <button
