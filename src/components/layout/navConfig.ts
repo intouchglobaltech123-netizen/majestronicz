@@ -151,6 +151,7 @@ export const NAV_MODULES: NavModule[] = [
     title: 'Settings & More',
     icon: Settings,
     items: [
+      { id: 'settings', label: 'App Preferences & Themes', cap: 'settings' },
       { id: 'shopify', label: 'Online Store', cap: 'shopify' },
       { id: 'access', label: 'Access Control', cap: 'access' },
       { id: 'ai-assistant', label: 'AI Assistant', cap: 'ai-assistant' },

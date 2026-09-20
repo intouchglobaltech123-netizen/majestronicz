@@ -14,6 +14,8 @@ import {
   Wallet,
   Menu,
   Maximize2,
+  Minimize2,
+  Settings,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -47,6 +49,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     setSelectedEnquiryForDetail,
     setSelectedPendingOrderForDetail,
     setCurrentView,
+    currentView,
   } = useErp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -194,17 +197,31 @@ export const TopBar: React.FC<TopBarProps> = ({
           <span className="hidden md:inline">My Attendance</span>
         </button>
 
-        {/* Full Screen button — available when not in full screen mode (or after exiting) */}
-        {!isFullscreen && onToggleFullscreen && (
+        {/* Full Screen Toggle Button */}
+        {onToggleFullscreen && (
           <button
             type="button"
             onClick={onToggleFullscreen}
-            title="Enter Full Screen Mode (F11)"
-            aria-label="Enter Full Screen Mode"
-            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:text-red-700 font-bold text-xs transition-colors cursor-pointer"
+            title={isFullscreen ? 'Exit Full Screen Mode (Esc / F11)' : 'Enter Full Screen Mode (F11)'}
+            aria-label={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+            className={cn(
+              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border text-xs font-bold transition-colors cursor-pointer',
+              isFullscreen
+                ? 'border-red-600 bg-red-50 text-red-800 hover:bg-red-100'
+                : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:text-red-700'
+            )}
           >
-            <Maximize2 className="h-3.5 w-3.5 text-red-700" />
-            <span className="hidden sm:inline">Full Screen</span>
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="h-3.5 w-3.5 text-red-700" />
+                <span className="hidden sm:inline">Exit Full</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-3.5 w-3.5 text-red-700" />
+                <span className="hidden sm:inline">Full Screen</span>
+              </>
+            )}
           </button>
         )}
 
@@ -493,6 +510,23 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Settings & Preferences Button */}
+        <button
+          type="button"
+          onClick={() => setCurrentView('settings')}
+          aria-label="App Preferences & Themes"
+          title="App Preferences, Themes & Shortcuts"
+          className={cn(
+            'h-8 px-2.5 rounded-none border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer',
+            currentView === 'settings'
+              ? 'bg-slate-900 border-slate-900 text-white'
+              : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+          )}
+        >
+          <Settings className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Settings</span>
+        </button>
       </div>
 
       {/* Self attendance (My Attendance) */}

@@ -103,7 +103,8 @@ export type ActiveNavView =
   | 'reports'
   | 'shopify'
   | 'ai-assistant'
-  | 'access';
+  | 'access'
+  | 'settings';
 
 export interface ActiveSubTabState {
   view: ActiveNavView;
@@ -905,7 +906,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (roleFlags) return roleFlags.includes(flag);
     return currentUser.role === 'Manager';
   };
-  const canAccessView = (view: ActiveNavView) => roleViews().includes(view);
+  const canAccessView = (view: ActiveNavView) => view === 'settings' || roleViews().includes(view);
 
   // ---- Beta AI ----
   const askAi = async (question: string) => {

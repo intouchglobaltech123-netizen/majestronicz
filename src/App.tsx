@@ -18,6 +18,8 @@ import { PartiesView } from './components/parties/PartiesView';
 import { ShopifyView } from './components/shopify/ShopifyView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
+import { AppSettingsView } from './components/settings/AppSettingsView';
+import { ThemeSettingsProvider } from './context/ThemeSettingsContext';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
 import { Minimize2 } from 'lucide-react';
@@ -102,46 +104,9 @@ const AppContent: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Attempt to enter native full screen automatically when opening the site
+  // Attempt fullscreen on initial load if permitted (e.g. installed PWA/standalone), otherwise user-controlled
   useEffect(() => {
-    const tryFullscreen = async () => {
-      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
-        await enterNativeFullscreen().catch(() => {});
-      }
-    };
-
-    // 1. Immediate attempt on mount
-    tryFullscreen();
-
-    // 2. Staggered attempts as browser finishes rendering and document gains focus
-    const timers = [
-      setTimeout(tryFullscreen, 60),
-      setTimeout(tryFullscreen, 250),
-      setTimeout(tryFullscreen, 600),
-      setTimeout(tryFullscreen, 1200),
-    ];
-
-    // 3. Retry on window focus or visibility change
-    const handleFocus = () => tryFullscreen();
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleFocus);
-
-    // 4. Non-intrusive fallback: on first normal interaction, expand to fullscreen without intercepting the click
-    const handleFirstInteraction = () => {
-      if (!userOptedOutFullscreenRef.current && !getIsFullscreen()) {
-        tryFullscreen();
-      }
-    };
-    window.addEventListener('click', handleFirstInteraction, { capture: false });
-    window.addEventListener('keydown', handleFirstInteraction, { capture: false });
-
-    return () => {
-      timers.forEach(clearTimeout);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
-      window.removeEventListener('click', handleFirstInteraction, { capture: false });
-      window.removeEventListener('keydown', handleFirstInteraction, { capture: false });
-    };
+    enterNativeFullscreen().catch(() => {});
   }, []);
 
   return (
@@ -231,6 +196,8 @@ const AppContent: React.FC = () => {
               <AiAssistantView />
             ) : currentView === 'access' ? (
               <AccessManagementView />
+            ) : currentView === 'settings' ? (
+              <AppSettingsView />
             ) : (
               <ItemMasterView />
             )
@@ -261,7 +228,9 @@ const AppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <ErpProvider>
-      <AppContent />
+      <ThemeSettingsProvider>
+        <AppContent />
+      </ThemeSettingsProvider>
     </ErpProvider>
   );
 };

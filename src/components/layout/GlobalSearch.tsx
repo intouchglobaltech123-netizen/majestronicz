@@ -76,6 +76,7 @@ export const GlobalSearch: React.FC = () => {
     <div ref={boxRef} className="relative flex-1 max-w-md hidden md:block">
       <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       <input
+        id="global-search-input"
         type="text"
         value={query}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}

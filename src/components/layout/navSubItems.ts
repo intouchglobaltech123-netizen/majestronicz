@@ -619,4 +619,27 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
       },
     ],
   },
+  settings: {
+    id: 'settings',
+    title: 'App Preferences & Themes',
+    subtitle: 'Themes, fonts & shortcuts',
+    icon: Settings,
+    accentColor: 'blue',
+    subOptions: [
+      {
+        id: 'appearance',
+        label: 'Theme & Typography',
+        description: 'Colors, font family & size',
+        icon: Settings,
+        tag: 'Tab',
+      },
+      {
+        id: 'shortcuts',
+        label: 'Keyboard Shortcuts',
+        description: 'Custom hotkeys for billing & nav',
+        icon: Settings,
+        tag: 'Tab',
+      },
+    ],
+  },
 };
