@@ -443,6 +443,20 @@ table tbody tr:hover {
     display: none !important;
   }
 
+  /* Barcode sheet printing: show ONLY the barcode overlay (portaled to <body>),
+     hide the whole app so labels never come out on an empty/clipped page. */
+  body.barcode-printing #root {
+    display: none !important;
+  }
+  body.barcode-printing #barcode-print-overlay {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
   #printable-estimate-doc {
     width: 100% !important;
     max-width: 100% !important;

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   QueuedBarcodeItem,
   BarcodeSettings,
@@ -71,13 +72,24 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    // Scope the print to the barcode sheet only (see @media print in index.css).
+    document.body.classList.add('barcode-printing');
+    const cleanup = () => {
+      document.body.classList.remove('barcode-printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      // Safety net if afterprint never fires (some browsers).
+      setTimeout(cleanup, 1000);
+    }, 50);
   };
 
   const activePageLabels = pages[currentPage - 1] || [];
 
-  return (
-    <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
+  return createPortal(
+    <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
       <div id="barcode-print-modal" className="bg-white border border-slate-300 rounded-none w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Control Bar (Hidden when printing) */}
         <div className="px-6 py-3.5 border-b border-slate-300 bg-slate-50 flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -383,6 +395,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
