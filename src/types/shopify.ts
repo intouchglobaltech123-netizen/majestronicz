@@ -19,6 +19,12 @@ export interface ShopifyOrderLineItem {
   matched: boolean;
   itemName?: string;
   erpStockOnHand?: number;
+  imageUrl?: string;
+  vendor?: string;
+  discount?: number;
+  taxLines?: { title: string; price: number; rate?: number }[];
+  properties?: { name: string; value: string }[];
+  grams?: number;
 }
 
 export interface ShopifyOrderFulfillment {
@@ -56,6 +62,24 @@ export interface ShopifyOrder {
   linkedInvoiceId?: string;
   lines: ShopifyOrderLineItem[];
   unmatchedCount: number;
+  shippingMethod?: string;
+  discountCodes?: string;
+  shopifyOrderUrl?: string;
+  currency?: string;
+  cancelReason?: string;
+  cancelledAt?: string;
+  tags?: string;
+}
+
+export interface ShopifySimilarItem {
+  id: string;
+  itemName: string;
+  itemCode: string;
+  category: string;
+  salePrice: number;
+  imageUrl?: string;
+  unit: string;
+  stockOnHand: number;
 }
 
 export interface ShopifyInventoryItem {

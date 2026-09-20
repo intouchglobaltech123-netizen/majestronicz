@@ -37,6 +37,7 @@ import {
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
   getShopifyCustomers,
+  findSimilarErpItems,
 } from '../services/shopify.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
@@ -280,6 +281,7 @@ router.post('/shopify/import-products', requireCapability('sales:write'), asyncH
   res.json(result);
 }));
 router.get('/shopify/customers', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await getShopifyCustomers(Number(req.query.limit) || 100))));
+router.get('/shopify/similar-items', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await findSimilarErpItems(String(req.query.query || ''), String(req.query.category || '')))));
 // Auto-sync webhook (Shopify orders/paid). PUBLIC — verified by HMAC, not RBAC.
 router.post('/shopify/webhook/orders', asyncHandler(async (req, res) => {
   const result = await handleOrderWebhook((req as any).rawBody, req.header('X-Shopify-Hmac-Sha256'), req.body);

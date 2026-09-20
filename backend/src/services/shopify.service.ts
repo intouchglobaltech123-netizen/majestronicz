@@ -143,11 +143,24 @@ export interface ShopifyOrderPreview {
     matched: boolean;
     itemName?: string;
     erpStockOnHand?: number;
+    imageUrl?: string;
+    vendor?: string;
+    discount?: number;
+    taxLines?: { title: string; price: number; rate?: number }[];
+    properties?: { name: string; value: string }[];
+    grams?: number;
   }[];
   unmatchedCount: number;
+  shippingMethod?: string;
+  discountCodes?: string;
+  shopifyOrderUrl?: string;
+  currency?: string;
+  cancelReason?: string;
+  cancelledAt?: string;
+  tags?: string;
 }
 
-/** Pull recent orders from Shopify and match line items to ERP items by SKU with live ERP stock. */
+/** Pull recent orders from Shopify and match line items to ERP items by SKU with live ERP stock & images. */
 export async function previewOrders(limit = 50): Promise<{ configured: boolean; orders: ShopifyOrderPreview[] }> {
   const cfg = getShopifyConfig();
   if (!cfg) return { configured: false, orders: [] };
@@ -171,11 +184,30 @@ export async function previewOrders(limit = 50): Promise<{ configured: boolean; 
     if (inv.externalOrderId) existingMap.set(inv.externalOrderId, inv);
   }
 
+  // Pre-fetch Shopify product images to attach rich thumbnails
+  const productImageMap = new Map<string, string>();
+  try {
+    const prodData = await shopifyFetch<{ products: any[] }>('products.json?limit=250&fields=id,images,image,variants');
+    for (const p of prodData.products || []) {
+      const mainImg = p.image?.src || p.images?.[0]?.src;
+      if (mainImg) productImageMap.set(String(p.id), mainImg);
+      for (const v of p.variants || []) {
+        const vImg = p.images?.find((img: any) => img.id === v.image_id)?.src || mainImg;
+        if (vImg) productImageMap.set(String(v.id), vImg);
+      }
+    }
+  } catch {
+    // Non-fatal if product images fail to pull
+  }
+
   const previews: ShopifyOrderPreview[] = orders.map((o) => {
     const lines = (o.line_items || []).map((li: any) => {
       const sku = String(li.sku || '').toLowerCase();
       const match = sku ? bySku.get(sku) : undefined;
       const erpStockOnHand = match ? (stockMap.get(match.id) || 0) : undefined;
+      const shopifyImg = productImageMap.get(String(li.variant_id)) || productImageMap.get(String(li.product_id));
+      const imageUrl = shopifyImg || match?.imageUrl || undefined;
+
       return {
         id: String(li.id),
         sku: li.sku || '',
@@ -186,6 +218,19 @@ export async function previewOrders(limit = 50): Promise<{ configured: boolean; 
         matched: Boolean(match),
         itemName: match?.itemName,
         erpStockOnHand,
+        imageUrl,
+        vendor: li.vendor || '',
+        discount: Number(li.total_discount) || 0,
+        taxLines: (li.tax_lines || []).map((t: any) => ({
+          title: t.title,
+          price: Number(t.price) || 0,
+          rate: t.rate,
+        })),
+        properties: (li.properties || []).map((prop: any) => ({
+          name: String(prop.name || ''),
+          value: String(prop.value || ''),
+        })),
+        grams: Number(li.grams) || 0,
       };
     });
 
@@ -242,6 +287,13 @@ export async function previewOrders(limit = 50): Promise<{ configured: boolean; 
       linkedInvoiceId: linked?.id,
       lines,
       unmatchedCount: lines.filter((l: any) => !l.matched).length,
+      shippingMethod: o.shipping_lines?.[0]?.title || '',
+      discountCodes: (o.discount_codes || []).map((d: any) => d.code).join(', '),
+      shopifyOrderUrl: cfg.domain ? `https://${cfg.domain}/admin/orders/${o.id}` : undefined,
+      currency: o.currency || 'INR',
+      cancelReason: o.cancel_reason || undefined,
+      cancelledAt: o.cancelled_at || undefined,
+      tags: o.tags || undefined,
     };
   });
 
@@ -641,4 +693,51 @@ export async function getShopifyCustomers(limit = 100): Promise<{ configured: bo
   });
 
   return { configured: true, customers: list };
+}
+
+/** Find similar or alternate ERP items by search term or category, including on-hand stock */
+export async function findSimilarErpItems(query?: string, category?: string, limit = 8) {
+  const q = (query || '').trim();
+  const cat = (category || '').trim();
+
+  const whereClause: any = {};
+  if (cat && q) {
+    whereClause.OR = [
+      { category: { contains: cat } },
+      { itemName: { contains: q } },
+      { itemCode: { contains: q } },
+    ];
+  } else if (cat) {
+    whereClause.category = { contains: cat };
+  } else if (q) {
+    whereClause.OR = [
+      { itemName: { contains: q } },
+      { itemCode: { contains: q } },
+    ];
+  }
+
+  const items = await prisma.item.findMany({
+    where: Object.keys(whereClause).length ? whereClause : undefined,
+    take: 30,
+  });
+
+  const stocks = await prisma.branchStock.findMany({
+    where: { itemId: { in: items.map((i) => i.id) } },
+  });
+
+  const stockMap = new Map<string, number>();
+  for (const s of stocks) {
+    stockMap.set(s.itemId, (stockMap.get(s.itemId) || 0) + Number(s.quantity));
+  }
+
+  return items.slice(0, limit).map((it) => ({
+    id: it.id,
+    itemName: it.itemName,
+    itemCode: it.itemCode,
+    category: it.category,
+    salePrice: it.salePrice,
+    imageUrl: it.imageUrl,
+    unit: it.unit,
+    stockOnHand: stockMap.get(it.id) || 0,
+  }));
 }

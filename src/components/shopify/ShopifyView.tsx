@@ -8,17 +8,17 @@ import {
   CheckCircle2,
   RefreshCw,
   DownloadCloud,
-  Store,
   XCircle,
   TrendingUp,
   Receipt,
   Search,
   Truck,
   Eye,
+  MessageSquare,
 } from 'lucide-react';
 import { apiGet, apiPost } from '../../lib/api';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, cleanPhoneDigits } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ShopifyOrder, ShopifyShopStatus } from '../../types/shopify';
 import { ShopifyOrderDetailModal } from './ShopifyOrderDetailModal';
@@ -120,10 +120,6 @@ export const ShopifyView: React.FC = () => {
     () => orders.filter((o) => !o.alreadyImported && o.financialStatus === 'paid').length,
     [orders]
   );
-  const unfulfilledCount = useMemo(
-    () => orders.filter((o) => o.fulfillmentStatus !== 'fulfilled').length,
-    [orders]
-  );
 
   // Filtered orders list
   const filteredOrders = useMemo(() => {
@@ -157,23 +153,41 @@ export const ShopifyView: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full max-w-7xl mx-auto">
-      {/* Top Header */}
+      {/* Top Header - Contextual to active sub-tab (No duplicate top tab bar) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 bg-red-600 text-white flex items-center justify-center font-bold">
-              <Store className="h-5 w-5" />
+            <div className="h-10 w-10 bg-red-600 text-white flex items-center justify-center font-bold shrink-0">
+              {activeTab === 'orders' ? (
+                <ShoppingCart className="h-5 w-5" />
+              ) : activeTab === 'inventory' ? (
+                <Boxes className="h-5 w-5" />
+              ) : activeTab === 'products' ? (
+                <Package className="h-5 w-5" />
+              ) : activeTab === 'customers' ? (
+                <Users className="h-5 w-5" />
+              ) : (
+                <Settings className="h-5 w-5" />
+              )}
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase flex items-center gap-2">
-                <span>Online Store</span>
-                <span className="text-slate-400 font-normal">|</span>
-                <span className="text-sm font-semibold text-slate-600 font-mono">
-                  {status?.shop?.name || 'Shopify'}
-                </span>
-              </h1>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-red-600">Online Store</span>
+                <span className="text-slate-300">/</span>
+                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">
+                  {activeTab === 'orders' && 'Orders & Shipments'}
+                  {activeTab === 'inventory' && 'Stock & Inventory Sync'}
+                  {activeTab === 'products' && 'Product Catalog & SKU Mapping'}
+                  {activeTab === 'customers' && 'Online Customers Directory'}
+                  {activeTab === 'settings' && 'Connection & Settings'}
+                </h1>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Real-time Shopify orders, live stock reconciliation, product catalog & online customer directory
+                {activeTab === 'orders' && 'Real-time Shopify orders, customer addresses, live stock availability & courier dispatch'}
+                {activeTab === 'inventory' && 'Side-by-side reconciliation of ERP warehouse stocks vs Shopify online inventory'}
+                {activeTab === 'products' && 'Shopify product catalog, variant retail pricing & ERP Item code mapping'}
+                {activeTab === 'customers' && 'Registered web buyers from Shopify synchronized with ERP customer parties'}
+                {activeTab === 'settings' && 'Store connection diagnostics, backend environment variables & order webhooks'}
               </p>
             </div>
           </div>
@@ -198,42 +212,6 @@ export const ShopifyView: React.FC = () => {
             </span>
           )}
         </div>
-      </div>
-
-      {/* Main Tab Navigation */}
-      <div className="flex items-center gap-1 border-b border-slate-300 bg-white px-2 pt-2 overflow-x-auto">
-        <TabButton
-          active={activeTab === 'orders'}
-          label="Orders & Shipments"
-          icon={<ShoppingCart className="h-4 w-4" />}
-          badge={unfulfilledCount > 0 ? `${unfulfilledCount} open` : undefined}
-          badgeColor="red"
-          onClick={() => setActiveTab('orders')}
-        />
-        <TabButton
-          active={activeTab === 'inventory'}
-          label="Stock & Inventory Sync"
-          icon={<Boxes className="h-4 w-4" />}
-          onClick={() => setActiveTab('inventory')}
-        />
-        <TabButton
-          active={activeTab === 'products'}
-          label="Product Catalog"
-          icon={<Package className="h-4 w-4" />}
-          onClick={() => setActiveTab('products')}
-        />
-        <TabButton
-          active={activeTab === 'customers'}
-          label="Online Customers"
-          icon={<Users className="h-4 w-4" />}
-          onClick={() => setActiveTab('customers')}
-        />
-        <TabButton
-          active={activeTab === 'settings'}
-          label="Connection & Settings"
-          icon={<Settings className="h-4 w-4" />}
-          onClick={() => setActiveTab('settings')}
-        />
       </div>
 
       {/* Tab Contents */}
@@ -382,6 +360,12 @@ export const ShopifyView: React.FC = () => {
                     filteredOrders.map((order) => {
                       const isFulfilled = order.fulfillmentStatus === 'fulfilled';
                       const isPaid = order.financialStatus === 'paid';
+                      const isCod =
+                        (order.paymentGateway || '').toLowerCase().includes('cod') ||
+                        (order.paymentGateway || '').toLowerCase().includes('cash on delivery');
+
+                      const digits = cleanPhoneDigits(order.customerPhone);
+                      const waPhone = digits.length === 10 ? `91${digits}` : digits;
 
                       return (
                         <tr
@@ -403,29 +387,60 @@ export const ShopifyView: React.FC = () => {
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-900">{order.customerName}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-900">{order.customerName}</span>
+                              {waPhone && (
+                                <a
+                                  href={`https://wa.me/${waPhone}?text=${encodeURIComponent(`Hello ${order.customerName}, regarding your order ${order.orderName}...`)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-emerald-600 hover:text-emerald-800"
+                                  title="WhatsApp customer"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                            </div>
                             {order.customerPhone && (
                               <div className="text-[11px] text-slate-500 font-mono">{order.customerPhone}</div>
                             )}
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              <span
-                                className={`text-[11px] font-bold ${
-                                  order.unmatchedCount > 0 ? 'text-amber-700' : 'text-slate-800'
-                                }`}
-                              >
-                                {order.lines.length} item{order.lines.length === 1 ? '' : 's'}
-                              </span>
-                              {order.unmatchedCount > 0 && (
-                                <span className="text-[10px] text-amber-700 bg-amber-50 px-1 border border-amber-200 font-semibold">
-                                  {order.unmatchedCount} unlinked
-                                </span>
+                            <div className="flex items-center gap-2">
+                              {/* Item Thumbnail */}
+                              {order.lines[0]?.imageUrl ? (
+                                <img
+                                  src={order.lines[0].imageUrl}
+                                  alt={order.lines[0].title}
+                                  className="h-9 w-9 object-cover border border-slate-200 bg-slate-50 shrink-0"
+                                />
+                              ) : (
+                                <div className="h-9 w-9 border border-slate-200 bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                                  <Package className="h-4 w-4" />
+                                </div>
                               )}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
-                              {order.lines.map((l) => `${l.qty}x ${l.sku || l.title}`).join(', ')}
+
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <span
+                                    className={`text-[11px] font-bold ${
+                                      order.unmatchedCount > 0 ? 'text-amber-700' : 'text-slate-800'
+                                    }`}
+                                  >
+                                    {order.lines.length} item{order.lines.length === 1 ? '' : 's'}
+                                  </span>
+                                  {order.unmatchedCount > 0 && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-1 border border-amber-200 font-semibold">
+                                      {order.unmatchedCount} unlinked
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                                  {order.lines.map((l) => `${l.qty}x ${l.sku || l.title}`).join(', ')}
+                                </div>
+                              </div>
                             </div>
                           </td>
 
@@ -434,7 +449,11 @@ export const ShopifyView: React.FC = () => {
                           </td>
 
                           <td className="py-3 px-4 text-center">
-                            {isPaid ? (
+                            {isCod ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300">
+                                COD
+                              </span>
+                            ) : isPaid ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300">
                                 Paid
                               </span>
@@ -528,37 +547,3 @@ export const ShopifyView: React.FC = () => {
     </div>
   );
 };
-
-interface TabButtonProps {
-  active: boolean;
-  label: string;
-  icon: React.ReactNode;
-  badge?: string;
-  badgeColor?: 'red' | 'slate';
-  onClick: () => void;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ active, label, icon, badge, badgeColor, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors shrink-0 cursor-pointer ${
-      active
-        ? 'border-red-600 text-red-600 bg-red-50/20'
-        : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
-    }`}
-  >
-    {icon}
-    <span>{label}</span>
-    {badge && (
-      <span
-        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold uppercase tracking-wider ${
-          badgeColor === 'red'
-            ? 'bg-red-100 text-red-700 border border-red-300'
-            : 'bg-slate-100 text-slate-700 border border-slate-300'
-        }`}
-      >
-        {badge}
-      </span>
-    )}
-  </button>
-);
