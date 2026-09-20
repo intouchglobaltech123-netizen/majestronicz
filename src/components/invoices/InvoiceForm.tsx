@@ -173,6 +173,21 @@ export const InvoiceForm: React.FC<Props> = ({
     return null;
   }, [customers, customerId, customerPhone, customerName]);
 
+  // Phone-first entry: typing a full 10-digit mobile auto-fills the matching
+  // customer's name + address (no need to type the name).
+  useEffect(() => {
+    if (customerId) return;
+    const clean = customerPhone.replace(/\D/g, '');
+    if (clean.length !== 10) return;
+    const match = customers.find((c) => (c.phone || '').replace(/\D/g, '') === clean);
+    if (match) {
+      setCustomerId(match.id);
+      setCustomerName(cleanCustomerName(match.name, match.notes));
+      setCustomerAddress(match.address || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerPhone, customers]);
+
   const isEligibleForLoyalty = useMemo(() => {
     if (!selectedCustomerObj) return false;
     if (selectedCustomerObj.customerType === 'Organization') return false;
@@ -1055,13 +1070,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Build the complete invoice object
   const assembleInvoiceObject = (): Invoice | null => {
-    if (!customerName.trim()) {
-      toast.error('Customer name is required', {
-        description: 'Please specify the customer or organization for this invoice.',
-      });
-      return null;
-    }
-
+    // Customer name is optional — a phone-only walk-in bill is fine.
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
       toast.error('At least one valid item is required', {
@@ -1119,7 +1128,7 @@ export const InvoiceForm: React.FC<Props> = ({
       branchId: selectedBranch,
       transactionType,
       customerId: customerId || selectedCustomerObj?.id,
-      customerName: cleanCustomerName(customerName),
+      customerName: customerName.trim() ? cleanCustomerName(customerName) : 'Walk-in Customer',
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       date,
@@ -1170,12 +1179,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Build the complete quotation/estimate object
   const assembleEstimateObject = (): Estimate | null => {
-    if (!customerName.trim()) {
-      toast.error('Customer name is required', {
-        description: 'Please specify the customer or organization for this quotation.',
-      });
-      return null;
-    }
+    // Customer name optional here too (phone-first entry).
 
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
@@ -1216,7 +1220,7 @@ export const InvoiceForm: React.FC<Props> = ({
       estimateNumber: finalEstimateNumber,
       branchId: selectedBranch,
       customerId: customerId || selectedCustomerObj?.id,
-      customerName: cleanCustomerName(customerName),
+      customerName: customerName.trim() ? cleanCustomerName(customerName) : 'Walk-in Customer',
       customerContact: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       date,
@@ -1578,13 +1582,11 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Customer Details Row (compact) */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-100">
-          {/* Customer Search & Select (Customer Master) */}
+        {/* Customer Details Row — single line, no stacked labels (placeholders only) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-1.5 border-t border-slate-100 items-center">
+          {/* Customer Search & Select (Customer Master) — name optional */}
           <div className="md:col-span-4">
             <CustomerSearchSelect
-              label="Customer"
-              required
               selectedCustomerId={customerId}
               customerName={customerName}
               customerPhone={customerPhone}
@@ -1609,11 +1611,10 @@ export const InvoiceForm: React.FC<Props> = ({
             />
           </div>
 
-          {/* Customer Phone */}
+          {/* Customer Phone — type a full mobile to auto-fill a known customer */}
           <div className="md:col-span-3">
             <PhoneInput
-              label="Phone / Mobile"
-              placeholder="98421 00000"
+              placeholder="Mobile no. (auto-fills name)"
               value={customerPhone}
               onChange={setCustomerPhone}
               size="sm"
@@ -1621,37 +1622,34 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
 
           {/* Billing Address */}
-          <div className="md:col-span-5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Billing Address (Optional)
-            </label>
+          <div className="md:col-span-3">
             <div className="relative">
               <input
                 type="text"
-                placeholder="Street address, city, pin code..."
+                placeholder="Address (optional)"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
               />
-              <MapPin className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <MapPin className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
           </div>
 
           {/* GST Toggle Control */}
-          <div className="md:col-span-3 flex flex-col justify-end">
+          <div className="md:col-span-2">
             <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-200">
-              <span className="text-xs font-bold text-slate-700">GST Mode</span>
+              <span className="text-xs font-bold text-slate-700">GST</span>
               <button
                 type="button"
                 onClick={() => handleToggleGst(!withGst)}
                 className={cn(
-                  'px-3 py-1 rounded-lg text-xs font-bold transition-all',
+                  'px-2.5 py-1 rounded-lg text-xs font-bold transition-all',
                   withGst
                     ? 'bg-emerald-600 text-white shadow-2xs'
                     : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
                 )}
               >
-                {withGst ? 'With GST' : 'Without Tax'}
+                {withGst ? 'On' : 'Off'}
               </button>
             </div>
           </div>
