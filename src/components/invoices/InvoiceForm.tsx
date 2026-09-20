@@ -39,7 +39,6 @@ import {
   Link,
   Award,
   Copy,
-  Receipt,
   Split,
   AlertTriangle,
   CheckCircle2,
@@ -593,6 +592,9 @@ export const InvoiceForm: React.FC<Props> = ({
     return Math.round(pre * 100) / 100;
   };
 
+  // The freshly-added blank row whose item search should auto-focus (POS-style).
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
+
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     let newRow: InvoiceLineItem;
@@ -641,6 +643,8 @@ export const InvoiceForm: React.FC<Props> = ({
     }
 
     setLineItems((prev) => [...prev, newRow]);
+    // Only auto-focus a blank row (typed entry); scanned rows already have an item.
+    if (!selectedItem) setFocusRowId(newId);
   };
 
   // #3 Max sellable quantity for a line at the selected branch.
@@ -1303,7 +1307,7 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
+    <div className="space-y-4 animate-in fade-in duration-150">
       {/* Duplicate Notice Banner */}
       {duplicateSourceInvoice && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-950">
@@ -1366,28 +1370,9 @@ export const InvoiceForm: React.FC<Props> = ({
       )}
 
       {/* Top Banner with Document Mode Switcher & Action Buttons */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Left: Document Mode Toggle & Bill Type */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Left: Bill Type (the document-type label now sits in the sticky total bar) */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Document Mode Tile — reflects the current mode chosen via the
-              "+ New Sale" / "+ New Quote" buttons on the Sales page. Read-only
-              here to avoid duplicating that switch. */}
-          <div
-            className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 border',
-              documentType === 'Quotation'
-                ? 'bg-purple-50 text-purple-700 border-purple-200'
-                : 'bg-blue-50 text-blue-700 border-blue-200'
-            )}
-          >
-            {documentType === 'Quotation' ? (
-              <FileText className="h-3.5 w-3.5" />
-            ) : (
-              <Receipt className="h-3.5 w-3.5" />
-            )}
-            <span>{documentType === 'Quotation' ? 'Quotation' : 'Tax Invoice'}</span>
-          </div>
-
           {/* If Invoice: show Bill Type (Cash Sale / Credit Bill) */}
           {documentType === 'Invoice' && (
             <div className="w-40 sm:w-44">
@@ -1491,7 +1476,7 @@ export const InvoiceForm: React.FC<Props> = ({
       </div>
 
       {/* Main Invoice Form Header Details Card */}
-      <div className="bg-white border border-slate-200 rounded-none p-6 shadow-none space-y-6">
+      <div className="bg-white border border-slate-200 rounded-none p-4 shadow-none space-y-4">
         {/* Compact meta — branch · number · date · time, tucked top-right */}
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 text-[11px]">
           <label className="flex items-center gap-1.5">
@@ -1828,6 +1813,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     <td className="py-2.5 px-3 relative" style={{ zIndex: lineItems.length - idx + 20 }}>
                       <ItemSearchDropdown
                         value={item.itemName}
+                        autoFocus={focusRowId === item.id}
                         onChange={(val) => updateLineItem(item.id, { itemName: val })}
                         onSelectItem={(masterItem) => selectMasterItemForRow(item.id, masterItem)}
                         onSelectCombo={(combo) => selectComboForRow(item.id, combo)}
@@ -2614,6 +2600,47 @@ export const InvoiceForm: React.FC<Props> = ({
             <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save Invoice & Update Inventory'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Sticky billing total bar — always visible while scrolling (POS feel) */}
+      <div className="sticky bottom-0 z-30 bg-white border-t-2 border-slate-300 shadow-[0_-4px_14px_rgba(0,0,0,0.07)] -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-wrap">
+          <span className={cn(
+            'text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-none border shrink-0',
+            documentType === 'Quotation' ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-red-50 text-red-700 border-red-200'
+          )}>
+            {documentType === 'Quotation' ? 'Quotation' : 'Tax Invoice'}
+          </span>
+          <span className="text-xs text-slate-500 font-semibold shrink-0">
+            {lineItems.filter((i) => i.itemName.trim()).length} item{lineItems.filter((i) => i.itemName.trim()).length === 1 ? '' : 's'}
+          </span>
+          <span className="text-slate-300 shrink-0">·</span>
+          <span className="text-[11px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Total Payable</span>
+          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 truncate">
+            {formatCurrency(totals.grandTotal)}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={documentType === 'Invoice' && !isPaymentReconciled}
+          className={cn(
+            'flex items-center gap-2 px-5 py-2.5 rounded-none text-white font-bold text-xs border transition-colors shrink-0 cursor-pointer',
+            documentType === 'Invoice' && !isPaymentReconciled
+              ? 'bg-slate-400 border-slate-400 cursor-not-allowed opacity-60'
+              : documentType === 'Quotation'
+              ? 'bg-slate-800 hover:bg-slate-900 border-slate-900'
+              : 'bg-red-600 hover:bg-red-700 border-red-700'
+          )}
+          title={
+            documentType === 'Invoice' && !isPaymentReconciled
+              ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+              : undefined
+          }
+        >
+          <Save className="h-4 w-4" />
+          <span>{documentType === 'Quotation' ? 'Save Quotation' : 'Save Invoice'}</span>
+        </button>
       </div>
     </div>
   );
