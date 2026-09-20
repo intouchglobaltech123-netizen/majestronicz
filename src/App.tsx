@@ -22,59 +22,15 @@ import { AppSettingsView } from './components/settings/AppSettingsView';
 import { ThemeSettingsProvider } from './context/ThemeSettingsContext';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
-import { Minimize2 } from 'lucide-react';
+import { Minimize2, Plus } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
 
 const AppContent: React.FC = () => {
-  const { currentView } = useErp();
+  const { currentView, navigateToTab } = useErp();
   // Sales & Quotations share one always-mounted billing view (keeps open tabs alive).
   const isBilling = currentView === 'invoices' || currentView === 'estimates';
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  // Desktop sidebar collapsed state (persisted in localStorage)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('majestronicz_sidebar_collapsed');
-      return saved === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleToggleNav = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setMobileNavOpen((prev) => !prev);
-    } else {
-      setIsSidebarCollapsed((prev) => {
-        const next = !prev;
-        try {
-          localStorage.setItem('majestronicz_sidebar_collapsed', String(next));
-        } catch {}
-        return next;
-      });
-    }
-  };
-
-  const handleCollapseSidebar = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setMobileNavOpen(false);
-    } else {
-      setIsSidebarCollapsed(true);
-      try {
-        localStorage.setItem('majestronicz_sidebar_collapsed', 'true');
-      } catch {}
-    }
-  };
-
-  // Support custom event for toggling sidebar from shortcuts
-  useEffect(() => {
-    const handleToggleEvent = () => {
-      handleToggleNav();
-    };
-    window.addEventListener('majestronicz:toggle-sidebar', handleToggleEvent);
-    return () => window.removeEventListener('majestronicz:toggle-sidebar', handleToggleEvent);
-  }, []);
 
   // Track native fullscreen status
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => getIsFullscreen());
@@ -157,10 +113,8 @@ const AppContent: React.FC = () => {
     <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Left Navigation Shell */}
       <Sidebar
-        isOpen={!isSidebarCollapsed}
-        isCollapsed={isSidebarCollapsed}
+        isOpen={true}
         onClose={handleCloseNav}
-        onToggleCollapse={handleCollapseSidebar}
         mobileOpen={mobileNavOpen}
       />
 
@@ -198,13 +152,23 @@ const AppContent: React.FC = () => {
 
         {/* Global Top Bar with Location Scope Switcher & Full Screen button */}
         <TopBar
-          navOpen={!isSidebarCollapsed}
-          onOpenNav={handleToggleNav}
-          onToggleNav={handleToggleNav}
-          isNavCollapsed={isSidebarCollapsed}
+          onOpenNav={() => setMobileNavOpen(true)}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
         />
+
+        {/* Quick Action: + Add Sale (static button below notification icon) */}
+        <div className="flex justify-end px-3 sm:px-4 py-1.5 shrink-0 bg-transparent select-none">
+          <button
+            type="button"
+            onClick={() => navigateToTab('invoices', 'new')}
+            title="Create New Sale Invoice (Alt+S)"
+            className="inline-flex items-center gap-1.5 h-8 px-3.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-extrabold text-xs uppercase tracking-wider border border-red-700 shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5 stroke-[3]" />
+            <span>+ Add Sale</span>
+          </button>
+        </div>
 
         {/* Scrollable Content Body */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
