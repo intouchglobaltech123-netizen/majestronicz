@@ -457,20 +457,23 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
         {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end">
-          {/* Neat today's metrics — fills the heading's right-side gap */}
+          {/* Neat today's metrics — a segmented mini-card in the heading's right gap */}
           {activeTab === 'new' && (
-            <div className="flex items-center gap-3 sm:gap-4 mr-1">
+            <div className="hidden sm:flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden divide-x divide-slate-200 shadow-2xs">
               {[
-                { label: 'Sales Today', value: String(todayStats.count) },
-                { label: 'Amount', value: formatCurrency(todayStats.amount) },
-                { label: 'GST', value: formatCurrency(todayStats.gst) },
-                { label: 'Cash', value: formatCurrency(todayStats.cash) },
+                { label: 'Bills', value: String(todayStats.count), tone: 'text-slate-900' },
+                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900' },
+                { label: 'GST', value: formatCurrency(todayStats.gst), tone: 'text-emerald-700' },
+                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-blue-700' },
               ].map((m) => (
-                <div key={m.label} className="text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">{m.label}</div>
-                  <div className="text-sm font-bold font-mono text-slate-900 leading-tight mt-0.5">{m.value}</div>
+                <div key={m.label} className="px-3 py-1.5 text-right leading-tight">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{m.label}</div>
+                  <div className={cn('text-xs font-bold font-mono', m.tone)}>{m.value}</div>
                 </div>
               ))}
+              <div className="px-2 py-1.5 flex items-center bg-slate-50/60">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Today</span>
+              </div>
             </div>
           )}
 
@@ -524,8 +527,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       {activeTab === 'new' ? (
         /* MULTI-TAB BILLING — several sale/quotation drafts open at once */
         <div className="space-y-3">
-          {/* Vyapar-style bill tab strip */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {/* Vyapar-style bill tab strip — tabs scroll; the New Sale action stays pinned */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 min-w-0">
             {openBills.map((tab) => {
               const isActive = tab.id === activeBillId;
               const isQuote = tab.documentType === 'Quotation';
@@ -558,13 +562,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 </div>
               );
             })}
+            </div>
             <button
               type="button"
               onClick={() => handleStartBlank('Invoice')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-300 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors"
-              title="Open another bill in a new tab"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
+              title="Start a new sale bill in another tab"
             >
-              <Plus className="h-3.5 w-3.5" /> New tab
+              <Plus className="h-3.5 w-3.5" /> New Sale
             </button>
           </div>
 
