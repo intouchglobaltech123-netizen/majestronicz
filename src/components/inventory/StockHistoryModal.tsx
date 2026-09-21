@@ -18,12 +18,15 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   filterItem?: Item | null;
+  /** Render inline as a full page (no modal overlay) instead of a popup. */
+  asPage?: boolean;
 }
 
 export const StockHistoryModal: React.FC<Props> = ({
   isOpen,
   onClose,
   filterItem,
+  asPage = false,
 }) => {
   const {
     stockAdjustmentLogs,
@@ -110,8 +113,10 @@ export const StockHistoryModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900">
+    <div className={asPage ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200'}>
+      <div className={asPage
+        ? 'bg-white border border-slate-200 rounded-xl w-full shadow-xs overflow-hidden flex flex-col text-slate-900'
+        : 'bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900'}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
           <div className="flex items-center gap-3">
@@ -134,12 +139,14 @@ export const StockHistoryModal: React.FC<Props> = ({
               </p>
             </div>
           </div>
+          {!asPage && (
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
+          )}
         </div>
 
         {/* Filter Bar */}
