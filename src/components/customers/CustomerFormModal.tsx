@@ -53,7 +53,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     const cleanName = cleanCustomerName(name, notes);
 
     if (!customerType) {
-      setErrorMessage('Please explicitly select Customer Type (Retail or Organization)');
+      setErrorMessage('Please explicitly select Customer Type (Retail or Wholesale)');
       return;
     }
     if (!cleanPhone) {
@@ -194,7 +194,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-bold flex items-center gap-1.5">
-                    <span>Organization</span>
+                    <span>Wholesale</span>
                     {customerType === 'Organization' && <span className="w-1.5 h-1.5 rounded-none bg-slate-800"></span>}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
@@ -207,7 +207,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Customer / Organization Name <span className="text-red-600">*</span>
+              Customer / Wholesale Name <span className="text-red-600">*</span>
             </label>
             <div className="relative">
               <input

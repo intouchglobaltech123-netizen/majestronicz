@@ -182,7 +182,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     const cleanPhone = cleanPhoneDigits(newPhone);
     const cleanName = cleanCustomerName(newName, newNotes);
     if (!newType) {
-      setQuickAddError('Please select Customer Type (Retail or Organization)');
+      setQuickAddError('Please select Customer Type (Retail or Wholesale)');
       return;
     }
     if (!cleanPhone) {
@@ -235,7 +235,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             (selectedCustomer.customerType || 'Retail') === 'Organization' ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-[11px] font-bold text-slate-800">
                 <Building2 className="h-3 w-3 text-slate-700" />
-                Organization Account
+                Wholesale Account
               </span>
             ) : (
               <span className="text-[11px] font-bold text-red-700 font-mono">
@@ -270,7 +270,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   <div className="inline-flex items-center gap-1.5 flex-wrap">
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-[10px] font-bold text-slate-800">
                       <Building2 className="h-2.5 w-2.5 text-slate-600" />
-                      Organization
+                      Wholesale
                     </span>
                     <button
                       type="button"
@@ -442,7 +442,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                         {isOrg ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-slate-800 text-[10px] font-bold">
                             <Building2 className="h-2.5 w-2.5 text-slate-600" />
-                            Organization
+                            Wholesale
                           </span>
                         ) : isEligible ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold">
@@ -574,7 +574,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   >
                     <Building2 className={cn('h-4 w-4 mt-0.5 shrink-0', newType === 'Organization' ? 'text-slate-700' : 'text-slate-400')} />
                     <div>
-                      <div className="text-xs font-bold">Organization</div>
+                      <div className="text-xs font-bold">Wholesale</div>
                       <div className="text-[11px] text-slate-500 leading-tight">Colleges, companies, bulk buyer</div>
                     </div>
                   </button>
@@ -663,7 +663,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-extrabold text-slate-900">{cleanCustomerName(selectedCustomer.name)}</h3>
                     <span className="px-2 py-0.5 rounded-none bg-slate-800 text-white font-bold text-[11px]">
-                      Organization
+                      Wholesale
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">

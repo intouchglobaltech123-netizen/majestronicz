@@ -563,7 +563,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   )}
                 >
                   <Building2 className="h-3 w-3" />
-                  <span>Organization</span>
+                  <span>Wholesale</span>
                 </button>
               </div>
 
@@ -669,7 +669,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                             {isOrg ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-700 font-bold text-[11px]">
                                 <Building2 className="h-3 w-3 text-purple-600" />
-                                Organization
+                                Wholesale
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-bold text-[11px]">
@@ -727,7 +727,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                             {isOrg ? (
                               <span
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium"
-                                title="Organizations receive bulk partner tracking without loyalty milestones"
+                                title="Wholesale customers get bulk partner tracking without loyalty milestones"
                               >
                                 <Building2 className="h-3 w-3 text-purple-600" />
                                 <span>Bulk Partner</span>

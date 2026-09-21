@@ -12,6 +12,7 @@ import {
   ClipboardList,
   CalendarCheck,
   Store,
+  Sparkles,
 } from 'lucide-react';
 
 /**
@@ -52,12 +53,18 @@ export const NAV_MODULES: NavModule[] = [
     items: [{ id: 'dashboard', label: 'Dashboard', cap: 'dashboard' }],
   },
   {
+    id: 'ai-assistant',
+    title: 'AI Assistant',
+    icon: Sparkles,
+    items: [{ id: 'ai-assistant', label: 'AI Assistant', cap: 'ai-assistant' }],
+  },
+  {
     id: 'sales',
     title: 'Sales',
     icon: Receipt,
     primaryActions: [
+      { label: '+ New Sale', subTabId: 'new', color: 'red' },
       { label: '+ New Quote', subTabId: 'new-quote', color: 'slate' },
-      { label: '+ Challan', subTabId: 'new-challan', color: 'emerald' },
     ],
     items: [
       { id: 'invoices', subTabId: 'ledger', label: 'Sale Invoices', cap: 'invoices' },
@@ -171,7 +178,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'settings', subTabId: 'appearance', label: 'Themes & Typography', cap: 'settings' },
       { id: 'settings', subTabId: 'shortcuts', label: 'Keyboard Shortcuts', cap: 'settings' },
       { id: 'access', label: 'Access Control', cap: 'access' },
-      { id: 'ai-assistant', label: 'AI Assistant', cap: 'ai-assistant' },
     ],
   },
 ];

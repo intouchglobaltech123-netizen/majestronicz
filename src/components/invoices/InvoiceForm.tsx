@@ -1800,7 +1800,20 @@ export const InvoiceForm: React.FC<Props> = ({
                       <ItemSearchDropdown
                         value={item.itemName}
                         autoFocus={focusRowId === item.id}
-                        onChange={(val) => updateLineItem(item.id, { itemName: val })}
+                        onChange={(val) =>
+                          // Clearing the name must also clear the linked product,
+                          // otherwise its rack location & price would linger on the row.
+                          val.trim()
+                            ? updateLineItem(item.id, { itemName: val })
+                            : updateLineItem(item.id, {
+                                itemName: '', itemId: undefined, itemCode: '', itemHSN: '',
+                                unitPrice: 0, isCombo: false, comboId: undefined, comboComponents: undefined,
+                              })
+                        }
+                        onClear={() => updateLineItem(item.id, {
+                          itemName: '', itemId: undefined, itemCode: '', itemHSN: '',
+                          unitPrice: 0, isCombo: false, comboId: undefined, comboComponents: undefined,
+                        })}
                         onSelectItem={(masterItem) => selectMasterItemForRow(item.id, masterItem)}
                         onSelectCombo={(combo) => selectComboForRow(item.id, combo)}
                         includeCombos={true}
