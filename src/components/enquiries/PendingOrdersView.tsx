@@ -119,119 +119,33 @@ export const PendingOrdersView: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <button
-          type="button"
-          onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
-            statusFilter === 'ALL'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-none'
-              : 'bg-white border-slate-300 hover:border-slate-400 text-slate-700'
-          }`}
-        >
-          <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-            statusFilter === 'ALL' ? 'text-slate-300' : 'text-slate-500'
-          }`}>
-            All Orders
-          </span>
-          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{branchScopedOrders.length}</div>
-          <span className={`text-[11px] ${statusFilter === 'ALL' ? 'text-slate-400' : 'text-slate-400'}`}>
-            Total backlog
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('Waiting')}
-          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
-            statusFilter === 'Waiting'
-              ? 'bg-amber-600 text-white border-amber-600 shadow-none'
-              : 'bg-amber-50/60 border-amber-300 hover:border-amber-400 text-amber-900'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              statusFilter === 'Waiting' ? 'text-amber-100' : 'text-amber-800'
-            }`}>
-              Awaiting Stock
-            </span>
-            <AlertCircle className={`h-3.5 w-3.5 ${statusFilter === 'Waiting' ? 'text-white' : 'text-amber-600'}`} />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{waitingCount}</div>
-          <span className={`text-[11px] ${statusFilter === 'Waiting' ? 'text-amber-200' : 'text-amber-700'}`}>
-            Pending restock
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('Stock Arrived')}
-          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
-            statusFilter === 'Stock Arrived'
-              ? 'bg-emerald-600 text-white border-emerald-600 shadow-none'
-              : 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-400 text-emerald-900'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              statusFilter === 'Stock Arrived' ? 'text-emerald-100' : 'text-emerald-800'
-            }`}>
-              Stock Arrived
-            </span>
-            <PackageCheck className={`h-3.5 w-3.5 ${statusFilter === 'Stock Arrived' ? 'text-white' : 'text-emerald-600'}`} />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{stockArrivedCount}</div>
-          <span className={`text-[11px] ${statusFilter === 'Stock Arrived' ? 'text-emerald-200' : 'text-emerald-700'}`}>
-            Ready to fulfill
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('Fulfilled')}
-          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
-            statusFilter === 'Fulfilled'
-              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
-              : 'bg-slate-100 border-slate-300 hover:border-slate-400 text-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              statusFilter === 'Fulfilled' ? 'text-slate-200' : 'text-slate-700'
-            }`}>
-              Fulfilled
-            </span>
-            <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === 'Fulfilled' ? 'text-white' : 'text-slate-600'}`} />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{fulfilledCount}</div>
-          <span className={`text-[11px] ${statusFilter === 'Fulfilled' ? 'text-slate-300' : 'text-slate-600'}`}>
-            Converted to sale
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('Cancelled')}
-          className={`p-3.5 rounded-none border text-left transition-all cursor-pointer ${
-            statusFilter === 'Cancelled'
-              ? 'bg-rose-600 text-white border-rose-600 shadow-none'
-              : 'bg-rose-50/60 border-rose-300 hover:border-rose-400 text-rose-900'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              statusFilter === 'Cancelled' ? 'text-rose-100' : 'text-rose-800'
-            }`}>
-              Cancelled
-            </span>
-            <XCircle className={`h-3.5 w-3.5 ${statusFilter === 'Cancelled' ? 'text-white' : 'text-rose-600'}`} />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono mt-0.5">{cancelledCount}</div>
-          <span className={`text-[11px] ${statusFilter === 'Cancelled' ? 'text-rose-200' : 'text-rose-700'}`}>
-            Lost / Dropped
-          </span>
-        </button>
+      {/* KPI Summary Cards — clean white tiles; a coloured ring marks the active filter */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {([
+          { key: 'ALL', label: 'All Orders', sub: 'Total backlog', count: branchScopedOrders.length, num: 'text-slate-900', icon: null, ring: 'border-slate-400 ring-2 ring-slate-300', iconTone: '' },
+          { key: 'Waiting', label: 'Awaiting Stock', sub: 'Pending restock', count: waitingCount, num: 'text-amber-700', icon: AlertCircle, ring: 'border-amber-400 ring-2 ring-amber-200', iconTone: 'text-amber-600' },
+          { key: 'Stock Arrived', label: 'Stock Arrived', sub: 'Ready to fulfill', count: stockArrivedCount, num: 'text-emerald-700', icon: PackageCheck, ring: 'border-emerald-400 ring-2 ring-emerald-200', iconTone: 'text-emerald-600' },
+          { key: 'Fulfilled', label: 'Fulfilled', sub: 'Converted to sale', count: fulfilledCount, num: 'text-blue-700', icon: CheckCircle2, ring: 'border-blue-400 ring-2 ring-blue-200', iconTone: 'text-blue-600' },
+          { key: 'Cancelled', label: 'Cancelled', sub: 'Lost / Dropped', count: cancelledCount, num: 'text-rose-700', icon: XCircle, ring: 'border-rose-400 ring-2 ring-rose-200', iconTone: 'text-rose-600' },
+        ] as const).map((c) => {
+          const active = statusFilter === c.key;
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setStatusFilter(c.key as typeof statusFilter)}
+              className={`p-3.5 rounded-lg border bg-white text-left transition-all cursor-pointer shadow-2xs ${active ? c.ring : 'border-slate-200 hover:border-slate-300'}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{c.label}</span>
+                {Icon && <Icon className={`h-3.5 w-3.5 ${c.iconTone}`} />}
+              </div>
+              <div className={`text-2xl font-bold font-mono mt-0.5 ${c.num}`}>{c.count}</div>
+              <span className="text-[11px] text-slate-400">{c.sub}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search & Status Filter Bar */}

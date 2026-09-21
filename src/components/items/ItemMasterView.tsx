@@ -294,7 +294,7 @@ export const ItemMasterView: React.FC = () => {
           className={cn(
             'flex items-center gap-2 px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border',
             activeMainTab === 'combos'
-              ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+              ? 'bg-red-600 text-white border-red-700 shadow-none'
               : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
@@ -302,7 +302,7 @@ export const ItemMasterView: React.FC = () => {
           <span>Combos & Kits</span>
           <span className={cn(
             'px-1.5 py-0.2 rounded-none text-[10px]',
-            activeMainTab === 'combos' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
+            activeMainTab === 'combos' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
             {combos.length}
           </span>

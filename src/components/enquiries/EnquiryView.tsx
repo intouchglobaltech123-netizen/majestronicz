@@ -211,7 +211,7 @@ export const EnquiryView: React.FC = () => {
             className={cn(
               'flex items-center gap-2 px-3 py-1.5 rounded-none text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer shrink-0 border',
               activeTab === 'new-item-requests'
-                ? 'bg-slate-800 text-white border-slate-900 shadow-none'
+                ? 'bg-red-600 text-white border-red-700 shadow-none'
                 : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             )}
           >
