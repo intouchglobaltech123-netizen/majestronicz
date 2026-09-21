@@ -126,19 +126,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside
         className={cn(
-          'bg-white flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none transition-all duration-200 ease-in-out',
+          'bg-slate-900 flex flex-col h-screen h-[100dvh] max-h-[100dvh] select-none shadow-none transition-all duration-200 ease-in-out',
           'fixed inset-y-0 left-0 z-50 max-w-[85vw]',
-          isMobileDrawerOpen ? 'translate-x-0 w-64 border-r border-slate-300' : '-translate-x-full w-64 pointer-events-none',
+          isMobileDrawerOpen ? 'translate-x-0 w-64 border-r border-slate-700' : '-translate-x-full w-64 pointer-events-none',
           // Desktop: collapsible navigation
           'lg:static lg:z-20 lg:translate-x-0 lg:shrink-0',
           isCollapsed
             ? 'lg:w-0 lg:border-r-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none'
-            : 'lg:w-56 lg:border-r lg:border-slate-300 lg:overflow-hidden lg:opacity-100 lg:pointer-events-auto'
+            : 'lg:w-56 lg:border-r lg:border-slate-700 lg:overflow-hidden lg:opacity-100 lg:pointer-events-auto'
         )}
       >
         <div className="w-64 lg:w-56 min-w-[14rem] h-full flex flex-col overflow-hidden">
-          {/* Brand Header */}
-          <div className="border-b border-slate-200 p-3 flex items-center justify-between shrink-0 bg-white">
+          {/* Brand Header (kept light so the logo stays visible) */}
+          <div className="border-b border-slate-700 p-3 flex items-center justify-between shrink-0 bg-white">
             <MajestroniczLogo size="sm" />
             <button
               type="button"
@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Modules List with Inline Collapsible Accordions */}
-          <div className="flex-1 min-h-0 overflow-y-auto py-1 text-slate-800 divide-y divide-slate-100">
+          <div className="flex-1 min-h-0 overflow-y-auto py-1 text-slate-200 divide-y divide-slate-800">
             {modules.map((mod) => {
               const Icon = mod.icon;
               const active = isModuleActive(mod, currentView);
@@ -169,11 +169,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className={cn(
                       'w-full text-left flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold transition-colors cursor-pointer border-l-4',
                       active
-                        ? 'bg-red-50 text-red-900 border-red-600 font-extrabold'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-transparent'
+                        ? 'bg-red-600 text-white border-red-400 font-extrabold'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white border-transparent'
                     )}
                   >
-                    <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-red-700' : 'text-slate-500')} />
+                    <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-white' : 'text-slate-400')} />
                     <span className="truncate">{mod.title}</span>
                   </button>
                 );
@@ -190,26 +190,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className={cn(
                       'w-full px-3 py-2 text-left text-xs font-bold flex items-center gap-2.5 transition-colors cursor-pointer border-l-4 select-none',
                       active
-                        ? 'bg-slate-100/80 text-slate-900 border-red-600 font-extrabold'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-transparent'
+                        ? 'bg-slate-800 text-white border-red-500 font-extrabold'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white border-transparent'
                     )}
                   >
-                    <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-red-700' : 'text-slate-500')} />
+                    <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-red-400' : 'text-slate-400')} />
                     <span className="truncate flex-1">{mod.title}</span>
                     <ChevronDown
                       className={cn(
-                        'h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0',
-                        isOpen && 'rotate-180 text-red-600'
+                        'h-3.5 w-3.5 text-slate-500 transition-transform duration-200 shrink-0',
+                        isOpen && 'rotate-180 text-red-400'
                       )}
                     />
                   </button>
 
                   {/* Sub-Items List (Inline, Tactile, No Hover Popups) */}
                   {isOpen && (
-                    <div className="bg-slate-50/70 border-l-2 border-slate-300 ml-4 pl-1 my-0.5 space-y-0.5 py-1">
-                      {/* Optional Primary Actions for the module (e.g. + New Quote, + Challan) */}
+                    <div className="bg-slate-950/40 border-l-2 border-slate-700 ml-4 pl-1 my-0.5 space-y-0.5 py-1">
+                      {/* Optional Primary Actions for the module (e.g. + New Sale, + New Quote) */}
                       {mod.primaryActions && mod.primaryActions.length > 0 && (
-                        <div className="grid grid-cols-2 gap-1 px-2 pb-1 border-b border-slate-200/80 mb-1">
+                        <div className="grid grid-cols-2 gap-1 px-2 pb-1 border-b border-slate-700/80 mb-1">
                           {mod.primaryActions.map((a) => (
                             <button
                               key={a.subTabId}
@@ -241,8 +241,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className={cn(
                               'w-full px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate font-medium',
                               subActive
-                                ? 'bg-red-50 text-red-900 font-extrabold border-l-2 border-red-600 -ml-[2px]'
-                                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                                ? 'bg-red-600 text-white font-extrabold border-l-2 border-red-400 -ml-[2px]'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
                             )}
                           >
                             {it.label}
@@ -257,15 +257,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* User Footer with Sign Out */}
-          <div className="shrink-0 border-t border-slate-200 bg-slate-50 mt-auto sticky bottom-0 z-10 p-2.5">
+          <div className="shrink-0 border-t border-slate-700 bg-slate-950 mt-auto sticky bottom-0 z-10 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="h-7 w-7 rounded-none bg-white border border-slate-300 flex items-center justify-center shrink-0 text-slate-700">
+                <div className="h-7 w-7 rounded-none bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
                   <RoleIcon className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-slate-900 truncate leading-tight">{currentUser.name}</p>
-                  <p className="text-[10px] text-slate-500 font-semibold truncate leading-tight">{currentUser.role}</p>
+                  <p className="text-xs font-bold text-white truncate leading-tight">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-400 font-semibold truncate leading-tight">{currentUser.role}</p>
                 </div>
               </div>
               <button
@@ -273,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setShowLogoutConfirm(true)}
                 title="Sign out"
                 aria-label="Sign out"
-                className="h-7 px-2 rounded-none border border-slate-300 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+                className="h-7 px-2 rounded-none border border-slate-700 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Exit</span>

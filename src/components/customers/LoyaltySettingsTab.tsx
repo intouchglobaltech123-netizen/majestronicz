@@ -62,9 +62,9 @@ export const LoyaltySettingsTab: React.FC = () => {
     : 'Loyalty Program is currently paused';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-150">
+    <div className="w-full space-y-4 animate-in fade-in duration-150">
       {/* Active Rule Banner */}
-      <div className="p-6 rounded-3xl bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg space-y-3">
+      <div className="p-6 rounded-xl bg-linear-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-100 text-xs font-bold uppercase tracking-wider">
             <Award className="h-4 w-4 text-amber-200" />
@@ -99,7 +99,7 @@ export const LoyaltySettingsTab: React.FC = () => {
       )}
 
       {/* Settings Form Card */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs space-y-6">
         <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-extrabold text-slate-900 tracking-tight">

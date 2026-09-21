@@ -413,13 +413,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     const scoped = invoices.filter(
       (i) => !i.isVoided && (i.date || '').startsWith(todayStr) && (isAllBranches || i.branchId === currentBranch)
     );
-    let amount = 0, gst = 0, cash = 0;
+    let amount = 0, cash = 0, gpay = 0, hdfc = 0, credit = 0;
     for (const inv of scoped) {
       amount += Math.max(0, (inv.grandTotal || 0) - (inv.totalReturnedAmount || 0));
-      if (inv.withGst) gst += inv.totalTax || 0;
-      cash += getInvoicePaymentSplits(inv).filter((s) => s.mode === 'Cash').reduce((sum, s) => sum + s.amount, 0);
+      for (const s of getInvoicePaymentSplits(inv)) {
+        if (s.mode === 'Cash') cash += s.amount;
+        else if (s.mode === 'GPay') gpay += s.amount;
+        else if (s.mode === 'HDFC') hdfc += s.amount;
+        else if (s.mode === 'COD-Credit') credit += s.amount;
+      }
     }
-    return { count: scoped.length, amount, gst, cash };
+    return { count: scoped.length, amount, cash, gpay, hdfc, credit };
   }, [invoices, isAllBranches, currentBranch]);
 
   return (
@@ -457,14 +461,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
         {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end">
-          {/* Neat today's metrics — a segmented mini-card in the heading's right gap */}
-          {activeTab === 'new' && (
+          {/* Neat today's metrics — segmented mini-card (billing + sales ledger) */}
+          {(activeTab === 'new' || activeTab === 'ledger') && (
             <div className="hidden sm:flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden divide-x divide-slate-200 shadow-2xs">
               {[
                 { label: 'Bills', value: String(todayStats.count), tone: 'text-slate-900' },
                 { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900' },
-                { label: 'GST', value: formatCurrency(todayStats.gst), tone: 'text-emerald-700' },
-                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-blue-700' },
+                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700' },
+                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700' },
+                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700' },
               ].map((m) => (
                 <div key={m.label} className="px-3 py-1.5 text-right leading-tight">
                   <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{m.label}</div>
