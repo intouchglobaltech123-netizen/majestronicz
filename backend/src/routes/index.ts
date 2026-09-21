@@ -36,6 +36,7 @@ import {
   pushInventoryToShopify,
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
+  updateOnlineOrderStatus,
   getShopifyCustomers,
   findSimilarErpItems,
 } from '../services/shopify.service.js';
@@ -256,6 +257,12 @@ router.get('/shopify/orders', requireCapability('sales:write'), asyncHandler(asy
 router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await fulfillShopifyOrder(req.params.id, req.body?.trackingNumber, req.body?.carrier);
   broadcastChange('shopify-fulfillment');
+  res.json(result);
+}));
+router.post('/shopify/order-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, status, trackingNumber, courierName, note, actor } = req.body;
+  const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, note, actor: actor || 'system' });
+  broadcastChange('shopify-order-status');
   res.json(result);
 }));
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {

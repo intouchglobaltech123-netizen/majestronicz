@@ -222,6 +222,28 @@ export interface SaleReturnLineItem {
   comboComponents?: ComboComponent[];
 }
 
+/**
+ * Fulfillment pipeline for online-store (Shopify) orders. Ordered progression;
+ * 'Cancelled' is terminal and outside the linear flow.
+ */
+export type OnlineOrderStatus =
+  | 'New'
+  | 'Confirmed'
+  | 'Packed'
+  | 'Shipped'
+  | 'Out for Delivery'
+  | 'Delivered'
+  | 'Cancelled';
+
+export const ONLINE_ORDER_PIPELINE: OnlineOrderStatus[] = [
+  'New',
+  'Confirmed',
+  'Packed',
+  'Shipped',
+  'Out for Delivery',
+  'Delivered',
+];
+
 export interface Invoice {
   id: string;
   invoiceNumber: string; // e.g. MZERD26-27/7307
@@ -264,6 +286,11 @@ export interface Invoice {
   sourceEnquiryNumber?: string;
   sourceChannel?: string; // 'shopify' for imported online orders
   externalOrderId?: string; // Shopify order id (dedupe)
+  onlineStatus?: OnlineOrderStatus; // fulfillment pipeline for online orders
+  onlineStatusUpdatedAt?: string;
+  trackingNumber?: string;
+  courierName?: string;
+  onlineStatusHistory?: { status: OnlineOrderStatus; at: string; by: string; note?: string }[];
   createdById?: string;
   createdAt: string;
   updatedAt?: string;

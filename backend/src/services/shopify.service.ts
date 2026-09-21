@@ -362,6 +362,8 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         grandTotal, amountInWords: '',
         paymentMode: 'Online', paymentSplits: [{ mode: 'Online', amount: grandTotal }],
         sourceChannel: 'shopify', externalOrderId,
+        onlineStatus: 'New', onlineStatusUpdatedAt: ts,
+        onlineStatusHistory: [{ status: 'New', at: ts, by: 'shopify-sync' }],
         createdById: 'shopify-sync', createdAt: ts, updatedAt: ts,
       },
     });
@@ -649,6 +651,49 @@ export async function fulfillShopifyOrder(
   } catch (e: any) {
     return { success: false, error: e?.message || 'Fulfillment failed' };
   }
+}
+
+// ---- Online-order fulfillment pipeline (ERP-side status tracking) ----
+const ONLINE_PIPELINE = ['New', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
+
+/**
+ * Advance/set an online (Shopify) order's fulfillment status in the ERP. Records
+ * a status-history trail. When the order reaches "Shipped" and it is linked to a
+ * Shopify order, it best-effort pushes a fulfillment (with tracking) to Shopify.
+ * Returns the fresh invoice snapshot so the client can reconcile.
+ */
+export async function updateOnlineOrderStatus(
+  invoiceId: string,
+  status: string,
+  opts: { trackingNumber?: string; courierName?: string; note?: string; actor: string }
+): Promise<{ invoice: any; shopify?: { success: boolean; error?: string } }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new Error('Order not found');
+  if (![...ONLINE_PIPELINE, 'Cancelled'].includes(status)) throw new Error(`Invalid status: ${status}`);
+
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status, at: now, by: opts.actor, note: opts.note || undefined });
+
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      onlineStatus: status,
+      onlineStatusUpdatedAt: now,
+      ...(opts.trackingNumber !== undefined ? { trackingNumber: opts.trackingNumber } : {}),
+      ...(opts.courierName !== undefined ? { courierName: opts.courierName } : {}),
+      onlineStatusHistory: history,
+    },
+  });
+
+  // Push a Shopify fulfillment when the order ships (linked orders only).
+  let shopify: { success: boolean; error?: string } | undefined;
+  if (status === 'Shipped' && inv.externalOrderId && getShopifyConfig()) {
+    shopify = await fulfillShopifyOrder(inv.externalOrderId, opts.trackingNumber, opts.courierName);
+  }
+
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice, shopify };
 }
 
 // ---- Online Customers ----

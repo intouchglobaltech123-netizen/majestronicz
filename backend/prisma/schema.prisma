@@ -171,6 +171,11 @@ model Invoice {
   sourceEnquiryNumber       String?
   sourceChannel             String?  // e.g. 'shopify' for imported online orders
   externalOrderId           String?  // Shopify order id (dedupe key)
+  onlineStatus              String?  // fulfillment pipeline: New|Confirmed|Packed|Shipped|Out for Delivery|Delivered|Cancelled
+  onlineStatusUpdatedAt     String?
+  trackingNumber            String?
+  courierName               String?
+  onlineStatusHistory       Json?    // [{ status, at, by, note? }]
   createdById               String?
   createdAt                 String
   updatedAt                 String?

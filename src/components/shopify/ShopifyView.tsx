@@ -22,6 +22,7 @@ import { formatCurrency, cleanPhoneDigits } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ShopifyOrder, ShopifyShopStatus } from '../../types/shopify';
 import { ShopifyOrderDetailModal } from './ShopifyOrderDetailModal';
+import { OnlineOrderPipeline } from './OnlineOrderPipeline';
 import { ShopifyInventorySyncTab } from './ShopifyInventorySyncTab';
 import { ShopifyProductsTab } from './ShopifyProductsTab';
 import { ShopifyCustomersTab } from './ShopifyCustomersTab';
@@ -254,6 +255,20 @@ export const ShopifyView: React.FC = () => {
               <div className="text-xl font-extrabold text-slate-900 mt-2 font-mono">{formatCurrency(totalImportedRevenue)}</div>
               <p className="text-[10px] text-slate-400 mt-0.5">Total online sales in ERP</p>
             </div>
+          </div>
+
+          {/* Fulfillment Pipeline — track imported online orders Ordered → Delivered */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                <Truck className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline</h3>
+                <p className="text-[11px] text-slate-500">Move each online order through New → Confirmed → Packed → Shipped → Out for Delivery → Delivered.</p>
+              </div>
+            </div>
+            <OnlineOrderPipeline />
           </div>
 
           {/* Action Toolbar */}

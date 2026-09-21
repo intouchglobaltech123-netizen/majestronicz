@@ -35,6 +35,7 @@ import {
   Estimate,
   DeliveryChallan,
   Invoice,
+  OnlineOrderStatus,
   Enquiry,
   EnquiryStatus,
   PendingOrder,
@@ -207,6 +208,11 @@ interface ErpContextType {
   saveInvoice: (invoice: Invoice) => void;
   deleteInvoice: (invoiceId: string) => void;
   voidInvoice: (invoiceId: string, reason: string) => void;
+  updateOnlineOrderStatus: (
+    invoiceId: string,
+    status: OnlineOrderStatus,
+    opts?: { trackingNumber?: string; courierName?: string; note?: string }
+  ) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
     returnLines: {
@@ -2619,6 +2625,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Advance an online (Shopify) order through its fulfillment pipeline. The
+  // backend records the status trail and pushes a Shopify fulfillment on "Shipped".
+  const updateOnlineOrderStatus = async (
+    invoiceId: string,
+    status: OnlineOrderStatus,
+    opts?: { trackingNumber?: string; courierName?: string; note?: string }
+  ) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice; shopify?: { success: boolean; error?: string } }>(
+        '/api/shopify/order-status',
+        { invoiceId, status, ...opts, actor: currentUser.name }
+      );
+      if (res?.invoice) {
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      }
+      toast.success(`Order marked "${status}"`);
+      if (res?.shopify && !res.shopify.success && res.shopify.error) {
+        toast.warning('Shopify fulfillment not pushed', { description: res.shopify.error });
+      }
+    } catch (e: any) {
+      toast.error('Failed to update order status', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const processSaleReturn = async (
     invoiceId: string,
     returnLines: {
@@ -3937,6 +3967,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getNextChallanNumber,
         invoices,
         saveInvoice,
+        updateOnlineOrderStatus,
         deleteInvoice,
         voidInvoice,
         processSaleReturn,
