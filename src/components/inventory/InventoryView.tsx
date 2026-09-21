@@ -63,7 +63,7 @@ export const InventoryView: React.FC = () => {
   );
 
   // Combos Tab & Expand state
-  const [activeInventoryTab, setActiveInventoryTab] = useState<'items' | 'combos'>('items');
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'items' | 'combos' | 'transfer-history'>('items');
   const [expandedComboId, setExpandedComboId] = useState<string | null>(null);
   const [comboSearchQuery, setComboSearchQuery] = useState('');
 
@@ -103,7 +103,7 @@ export const InventoryView: React.FC = () => {
       } else if (tab === 'transfer') {
         setTransferState({});
       } else if (tab === 'transfer-history') {
-        setIsTransferHistoryOpen(true);
+        setActiveInventoryTab('transfer-history');
       } else if (tab === 'audit') {
         setAllHistoryOpen(true);
       }
@@ -431,6 +431,11 @@ export const InventoryView: React.FC = () => {
           </span>
         </button>
       </div>
+
+      {/* Transfer History rendered inline as a full page (not a popup) */}
+      {activeInventoryTab === 'transfer-history' && (
+        <TransferHistoryModal isOpen asPage onClose={() => setActiveInventoryTab('items')} />
+      )}
 
       {activeInventoryTab === 'items' && (
         <>
