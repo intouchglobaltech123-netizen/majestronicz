@@ -313,6 +313,27 @@ async function buildSkuMap(): Promise<Map<string, any>> {
  * Shopify. Stock is NOT auto-decremented (avoids overselling failures).
  * Returns 'imported' | 'skipped'.
  */
+/**
+ * Map a raw Shopify order's real fulfillment/shipment state into our pipeline, so
+ * imported orders land at their true stage (not all "New") with any tracking info.
+ */
+function mapShopifyFulfillment(o: any): { status: string; trackingNumber?: string; courierName?: string } {
+  const fulfillments: any[] = o.fulfillments || [];
+  const f = fulfillments[0];
+  const trackingNumber = f?.tracking_number || f?.tracking_numbers?.[0] || undefined;
+  const courierName = f?.tracking_company || undefined;
+  const shipment = String(f?.shipment_status || '').toLowerCase();
+  const fs = String(o.fulfillment_status || '').toLowerCase();
+
+  let status = 'Confirmed'; // paid orders are at least confirmed
+  if (shipment === 'delivered') status = 'Delivered';
+  else if (shipment === 'out_for_delivery') status = 'Out for Delivery';
+  else if (shipment === 'in_transit' || shipment === 'attempted_delivery' || shipment === 'confirmed' || shipment === 'ready_for_pickup') status = 'Shipped';
+  else if (fs === 'fulfilled') status = 'Shipped';
+  else if (fs === 'partial') status = 'Packed';
+  return { status, trackingNumber, courierName };
+}
+
 export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<'imported' | 'skipped'> {
   const map = bySku || (await buildSkuMap());
   const externalOrderId = String(o.id);
@@ -346,6 +367,7 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
     const grandTotal = Number(o.total_price) || r2(subtotal + shipping);
     const invoiceNumber = await nextInvoiceNumber(tx, branchId, date);
     const ts = nowIso();
+    const initialFulfillment = mapShopifyFulfillment(o);
 
     await tx.invoice.create({
       data: {
@@ -362,8 +384,11 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         grandTotal, amountInWords: '',
         paymentMode: 'Online', paymentSplits: [{ mode: 'Online', amount: grandTotal }],
         sourceChannel: 'shopify', externalOrderId,
-        onlineStatus: 'New', onlineStatusUpdatedAt: ts,
-        onlineStatusHistory: [{ status: 'New', at: ts, by: 'shopify-sync' }],
+        onlineStatus: initialFulfillment.status,
+        onlineStatusUpdatedAt: ts,
+        trackingNumber: initialFulfillment.trackingNumber || null,
+        courierName: initialFulfillment.courierName || null,
+        onlineStatusHistory: [{ status: initialFulfillment.status, at: ts, by: 'shopify-sync', note: 'Imported from Shopify' }],
         createdById: 'shopify-sync', createdAt: ts, updatedAt: ts,
       },
     });
