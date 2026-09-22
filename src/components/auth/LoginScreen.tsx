@@ -47,6 +47,27 @@ const PinLogin: React.FC<{
     if (next.length === 4) setTimeout(() => submit(next), 120);
   };
 
+  // Physical keyboard support: type digits, Backspace to delete, Enter to submit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        press(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (loginError) clearLoginError();
+        setPin((p) => p.slice(0, -1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        submit(pin);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin, submitting, loginError]);
+
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   return (
@@ -162,6 +183,28 @@ const ForcePinReset: React.FC = () => {
       else setTimeout(() => finish(next), 150);
     }
   };
+
+  // Physical keyboard support for the set-PIN flow.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        press(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (error) setError(null);
+        setActive((p) => p.slice(0, -1));
+      } else if (e.key === 'Enter' && active.length === 4) {
+        e.preventDefault();
+        if (step === 'new') setStep('confirm');
+        else finish(active);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, step, submitting, error]);
 
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 

@@ -1340,6 +1340,28 @@ export const InvoiceForm: React.FC<Props> = ({
     }
   };
 
+  // Keyboard: Ctrl/Cmd+Enter saves the current bill (skips when payment isn't
+  // reconciled). Kept off plain Enter so it never fires accidentally while typing.
+  const saveShortcutRef = useRef<() => void>(() => {});
+  saveShortcutRef.current = () => {
+    if (documentType === 'Invoice' && !isPaymentReconciled) {
+      toast.warning('Reconcile the payment before saving');
+      return;
+    }
+    handleSave();
+  };
+  useEffect(() => {
+    if (!isActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        saveShortcutRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isActive]);
+
   const handleSaveDraft = () => {
     if (!onSaveDraft) return;
     if (documentType === 'Quotation') {
