@@ -259,6 +259,16 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Line Items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+  // Auto-scroll the item editor to the newest row when a line is added.
+  const itemScrollRef = useRef<HTMLDivElement>(null);
+  const prevLineCountRef = useRef(0);
+  useEffect(() => {
+    if (lineItems.length > prevLineCountRef.current) {
+      const el = itemScrollRef.current;
+      if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    }
+    prevLineCountRef.current = lineItems.length;
+  }, [lineItems.length]);
 
   // Payment Splits (Connected to Daily Cash Register)
   const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>(() => {
@@ -1897,7 +1907,7 @@ export const InvoiceForm: React.FC<Props> = ({
         {/* Line Items Table */}
         {/* Resizable item editor — drag the bottom edge to grow/shrink (the product
             search opens in a portal, so it is never clipped by this scroll area). */}
-        <div className="overflow-auto resize-y min-h-[280px] max-h-[75vh] pb-4">
+        <div ref={itemScrollRef} className="overflow-auto resize-y min-h-[280px] max-h-[75vh] pb-4">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
