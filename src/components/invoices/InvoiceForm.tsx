@@ -90,6 +90,7 @@ export const InvoiceForm: React.FC<Props> = ({
     getComboAvailability,
     paymentTermsOptions,
     customers,
+    saveCustomer,
     loyaltySettings,
     hasFlag,
     items,
@@ -172,20 +173,47 @@ export const InvoiceForm: React.FC<Props> = ({
     return null;
   }, [customers, customerId, customerPhone, customerName]);
 
+  // A new/unknown 10-digit mobile prompts a small "add customer" card.
+  const [showNewCustomerPrompt, setShowNewCustomerPrompt] = useState(false);
+
   // Phone-first entry: typing a full 10-digit mobile auto-fills the matching
-  // customer's name + address (no need to type the name).
+  // customer's name + address; an unknown number offers a quick add.
   useEffect(() => {
-    if (customerId) return;
+    if (customerId) { setShowNewCustomerPrompt(false); return; }
     const clean = customerPhone.replace(/\D/g, '');
-    if (clean.length !== 10) return;
+    if (clean.length !== 10) { setShowNewCustomerPrompt(false); return; }
     const match = customers.find((c) => (c.phone || '').replace(/\D/g, '') === clean);
     if (match) {
       setCustomerId(match.id);
       setCustomerName(cleanCustomerName(match.name, match.notes));
       setCustomerAddress(match.address || '');
+      setShowNewCustomerPrompt(false);
+    } else {
+      setShowNewCustomerPrompt(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerPhone, customers]);
+
+  // Save the typed mobile + name/address as a new customer master record.
+  const handleQuickAddCustomer = () => {
+    if (!customerName.trim()) { toast.error('Enter a name for the new customer'); return; }
+    const res = saveCustomer({
+      id: '',
+      name: customerName.trim(),
+      phone: customerPhone,
+      address: customerAddress.trim(),
+      customerType: 'Retail',
+      firstPurchaseDate: getTodayDateString(),
+      purchaseCount: 0,
+      totalSpent: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any);
+    if (res.success && res.customer) {
+      setCustomerId(res.customer.id);
+      setShowNewCustomerPrompt(false);
+    }
+  };
 
   const isEligibleForLoyalty = useMemo(() => {
     if (!selectedCustomerObj) return false;
@@ -1582,6 +1610,46 @@ export const InvoiceForm: React.FC<Props> = ({
             </button>
           </div>
         </div>
+
+        {/* New/unknown number → small quick-add customer card */}
+        {showNewCustomerPrompt && documentType !== 'Quotation' && (
+          <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-blue-50/60 border border-blue-200">
+            <span className="text-[11px] font-bold text-blue-800 flex items-center gap-1 shrink-0">
+              <Plus className="h-3.5 w-3.5" /> New number — add customer?
+            </span>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Customer name *"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleQuickAddCustomer(); } }}
+              className="w-44 px-2.5 py-1.5 rounded-md bg-white border border-blue-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+            <input
+              type="text"
+              value={customerAddress}
+              onChange={(e) => setCustomerAddress(e.target.value)}
+              placeholder="Address (optional)"
+              className="w-52 px-2.5 py-1.5 rounded-md bg-white border border-blue-200 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={handleQuickAddCustomer}
+              className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold border border-blue-700 transition-colors"
+            >
+              Save customer
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNewCustomerPrompt(false)}
+              className="px-2.5 py-1.5 rounded-md bg-white hover:bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-300 transition-colors"
+              title="Bill without saving (walk-in)"
+            >
+              Skip
+            </button>
+          </div>
+        )}
 
         {/* Salesperson & incentive — collapsible, off by default (minimal header) */}
         {documentType !== 'Quotation' && (
