@@ -182,8 +182,20 @@ export const InvoiceForm: React.FC<Props> = ({
   // Phone-first entry: typing a full 10-digit mobile auto-fills the matching
   // customer's name + address; an unknown number offers a quick add.
   useEffect(() => {
-    if (customerId) { setShowNewCustomerPrompt(false); return; }
     const clean = customerPhone.replace(/\D/g, '');
+
+    // If a customer is already selected but the typed number no longer matches
+    // that customer, drop the stale selection so a NEW number can resolve fresh.
+    if (customerId) {
+      const cur = customers.find((c) => c.id === customerId);
+      const curPhone = (cur?.phone || '').replace(/\D/g, '');
+      if (cur && curPhone === clean) { setShowNewCustomerPrompt(false); return; }
+      // Number diverged from the locked customer → clear it and re-evaluate below.
+      setCustomerId(undefined);
+      setCustomerName('');
+      setCustomerAddress('');
+    }
+
     if (clean.length !== 10) { setShowNewCustomerPrompt(false); return; }
     const match = customers.find((c) => (c.phone || '').replace(/\D/g, '') === clean);
     if (match) {
@@ -1685,7 +1697,7 @@ export const InvoiceForm: React.FC<Props> = ({
           {selectedCustomerObj && (
             <button
               type="button"
-              onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); }}
+              onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setShowNewCustomerPrompt(false); }}
               className="shrink-0 text-[10px] font-bold text-slate-500 hover:text-red-600 cursor-pointer"
               title="Change customer"
             >

@@ -40,7 +40,7 @@ export const AiAssistantView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-3 md:px-5 py-5 flex flex-col h-full">
+    <div className="w-full px-4 md:px-8 py-5 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
@@ -165,21 +165,21 @@ export const AiAssistantView: React.FC = () => {
 
       {/* Composer — rounded pill, send inside */}
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="mt-3">
-        <div className="flex items-end gap-2 rounded-3xl bg-white shadow-sm border border-slate-200 focus-within:border-violet-300 focus-within:ring-2 focus-within:ring-violet-500/15 transition-all pl-4 pr-2 py-1.5">
+        <div className="flex items-end gap-2 rounded-3xl bg-white shadow-sm border border-slate-200 focus-within:border-violet-300 focus-within:ring-2 focus-within:ring-violet-500/15 transition-all pl-5 pr-2.5 py-2.5">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
-            rows={1}
+            rows={2}
             placeholder="Ask a business question…"
-            className="flex-1 resize-none bg-transparent py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none max-h-32"
+            className="flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none min-h-[3rem] max-h-48"
           />
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-95 transition-opacity shrink-0"
+            className="h-11 w-11 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-95 transition-opacity shrink-0"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </button>
         </div>
         <p className="mt-2 text-[11px] text-slate-400 text-center">
