@@ -43,7 +43,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ScanLine,
-  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -1659,41 +1658,39 @@ export const InvoiceForm: React.FC<Props> = ({
               size="sm"
             />
           </div>
-          {selectedCustomerObj ? (
-            /* Number matched an existing customer → show a clean resolved card */
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 min-w-0">
-              <User className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-900 truncate max-w-[180px]">{selectedCustomerObj.name}</span>
-                  {selectedCustomerObj.customerType === 'Organization' && (
-                    <span className="text-[9px] font-bold uppercase px-1 py-px rounded bg-slate-200 text-slate-700 shrink-0">Wholesale</span>
-                  )}
-                </div>
-                {(customerAddress || selectedCustomerObj.address) && (
-                  <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[260px]">
-                    <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                    <span className="truncate">{customerAddress || selectedCustomerObj.address}</span>
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); }}
-                className="ml-1 shrink-0 text-[10px] font-bold text-slate-500 hover:text-red-600 cursor-pointer"
-                title="Change customer"
-              >
-                Change
-              </button>
-            </div>
-          ) : (
+          {/* Name — auto-filled & locked when the number matches a saved customer */}
+          <input
+            type="text"
+            value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            readOnly={!!selectedCustomerObj}
+            placeholder="Name (optional)"
+            className={cn(
+              'w-48 px-2.5 py-1.5 rounded-lg border text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none',
+              selectedCustomerObj
+                ? 'bg-slate-100 border-slate-200 cursor-default'
+                : 'bg-slate-50 border-slate-200 focus:border-blue-600'
+            )}
+          />
+          {/* Address — auto-filled & locked when a saved customer is matched */}
+          {selectedCustomerObj && (
             <input
               type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Name (optional)"
-              className="w-48 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+              value={customerAddress || selectedCustomerObj.address || ''}
+              readOnly
+              placeholder="Address"
+              className="w-64 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700 cursor-default focus:outline-none"
             />
+          )}
+          {selectedCustomerObj && (
+            <button
+              type="button"
+              onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); }}
+              className="shrink-0 text-[10px] font-bold text-slate-500 hover:text-red-600 cursor-pointer"
+              title="Change customer"
+            >
+              Change
+            </button>
           )}
 
           {/* GST toggle */}
