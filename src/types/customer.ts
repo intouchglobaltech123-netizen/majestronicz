@@ -5,6 +5,7 @@ export interface Customer {
   name: string;
   phone: string; // unique key - used to prevent duplicate customer records
   address: string;
+  gstin?: string; // Buyer GSTIN/UIN (for B2B GST tax invoices)
   customerType?: CustomerType; // 'Retail' (walk-in/small buyer, loyalty enabled) or 'Organization' (bulk institutional buyer)
   firstPurchaseDate: string; // auto (YYYY-MM-DD)
   purchaseCount: number; // auto-incremented on completed non-voided sale (Retail only)
@@ -28,6 +29,27 @@ export interface LoyaltySettings {
  * Sanitizes customer name ensuring ONLY clean name string is stored.
  * Strips any accidentally appended notes, remarks, purchase counts, or reward status strings.
  */
+/** GST state code (first 2 digits of a GSTIN) → State name. */
+export const GST_STATE_CODES: Record<string, string> = {
+  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+  '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
+  '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
+  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+  '25': 'Daman & Diu', '26': 'Dadra & Nagar Haveli', '27': 'Maharashtra', '29': 'Karnataka',
+  '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry',
+  '35': 'Andaman & Nicobar', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh',
+};
+
+/** Resolve the state (name + code) from a GSTIN's leading 2-digit state code. */
+export function gstStateInfo(gstin?: string): { code: string; state: string } | null {
+  const g = (gstin || '').trim().toUpperCase();
+  if (g.length < 2) return null;
+  const code = g.slice(0, 2);
+  const state = GST_STATE_CODES[code];
+  return state ? { code, state } : null;
+}
+
 export function cleanCustomerName(rawName: string, notes?: string): string {
   if (!rawName) return '';
   let cleaned = rawName.trim();

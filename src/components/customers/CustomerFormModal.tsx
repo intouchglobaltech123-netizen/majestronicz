@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Customer, CustomerType, cleanCustomerName } from '../../types';
+import { Customer, CustomerType, cleanCustomerName, gstStateInfo } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { X, User, MapPin, FileText, Building2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -23,6 +23,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [gstin, setGstin] = useState('');
   const [notes, setNotes] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -32,12 +33,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setName(customerToEdit.name);
       setPhone(customerToEdit.phone);
       setAddress(customerToEdit.address || '');
+      setGstin(customerToEdit.gstin || '');
       setNotes(customerToEdit.notes || '');
     } else {
       setCustomerType(null);
       setName('');
       setPhone('');
       setAddress('');
+      setGstin('');
       setNotes('');
     }
     setErrorMessage('');
@@ -79,6 +82,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       customerType,
       phone: normalizedPhone,
       address: address.trim(),
+      gstin: gstin.trim().toUpperCase() || undefined,
       notes: notes.trim() || undefined,
       firstPurchaseDate: customerToEdit?.firstPurchaseDate || new Date().toISOString().split('T')[0],
       purchaseCount: customerToEdit?.purchaseCount ?? 0,
@@ -245,6 +249,26 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               />
               <MapPin className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             </div>
+          </div>
+
+          {/* GSTIN — for B2B tax invoices; state auto-detects from the GST code */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              GSTIN / UIN (Optional)
+            </label>
+            <input
+              type="text"
+              maxLength={15}
+              placeholder="e.g. 33ABZFM5739L1ZD"
+              value={gstin}
+              onChange={(e) => setGstin(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15))}
+              className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600 transition-all"
+            />
+            {gstStateInfo(gstin) && (
+              <p className="mt-1 text-[11px] text-emerald-700 font-semibold">
+                📍 State: {gstStateInfo(gstin)!.state}, Code {gstStateInfo(gstin)!.code}
+              </p>
+            )}
           </div>
 
           <div>

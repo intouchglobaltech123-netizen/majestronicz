@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits } from '../../types';
+import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { calculateTaxBreakdown } from '../../lib/taxCalculations';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
@@ -26,7 +26,17 @@ interface Props {
 }
 
 export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) => {
-  const { items } = useErp();
+  const { items, customers } = useErp();
+
+  // Resolve the buyer's master record to surface GSTIN + State on the tax invoice.
+  const buyerPhone = (invoice?.customerPhone || '').replace(/\D/g, '');
+  const buyer = customers.find(
+    (c) =>
+      (invoice?.customerId && c.id === invoice.customerId) ||
+      (buyerPhone && (c.phone || '').replace(/\D/g, '') === buyerPhone)
+  );
+  const buyerGstin = buyer?.gstin;
+  const buyerState = gstStateInfo(buyerGstin);
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
@@ -328,6 +338,16 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 {invoice.customerAddress && (
                   <p className="text-slate-600 mt-0.5 max-w-md">
                     <strong>Billing Address:</strong> {invoice.customerAddress}
+                  </p>
+                )}
+                {buyerGstin && (
+                  <p className="text-slate-700 mt-0.5">
+                    <strong>GSTIN/UIN:</strong> <span className="font-mono font-bold text-slate-900">{buyerGstin}</span>
+                  </p>
+                )}
+                {buyerState && (
+                  <p className="text-slate-600 mt-0.5">
+                    <strong>State Name:</strong> {buyerState.state}, Code: {buyerState.code}
                   </p>
                 )}
               </div>
