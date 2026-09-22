@@ -63,11 +63,14 @@ interface Props {
   onCancel?: () => void;
   /** Save the current document as a work-in-progress draft (not committed). */
   onSaveDraft?: (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => void;
+  /** True when this bill tab is the one on screen (enables the global scanner). */
+  isActive?: boolean;
 }
 
 export const InvoiceForm: React.FC<Props> = ({
   onSaved,
   onPreviewPdf,
+  isActive = true,
   initialInvoice,
   convertedFromEstimate,
   duplicateSourceInvoice,
@@ -892,6 +895,48 @@ export const InvoiceForm: React.FC<Props> = ({
     setScanValue('');
     scanInputRef.current?.focus();
   };
+
+  // Global barcode-scanner "wedge": a USB scanner types the code as fast keystrokes
+  // ending in Enter. We capture those anywhere on the active bill (no need to click
+  // the scan box first) and add the item. Human typing (slower) is left untouched.
+  const scanHandlerRef = useRef(handleScanSubmit);
+  scanHandlerRef.current = handleScanSubmit;
+  useEffect(() => {
+    if (!isActive) return;
+    let buffer = '';
+    let lastTime = 0;
+    const GAP = 35; // ms between chars — scanners are far faster than a person
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const now = Date.now();
+      if (e.key === 'Enter') {
+        if (buffer.length >= 3 && now - lastTime < 200) {
+          e.preventDefault();
+          e.stopPropagation();
+          const code = buffer;
+          buffer = '';
+          scanHandlerRef.current(code);
+        } else {
+          buffer = '';
+        }
+        return;
+      }
+      if (e.key.length === 1) {
+        const rapid = now - lastTime < GAP;
+        if (!rapid) buffer = ''; // gap too big → treat as human/new input
+        buffer += e.key;
+        lastTime = now;
+        // While a rapid burst is in progress, keep the scanned chars out of any
+        // focused field so a scan never pollutes the customer/search inputs.
+        if (rapid) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [isActive]);
 
   const removeLineItem = (id: string) => {
     if (lineItems.length === 1) {

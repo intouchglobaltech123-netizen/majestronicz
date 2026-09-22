@@ -583,6 +583,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           {openBills.map((tab) => (
             <div key={tab.id} className={tab.id === activeBillId ? '' : 'hidden'}>
               <InvoiceForm
+                isActive={tab.id === activeBillId}
                 initialInvoice={tab.editingInvoice}
                 initialEstimate={tab.editingEstimate}
                 convertedFromEstimate={tab.convertedEstimate}
