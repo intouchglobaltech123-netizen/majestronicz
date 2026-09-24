@@ -1736,7 +1736,7 @@ export const InvoiceForm: React.FC<Props> = ({
               onClick={() => setShowSalesperson(true)}
               className="text-[11px] font-bold text-violet-700 hover:text-violet-900 cursor-pointer"
             >
-              + Salesperson &amp; incentive
+              + Salesperson
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -1753,24 +1753,7 @@ export const InvoiceForm: React.FC<Props> = ({
                   buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"
                 />
               </div>
-              {salespersonId && (
-                <>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-violet-700 ml-1">Incentive</span>
-                  <div className="relative w-20">
-                    <input
-                      type="number" min={0} max={100} step={0.5}
-                      value={incentivePercent || ''}
-                      onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                      placeholder="0"
-                      className="w-full pr-6 pl-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                  </div>
-                  <span className="text-xs font-bold font-mono text-violet-800">
-                    = {formatCurrency(incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : 0)}
-                  </span>
-                </>
-              )}
+              <span className="text-[10px] text-slate-400">Incentive % is set in Staff Directory</span>
               <button
                 type="button"
                 onClick={() => { setShowSalesperson(false); setSalespersonId(''); setIncentivePercent(0); }}
