@@ -99,12 +99,7 @@ export const InvoiceForm: React.FC<Props> = ({
     items,
     combos,
     employees,
-    currentUser,
   } = useErp();
-
-  // The bulk "Apply to all items" tax control is a CEO-level tool (applies one tax
-  // setting across every line, for any branch). Billing/Sales staff don't see it.
-  const isCeo = currentUser?.role === 'CEO';
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
   const [documentType, setDocumentType] = useState<'Invoice' | 'Quotation'>(() => {
@@ -270,9 +265,10 @@ export const InvoiceForm: React.FC<Props> = ({
   // GST Toggle
   const [withGst, setWithGst] = useState(true);
 
-  // Bulk Tax Apply Controls
-  const [isBulkTaxOpen, setIsBulkTaxOpen] = useState(false);
-  const [bulkTaxRate, setBulkTaxRate] = useState<number>(18);
+  // Bulk-tax shortcut removed from the sales page; keep neutral constants so the
+  // per-line default tax logic below still reads cleanly (always uses item/GST default).
+  const isBulkTaxOpen = false;
+  const bulkTaxRate = 18;
 
   // Line Items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
@@ -1007,47 +1003,6 @@ export const InvoiceForm: React.FC<Props> = ({
           totalAmount: calculated.totalAmount,
         };
       })
-    );
-  };
-
-  // Bulk-apply tax rate and/or mode to all current line items
-  const handleApplyBulkTax = (rateToApply: number, modeWithGst: boolean = withGst) => {
-    if (lineItems.length === 0) {
-      toast.info('No line items to update');
-      return;
-    }
-
-    if (modeWithGst !== withGst) {
-      setWithGst(modeWithGst);
-    }
-
-    setLineItems((prev) =>
-      prev.map((item) => {
-        const calculated = calculateLineTax(
-          item.quantity,
-          item.unitPrice,
-          rateToApply,
-          modeWithGst,
-          item.discountType,
-          item.discountValue
-        );
-
-        return {
-          ...item,
-          taxRate: rateToApply,
-          taxableAmount: calculated.taxableAmount,
-          cgstAmount: calculated.cgstAmount,
-          sgstAmount: calculated.sgstAmount,
-          totalTax: calculated.totalTax,
-          totalAmount: calculated.totalAmount,
-        };
-      })
-    );
-
-    toast.success(
-      modeWithGst
-        ? `Applied ${rateToApply}% GST to all ${lineItems.length} line items`
-        : `Switched all ${lineItems.length} line items to Without Tax mode`
     );
   };
 
@@ -1845,91 +1800,6 @@ export const InvoiceForm: React.FC<Props> = ({
               Branch: {BRANCHES.find((b) => b.id === selectedBranch)?.shortCode}
             </span>
           </div>
-
-          {/* Bulk Tax Settings Shortcut Control — CEO only (applies across all branches) */}
-          {isCeo && (
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isBulkTaxOpen}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setIsBulkTaxOpen(checked);
-                    if (checked) {
-                      handleApplyBulkTax(bulkTaxRate, withGst);
-                    }
-                  }}
-                  className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
-                />
-                <span>Apply to all items</span>
-              </label>
-
-              {isBulkTaxOpen && (
-                <div className="flex items-center gap-2 border-l border-slate-200 pl-2.5 ml-1">
-                  {/* Mode Selector */}
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => handleApplyBulkTax(bulkTaxRate, true)}
-                      className={cn(
-                        'px-2 py-0.5 rounded-md font-bold transition-all',
-                        withGst ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                      )}
-                    >
-                      With GST
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyBulkTax(0, false)}
-                      className={cn(
-                        'px-2 py-0.5 rounded-md font-bold transition-all',
-                        !withGst ? 'bg-slate-700 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                      )}
-                    >
-                      No Tax
-                    </button>
-                  </div>
-
-                  {/* Tax Rate Dropdown */}
-                  {withGst && (
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={bulkTaxRate}
-                        onChange={(e) => {
-                          const rate = Number(e.target.value);
-                          setBulkTaxRate(rate);
-                          handleApplyBulkTax(rate, true);
-                        }}
-                        className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer"
-                      >
-                        <option value="0">0% GST</option>
-                        <option value="5">5% GST</option>
-                        <option value="12">12% GST</option>
-                        <option value="18">18% GST</option>
-                        <option value="28">28% GST</option>
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyBulkTax(bulkTaxRate, true)}
-                        className="px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-none transition-colors border border-red-700 cursor-pointer"
-                        title="Re-apply this tax rate to all invoice lines"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <span className="text-[11px] text-slate-600 font-medium hidden xl:inline-block">
-              Price edits apply only to this invoice; catalog item prices are never modified.
-            </span>
-          </div>
-          )}
         </div>
 
         {/* Barcode scan bar — scan an item/combo code to add it straight to the bill */}
