@@ -129,7 +129,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -189,8 +189,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
         {/* Scrollable Line Items Table */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left border-collapse text-sm">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+            <table className="w-full min-w-[820px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <th className="py-2.5 px-4 min-w-[240px]">Item &amp; Code</th>

@@ -170,6 +170,17 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         purchasePrice: price,
         amount: qty * price,
       };
+      // Auto-open a fresh row when the LAST line just got an item (like the sales bill).
+      if (index === next.length - 1) {
+        next.push({
+          id: `poli-auto-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          item: null,
+          searchQuery: '',
+          quantity: 1,
+          purchasePrice: 0,
+          amount: 0,
+        });
+      }
       return next;
     });
   };
