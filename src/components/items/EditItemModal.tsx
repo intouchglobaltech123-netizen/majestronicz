@@ -5,6 +5,7 @@ import {
   SalePriceTaxMode,
   DiscountType,
   BRANCHES,
+  MARGIN_CATEGORIES,
 } from '../../types';
 import {
   X,
@@ -57,6 +58,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [itemHSN, setItemHSN] = useState('');
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState('');
+  const [marginCategory, setMarginCategory] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
   const [itemCode, setItemCode] = useState('');
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
@@ -86,6 +88,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setCategory(item.category);
       const subList = subcategoriesByCategory[item.category] || ['General'];
       setSubcategory(item.subcategory || subList[0] || 'General');
+      setMarginCategory((item.marginCategory as 'A' | 'B' | 'C' | 'D') || '');
       setItemCode(item.itemCode);
       setUnit(item.unit);
       setImageUrl(item.imageUrl || '');
@@ -169,6 +172,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       itemHSN: itemHSN.trim(),
       category,
       subcategory: subcategory.trim() || undefined,
+      marginCategory: marginCategory || undefined,
       itemCode: itemCode.trim(),
       unit,
       imageUrl: imageUrl.trim() || undefined,
@@ -324,6 +328,21 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   setSubcategory(sub);
                 }}
               />
+
+              {/* Margin / profit band (A 35% · B 25% · C 15% · D custom) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Margin Category</label>
+                <select
+                  value={marginCategory}
+                  onChange={(e) => setMarginCategory(e.target.value as 'A' | 'B' | 'C' | 'D' | '')}
+                  className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-red-600"
+                >
+                  <option value="">— None —</option>
+                  {MARGIN_CATEGORIES.map((m) => (
+                    <option key={m.code} value={m.code}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
 
               {/* Item Code */}
               <div className="space-y-1.5">

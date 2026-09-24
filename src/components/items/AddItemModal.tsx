@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Item, SalePriceTaxMode, DiscountType } from '../../types';
+import { Item, SalePriceTaxMode, DiscountType, MARGIN_CATEGORIES } from '../../types';
 import {
   X,
   Plus,
@@ -64,6 +64,7 @@ export const AddItemModal: React.FC<Props> = ({
   const [category, setCategory] = useState(() => categories[0] || 'PLC & Controllers');
   const availableSubcategories = subcategoriesByCategory[category] || ['General'];
   const [subcategory, setSubcategory] = useState(() => availableSubcategories[0] || 'General');
+  const [marginCategory, setMarginCategory] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
   const [itemCode, setItemCode] = useState('');
   const [isCodeOverridden, setIsCodeOverridden] = useState(false);
   const [unit, setUnit] = useState('PCS');
@@ -216,6 +217,7 @@ export const AddItemModal: React.FC<Props> = ({
       itemHSN: itemHSN.trim() || '85371000',
       category,
       subcategory: subcategory.trim() || undefined,
+      marginCategory: marginCategory || undefined,
       itemCode: finalItemCode,
       unit,
       imageUrl: imageUrl.trim() || undefined,
@@ -373,6 +375,21 @@ export const AddItemModal: React.FC<Props> = ({
                 addNewPlaceholder="e.g. Modbus Gateways"
                 onAddNew={handleAddNewSubcategory}
               />
+
+              {/* Margin / profit band (A 35% · B 25% · C 15% · D custom) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Margin Category</label>
+                <select
+                  value={marginCategory}
+                  onChange={(e) => setMarginCategory(e.target.value as 'A' | 'B' | 'C' | 'D' | '')}
+                  className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-red-600"
+                >
+                  <option value="">— None —</option>
+                  {MARGIN_CATEGORIES.map((m) => (
+                    <option key={m.code} value={m.code}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
 
               {/* Item Code (Auto-generated & Editable) */}
               <div className="space-y-1.5">

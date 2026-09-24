@@ -101,12 +101,23 @@ export type DiscountType = '%' | 'amount';
  * Item Entity (Core Master Catalog)
  * Static master pricing is shared across all branches and editable only via Item Master.
  */
+export type MarginCategoryCode = 'A' | 'B' | 'C' | 'D';
+
+/** Profit / margin bands used to classify items (second categorisation, with filter). */
+export const MARGIN_CATEGORIES: { code: MarginCategoryCode; label: string; margin: number | null }[] = [
+  { code: 'A', label: 'A — 35%', margin: 35 },
+  { code: 'B', label: 'B — 25%', margin: 25 },
+  { code: 'C', label: 'C — 15%', margin: 15 },
+  { code: 'D', label: 'D — Custom', margin: null },
+];
+
 export interface Item {
   id: string;
   itemName: string;
   itemHSN: string;
   category: string;
   subcategory?: string;
+  marginCategory?: MarginCategoryCode; // Profit band: A(35%) / B(25%) / C(15%) / D(custom)
   itemCode: string;
   unit: string;
 

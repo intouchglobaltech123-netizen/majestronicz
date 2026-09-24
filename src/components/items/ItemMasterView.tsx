@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Item, ComboItem, BRANCHES, BranchScope } from '../../types';
+import { Item, ComboItem, BRANCHES, BranchScope, MARGIN_CATEGORIES } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   Plus,
@@ -78,6 +78,7 @@ export const ItemMasterView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [comboSearchQuery, setComboSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedMargin, setSelectedMargin] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'price' | 'stock'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -109,7 +110,10 @@ export const ItemMasterView: React.FC = () => {
         const matchesCategory =
           selectedCategory === 'ALL' || item.category === selectedCategory;
 
-        return matchesSearch && matchesCategory;
+        const matchesMargin =
+          selectedMargin === 'ALL' || (item.marginCategory || '') === selectedMargin;
+
+        return matchesSearch && matchesCategory && matchesMargin;
       })
       .sort((a, b) => {
         if (sortBy === 'name') {
@@ -138,6 +142,7 @@ export const ItemMasterView: React.FC = () => {
     items,
     searchQuery,
     selectedCategory,
+    selectedMargin,
     sortBy,
     sortOrder,
     currentBranch,
@@ -463,6 +468,25 @@ export const ItemMasterView: React.FC = () => {
                   )}
                 >
                   {cat === 'ALL' ? 'All Categories' : cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Margin category filter (A/B/C/D) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+              <span className="text-slate-500 text-[11px] font-bold uppercase tracking-wider mr-1 shrink-0">Margin:</span>
+              {['ALL', 'A', 'B', 'C', 'D'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMargin(m)}
+                  className={cn(
+                    'px-3 py-1 rounded-none font-bold whitespace-nowrap transition-colors text-xs shrink-0 cursor-pointer border',
+                    selectedMargin === m
+                      ? 'bg-slate-800 text-white border-slate-900'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
+                  )}
+                >
+                  {m === 'ALL' ? 'All' : (MARGIN_CATEGORIES.find((c) => c.code === m)?.label || m)}
                 </button>
               ))}
             </div>

@@ -19,6 +19,7 @@ model Item {
   itemHSN             String
   category            String
   subcategory         String?
+  marginCategory      String?
   itemCode            String   @unique
   unit                String
   salePrice           Float
