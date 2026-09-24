@@ -277,7 +277,19 @@ export const InvoiceForm: React.FC<Props> = ({
   useEffect(() => {
     if (lineItems.length > prevLineCountRef.current) {
       const el = itemScrollRef.current;
-      if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+      if (el) requestAnimationFrame(() => {
+        // Centre the newly added row in the editor viewport (not pinned to the bottom edge).
+        const rows = el.querySelectorAll<HTMLElement>('[data-line-row]');
+        const row = rows[rows.length - 1];
+        if (row) {
+          const cRect = el.getBoundingClientRect();
+          const rRect = row.getBoundingClientRect();
+          const delta = (rRect.top - cRect.top) - el.clientHeight / 2 + row.offsetHeight / 2;
+          el.scrollTop += delta;
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
     }
     prevLineCountRef.current = lineItems.length;
   }, [lineItems.length]);
@@ -1966,6 +1978,7 @@ export const InvoiceForm: React.FC<Props> = ({
                 return (
                   <tr
                     key={item.id}
+                    data-line-row
                     style={{ position: 'relative', zIndex: lineItems.length - idx + 10 }}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
