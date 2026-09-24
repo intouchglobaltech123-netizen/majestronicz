@@ -42,7 +42,6 @@ import {
   Split,
   AlertTriangle,
   CheckCircle2,
-  ScanLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -852,8 +851,7 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   // ---- Barcode / item-code scan → add straight to the bill (counter speed) ----
-  const [scanValue, setScanValue] = useState('');
-  const scanInputRef = useRef<HTMLInputElement>(null);
+  // No visible scan box: a USB scanner is captured by the global wedge below.
   const branchLabel = BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch';
 
   const appendComboRow = (combo: ComboItem) => {
@@ -882,7 +880,6 @@ export const InvoiceForm: React.FC<Props> = ({
 
     if (!matchedItem && !matchedCombo) {
       toast.error('No item found for scanned code', { description: `"${code}" doesn't match any item or combo code.` });
-      setScanValue('');
       return;
     }
 
@@ -927,8 +924,6 @@ export const InvoiceForm: React.FC<Props> = ({
         }
       }
     }
-    setScanValue('');
-    scanInputRef.current?.focus();
   };
 
   // Global barcode-scanner "wedge": a USB scanner types the code as fast keystrokes
@@ -1790,42 +1785,6 @@ export const InvoiceForm: React.FC<Props> = ({
 
       {/* LINE ITEMS TABLE CARD */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-        {/* Table Header Strip */}
-        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-              Invoice Line Items ({lineItems.length})
-            </span>
-            <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-              Branch: {BRANCHES.find((b) => b.id === selectedBranch)?.shortCode}
-            </span>
-          </div>
-        </div>
-
-        {/* Barcode scan bar — scan an item/combo code to add it straight to the bill */}
-        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600" />
-            <input
-              ref={scanInputRef}
-              type="text"
-              value={scanValue}
-              onChange={(e) => setScanValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleScanSubmit(scanValue);
-                }
-              }}
-              placeholder="Scan barcode or type item code, then press Enter…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold font-mono text-slate-900 placeholder-slate-400 placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-            />
-          </div>
-          <span className="text-[11px] text-slate-500">
-            Adds to the bill instantly; scanning the same code again increases quantity.
-          </span>
-        </div>
-
         {/* Line Items Table */}
         {/* Resizable item editor — drag the bottom edge to grow/shrink (the product
             search opens in a portal, so it is never clipped by this scroll area). */}
