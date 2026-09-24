@@ -181,7 +181,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Item & Code</th>
+                  <th className="py-2.5 px-4 min-w-[240px]">Item &amp; Code</th>
                   <th className="py-2.5 px-3 text-center">Ordered</th>
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
@@ -208,12 +208,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                       className={isFullyReceived ? 'bg-slate-50/50 opacity-70' : 'hover:bg-slate-50/60 transition-colors'}
                     >
                       {/* Item Details */}
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{line.itemName}</div>
-                        <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-                          <span>{line.itemCode}</span>
-                          {line.itemHSN && <span className="text-slate-400">HSN: {line.itemHSN}</span>}
-                          <span className="text-slate-400 font-sans">({line.unit})</span>
+                      <td className="py-3 px-4 align-top min-w-[240px]">
+                        <div className="font-semibold text-slate-900 leading-snug">{line.itemName}</div>
+                        <div className="mt-0.5 text-xs text-slate-500 font-mono flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="whitespace-nowrap">{line.itemCode}</span>
+                          {line.itemHSN && <span className="whitespace-nowrap text-slate-400">HSN: {line.itemHSN}</span>}
+                          <span className="whitespace-nowrap text-slate-400 font-sans">({line.unit})</span>
                         </div>
                       </td>
 
