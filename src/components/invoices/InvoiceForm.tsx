@@ -666,9 +666,14 @@ export const InvoiceForm: React.FC<Props> = ({
   const getItemPreTaxPrice = (item: Item): number => {
     const base =
       isWholesaleCustomer && item.wholesalePrice > 0 ? item.wholesalePrice : item.salePrice;
-    const pre =
-      item.salePriceTaxMode === 'with' ? base / (1 + item.gstTaxSlab / 100) : base;
-    return Math.round(pre * 100) / 100;
+    const factor = 1 + item.gstTaxSlab / 100;
+    // GST-ON representation of the unit price (pre-tax portion), unchanged from before.
+    const preOn = item.salePriceTaxMode === 'with' ? base / factor : base;
+    // GST is DISPLAY-ONLY: the amount charged must be identical whether GST is on or off.
+    // GST on → store the pre-tax portion (tax is shown on top, total = charged price).
+    // GST off → store the full charged price (no tax line, same total).
+    const value = withGst ? preOn : preOn * factor;
+    return Math.round(value * 100) / 100;
   };
 
   // The freshly-added blank row whose item search should auto-focus (POS-style).
@@ -833,14 +838,18 @@ export const InvoiceForm: React.FC<Props> = ({
       return;
     }
 
+    const comboRate = isBulkTaxOpen ? bulkTaxRate : 18;
+    const comboUnit = withGst
+      ? combo.comboPrice
+      : Math.round(combo.comboPrice * (1 + comboRate / 100) * 100) / 100;
     updateLineItem(rowId, {
       itemId: combo.id,
       itemCode: combo.comboCode,
       itemName: combo.comboName,
       itemHSN: '85371000',
       unit: 'SET',
-      unitPrice: combo.comboPrice,
-      taxRate: isBulkTaxOpen ? bulkTaxRate : 18,
+      unitPrice: comboUnit,
+      taxRate: comboRate,
       isCombo: true,
       comboId: combo.id,
       comboComponents: combo.components,
@@ -857,12 +866,15 @@ export const InvoiceForm: React.FC<Props> = ({
   const appendComboRow = (combo: ComboItem) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const rate = isBulkTaxOpen ? bulkTaxRate : 18;
-    const calc = calculateLineTax(1, combo.comboPrice, rate, withGst);
+    const comboUnit = withGst
+      ? combo.comboPrice
+      : Math.round(combo.comboPrice * (1 + rate / 100) * 100) / 100;
+    const calc = calculateLineTax(1, comboUnit, rate, withGst);
     setLineItems((prev) => [
       ...prev,
       {
         id: newId, itemId: combo.id, itemCode: combo.comboCode, itemName: combo.comboName,
-        itemHSN: '85371000', quantity: 1, unit: 'SET', unitPrice: combo.comboPrice,
+        itemHSN: '85371000', quantity: 1, unit: 'SET', unitPrice: comboUnit,
         discountType: '%', discountValue: 0, discountAmount: 0, taxRate: rate,
         taxableAmount: calc.taxableAmount, cgstAmount: calc.cgstAmount, sgstAmount: calc.sgstAmount,
         totalTax: calc.totalTax, totalAmount: calc.totalAmount,
@@ -978,19 +990,31 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Re-calculate all line items when GST mode is toggled
   const handleToggleGst = (newWithGst: boolean) => {
+    // GST is display-only: toggling must NOT change any line total. Convert each
+    // line's unit price between its "pre-tax" (GST-on) and "full price" (GST-off)
+    // form so the charged amount stays identical; only the GST breakdown appears/hides.
     setWithGst(newWithGst);
     setLineItems((prev) =>
       prev.map((item) => {
+        const rate = item.taxRate || 0;
+        const factor = 1 + rate / 100;
+        let unitPrice = item.unitPrice;
+        if (rate > 0 && newWithGst !== withGst) {
+          unitPrice = newWithGst
+            ? Math.round((item.unitPrice / factor) * 100) / 100 // off → on: drop to pre-tax
+            : Math.round(item.unitPrice * factor * 100) / 100; // on → off: back to full price
+        }
         const calculated = calculateLineTax(
           item.quantity,
-          item.unitPrice,
-          item.taxRate,
+          unitPrice,
+          rate,
           newWithGst,
           item.discountType,
           item.discountValue
         );
         return {
           ...item,
+          unitPrice,
           taxableAmount: calculated.taxableAmount,
           cgstAmount: calculated.cgstAmount,
           sgstAmount: calculated.sgstAmount,
