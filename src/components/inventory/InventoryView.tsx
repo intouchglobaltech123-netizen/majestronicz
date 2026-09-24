@@ -15,6 +15,7 @@ import {
   AlertOctagon,
   Settings,
   Package,
+  ShoppingCart,
   ChevronDown,
   ChevronUp,
   Info,
@@ -31,6 +32,7 @@ import { ThresholdEditModal } from './ThresholdEditModal';
 import { EditLocationModal } from './EditLocationModal';
 import { InventorySettingsModal } from './InventorySettingsModal';
 import { TransferHistoryModal } from './TransferHistoryModal';
+import { PurchaseOrderFormModal } from '../purchases/PurchaseOrderFormModal';
 
 export const InventoryView: React.FC = () => {
   const {
@@ -91,6 +93,7 @@ export const InventoryView: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [thresholdItem, setThresholdItem] = useState<Item | null>(null);
   const [locationModalItem, setLocationModalItem] = useState<{ item: Item; branchId?: BranchId } | null>(null);
+  const [isLowStockPoOpen, setIsLowStockPoOpen] = useState(false);
 
   // Synchronize view tab and modals when triggered from secondary navbar flyout
   useEffect(() => {
@@ -188,6 +191,16 @@ export const InventoryView: React.FC = () => {
       };
     }
   };
+
+  // Low-stock / out-of-stock items with a suggested reorder quantity (bring stock
+  // back to ~2× the reorder threshold). Feeds the one-click "Order Low Stock" PO.
+  const lowStockReorder = items
+    .map((it) => ({ id: it.id, sd: getItemStockData(it) }))
+    .filter(({ sd }) => sd.status === 'low-stock' || sd.status === 'out-of-stock')
+    .map(({ id, sd }) => ({
+      itemId: id,
+      quantity: Math.max(2 * sd.threshold - sd.currentStock, sd.threshold),
+    }));
 
   // Precompute metrics for top KPI cards
   const metrics = useMemo(() => {
@@ -377,6 +390,16 @@ export const InventoryView: React.FC = () => {
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsLowStockPoOpen(true)}
+            disabled={lowStockReorder.length === 0}
+            title={lowStockReorder.length === 0 ? 'No low-stock items to reorder' : 'Create a purchase order for all low / out-of-stock items'}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ShoppingCart className="h-4 w-4 text-amber-700" />
+            <span className="text-xs font-semibold">Order Low Stock ({lowStockReorder.length})</span>
+          </button>
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}
@@ -1530,6 +1553,16 @@ export const InventoryView: React.FC = () => {
         <InventorySettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {/* One-click PO for all low / out-of-stock items (pre-filled with suggested qty) */}
+      {isLowStockPoOpen && (
+        <PurchaseOrderFormModal
+          isOpen={isLowStockPoOpen}
+          onClose={() => setIsLowStockPoOpen(false)}
+          preFilledItems={lowStockReorder}
+          preFilledBranchId={isAllBranches ? undefined : (currentBranch as BranchId)}
         />
       )}
     </div>
