@@ -99,7 +99,12 @@ export const InvoiceForm: React.FC<Props> = ({
     items,
     combos,
     employees,
+    currentUser,
   } = useErp();
+
+  // The bulk "Apply to all items" tax control is a CEO-level tool (applies one tax
+  // setting across every line, for any branch). Billing/Sales staff don't see it.
+  const isCeo = currentUser?.role === 'CEO';
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
   const [documentType, setDocumentType] = useState<'Invoice' | 'Quotation'>(() => {
@@ -1841,7 +1846,8 @@ export const InvoiceForm: React.FC<Props> = ({
             </span>
           </div>
 
-          {/* Bulk Tax Settings Shortcut Control */}
+          {/* Bulk Tax Settings Shortcut Control — CEO only (applies across all branches) */}
+          {isCeo && (
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
               <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
@@ -1923,6 +1929,7 @@ export const InvoiceForm: React.FC<Props> = ({
               Price edits apply only to this invoice; catalog item prices are never modified.
             </span>
           </div>
+          )}
         </div>
 
         {/* Barcode scan bar — scan an item/combo code to add it straight to the bill */}
