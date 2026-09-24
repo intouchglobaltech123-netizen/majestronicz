@@ -37,7 +37,7 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-none max-w-lg w-full shadow-2xl border border-slate-300 overflow-hidden flex flex-col">
+      <div className="bg-white rounded-none max-w-lg w-full shadow-2xl border border-slate-300 overflow-y-auto max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">

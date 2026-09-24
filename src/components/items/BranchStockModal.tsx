@@ -17,7 +17,7 @@ export const BranchStockModal: React.FC<Props> = ({ item, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-300 rounded-none w-full max-w-2xl shadow-xl overflow-hidden flex flex-col text-slate-900">
+      <div className="bg-white border border-slate-300 rounded-none w-full max-w-2xl shadow-xl overflow-y-auto max-h-[90vh] flex flex-col text-slate-900">
         {/* Header */}
         <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
