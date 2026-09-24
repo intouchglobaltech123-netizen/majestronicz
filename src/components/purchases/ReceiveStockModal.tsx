@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { PurchaseOrder, BRANCHES } from '../../types';
 import { useErp } from '../../context/ErpContext';
+import { formatCurrency } from '../../lib/utils';
 
 interface ReceiveStockModalProps {
   isOpen: boolean;
@@ -354,6 +355,23 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             </div>
           )}
         </form>
+
+        {/* Vendor payables tracking — is the vendor paid, and how much is due */}
+        {(() => {
+          const total = purchaseOrder.totalAmount || 0;
+          const paid = purchaseOrder.amountPaid || 0;
+          const outstanding = Math.max(0, total - paid);
+          return (
+            <div className="px-6 py-2.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs shrink-0">
+              <span className="text-slate-500">PO Value: <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
+              <span className="text-slate-500">Paid to Vendor: <span className="font-bold text-emerald-700 font-mono">{formatCurrency(paid)}</span></span>
+              <span className="text-slate-500">Outstanding: <span className={`font-bold font-mono ${outstanding > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatCurrency(outstanding)}</span></span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${outstanding > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                {outstanding > 0 ? 'Payment Due' : 'Fully Paid'}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Modal Footer */}
         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between shrink-0">
