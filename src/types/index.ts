@@ -745,9 +745,10 @@ export interface POLineItem {
   itemCode: string;
   itemName: string;
   itemHSN: string;
+  vendorSku?: string; // Vendor's own SKU/part code for this item (captured at PO creation)
   unit: string;
   quantityOrdered: number;
-  purchasePrice: number; // Pre-fills from Item.purchasePrice, editable per PO
+  purchasePrice: number; // Pre-fills from Item.purchasePrice; confirmed/edited while receiving
   amount: number;
   receivedQuantity: number; // Tracks units actually received into physical stock
 }

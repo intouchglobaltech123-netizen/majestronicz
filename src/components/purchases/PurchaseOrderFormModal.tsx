@@ -77,6 +77,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       id: string;
       item: Item | null;
       searchQuery: string;
+      vendorSku?: string;
       quantity: number;
       purchasePrice: number;
       amount: number;
@@ -187,16 +188,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     });
   };
 
-  const handleUpdateLinePrice = (index: number, priceStr: string) => {
-    const price = parseFloat(priceStr);
+  const handleUpdateLineSku = (index: number, sku: string) => {
     setLines((prev) => {
       const next = [...prev];
-      const safePrice = isNaN(price) || price < 0 ? 0 : price;
-      next[index] = {
-        ...next[index],
-        purchasePrice: safePrice,
-        amount: (next[index].quantity || 1) * safePrice,
-      };
+      next[index] = { ...next[index], vendorSku: sku };
       return next;
     });
   };
@@ -264,6 +259,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         itemCode: l.item.itemCode,
         itemName: l.item.itemName,
         itemHSN: l.item.itemHSN || '',
+        vendorSku: (l.vendorSku || '').trim() || undefined,
         unit: l.item.unit || 'PCS',
         quantityOrdered: l.quantity,
         purchasePrice: l.purchasePrice,
@@ -461,9 +457,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3 min-w-[280px]">Item Description & Master Stock</th>
+                      <th className="py-2.5 px-3 w-40">Vendor SKU</th>
                       <th className="py-2.5 px-3 w-28 text-center">Qty Ordered</th>
-                      <th className="py-2.5 px-3 w-36 text-right">Unit Price (₹)</th>
-                      <th className="py-2.5 px-3 w-36 text-right">Amount (₹)</th>
                       <th className="py-2.5 px-2 w-12 text-center"></th>
                     </tr>
                   </thead>
@@ -500,6 +495,17 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                           )}
                         </td>
 
+                        {/* Vendor SKU / part code (entered by staff) */}
+                        <td className="py-3 px-3">
+                          <input
+                            type="text"
+                            value={line.vendorSku || ''}
+                            onChange={(e) => handleUpdateLineSku(idx, e.target.value)}
+                            placeholder="Vendor code"
+                            className="w-36 px-2.5 py-1.5 text-sm font-mono border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </td>
+
                         {/* Quantity */}
                         <td className="py-3 px-3 text-center">
                           <input
@@ -509,25 +515,6 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                             onChange={(e) => handleUpdateLineQty(idx, e.target.value)}
                             className="w-20 text-center px-2 py-1.5 text-sm font-semibold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                           />
-                        </td>
-
-                        {/* Purchase Price */}
-                        <td className="py-3 px-3 text-right">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={line.purchasePrice}
-                              onChange={(e) => handleUpdateLinePrice(idx, e.target.value)}
-                              className="w-28 text-right px-2.5 py-1.5 text-sm font-mono font-medium border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                            />
-                          </div>
-                        </td>
-
-                        {/* Line Amount */}
-                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                          {formatCurrency(line.amount)}
                         </td>
 
                         {/* Remove */}
@@ -577,9 +564,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                      Total Order Value
+                      Estimated Order Value
                     </span>
-                    <span className="text-[11px] text-slate-500">Excludes taxes (Vendor PO)</span>
+                    <span className="text-[11px] text-slate-500">Purchase price is confirmed while receiving</span>
                   </div>
                   <div className="text-xl sm:text-2xl font-bold text-slate-900 font-mono">
                     {formatCurrency(totalAmount)}
