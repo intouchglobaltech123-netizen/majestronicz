@@ -270,6 +270,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       if (!matchesBranch) return false;
 
+      // Sales page shows TODAY's invoices only; use a date range in Reports for history.
+      // Searching still looks across ALL invoices so any past bill can be found.
+      if (!searchQuery.trim()) {
+        const t = new Date();
+        const todayStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        if (!(inv.date || '').startsWith(todayStr)) return false;
+      }
+
       // Search filter (Invoice No, Customer, Phone, Items)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -454,7 +462,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   ? 'Processed sales returns, credit note history & returned inventory'
                   : activeTab === 'draft-sales' || activeTab === 'draft-quotes'
                   ? 'In-progress drafts saved in this browser'
-                  : 'Live tax invoices, payments tracking, collections & customer dues'}
+                  : "Today's tax invoices — search any past bill, or use Reports for a date range"}
               </p>
             </div>
         </div>
