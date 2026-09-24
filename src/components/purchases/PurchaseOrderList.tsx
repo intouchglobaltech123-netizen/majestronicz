@@ -13,6 +13,7 @@ import {
   Calendar,
   Paperclip,
   Eye,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   PurchaseOrder,
@@ -25,6 +26,7 @@ import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal';
 import { formatCurrency } from '../../lib/utils';
+import { exportToCsv } from '../../utils/csvExport';
 
 interface PurchaseOrderListProps {
   onCreateNewPo: () => void;
@@ -82,6 +84,31 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
     return true;
   });
 
+  // Download the currently filtered POs as an Excel-compatible sheet, including
+  // payables (Amount Paid / Outstanding) so the office can track dues.
+  const handleExportExcel = () => {
+    if (filteredPos.length === 0) {
+      return;
+    }
+    const headers = [
+      'PO Number', 'Date', 'Vendor', 'Vendor GSTIN', 'Branch', 'Status',
+      'Expected Delivery', 'Item Count', 'Total Qty', 'Total Amount (₹)',
+      'Amount Paid (₹)', 'Outstanding (₹)', 'Notes',
+    ];
+    const rows = filteredPos.map((po) => {
+      const branchName = BRANCHES.find((b) => b.id === po.branchId)?.name || po.branchId;
+      const totalQty = po.items.reduce((s, it) => s + (it.quantityOrdered || 0), 0);
+      const paid = po.amountPaid || 0;
+      const outstanding = Math.max(0, (po.totalAmount || 0) - paid);
+      return [
+        po.poNumber, po.date, po.vendorName, po.vendorGstin || '', branchName, po.status,
+        po.expectedDeliveryDate, po.items.length, totalQty,
+        (po.totalAmount || 0).toFixed(2), paid.toFixed(2), outstanding.toFixed(2), po.notes || '',
+      ];
+    });
+    exportToCsv(`purchase-orders-${new Date().toISOString().slice(0, 10)}`, headers, rows);
+  };
+
   return (
     <div className="space-y-4">
       {/* Control Bar */}
@@ -115,6 +142,17 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
               ))}
             </select>
           )}
+
+          {/* Export to Excel (current filter) */}
+          <button
+            onClick={handleExportExcel}
+            disabled={filteredPos.length === 0}
+            title="Download the listed purchase orders as an Excel sheet"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-none border border-emerald-300 shadow-none transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Excel</span>
+          </button>
 
           {/* Create PO CTA */}
           {canManagePurchases && (
