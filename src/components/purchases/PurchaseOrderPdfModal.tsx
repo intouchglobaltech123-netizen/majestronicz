@@ -3,6 +3,7 @@ import { PurchaseOrder, COMPANY_PROFILE, BRANCHES } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
 import { numberToWordsIndian } from '../../lib/numberToWords';
+import { exportToCsv } from '../../utils/csvExport';
 import {
   X,
   Printer,
@@ -11,6 +12,7 @@ import {
   Check,
   ExternalLink,
   Layers,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useErp } from '../../context/ErpContext';
@@ -43,6 +45,17 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Download this PO's line items as an Excel-compatible sheet.
+  const handleExportExcel = () => {
+    const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (₹)', 'Amount (₹)'];
+    const rows = purchaseOrder.items.map((l, i) => [
+      i + 1, l.itemName, l.itemCode, l.vendorSku || '', l.itemHSN || '', l.unit,
+      l.quantityOrdered, l.receivedQuantity || 0, (l.purchasePrice || 0).toFixed(2), (l.amount || 0).toFixed(2),
+    ]);
+    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', (purchaseOrder.totalAmount || 0).toFixed(2)]);
+    exportToCsv(`${purchaseOrder.poNumber}`, headers, rows);
   };
 
   const handleShareWhatsApp = () => {
@@ -104,6 +117,14 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
             >
               <Share2 className="h-3.5 w-3.5 text-emerald-600" />
               <span>Share</span>
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-none border border-emerald-300 transition-colors shadow-none cursor-pointer"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Excel</span>
             </button>
 
             <button

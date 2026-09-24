@@ -46,12 +46,14 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       const initial: Record<string, number> = {};
       const initialLocs: Record<string, string> = {};
       const initialPrices: Record<string, number> = {};
+      // Key every input by the PO LINE id (not itemId) so two lines of the same
+      // product stay independent — editing one row never changes the other.
       purchaseOrder.items.forEach((item) => {
         const remaining = Math.max(0, item.quantityOrdered - (item.receivedQuantity || 0));
-        initial[item.itemId] = remaining;
+        initial[item.id] = remaining;
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
-        initialLocs[item.itemId] = currentLoc;
-        initialPrices[item.itemId] = item.purchasePrice || 0;
+        initialLocs[item.id] = currentLoc;
+        initialPrices[item.id] = item.purchasePrice || 0;
       });
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
@@ -74,28 +76,28 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
   const branchData = BRANCHES.find((b) => b.id === purchaseOrder.branchId);
 
-  const handleQtyChange = (itemId: string, valStr: string, maxAllowed: number) => {
+  const handleQtyChange = (lineId: string, valStr: string, maxAllowed: number) => {
     const parsed = parseInt(valStr, 10);
     if (isNaN(parsed) || parsed < 0) {
-      setQuantitiesToReceive((prev) => ({ ...prev, [itemId]: 0 }));
+      setQuantitiesToReceive((prev) => ({ ...prev, [lineId]: 0 }));
     } else {
       setQuantitiesToReceive((prev) => ({
         ...prev,
-        [itemId]: Math.min(parsed, maxAllowed),
+        [lineId]: Math.min(parsed, maxAllowed),
       }));
     }
   };
 
-  const handlePriceChange = (itemId: string, valStr: string) => {
+  const handlePriceChange = (lineId: string, valStr: string) => {
     const parsed = parseFloat(valStr);
-    setPricesToAssign((prev) => ({ ...prev, [itemId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
+    setPricesToAssign((prev) => ({ ...prev, [lineId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
   };
 
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
       const remaining = Math.max(0, item.quantityOrdered - (item.receivedQuantity || 0));
-      full[item.itemId] = remaining;
+      full[item.id] = remaining;
     });
     setQuantitiesToReceive(full);
   };
@@ -103,7 +105,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const handleClearAll = () => {
     const cleared: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
-      cleared[item.itemId] = 0;
+      cleared[item.id] = 0;
     });
     setQuantitiesToReceive(cleared);
   };
@@ -114,14 +116,21 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     e.preventDefault();
     if (totalUnitsReceivingNow <= 0) return;
 
-    const receipts = Object.entries(quantitiesToReceive)
-      .map(([itemId, quantityReceived]) => ({
-        itemId,
-        quantityReceived: Number(quantityReceived) || 0,
-        location: locationsToAssign[itemId]?.trim() || undefined,
-        purchasePrice: pricesToAssign[itemId] ?? undefined,
-      }))
-      .filter((r) => r.quantityReceived > 0);
+    // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
+    // quantities if the same product spans multiple PO lines).
+    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }> = {};
+    purchaseOrder.items.forEach((line) => {
+      const q = Number(quantitiesToReceive[line.id]) || 0;
+      if (q <= 0) return;
+      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0 };
+      acc.quantityReceived += q;
+      const loc = locationsToAssign[line.id]?.trim();
+      if (loc) acc.location = loc;
+      const price = pricesToAssign[line.id];
+      if (price != null) acc.purchasePrice = price;
+      byItem[line.itemId] = acc;
+    });
+    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0);
 
     receivePurchaseOrderStock(purchaseOrder.id, receipts, receivingNotes);
     onClose();
@@ -212,7 +221,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   const ordered = line.quantityOrdered;
                   const received = line.receivedQuantity || 0;
                   const remaining = Math.max(0, ordered - received);
-                  const currentInput = quantitiesToReceive[line.itemId] ?? 0;
+                  const currentInput = quantitiesToReceive[line.id] ?? 0;
                   const isFullyReceived = remaining === 0;
 
                   return (
@@ -269,8 +278,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                             type="number"
                             min={0}
                             step="0.01"
-                            value={pricesToAssign[line.itemId] ?? ''}
-                            onChange={(e) => handlePriceChange(line.itemId, e.target.value)}
+                            value={pricesToAssign[line.id] ?? ''}
+                            onChange={(e) => handlePriceChange(line.id, e.target.value)}
                             placeholder="0.00"
                             className="w-24 pl-5 pr-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                           />
@@ -281,17 +290,17 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                       <td className="py-3 px-3">
                         {isFullyReceived ? (
                           <span className="text-xs text-slate-400 font-mono">
-                            {locationsToAssign[line.itemId] || '—'}
+                            {locationsToAssign[line.id] || '—'}
                           </span>
                         ) : (
                           <input
                             type="text"
                             placeholder="e.g. Rack R2"
-                            value={locationsToAssign[line.itemId] || ''}
+                            value={locationsToAssign[line.id] || ''}
                             onChange={(e) =>
                               setLocationsToAssign((prev) => ({
                                 ...prev,
-                                [line.itemId]: e.target.value,
+                                [line.id]: e.target.value,
                               }))
                             }
                             className="w-28 px-2.5 py-1 text-xs font-mono font-semibold border rounded-lg bg-white border-slate-300 text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -304,23 +313,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         {isFullyReceived ? (
                           <span className="text-xs font-medium text-slate-400 italic">Fully Inwarded</span>
                         ) : (
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end">
                             <input
                               type="number"
                               min={0}
                               max={remaining}
                               value={currentInput}
-                              onChange={(e) => handleQtyChange(line.itemId, e.target.value, remaining)}
+                              onChange={(e) => handleQtyChange(line.id, e.target.value, remaining)}
                               className="w-24 text-right px-2.5 py-1.5 text-sm font-bold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             />
-                            <button
-                              type="button"
-                              onClick={() => handleQtyChange(line.itemId, String(remaining), remaining)}
-                              title="Set to all remaining"
-                              className="text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                            >
-                              Max
-                            </button>
                           </div>
                         )}
                       </td>
