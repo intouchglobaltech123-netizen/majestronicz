@@ -25,6 +25,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [quantitiesToReceive, setQuantitiesToReceive] = useState<Record<string, number>>({});
   // Map of itemId -> shelve/rack location
   const [locationsToAssign, setLocationsToAssign] = useState<Record<string, string>>({});
+  // Map of itemId -> actual purchase price confirmed while receiving
+  const [pricesToAssign, setPricesToAssign] = useState<Record<string, number>>({});
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
 
@@ -43,20 +45,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
       const initial: Record<string, number> = {};
       const initialLocs: Record<string, string> = {};
+      const initialPrices: Record<string, number> = {};
       purchaseOrder.items.forEach((item) => {
         const remaining = Math.max(0, item.quantityOrdered - (item.receivedQuantity || 0));
         initial[item.itemId] = remaining;
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
         initialLocs[item.itemId] = currentLoc;
+        initialPrices[item.itemId] = item.purchasePrice || 0;
       });
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
+      setPricesToAssign(initialPrices);
       setReceivingNotes('');
     } else if (!isOpen) {
       // Reset the guard when the modal closes so re-opening seeds fresh.
       seededKeyRef.current = null;
       setQuantitiesToReceive({});
       setLocationsToAssign({});
+      setPricesToAssign({});
       setReceivingNotes('');
     }
     // Intentionally keyed on the PO id + open state only (not the object
@@ -78,6 +84,11 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         [itemId]: Math.min(parsed, maxAllowed),
       }));
     }
+  };
+
+  const handlePriceChange = (itemId: string, valStr: string) => {
+    const parsed = parseFloat(valStr);
+    setPricesToAssign((prev) => ({ ...prev, [itemId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
   };
 
   const handleFillAllRemaining = () => {
@@ -108,6 +119,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         itemId,
         quantityReceived: Number(quantityReceived) || 0,
         location: locationsToAssign[itemId]?.trim() || undefined,
+        purchasePrice: pricesToAssign[itemId] ?? undefined,
       }))
       .filter((r) => r.quantityReceived > 0);
 
@@ -185,6 +197,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   <th className="py-2.5 px-3 text-center">Ordered</th>
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
+                  <th className="py-2.5 px-3 text-right w-32">Purchase Price (₹)</th>
                   <th className="py-2.5 px-3 text-left">
                     <div className="flex items-center gap-1">
                       <span>Shelve / Rack</span>
@@ -212,6 +225,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         <div className="font-semibold text-slate-900 leading-snug">{line.itemName}</div>
                         <div className="mt-0.5 text-xs text-slate-500 font-mono flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="whitespace-nowrap">{line.itemCode}</span>
+                          {line.vendorSku && <span className="whitespace-nowrap text-indigo-500">SKU: {line.vendorSku}</span>}
                           {line.itemHSN && <span className="whitespace-nowrap text-slate-400">HSN: {line.itemHSN}</span>}
                           <span className="whitespace-nowrap text-slate-400 font-sans">({line.unit})</span>
                         </div>
@@ -245,6 +259,22 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         >
                           {remaining} {line.unit}
                         </span>
+                      </td>
+
+                      {/* Purchase Price (confirmed at receiving) */}
+                      <td className="py-3 px-3 text-right">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={pricesToAssign[line.itemId] ?? ''}
+                            onChange={(e) => handlePriceChange(line.itemId, e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 pl-5 pr-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
                       </td>
 
                       {/* Shelve / Rack Location */}

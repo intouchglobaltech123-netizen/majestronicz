@@ -273,7 +273,10 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                   <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{idx + 1}</td>
                   <td className="py-2.5 px-3">
                     <p className="font-bold text-slate-900">{line.itemName}</p>
-                    <p className="text-[11px] text-slate-500 font-mono">Code: {line.itemCode}</p>
+                    <p className="text-[11px] text-slate-500 font-mono">
+                      Code: {line.itemCode}
+                      {line.vendorSku ? `  •  Vendor SKU: ${line.vendorSku}` : ''}
+                    </p>
                   </td>
                   <td className="py-2.5 px-3 text-center font-mono text-slate-600">{line.itemHSN || '—'}</td>
                   <td className="py-2.5 px-3 text-center font-bold text-slate-900">{line.quantityOrdered}</td>

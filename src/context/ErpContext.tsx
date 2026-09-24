@@ -3469,7 +3469,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const receivePurchaseOrderStock = (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }[],
     notes?: string
   ) => {
     const po = purchaseOrders.find((p) => p.id === poId);
@@ -3484,15 +3484,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // 1. Update PO items receivedQuantity
+    // 1. Update PO items receivedQuantity + confirm the purchase price captured at
+    //    receiving (refresh the line amount so the PO total reflects the real cost).
     const updatedLines = po.items.map((line) => {
       const rec = validReceipts.find((r) => r.itemId === line.itemId);
       if (!rec) return line;
+      const nextPrice =
+        rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
       return {
         ...line,
         receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
+        purchasePrice: nextPrice,
+        amount: Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100,
       };
     });
+    const newTotalAmount = updatedLines.reduce((s, l) => s + (l.amount || 0), 0);
 
     // 2. Build structured receiving event log
     const receiptEventLines: POReceiptLineItem[] = validReceipts.map((rec) => {
@@ -3531,6 +3537,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...po,
       items: updatedLines,
       status: newStatus,
+      totalAmount: newTotalAmount,
       receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
       updatedAt: new Date().toISOString(),
     };

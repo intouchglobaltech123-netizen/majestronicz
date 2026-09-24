@@ -72,7 +72,7 @@ export function cancelPurchaseOrder(poId: string) {
 /** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
 export function receivePurchaseOrderStock(
   poId: string,
-  receipts: { itemId: string; quantityReceived: number; location?: string }[],
+  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }[],
   notes: string | undefined,
   actor: string,
   reqUser?: any
@@ -89,8 +89,19 @@ export function receivePurchaseOrderStock(
     const lines = po.items as any[];
     const updatedLines = lines.map((line) => {
       const rec = valid.find((r) => r.itemId === line.itemId);
-      return rec ? { ...line, receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived } : line;
+      if (!rec) return line;
+      // Confirm/override the purchase price entered while receiving, and refresh the
+      // line amount (price × ordered qty) so the PO total reflects the real cost.
+      const nextPrice =
+        rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
+      return {
+        ...line,
+        receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
+        purchasePrice: nextPrice,
+        amount: Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100,
+      };
     });
+    const newTotalAmount = updatedLines.reduce((s: number, l: any) => s + (l.amount || 0), 0);
 
     const eventLines = valid.map((rec) => {
       const line = lines.find((l) => l.itemId === rec.itemId);
@@ -113,7 +124,7 @@ export function receivePurchaseOrderStock(
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
-        items: updatedLines, status,
+        items: updatedLines, status, totalAmount: newTotalAmount,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
         updatedAt: ts,
       },
