@@ -5,7 +5,7 @@ import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
-import { FileSpreadsheet, Landmark, Percent, Hash } from 'lucide-react';
+import { FileSpreadsheet, Landmark, Percent, Hash, Users, Calculator } from 'lucide-react';
 
 interface Props {
   startDate: string;
@@ -31,10 +31,29 @@ interface HsnRow {
   tax: number;
   rates: Set<number>;
 }
+interface B2BRow {
+  gstin: string;
+  name: string;
+  invoices: number;
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  total: number;
+}
 
 export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
-  const { invoices } = useErp();
-  const [view, setView] = useState<'rate' | 'hsn'>('rate');
+  const { invoices, customers } = useErp();
+  const [view, setView] = useState<'rate' | 'hsn' | 'b2b' | '3b'>('rate');
+
+  // Resolve a buyer's GSTIN from the customer master (invoices don't store it directly).
+  const buyerGstin = (inv: any): string => {
+    const phone = (inv.customerPhone || '').replace(/\D/g, '');
+    const c = customers.find(
+      (x) => (inv.customerId && x.id === inv.customerId) || (phone && (x.phone || '').replace(/\D/g, '') === phone)
+    );
+    return (c?.gstin || '').trim().toUpperCase();
+  };
 
   const filtered = useMemo(
     () =>
@@ -49,13 +68,17 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     [invoices, startDate, endDate, branchScope]
   );
 
-  const { rateRows, hsnRows, totals } = useMemo(() => {
+  const { rateRows, hsnRows, b2bRows, b2cs, totals } = useMemo(() => {
     const rateMap = new Map<number, RateRow>();
     const hsnMap = new Map<string, HsnRow>();
+    const b2bMap = new Map<string, B2BRow>();
+    const b2cs = { invoices: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
     const totals = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, invoices: filtered.length };
 
     for (const inv of filtered) {
       const inter = isInterState(inv.stateOfSupply);
+      const gstin = buyerGstin(inv);
+      let invTaxable = 0, invCgst = 0, invSgst = 0, invIgst = 0, invTotal = 0;
       for (const li of inv.items || []) {
         const rate = li.taxRate || 0;
         const taxable = li.taxableAmount || 0;
@@ -77,25 +100,52 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
         hsnMap.set(hsnKey, h);
 
         totals.taxable += taxable; totals.cgst += cgst; totals.sgst += sgst; totals.igst += igst; totals.total += compTax;
+        invTaxable += taxable; invCgst += cgst; invSgst += sgst; invIgst += igst; invTotal += compTax;
+      }
+      // B2B (registered buyer, has GSTIN) vs B2CS (unregistered / consumer)
+      if (gstin && gstin.length >= 15) {
+        const b = b2bMap.get(gstin) || { gstin, name: inv.customerName || '', invoices: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
+        b.invoices += 1; b.taxable += invTaxable; b.cgst += invCgst; b.sgst += invSgst; b.igst += invIgst; b.total += invTotal;
+        b.name = inv.customerName || b.name;
+        b2bMap.set(gstin, b);
+      } else {
+        b2cs.invoices += 1; b2cs.taxable += invTaxable; b2cs.cgst += invCgst; b2cs.sgst += invSgst; b2cs.igst += invIgst; b2cs.total += invTotal;
       }
     }
     return {
       rateRows: [...rateMap.values()].sort((a, b) => a.rate - b.rate),
       hsnRows: [...hsnMap.values()].sort((a, b) => b.taxable - a.taxable),
+      b2bRows: [...b2bMap.values()].sort((a, b) => b.taxable - a.taxable),
+      b2cs,
       totals,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
   const handleExport = (format: ExportFormat = 'csv') => {
-    const isRate = view === 'rate';
-    const filename = isRate ? `gstr1-rate-summary_${startDate}_to_${endDate}` : `hsn-summary_${startDate}_to_${endDate}`;
-    const title = isRate ? `GSTR-1 Rate Summary ${startDate} to ${endDate}` : `HSN Summary ${startDate} to ${endDate}`;
-    const headers = isRate
-      ? ['GST Rate (%)', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax']
-      : ['HSN/SAC', 'Total Qty', 'GST Rates', 'Taxable Value', 'Tax Amount'];
-    const rows = isRate
-      ? rateRows.map((r) => [r.rate, r.taxable.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.igst.toFixed(2), r.total.toFixed(2)])
-      : hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), h.taxable.toFixed(2), h.tax.toFixed(2)]);
+    let filename = '', title = '', headers: string[] = [], rows: (string | number)[][] = [];
+    if (view === 'rate') {
+      filename = `gstr1-rate-summary_${startDate}_to_${endDate}`; title = `GSTR-1 Rate Summary ${startDate} to ${endDate}`;
+      headers = ['GST Rate (%)', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
+      rows = rateRows.map((r) => [r.rate, r.taxable.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.igst.toFixed(2), r.total.toFixed(2)]);
+    } else if (view === 'hsn') {
+      filename = `hsn-summary_${startDate}_to_${endDate}`; title = `HSN Summary ${startDate} to ${endDate}`;
+      headers = ['HSN/SAC', 'Total Qty', 'GST Rates', 'Taxable Value', 'Tax Amount'];
+      rows = hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), h.taxable.toFixed(2), h.tax.toFixed(2)]);
+    } else if (view === 'b2b') {
+      filename = `gstr1-b2b_${startDate}_to_${endDate}`; title = `GSTR-1 B2B (by GSTIN) ${startDate} to ${endDate}`;
+      headers = ['GSTIN', 'Party', 'Invoices', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
+      rows = b2bRows.map((b) => [b.gstin, b.name, b.invoices, b.taxable.toFixed(2), b.cgst.toFixed(2), b.sgst.toFixed(2), b.igst.toFixed(2), b.total.toFixed(2)]);
+      rows.push(['', 'B2C (unregistered)', b2cs.invoices, b2cs.taxable.toFixed(2), b2cs.cgst.toFixed(2), b2cs.sgst.toFixed(2), b2cs.igst.toFixed(2), b2cs.total.toFixed(2)]);
+    } else {
+      filename = `gstr3b-worksheet_${startDate}_to_${endDate}`; title = `GSTR-3B Working Sheet ${startDate} to ${endDate}`;
+      headers = ['Line', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
+      rows = [
+        ['Outward taxable supplies (output tax)', totals.taxable.toFixed(2), totals.cgst.toFixed(2), totals.sgst.toFixed(2), totals.igst.toFixed(2), totals.total.toFixed(2)],
+        ['Less: Input Tax Credit (from purchase bills)', '', '0.00', '0.00', '0.00', '0.00'],
+        ['Net Tax Payable', '', totals.cgst.toFixed(2), totals.sgst.toFixed(2), totals.igst.toFixed(2), totals.total.toFixed(2)],
+      ];
+    }
     if (format === 'excel') exportToExcel(filename, headers, rows);
     else if (format === 'pdf') exportToPdf(filename, headers, rows, title);
     else exportToCsv(`${filename}.csv`, headers, rows);
@@ -151,6 +201,18 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
         >
           <Hash className="h-3.5 w-3.5" /> HSN-wise
         </button>
+        <button
+          onClick={() => setView('b2b')}
+          className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors', view === 'b2b' ? 'bg-white text-blue-700 shadow-2xs' : 'hover:text-slate-800')}
+        >
+          <Users className="h-3.5 w-3.5" /> B2B / B2C
+        </button>
+        <button
+          onClick={() => setView('3b')}
+          className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors', view === '3b' ? 'bg-white text-blue-700 shadow-2xs' : 'hover:text-slate-800')}
+        >
+          <Calculator className="h-3.5 w-3.5" /> GSTR-3B sheet
+        </button>
       </div>
 
       {/* Table */}
@@ -197,7 +259,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
                 </tfoot>
               )}
             </table>
-          ) : (
+          ) : view === 'hsn' ? (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
@@ -222,6 +284,89 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
                     </tr>
                   ))
                 )}
+              </tbody>
+            </table>
+          ) : view === 'b2b' ? (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <th className="py-3 px-4">GSTIN</th>
+                  <th className="py-3 px-4">Party</th>
+                  <th className="py-3 px-4 text-right">Inv</th>
+                  <th className="py-3 px-4 text-right">Taxable</th>
+                  <th className="py-3 px-4 text-right">CGST</th>
+                  <th className="py-3 px-4 text-right">SGST</th>
+                  <th className="py-3 px-4 text-right">IGST</th>
+                  <th className="py-3 px-4 text-right">Total Tax</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-800 font-mono">
+                {b2bRows.map((b) => (
+                  <tr key={b.gstin} className="hover:bg-slate-50/60">
+                    <td className="py-3 px-4 font-bold">{b.gstin}</td>
+                    <td className="py-3 px-4 font-sans">{b.name}</td>
+                    <td className="py-3 px-4 text-right">{b.invoices}</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(b.taxable)}</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(b.cgst)}</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(b.sgst)}</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(b.igst)}</td>
+                    <td className="py-3 px-4 text-right font-bold text-emerald-700">{formatCurrency(b.total)}</td>
+                  </tr>
+                ))}
+                {/* B2C (unregistered / consumer) aggregate */}
+                <tr className="bg-amber-50/40 border-t border-amber-100">
+                  <td className="py-3 px-4 text-slate-400 font-sans">—</td>
+                  <td className="py-3 px-4 font-sans font-bold text-amber-800">B2C (unregistered)</td>
+                  <td className="py-3 px-4 text-right">{b2cs.invoices}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(b2cs.taxable)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(b2cs.cgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(b2cs.sgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(b2cs.igst)}</td>
+                  <td className="py-3 px-4 text-right font-bold text-emerald-700">{formatCurrency(b2cs.total)}</td>
+                </tr>
+                {b2bRows.length === 0 && b2cs.invoices === 0 && (
+                  <tr><td colSpan={8} className="py-10 text-center text-slate-400 font-sans">No GST invoices in this period.</td></tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            /* GSTR-3B working sheet */
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <th className="py-3 px-4">Line</th>
+                  <th className="py-3 px-4 text-right">Taxable</th>
+                  <th className="py-3 px-4 text-right">CGST</th>
+                  <th className="py-3 px-4 text-right">SGST</th>
+                  <th className="py-3 px-4 text-right">IGST</th>
+                  <th className="py-3 px-4 text-right">Total Tax</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-800 font-mono">
+                <tr>
+                  <td className="py-3 px-4 font-sans font-bold">Outward taxable supplies (output tax)</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.taxable)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.cgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.sgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.igst)}</td>
+                  <td className="py-3 px-4 text-right font-bold">{formatCurrency(totals.total)}</td>
+                </tr>
+                <tr className="text-slate-500">
+                  <td className="py-3 px-4 font-sans">Less: Input Tax Credit (from purchase bills)</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
+                </tr>
+                <tr className="bg-emerald-50/50 border-t-2 border-emerald-200 font-bold">
+                  <td className="py-3 px-4 font-sans">Net Tax Payable</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.cgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.sgst)}</td>
+                  <td className="py-3 px-4 text-right">{formatCurrency(totals.igst)}</td>
+                  <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(totals.total)}</td>
+                </tr>
               </tbody>
             </table>
           )}
