@@ -88,22 +88,36 @@ export const SalesReportTab: React.FC<Props> = ({
         loyaltyDiscountGivenTotal += (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0);
       }
 
+      // Returns reduce the amount that actually reconciles to each payment mode and
+      // to product revenue, so pro-rate everything below by the net-of-returns
+      // fraction (RPT-1).
+      const grand = inv.grandTotal || 0;
+      const returned = Math.min(grand, inv.totalReturnedAmount || 0);
+      const ratio = grand > 0 ? (grand - returned) / grand : 1;
+
       const splits = getInvoicePaymentSplits(inv);
+      const modesCountedThisBill = new Set<PaymentMode>();
       splits.forEach((split) => {
         if (paymentModes[split.mode]) {
-          paymentModes[split.mode].count++;
-          paymentModes[split.mode].total += split.amount;
+          // Count each BILL once per mode, not each split — two Cash splits on one
+          // bill is still one cash bill (RPT-4).
+          if (!modesCountedThisBill.has(split.mode)) {
+            paymentModes[split.mode].count++;
+            modesCountedThisBill.add(split.mode);
+          }
+          paymentModes[split.mode].total += split.amount * ratio;
         }
       });
 
-      // Tally line items
+      // Tally line items (revenue net of returns, pro-rated)
       inv.items.forEach((line) => {
         const isCombo = Boolean(line.isCombo || line.comboId);
         const key = line.itemId || line.comboId || line.itemName;
+        const netLineRevenue = (line.totalAmount || 0) * ratio;
         const existing = itemMap.get(key);
         if (existing) {
           existing.quantity += line.quantity;
-          existing.revenue += line.totalAmount;
+          existing.revenue += netLineRevenue;
           if (isCombo) existing.isCombo = true;
         } else {
           itemMap.set(key, {
@@ -112,7 +126,7 @@ export const SalesReportTab: React.FC<Props> = ({
             itemCode: line.itemCode || '—',
             isCombo,
             quantity: line.quantity,
-            revenue: line.totalAmount,
+            revenue: netLineRevenue,
           });
         }
       });
@@ -159,6 +173,8 @@ export const SalesReportTab: React.FC<Props> = ({
       'Loyalty Reward Applied',
       'Loyalty Discount (₹)',
       'Total Amount (₹)',
+      'Returned (₹)',
+      'Net (₹)',
       'Status',
     ];
 
@@ -167,6 +183,11 @@ export const SalesReportTab: React.FC<Props> = ({
       const discountGiven = inv.isLoyaltyRewardApplied
         ? (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0)
         : 0;
+      const returned = inv.totalReturnedAmount || 0;
+      const net = Math.max(0, (inv.grandTotal || 0) - returned);
+      const status = returned > 0
+        ? (net <= 0 ? 'Fully Returned' : 'Partially Returned')
+        : (inv.isPartialPayment ? 'Partial Payment' : 'Fully Billed');
       return [
         inv.invoiceNumber,
         inv.date,
@@ -180,7 +201,9 @@ export const SalesReportTab: React.FC<Props> = ({
         inv.isLoyaltyRewardApplied ? 'Yes' : 'No',
         discountGiven.toFixed(2),
         inv.grandTotal.toFixed(2),
-        inv.isPartialPayment ? 'Partial Payment' : 'Fully Billed',
+        returned.toFixed(2),
+        net.toFixed(2),
+        status,
       ];
     });
 
