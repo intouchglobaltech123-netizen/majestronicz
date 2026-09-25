@@ -59,7 +59,17 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (po) assertBranchAllowed(reqUser, po.branchId); // SEC2-1
-    await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: nowIso() } });
+    const ts = nowIso();
+    await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: ts } });
+    // PUR-5: unlink any pending order that pointed at this PO so it is no longer
+    // stuck waiting on a cancelled order — clearing the link makes the pending
+    // order offer a fresh "Create PO" action again.
+    const orClauses: any[] = [{ linkedPurchaseOrderId: poId }, { purchaseOrderId: poId }];
+    if (po?.pendingOrderId) orClauses.push({ id: po.pendingOrderId });
+    await tx.pendingOrder.updateMany({
+      where: { OR: orClauses },
+      data: { linkedPurchaseOrderId: null, purchaseOrderId: null, purchaseOrderNumber: null, updatedAt: ts },
+    });
     return poSnapshot(tx);
   });
 }
@@ -189,7 +199,12 @@ export function receivePurchaseOrderStock(
     // re-price its sale price from the margin band (A +35% / B +25% / C +15%).
     const marginMult: Record<string, number> = { A: 1.35, B: 1.25, C: 1.15 };
     for (const rec of valid) {
-      if (rec.purchasePrice == null || rec.purchasePrice < 0) continue;
+      // PUR2-8: only reprice the item master from a real, positive cost that was
+      // actually paid for GOOD stock. A price of 0/blank, or a receipt that was
+      // entirely damaged (no good units in), must never overwrite the item's cost.
+      const goodQty = Number(rec.quantityReceived) || 0;
+      if (rec.purchasePrice == null || rec.purchasePrice <= 0) continue;
+      if (goodQty <= 0) continue;
       const item = await tx.item.findUnique({ where: { id: rec.itemId } });
       if (!item) continue;
       const data: any = { purchasePrice: rec.purchasePrice, updatedAt: ts };
@@ -275,8 +290,14 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
+    // PUR2-9: never record a payment against a cancelled PO, and never let the
+    // paid amount exceed the PO value (silent overpayment that hides the excess).
+    if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot record a payment against a cancelled purchase order.', 400);
     const pay = Math.max(0, Number(amount) || 0);
     if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
+    const remaining = Math.round(((po.totalAmount || 0) - (po.amountPaid || 0)) * 100) / 100;
+    if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
+    if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();
     const entry = { id: rid('pay'), date: ts.split('T')[0], amount: pay, mode: mode || 'Cash', by: actor };
     await tx.purchaseOrder.update({

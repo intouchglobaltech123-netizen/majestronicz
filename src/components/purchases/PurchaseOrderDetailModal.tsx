@@ -637,16 +637,21 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         </div>
                       </div>
 
-                      {/* Record a payment */}
-                      {canManagePurchases && remaining > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap">
+                      {/* Record a payment — PUR2-9: not on a cancelled PO, and never
+                          more than the remaining balance (overpayment is blocked). */}
+                      {canManagePurchases && remaining > 0 && purchaseOrder.status !== 'Cancelled' && (() => {
+                        const entered = Number(payAmt) || 0;
+                        const isOverpayment = entered > remaining;
+                        return (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
                             <input
-                              type="number" min={0} value={payAmt}
+                              type="number" min={0} max={remaining} value={payAmt}
                               onChange={(e) => setPayAmt(e.target.value)}
                               placeholder="Amount paid"
-                              className="w-32 pl-5 pr-2 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                              className={`w-32 pl-5 pr-2 py-1.5 rounded-none bg-white border text-xs font-bold font-mono text-slate-900 focus:outline-none ${isOverpayment ? 'border-rose-400 focus:border-rose-600' : 'border-slate-300 focus:border-emerald-600'}`}
                             />
                           </div>
                           <select
@@ -658,8 +663,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           </select>
                           <button
                             type="button"
-                            onClick={() => { recordPurchaseOrderPayment(purchaseOrder.id, Number(payAmt) || 0, payMode); setPayAmt(''); }}
-                            disabled={!(Number(payAmt) > 0)}
+                            onClick={() => { if (entered > 0 && !isOverpayment) { recordPurchaseOrderPayment(purchaseOrder.id, entered, payMode); setPayAmt(''); } }}
+                            disabled={!(entered > 0) || isOverpayment}
                             className="px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             Record Payment
@@ -672,8 +677,15 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           >
                             Pay Full ({formatCurrency(remaining)})
                           </button>
+                          </div>
+                          {isOverpayment && (
+                            <p className="text-[11px] font-semibold text-rose-600">
+                              Amount exceeds the remaining balance of {formatCurrency(remaining)}.
+                            </p>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Payment history */}
                       {payments.length > 0 ? (

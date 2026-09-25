@@ -28,6 +28,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [locationsToAssign, setLocationsToAssign] = useState<Record<string, string>>({});
   // Map of itemId -> actual purchase price confirmed while receiving
   const [pricesToAssign, setPricesToAssign] = useState<Record<string, number>>({});
+  // Raw text held while the user is TYPING the total / per-unit price (PUR2-7) so a
+  // keystroke isn't divided/reformatted mid-typing; committed to a per-unit price on blur.
+  const [totalPriceInputs, setTotalPriceInputs] = useState<Record<string, string>>({});
+  const [perUnitInputs, setPerUnitInputs] = useState<Record<string, string>>({});
   // Quality check: line.id -> number of units found damaged (billed back to vendor)
   const [damagedToAssign, setDamagedToAssign] = useState<Record<string, number>>({});
   // Vendor payment recorded at receiving
@@ -64,6 +68,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
       setPricesToAssign(initialPrices);
+      setTotalPriceInputs({});
+      setPerUnitInputs({});
       setDamagedToAssign({});
       setPayNowInput('');
       setPayMode('Cash');
@@ -74,6 +80,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setQuantitiesToReceive({});
       setLocationsToAssign({});
       setPricesToAssign({});
+      setTotalPriceInputs({});
+      setPerUnitInputs({});
       setDamagedToAssign({});
       setPayNowInput('');
       setReceivingNotes('');
@@ -99,16 +107,36 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     }
   };
 
-  const handlePriceChange = (lineId: string, valStr: string) => {
+  // Per-unit price: hold raw text while typing, commit the parsed value on blur.
+  const handlePerUnitText = (lineId: string, valStr: string) =>
+    setPerUnitInputs((prev) => ({ ...prev, [lineId]: valStr }));
+
+  const commitPerUnit = (lineId: string, valStr: string) => {
     const parsed = parseFloat(valStr);
-    setPricesToAssign((prev) => ({ ...prev, [lineId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
+    const per = isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 100) / 100;
+    setPricesToAssign((prev) => ({ ...prev, [lineId]: per }));
+    setPerUnitInputs((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
   };
 
   // Enter the OVERALL price for all units → derive the per-unit purchase price.
-  const handleTotalChange = (lineId: string, valStr: string, qty: number) => {
+  // Keep the typed total as raw text while typing; divide by qty only on blur so a
+  // keystroke like "1000" for 3 units resolves to 333.33/unit (PUR2-7), not 0.33.
+  const handleTotalText = (lineId: string, valStr: string) =>
+    setTotalPriceInputs((prev) => ({ ...prev, [lineId]: valStr }));
+
+  const commitTotal = (lineId: string, valStr: string, qty: number) => {
     const total = parseFloat(valStr);
     const per = qty > 0 && !isNaN(total) && total >= 0 ? Math.round((total / qty) * 100) / 100 : 0;
     setPricesToAssign((prev) => ({ ...prev, [lineId]: per }));
+    setTotalPriceInputs((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
   };
 
   const handleDamagedChange = (lineId: string, valStr: string, maxAllowed: number) => {
@@ -153,7 +181,17 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       acc.damagedQuantity = (acc.damagedQuantity || 0) + dmg;
       const loc = locationsToAssign[line.id]?.trim();
       if (loc) acc.location = loc;
-      const price = pricesToAssign[line.id];
+      // Flush any price still held as raw text (submit clicked before blur) — PUR2-7.
+      let price = pricesToAssign[line.id];
+      const rawPer = perUnitInputs[line.id];
+      const rawTotal = totalPriceInputs[line.id];
+      if (rawPer != null && rawPer !== '') {
+        const p = parseFloat(rawPer);
+        if (!isNaN(p) && p >= 0) price = Math.round(p * 100) / 100;
+      } else if (rawTotal != null && rawTotal !== '') {
+        const t = parseFloat(rawTotal);
+        if (!isNaN(t) && t >= 0 && line.quantityOrdered > 0) price = Math.round((t / line.quantityOrdered) * 100) / 100;
+      }
       if (price != null) acc.purchasePrice = price;
       byItem[line.itemId] = acc;
     });
@@ -330,8 +368,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                               type="number"
                               min={0}
                               step="0.01"
-                              value={Math.round((pricesToAssign[line.id] || 0) * ordered * 100) / 100 || ''}
-                              onChange={(e) => handleTotalChange(line.id, e.target.value, ordered)}
+                              value={totalPriceInputs[line.id] ?? (Math.round((pricesToAssign[line.id] || 0) * ordered * 100) / 100 || '')}
+                              onChange={(e) => handleTotalText(line.id, e.target.value)}
+                              onBlur={(e) => commitTotal(line.id, e.target.value, ordered)}
                               placeholder={`Total for ${ordered}`}
                               title={`Total price for all ${ordered} ${line.unit}`}
                               className="w-32 pl-5 pr-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -343,8 +382,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                               type="number"
                               min={0}
                               step="0.01"
-                              value={pricesToAssign[line.id] ?? ''}
-                              onChange={(e) => handlePriceChange(line.id, e.target.value)}
+                              value={perUnitInputs[line.id] ?? (pricesToAssign[line.id] ?? '')}
+                              onChange={(e) => handlePerUnitText(line.id, e.target.value)}
+                              onBlur={(e) => commitPerUnit(line.id, e.target.value)}
                               placeholder="per unit"
                               title="Per-unit purchase price"
                               className="w-32 pl-5 pr-2 py-0.5 text-[11px] font-mono text-right border rounded-lg bg-slate-50 border-slate-200 text-slate-600 focus:outline-hidden focus:border-blue-400"

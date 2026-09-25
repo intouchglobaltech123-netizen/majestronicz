@@ -79,6 +79,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       searchQuery: string;
       vendorSku?: string;
       quantity: number;
+      // Raw text held while the user is typing the qty; parsed/committed on blur
+      // (PUR-10) so mid-typing keystrokes are never coerced (e.g. "" → 1 → "125").
+      quantityText?: string;
       purchasePrice: number;
       amount: number;
     }>
@@ -185,14 +188,27 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     });
   };
 
-  const handleUpdateLineQty = (index: number, qtyStr: string) => {
-    const qty = parseInt(qtyStr, 10);
+  // Keep the raw keystrokes exactly as typed; do NOT coerce mid-typing (PUR-10).
+  const handleUpdateLineQtyText = (index: number, qtyStr: string) => {
     setLines((prev) => {
       const next = [...prev];
-      const safeQty = isNaN(qty) || qty < 1 ? 1 : qty;
+      next[index] = { ...next[index], quantityText: qtyStr };
+      return next;
+    });
+  };
+
+  // Parse + validate the qty once the field loses focus (or on submit).
+  const commitLineQty = (index: number) => {
+    setLines((prev) => {
+      const next = [...prev];
+      const raw = next[index].quantityText;
+      if (raw == null) return prev;
+      const parsed = parseInt(raw, 10);
+      const safeQty = isNaN(parsed) || parsed < 1 ? 1 : parsed;
       next[index] = {
         ...next[index],
         quantity: safeQty,
+        quantityText: undefined,
         amount: safeQty * (next[index].purchasePrice || 0),
       };
       return next;
@@ -245,6 +261,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     }
     if (!expectedDeliveryDate) {
       errs.deliveryDate = 'Expected delivery date is required';
+    } else if (orderDate && expectedDeliveryDate < orderDate) {
+      // PUR-11: expected delivery can't precede the order date.
+      errs.deliveryDate = 'Expected delivery date cannot be earlier than the order date';
     }
 
     // Check lines
@@ -264,19 +283,24 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
 
     const formattedLines: POLineItem[] = lines
       .filter((l): l is typeof l & { item: Item } => l.item !== null)
-      .map((l) => ({
-        id: l.id,
-        itemId: l.item.id,
-        itemCode: l.item.itemCode,
-        itemName: l.item.itemName,
-        itemHSN: l.item.itemHSN || '',
-        vendorSku: (l.vendorSku || '').trim() || undefined,
-        unit: l.item.unit || 'PCS',
-        quantityOrdered: l.quantity,
-        purchasePrice: l.purchasePrice,
-        amount: l.amount,
-        receivedQuantity: 0,
-      }));
+      .map((l) => {
+        // Flush any qty still held as raw text (submit clicked before blur) — PUR-10.
+        const parsedQty = l.quantityText != null ? parseInt(l.quantityText, 10) : l.quantity;
+        const quantityOrdered = isNaN(parsedQty) || parsedQty < 1 ? 1 : parsedQty;
+        return {
+          id: l.id,
+          itemId: l.item.id,
+          itemCode: l.item.itemCode,
+          itemName: l.item.itemName,
+          itemHSN: l.item.itemHSN || '',
+          vendorSku: (l.vendorSku || '').trim() || undefined,
+          unit: l.item.unit || 'PCS',
+          quantityOrdered,
+          purchasePrice: l.purchasePrice,
+          amount: quantityOrdered * l.purchasePrice,
+          receivedQuantity: 0,
+        };
+      });
 
     savePurchaseOrder({
       poNumber,
@@ -429,9 +453,16 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                   <input
                     type="date"
                     value={expectedDeliveryDate}
-                    onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                    min={orderDate || undefined}
+                    onChange={(e) => {
+                      setExpectedDeliveryDate(e.target.value);
+                      if (formErrors.deliveryDate) setFormErrors((prev) => ({ ...prev, deliveryDate: '' }));
+                    }}
                     className="w-full px-2.5 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500"
                   />
+                  {formErrors.deliveryDate && (
+                    <p className="text-xs text-rose-600">{formErrors.deliveryDate}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -522,8 +553,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                           <input
                             type="number"
                             min={1}
-                            value={line.quantity}
-                            onChange={(e) => handleUpdateLineQty(idx, e.target.value)}
+                            value={line.quantityText ?? String(line.quantity)}
+                            onChange={(e) => handleUpdateLineQtyText(idx, e.target.value)}
+                            onBlur={() => commitLineQty(idx)}
                             className="w-20 text-center px-2 py-1.5 text-sm font-semibold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                           />
                         </td>
