@@ -179,7 +179,12 @@ export function convertEnquiry(enquiryId: string, targetType: string, docId: str
       where: { id: enquiryId },
       data: { status: 'Converted', convertedTo: { type: targetType, id: docId, number: docNumber, convertedAt: nowIso() }, timeline, updatedAt: nowIso() },
     });
-    await tx.pendingOrder.updateMany({ where: { enquiryId }, data: { status: 'Fulfilled', fulfilledAt: nowIso(), updatedAt: nowIso() } });
+    // Only OPEN pending orders (Waiting / Stock Arrived) become Fulfilled — a
+    // Cancelled order must stay Cancelled, not be revived as Fulfilled (CRM-11).
+    await tx.pendingOrder.updateMany({
+      where: { enquiryId, status: { in: ['Waiting', 'Stock Arrived'] } },
+      data: { status: 'Fulfilled', fulfilledAt: nowIso(), updatedAt: nowIso() },
+    });
     return snap(tx);
   });
 }

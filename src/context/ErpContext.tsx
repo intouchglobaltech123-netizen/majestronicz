@@ -3381,10 +3381,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
-    // If linked pending order exists, mark Fulfilled
+    // If a linked pending order exists AND is still open (Waiting / Stock
+    // Arrived), mark it Fulfilled. A Cancelled order must not be revived (CRM-11).
+    const isOpenPo = (s: string) => s === 'Waiting' || s === 'Stock Arrived';
     setPendingOrders((prev) =>
       prev.map((po) =>
-        po.enquiryId === enquiryId
+        po.enquiryId === enquiryId && isOpenPo(po.status)
           ? {
               ...po,
               status: 'Fulfilled' as const,
@@ -3396,7 +3398,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     setSelectedPendingOrderForDetail((prev) =>
-      prev && prev.enquiryId === enquiryId
+      prev && prev.enquiryId === enquiryId && isOpenPo(prev.status)
         ? {
             ...prev,
             status: 'Fulfilled' as const,

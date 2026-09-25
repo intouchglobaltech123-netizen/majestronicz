@@ -400,6 +400,8 @@ model Customer {
   name                          String
   phone                         String  @unique
   address                       String
+  gstin                         String?
+  email                         String?
   customerType                  String?
   firstPurchaseDate             String
   purchaseCount                 Int
