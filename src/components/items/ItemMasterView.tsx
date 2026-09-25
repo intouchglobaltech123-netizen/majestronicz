@@ -645,8 +645,10 @@ export const ItemMasterView: React.FC = () => {
                                 <div className="text-[11px] text-emerald-700 flex items-center gap-0.5 font-medium mt-0.5">
                                   <Percent className="h-2.5 w-2.5" />
                                   <span>
-                                    Disc: {item.discountOnSalePrice}
-                                    {item.discountType}
+                                    Disc:{' '}
+                                    {item.discountType === '%'
+                                      ? `${item.discountOnSalePrice}%`
+                                      : formatCurrency(item.discountOnSalePrice)}
                                   </span>
                                 </div>
                               ) : null}

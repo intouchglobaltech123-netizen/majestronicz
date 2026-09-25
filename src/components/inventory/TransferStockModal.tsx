@@ -31,6 +31,26 @@ interface TransferRow {
   searchQuery?: string; // free-text the user types to search the catalog
 }
 
+// Units measured by weight / length / volume can carry fractional quantities.
+// Discrete units (pieces, boxes, numbers, sets, packets) must stay whole numbers.
+const DECIMAL_UNITS = [
+  'KG', 'KGS', 'GM', 'GMS', 'GRAM', 'GRAMS',
+  'MTR', 'MTRS', 'MTS', 'CM', 'FT', 'INCH',
+  'LTR', 'LTRS', 'LITRE', 'LITRES', 'ML',
+];
+const unitAllowsDecimals = (unit?: string): boolean =>
+  !!unit && DECIMAL_UNITS.includes(unit.trim().toUpperCase());
+
+// Parse a quantity input respecting the unit's decimal rule: whole-number units
+// are rounded to the nearest integer (never silently truncated); decimal-capable
+// units keep their fractional value.
+const parseUnitQuantity = (raw: string, unit?: string): number | '' => {
+  if (raw.trim() === '') return '';
+  const n = parseFloat(raw);
+  if (Number.isNaN(n) || n < 0) return '';
+  return unitAllowsDecimals(unit) ? n : Math.round(n);
+};
+
 export const TransferStockModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -470,15 +490,13 @@ export const TransferStockModal: React.FC<Props> = ({
                             <div className="flex items-center justify-end gap-1.5">
                               <input
                                 type="number"
-                                min="1"
+                                min={unitAllowsDecimals(item?.unit) ? '0' : '1'}
+                                step={unitAllowsDecimals(item?.unit) ? 'any' : '1'}
                                 max={availableInFrom}
                                 value={row.quantity}
                                 onChange={(e) =>
                                   handleUpdateRow(row.id, {
-                                    quantity:
-                                      e.target.value === ''
-                                        ? ''
-                                        : Math.max(1, parseInt(e.target.value) || 0),
+                                    quantity: parseUnitQuantity(e.target.value, item?.unit),
                                   })
                                 }
                                 placeholder={`1-${availableInFrom || 0}`}

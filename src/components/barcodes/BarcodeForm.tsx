@@ -12,6 +12,20 @@ import {
 import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 
+// The barcode/label MRP must match what the bill charges: the tax-INCLUSIVE price.
+// If the stored salePrice already includes tax ('with'), use it as-is; otherwise
+// ('without') add the item's GST slab on top.
+const getInclusivePrice = (item: Item): number =>
+  item.salePriceTaxMode === 'with'
+    ? item.salePrice
+    : item.salePrice * (1 + (item.gstTaxSlab || 0) / 100);
+
+const formatMrp = (item: Item): string =>
+  `MRP: ₹${getInclusivePrice(item).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
 interface Props {
   onAddToQueue: (item: QueuedBarcodeItem) => void;
   // Controlled form state passed up so BarcodePreviewCard can mirror it in real-time
@@ -89,7 +103,7 @@ export const BarcodeForm: React.FC<Props> = ({
 
     // Smart pre-fill for sticker lines
     setHeader('MAJESTRONICZ');
-    setLine1(`MRP: ₹${item.salePrice.toLocaleString('en-IN')}.00`);
+    setLine1(formatMrp(item));
     setLine2(`HSN: ${item.itemHSN} • ${item.category}`);
     setLine3(`Warranty: 1 Year Comprehensive`);
     setLine4(stockRow?.location ? `Rack: ${stockRow.location}` : `Loc: ${isAllBranches ? 'All Branches' : currentBranchData?.shortCode || 'ERD'}`);
@@ -116,7 +130,7 @@ export const BarcodeForm: React.FC<Props> = ({
       return;
     }
     setHeader('MAJESTRONICZ');
-    setLine1(`MRP: ₹${selectedItem.salePrice.toLocaleString('en-IN')}.00`);
+    setLine1(formatMrp(selectedItem));
     setLine2(`HSN: ${selectedItem.itemHSN} • ${selectedItem.category}`);
     setLine3(`Model: ${selectedItem.itemCode}`);
     setLine4(`PKD: 09/2026 • ${isAllBranches ? 'HQ' : currentBranchData?.shortCode || 'ERD'}`);

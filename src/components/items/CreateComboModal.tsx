@@ -42,7 +42,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
     subcategoriesByCategory,
     addCategory,
     addSubcategory,
-    generateItemCode,
+    getNextComboCode,
     currentBranch,
   } = useErp();
 
@@ -93,7 +93,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
         setCategory(defaultCat);
         setSubcategory(defaultSub);
         setIsCodeOverridden(false);
-        const autoCode = generateItemCode(defaultCat, defaultSub);
+        const autoCode = getNextComboCode();
         setComboCode(autoCode);
         setComboPrice('');
         setDescription('');
@@ -112,7 +112,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
     const newSub = subList.includes(subcategory) ? subcategory : (subList[0] || 'General');
     setSubcategory(newSub);
     if (!isCodeOverridden) {
-      const nextCode = generateItemCode(newCat, newSub);
+      const nextCode = getNextComboCode();
       setComboCode(nextCode);
     }
   };
@@ -120,7 +120,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
   const handleSubcategoryChange = (newSub: string) => {
     setSubcategory(newSub);
     if (!isCodeOverridden) {
-      const nextCode = generateItemCode(category, newSub);
+      const nextCode = getNextComboCode();
       setComboCode(nextCode);
     }
   };
@@ -140,7 +140,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
       toast.warning('Please select a category and subcategory first');
       return;
     }
-    const code = generateItemCode(category, subcategory);
+    const code = getNextComboCode();
     setComboCode(code);
     setIsCodeOverridden(false);
     toast.info(`Assigned combo code: ${code}`);
@@ -224,7 +224,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
       return;
     }
 
-    const finalCode = comboCode.trim() || generateItemCode(category, subcategory);
+    const finalCode = comboCode.trim() || getNextComboCode();
 
     if (!comboPrice || comboPrice <= 0) {
       toast.error('Please specify a valid combo price greater than ₹0');

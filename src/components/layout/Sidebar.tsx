@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   ChevronDown,
@@ -42,9 +42,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     activeSubTab,
     navigateToTab,
     logout,
+    items,
+    getBranchStock,
+    getTotalStockAcrossBranches,
+    isAllBranches,
+    currentBranch,
   } = useErp();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Count catalog items at or below their reorder threshold within the current
+  // branch scope, so the Inventory nav entry can flag replenishment work (INV-16).
+  const lowStockCount = useMemo(() => {
+    return items.reduce((count, item) => {
+      const qty = isAllBranches
+        ? getTotalStockAcrossBranches(item.id)
+        : getBranchStock(item.id, currentBranch)?.quantity ?? 0;
+      const threshold = item.reorderThreshold ?? 10;
+      return qty <= threshold ? count + 1 : count;
+    }, 0);
+  }, [items, isAllBranches, currentBranch, getBranchStock, getTotalStockAcrossBranches]);
   const isMobileDrawerOpen = Boolean(mobileOpen);
 
   const modules = NAV_MODULES.filter((m) => m.items.some((it) => canAccessView(it.cap)));
@@ -233,19 +250,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {visItems.map((it) => {
                         const subActive = isSubActive(it);
+                        const showLowStock =
+                          it.id === 'inventory' && it.subTabId === 'items' && lowStockCount > 0;
                         return (
                           <button
                             key={`${it.id}-${it.subTabId || ''}`}
                             type="button"
                             onClick={() => goSub(it)}
                             className={cn(
-                              'w-full px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer block truncate font-medium',
+                              'w-full px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer flex items-center justify-between gap-2 font-medium',
                               subActive
                                 ? 'bg-red-600 text-white font-extrabold border-l-2 border-red-400 -ml-[2px]'
                                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
                             )}
                           >
-                            {it.label}
+                            <span className="truncate">{it.label}</span>
+                            {showLowStock && (
+                              <span
+                                title={`${lowStockCount} item${lowStockCount === 1 ? '' : 's'} at or below reorder level`}
+                                className={cn(
+                                  'shrink-0 min-w-[18px] px-1.5 py-0.5 rounded-none text-[10px] font-extrabold leading-none text-center border',
+                                  subActive
+                                    ? 'bg-white text-red-700 border-white'
+                                    : 'bg-red-600 text-white border-red-500'
+                                )}
+                              >
+                                {lowStockCount}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

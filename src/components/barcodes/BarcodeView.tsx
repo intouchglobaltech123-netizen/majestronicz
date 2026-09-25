@@ -80,11 +80,24 @@ export const BarcodeView: React.FC = () => {
   // Queue Handlers
   const handleAddToQueue = (newItem: QueuedBarcodeItem) => {
     setQueue((prev) => {
-      // Check if same item & code is already in queue
-      const existingIdx = prev.findIndex((it) => it.itemCode === newItem.itemCode);
+      // Only merge quantities when the same item AND identical label/header text
+      // is already queued. If any sticker text differs, keep it as a separate
+      // entry so newly-entered header/line text is not silently dropped (INV2-11).
+      const existingIdx = prev.findIndex(
+        (it) =>
+          it.itemCode === newItem.itemCode &&
+          it.header === newItem.header &&
+          it.line1 === newItem.line1 &&
+          it.line2 === newItem.line2 &&
+          it.line3 === newItem.line3 &&
+          it.line4 === newItem.line4
+      );
       if (existingIdx >= 0) {
         const updated = [...prev];
-        updated[existingIdx].noOfLabels += newItem.noOfLabels;
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          noOfLabels: updated[existingIdx].noOfLabels + newItem.noOfLabels,
+        };
         return updated;
       }
       return [newItem, ...prev];

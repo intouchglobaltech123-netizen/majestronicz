@@ -13,6 +13,26 @@ interface Props {
   targetBranchId?: BranchId;
 }
 
+// Units measured by weight / length / volume can carry fractional quantities.
+// Discrete units (pieces, boxes, numbers, sets, packets) must stay whole numbers.
+const DECIMAL_UNITS = [
+  'KG', 'KGS', 'GM', 'GMS', 'GRAM', 'GRAMS',
+  'MTR', 'MTRS', 'MTS', 'CM', 'FT', 'INCH',
+  'LTR', 'LTRS', 'LITRE', 'LITRES', 'ML',
+];
+const unitAllowsDecimals = (unit?: string): boolean =>
+  !!unit && DECIMAL_UNITS.includes(unit.trim().toUpperCase());
+
+// Parse a quantity input respecting the unit's decimal rule: whole-number units
+// are rounded to the nearest integer (never silently truncated); decimal-capable
+// units keep their fractional value.
+const parseUnitQuantity = (raw: string, unit?: string): number | '' => {
+  if (raw.trim() === '') return '';
+  const n = parseFloat(raw);
+  if (Number.isNaN(n) || n < 0) return '';
+  return unitAllowsDecimals(unit) ? n : Math.round(n);
+};
+
 const ADJUSTMENT_REASONS: { label: string; value: StockAdjustmentReason; description: string }[] = [
   { label: 'Stock Audit Correction', value: 'Stock Audit Correction', description: 'Reconcile count mismatch from physical stocktaking' },
   { label: 'Damage', value: 'Damage', description: 'Goods broken, bent, water-damaged, or unusable' },
@@ -266,11 +286,12 @@ export const AdjustStockModal: React.FC<Props> = ({
               <div className="relative">
                 <input
                   type="number"
-                  min="1"
+                  min={unitAllowsDecimals(item.unit) ? '0' : '1'}
+                  step={unitAllowsDecimals(item.unit) ? 'any' : '1'}
                   max={adjustmentType === 'deduct' ? currentQuantity : undefined}
                   value={quantity}
-                  onChange={(e) => setQuantity(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 0))}
-                  placeholder="e.g. 5"
+                  onChange={(e) => setQuantity(parseUnitQuantity(e.target.value, item.unit))}
+                  placeholder={unitAllowsDecimals(item.unit) ? 'e.g. 2.5' : 'e.g. 5'}
                   required
                   className="w-full px-3.5 py-2.5 rounded-none bg-white border border-slate-300 text-slate-900 font-bold text-base focus:outline-none focus:border-red-600 transition-all pr-12"
                 />
