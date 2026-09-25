@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BranchScope, BRANCHES } from '../../types';
+import { BranchId, BranchScope, BRANCHES, expenseIsEffective, BANK_DEPOSIT_CATEGORY } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -64,10 +64,17 @@ export const BranchPnlReportTab: React.FC<Props> = ({
       if (endDate && reg.date > endDate) return;
       if (branchStats[reg.branchId]) {
         reg.expenses.forEach((exp) => {
+          // Only real, approved operating expenses count. Skip pending/rejected
+          // entries and bank deposits — a deposit is a cash transfer, not an
+          // expense (RPT2-4).
+          if (!expenseIsEffective(exp)) return;
+          if (exp.category === BANK_DEPOSIT_CATEGORY) return;
           const expAmt = (exp.cashAmount || 0) + (exp.gpayAmount || 0);
           branchStats[reg.branchId].totalExpenses += expAmt;
           branchStats[reg.branchId].expenseCount++;
-          const cat = exp.reason || 'General Operating';
+          // Group by the structured category field (matching the Expense Report),
+          // not the free-text reason, so the two reports agree (RPT-8).
+          const cat = exp.category || 'Uncategorised';
           branchStats[reg.branchId].categoryExpenses[cat] =
             (branchStats[reg.branchId].categoryExpenses[cat] || 0) + expAmt;
         });
