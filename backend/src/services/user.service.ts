@@ -1,7 +1,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso } from '../lib/stockLedger.js';
-import { ROLE_DEFS, Role, SessionUser, hashPin, isPinHashed } from '../lib/auth.js';
+import { ROLE_DEFS, Role, SessionUser, hashPin, hashPinCandidates, pinNeedsRehash, isPinHashed } from '../lib/auth.js';
 
 /**
  * Staff login accounts. Each user has their own PIN and an RBAC role.
@@ -102,8 +102,22 @@ export interface AuthResult {
 
 /** Verify a PIN against active staff accounts. */
 export async function authenticateUser(pin: string, branchId?: string): Promise<AuthResult | null> {
-  const account = await prisma.user.findFirst({ where: { pin: hashPin(String(pin || '')), status: 'active' } });
+  const rawPin = String(pin || '');
+  // Match against the current-secret hash, or (during a rotation grace period)
+  // the previous-secret hash, so a secret swap doesn't lock anyone out.
+  const account = await prisma.user.findFirst({
+    where: { pin: { in: hashPinCandidates(rawPin) }, status: 'active' },
+  });
   if (!account) return null;
+  // If this PIN still carries the old-secret hash, transparently upgrade it to
+  // the current secret now that we've confirmed the plaintext (SEC2-4 Option B).
+  if (pinNeedsRehash(rawPin, account.pin)) {
+    try {
+      await prisma.user.update({ where: { id: account.id }, data: { pin: hashPin(rawPin), updatedAt: nowIso() } });
+    } catch {
+      /* a unique-collision here is impossible for a verified PIN; ignore and let login proceed */
+    }
+  }
   const role = account.role as Role;
   const assignedBranchId =
     role === 'Manager' ? branchId || account.assignedBranchId || 'coimbatore' : account.assignedBranchId || undefined;

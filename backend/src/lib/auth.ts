@@ -141,16 +141,41 @@ const SECRET = (() => {
   return 'majestronicz-dev-secret-change-in-prod';
 })();
 
+// Optional PREVIOUS secret, used only during a rotation grace period. When you
+// move AUTH_SECRET to a new strong value, set AUTH_SECRET_PREV to the old one:
+// tokens and PIN hashes made under the old secret keep verifying, and each PIN
+// is transparently re-hashed to the new secret on the owner's next login
+// (see re-hash logic in user.service.authenticateUser). Once every active user
+// has logged in, remove AUTH_SECRET_PREV. This lets you rotate to a real secret
+// without locking anyone out (Option B for SEC2-4).
+const SECRET_PREV = process.env.AUTH_SECRET_PREV || '';
+
 // Deterministic keyed hash for login PINs so plaintext is never stored in the DB.
 // Keyed by AUTH_SECRET (an attacker without it can't precompute), and deterministic
 // so PIN uniqueness (@unique) and lookup-by-hash keep working.
-export const hashPin = (pin: string) =>
-  crypto.createHmac('sha256', SECRET + ':pin').update(String(pin)).digest('hex');
+const hashPinWith = (pin: string, secret: string) =>
+  crypto.createHmac('sha256', secret + ':pin').update(String(pin)).digest('hex');
+export const hashPin = (pin: string) => hashPinWith(pin, SECRET);
+/**
+ * All hashes a given plaintext PIN could be stored as right now: the current
+ * secret first, then the previous secret during a rotation grace period. Used
+ * for login lookup so an old-secret hash still matches.
+ */
+export const hashPinCandidates = (pin: string): string[] => {
+  const list = [hashPin(pin)];
+  if (SECRET_PREV) list.push(hashPinWith(pin, SECRET_PREV));
+  return list;
+};
+/** True when a PIN's stored hash is NOT the current-secret hash but does match the
+ *  previous-secret hash — i.e. it should be lazily re-hashed to the current secret. */
+export const pinNeedsRehash = (pin: string, storedHash: string): boolean =>
+  !!SECRET_PREV && storedHash !== hashPin(pin) && storedHash === hashPinWith(pin, SECRET_PREV);
 /** True if a stored value is already a hash (64 hex chars) rather than a plaintext PIN. */
 export const isPinHashed = (v: string) => /^[0-9a-f]{64}$/.test(v);
 const b64 = (s: string) => Buffer.from(s).toString('base64url');
 const unb64 = (s: string) => Buffer.from(s, 'base64url').toString('utf8');
 const sign = (payload: string) => crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
+const signPrev = (payload: string) => crypto.createHmac('sha256', SECRET_PREV).update(payload).digest('base64url');
 
 export interface SessionUser {
   role: Role;
@@ -169,7 +194,10 @@ export function issueToken(user: Omit<SessionUser, 'exp'>): string {
 export function verifyToken(token?: string): SessionUser | null {
   if (!token) return null;
   const [payload, sig] = token.split('.');
-  if (!payload || !sig || sign(payload) !== sig) return null;
+  // Accept a signature from the current secret, or (during a rotation grace
+  // period) from the previous secret, so already-issued tokens survive the swap.
+  const sigOk = !!payload && !!sig && (sign(payload) === sig || (!!SECRET_PREV && signPrev(payload) === sig));
+  if (!sigOk) return null;
   try {
     const user = JSON.parse(unb64(payload)) as SessionUser;
     if (!user.exp || user.exp < Date.now()) return null;
