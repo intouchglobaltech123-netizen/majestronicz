@@ -17,6 +17,7 @@ import {
   Wallet,
   History,
   Banknote,
+  ReceiptText,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -29,6 +30,7 @@ import { PayrollSummaryReportTab } from './PayrollSummaryReportTab';
 import { ExpenseReportTab } from './ExpenseReportTab';
 import { AuditLogReportTab } from './AuditLogReportTab';
 import { PaymentsLogReportTab } from './PaymentsLogReportTab';
+import { InputTaxCreditReportTab } from './InputTaxCreditReportTab';
 
 export type ReportTabType =
   | 'sales'
@@ -37,6 +39,7 @@ export type ReportTabType =
   | 'enquiry-conversion'
   | 'purchase-orders'
   | 'gst'
+  | 'itc'
   | 'expenses'
   | 'payments'
   | 'audit'
@@ -112,6 +115,7 @@ export const ReportsView: React.FC = () => {
     { id: 'enquiry-conversion' as const, label: 'Enquiry Conversion', icon: TrendingUp, description: 'Funnel velocity and open pending orders' },
     { id: 'purchase-orders' as const, label: 'PO Procurement', icon: ShoppingBag, description: 'Vendor fulfillment and overdue orders' },
     { id: 'gst' as const, label: 'GST Summary', icon: Landmark, description: 'GSTR-1 / 3B rate-wise & HSN tax report' },
+    { id: 'itc' as const, label: 'Input Tax Credit', icon: ReceiptText, description: 'Supplier bills → claimable GST (purchase register)' },
     { id: 'expenses' as const, label: 'Expense Report', icon: Wallet, description: 'Daily expenses by category, cash vs GPay' },
     { id: 'payments' as const, label: 'Payments Log', icon: Banknote, description: 'All money in & out — receipts, vendor payments, expenses' },
     { id: 'audit' as const, label: 'Audit Trail', icon: History, description: 'Who changed what, when — full activity log' },
@@ -142,6 +146,7 @@ export const ReportsView: React.FC = () => {
       {activeTab === 'enquiry-conversion' && <EnquiryConversionReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'purchase-orders' && <PurchaseOrderStatusReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'gst' && <GstReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'itc' && <InputTaxCreditReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'expenses' && <ExpenseReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'payments' && <PaymentsLogReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'audit' && <AuditLogReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}

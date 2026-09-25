@@ -849,6 +849,11 @@ export interface PurchaseOrder {
   receivingHistory?: PurchaseOrderReceivingEvent[];
   debitNotes?: PODebitNote[]; // Quality-check rejections billed back to the vendor
   payments?: POPayment[]; // Vendor payment history (each amount paid, with mode + who)
+  // Supplier tax invoice (bill) captured as data — enables Input Tax Credit / GSTR-3B.
+  supplierBillNumber?: string;
+  supplierBillDate?: string; // YYYY-MM-DD
+  supplierBillTaxable?: number; // taxable value on the supplier bill
+  supplierBillGst?: number; // total GST on the supplier bill (eligible ITC)
   createdAt: string;
   updatedAt: string;
 }

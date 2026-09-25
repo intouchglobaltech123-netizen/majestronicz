@@ -133,9 +133,11 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                   return (
                     <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* Date */}
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900 flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        <span>{reg.date}</span>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          <span>{reg.date}</span>
+                        </span>
                       </td>
 
                       {/* Branch */}

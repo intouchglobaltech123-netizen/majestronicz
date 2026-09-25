@@ -54,12 +54,25 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     addPurchaseOrderAttachment,
     deletePurchaseOrderAttachment,
     recordPurchaseOrderPayment,
+    recordPurchaseBill,
     pendingOrders,
     setSelectedPendingOrderForDetail,
     setCurrentView,
   } = useErp();
   const [payAmt, setPayAmt] = React.useState<string>('');
   const [payMode, setPayMode] = React.useState<string>('Cash');
+  const [billNo, setBillNo] = React.useState<string>('');
+  const [billDate, setBillDate] = React.useState<string>('');
+  const [billTaxable, setBillTaxable] = React.useState<string>('');
+  const [billGst, setBillGst] = React.useState<string>('');
+  React.useEffect(() => {
+    if (purchaseOrder) {
+      setBillNo(purchaseOrder.supplierBillNumber || '');
+      setBillDate(purchaseOrder.supplierBillDate || '');
+      setBillTaxable(purchaseOrder.supplierBillTaxable ? String(purchaseOrder.supplierBillTaxable) : '');
+      setBillGst(purchaseOrder.supplierBillGst ? String(purchaseOrder.supplierBillGst) : '');
+    }
+  }, [purchaseOrder?.id, purchaseOrder?.supplierBillNumber]);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isUploading, setIsUploading] = useState(false);
@@ -547,6 +560,52 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <span className="font-bold text-slate-700">Remarks / PO Notes:</span>{' '}
                     {purchaseOrder.notes || 'No special notes specified.'}
                   </div>
+                </div>
+              </div>
+
+              {/* Supplier tax invoice (bill) → Input Tax Credit */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Supplier Bill (Input Tax Credit)</span>
+                  {purchaseOrder.supplierBillGst ? (
+                    <span className="text-[11px] font-bold text-emerald-700">ITC: {formatCurrency(purchaseOrder.supplierBillGst)}</span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-amber-700">No bill entered</span>
+                  )}
+                </div>
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill No.</label>
+                    <input value={billNo} onChange={(e) => setBillNo(e.target.value)} placeholder="INV-1234"
+                      className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill Date</label>
+                    <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Taxable (₹)</label>
+                    <input type="number" min={0} value={billTaxable} onChange={(e) => setBillTaxable(e.target.value)} placeholder="0"
+                      className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-red-600" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">GST / ITC (₹)</label>
+                    <input type="number" min={0} value={billGst} onChange={(e) => setBillGst(e.target.value)} placeholder="0"
+                      className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-bold font-mono text-emerald-800 focus:outline-none focus:border-red-600" />
+                  </div>
+                  {canManagePurchases && (
+                    <div className="col-span-2 sm:col-span-4">
+                      <button
+                        type="button"
+                        onClick={() => recordPurchaseBill(purchaseOrder.id, { number: billNo, date: billDate, taxable: Number(billTaxable) || 0, gst: Number(billGst) || 0 })}
+                        className="px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors cursor-pointer"
+                      >
+                        Save Bill
+                      </button>
+                      <span className="text-[11px] text-slate-400 ml-2">Enter the supplier's tax invoice so the GST counts as input tax credit in GSTR‑3B.</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

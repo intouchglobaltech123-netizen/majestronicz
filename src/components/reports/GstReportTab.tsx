@@ -43,8 +43,24 @@ interface B2BRow {
 }
 
 export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
-  const { invoices, customers } = useErp();
+  const { invoices, customers, purchaseOrders } = useErp();
   const [view, setView] = useState<'rate' | 'hsn' | 'b2b' | '3b'>('rate');
+
+  // Input Tax Credit from supplier bills entered on POs (date-filtered by bill date).
+  const itc = useMemo(() => {
+    let total = 0;
+    for (const po of purchaseOrders) {
+      if (po.status === 'Cancelled') continue;
+      if (branchScope !== 'all' && po.branchId !== branchScope) continue;
+      const g = po.supplierBillGst || 0;
+      if (g <= 0) continue;
+      const d = po.supplierBillDate || po.date;
+      if (startDate && d < startDate) continue;
+      if (endDate && d > endDate) continue;
+      total += g;
+    }
+    return Math.round(total * 100) / 100;
+  }, [purchaseOrders, startDate, endDate, branchScope]);
 
   // Resolve a buyer's GSTIN from the customer master (invoices don't store it directly).
   const buyerGstin = (inv: any): string => {
@@ -142,8 +158,8 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       headers = ['Line', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
       rows = [
         ['Outward taxable supplies (output tax)', totals.taxable.toFixed(2), totals.cgst.toFixed(2), totals.sgst.toFixed(2), totals.igst.toFixed(2), totals.total.toFixed(2)],
-        ['Less: Input Tax Credit (from purchase bills)', '', '0.00', '0.00', '0.00', '0.00'],
-        ['Net Tax Payable', '', totals.cgst.toFixed(2), totals.sgst.toFixed(2), totals.igst.toFixed(2), totals.total.toFixed(2)],
+        ['Less: Input Tax Credit (from purchase bills)', '', '', '', '', itc.toFixed(2)],
+        ['Net Tax Payable', '', '', '', '', Math.max(0, totals.total - itc).toFixed(2)],
       ];
     }
     if (format === 'excel') exportToExcel(filename, headers, rows);
@@ -351,21 +367,21 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
                   <td className="py-3 px-4 text-right">{formatCurrency(totals.igst)}</td>
                   <td className="py-3 px-4 text-right font-bold">{formatCurrency(totals.total)}</td>
                 </tr>
-                <tr className="text-slate-500">
+                <tr className="text-slate-600">
                   <td className="py-3 px-4 font-sans">Less: Input Tax Credit (from purchase bills)</td>
                   <td className="py-3 px-4 text-right">—</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(0)}</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right font-bold text-blue-700">(−) {formatCurrency(itc)}</td>
                 </tr>
                 <tr className="bg-emerald-50/50 border-t-2 border-emerald-200 font-bold">
                   <td className="py-3 px-4 font-sans">Net Tax Payable</td>
                   <td className="py-3 px-4 text-right">—</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(totals.cgst)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(totals.sgst)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(totals.igst)}</td>
-                  <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(totals.total)}</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right">—</td>
+                  <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(Math.max(0, totals.total - itc))}</td>
                 </tr>
               </tbody>
             </table>

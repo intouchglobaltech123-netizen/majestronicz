@@ -329,6 +329,10 @@ model PurchaseOrder {
   receivingHistory    Json?
   debitNotes          Json?
   payments            Json?
+  supplierBillNumber  String?
+  supplierBillDate    String?
+  supplierBillTaxable Float?
+  supplierBillGst     Float?
   createdAt           String
   updatedAt           String
 }

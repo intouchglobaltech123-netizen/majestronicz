@@ -400,6 +400,7 @@ interface ErpContextType {
     payment?: { amount?: number; mode?: string }
   ) => void;
   recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => void;
+  recordPurchaseBill: (poId: string, bill: { number: string; date: string; taxable: number; gst: number }) => void;
   addPurchaseOrderAttachment: (
     poId: string,
     attachment: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
@@ -3693,6 +3694,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const recordPurchaseBill = (
+    poId: string,
+    bill: { number: string; date: string; taxable: number; gst: number }
+  ) => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    if (!po) { toast.error('Purchase order not found'); return; }
+    const updatedPo: PurchaseOrder = {
+      ...po,
+      supplierBillNumber: bill.number.trim() || undefined,
+      supplierBillDate: bill.date.trim() || undefined,
+      supplierBillTaxable: Number(bill.taxable) || 0,
+      supplierBillGst: Number(bill.gst) || 0,
+      updatedAt: new Date().toISOString(),
+    };
+    setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? updatedPo : p)));
+    setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? updatedPo : cur));
+    persist(apiPost('/api/purchase/bill', { poId, bill }));
+    toast.success('Supplier bill saved — input tax credit updated');
+  };
+
   const recordPurchaseOrderPayment = (poId: string, amount: number, mode: string) => {
     const po = purchaseOrders.find((p) => p.id === poId);
     if (!po) { toast.error('Purchase order not found'); return; }
@@ -4174,6 +4195,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cancelPurchaseOrder,
         receivePurchaseOrderStock,
         recordPurchaseOrderPayment,
+        recordPurchaseBill,
         addPurchaseOrderAttachment,
         deletePurchaseOrderAttachment,
         getNextPoNumber,

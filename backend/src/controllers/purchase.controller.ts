@@ -27,3 +27,7 @@ export const recordPayment = async (req: Request, res: Response) => {
   const { poId, amount, mode, actor } = req.body;
   res.json(await purchase.recordPurchaseOrderPayment(poId, amount, mode, actor));
 };
+export const recordBill = async (req: Request, res: Response) => {
+  const { poId, bill } = req.body;
+  res.json(await purchase.recordPurchaseBill(poId, bill));
+};

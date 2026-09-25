@@ -234,6 +234,25 @@ export function deleteAttachment(poId: string, attachmentId: string) {
   });
 }
 
+/** Save the supplier's tax invoice (bill) details on a PO — enables Input Tax Credit. */
+export function recordPurchaseBill(poId: string, bill: any) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: {
+        supplierBillNumber: (bill?.number || '').trim() || null,
+        supplierBillDate: (bill?.date || '').trim() || null,
+        supplierBillTaxable: Number(bill?.taxable) || 0,
+        supplierBillGst: Number(bill?.gst) || 0,
+        updatedAt: nowIso(),
+      },
+    });
+    return poSnapshot(tx);
+  });
+}
+
 /** Record a payment made to the vendor against a PO (increments Paid, logs history). */
 export function recordPurchaseOrderPayment(poId: string, amount: number, mode: string, actor: string) {
   return prisma.$transaction(async (tx: any) => {
