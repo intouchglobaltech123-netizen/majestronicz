@@ -110,6 +110,19 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const [openBills, setOpenBills] = useState<BillTab[]>(() => readPersistedBills().openBills);
   const [activeBillId, setActiveBillId] = useState<string | null>(() => readPersistedBills().activeBillId);
   const billSeqRef = useRef(readPersistedBills().openBills.length);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+
+  // Auto horizontal-scroll the tab strip so the active bill tab is always in view
+  // (e.g. after clicking "New Sale", which appends and activates a new tab).
+  useEffect(() => {
+    if (!activeBillId) return;
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    requestAnimationFrame(() => {
+      const el = strip.querySelector<HTMLElement>(`[data-bill-id="${activeBillId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    });
+  }, [activeBillId, openBills.length]);
 
   // Persist open tabs + active selection so a refresh restores them.
   useEffect(() => {
@@ -437,8 +450,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner & Module Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="shrink-0">
           <div>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 {activeTab === 'new'
@@ -464,53 +477,52 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   ? 'In-progress drafts saved in this browser'
                   : "Today's tax invoices — search any past bill, or use Reports for a date range"}
               </p>
-
-              {/* Multi-tab bill strip — starts right under the heading (small gap, left aligned) */}
-              {activeTab === 'new' && (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[70vw]">
-                    {openBills.map((tab) => {
-                      const isActive = tab.id === activeBillId;
-                      const isQuote = tab.documentType === 'Quotation';
-                      return (
-                        <div
-                          key={tab.id}
-                          onClick={() => setActiveBillId(tab.id)}
-                          className={cn(
-                            'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
-                            isActive
-                              ? isQuote
-                                ? 'bg-slate-800 text-white border-slate-900'
-                                : 'bg-red-600 text-white border-red-700'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                          )}
-                        >
-                          {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
-                          <span className="max-w-[110px] truncate">{tab.label}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
-                            className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
-                            title="Close this bill"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleStartBlank('Invoice')}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
-                    title="Start a new sale bill in another tab"
-                  >
-                    <Plus className="h-3 w-3" /> New Sale
-                  </button>
-                </div>
-              )}
             </div>
         </div>
+
+        {/* Multi-tab bill strip — inline on the RIGHT of the heading, horizontal scroll */}
+        {activeTab === 'new' && (
+          <div ref={tabStripRef} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {openBills.map((tab) => {
+              const isActive = tab.id === activeBillId;
+              const isQuote = tab.documentType === 'Quotation';
+              return (
+                <div
+                  key={tab.id}
+                  data-bill-id={tab.id}
+                  onClick={() => setActiveBillId(tab.id)}
+                  className={cn(
+                    'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
+                    isActive
+                      ? isQuote
+                        ? 'bg-slate-800 text-white border-slate-900'
+                        : 'bg-red-600 text-white border-red-700'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  )}
+                >
+                  {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
+                  <span className="max-w-[110px] truncate">{tab.label}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
+                    className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
+                    title="Close this bill"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => handleStartBlank('Invoice')}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
+              title="Start a new sale bill in another tab"
+            >
+              <Plus className="h-3 w-3" /> New Sale
+            </button>
+          </div>
+        )}
 
         {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end min-w-0">
