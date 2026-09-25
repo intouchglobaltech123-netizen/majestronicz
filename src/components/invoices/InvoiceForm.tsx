@@ -278,14 +278,17 @@ export const InvoiceForm: React.FC<Props> = ({
     if (lineItems.length > prevLineCountRef.current) {
       const el = itemScrollRef.current;
       if (el) requestAnimationFrame(() => {
-        // Centre the newly added row in the editor viewport (not pinned to the bottom edge).
         const rows = el.querySelectorAll<HTMLElement>('[data-line-row]');
         const row = rows[rows.length - 1];
+        // Keep the newest row centred within the item editor…
         if (row) {
           const cRect = el.getBoundingClientRect();
           const rRect = row.getBoundingClientRect();
           const delta = (rRect.top - cRect.top) - el.clientHeight / 2 + row.offsetHeight / 2;
           el.scrollTop += delta;
+          // …and scroll the PAGE so the new row is visible even when the editor
+          // itself doesn't overflow (this is the auto-scroll the counter wants).
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
           el.scrollTop = el.scrollHeight;
         }
@@ -1752,42 +1755,6 @@ export const InvoiceForm: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Salesperson & incentive — collapsible, off by default (minimal header) */}
-        {documentType !== 'Quotation' && (
-          !showSalesperson ? (
-            <button
-              type="button"
-              onClick={() => setShowSalesperson(true)}
-              className="text-[11px] font-bold text-violet-700 hover:text-violet-900 cursor-pointer"
-            >
-              + Salesperson
-            </button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-violet-700 shrink-0">Salesperson</span>
-              <div className="w-52">
-                <UniversalDropdown
-                  value={salespersonId}
-                  onChange={(v) => setSalespersonId(String(v))}
-                  options={[
-                    { value: '', label: 'No salesperson' },
-                    ...employees.filter((e) => e.status === 'Active').map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
-                  ]}
-                  placeholder="Select employee…"
-                  buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400">Incentive % is set in Staff Directory</span>
-              <button
-                type="button"
-                onClick={() => { setShowSalesperson(false); setSalespersonId(''); setIncentivePercent(0); }}
-                className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
-              >
-                Remove
-              </button>
-            </div>
-          )
-        )}
       </div>
 
       {/* LINE ITEMS TABLE CARD */}
@@ -2634,6 +2601,45 @@ export const InvoiceForm: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Salesperson — placed at the END of the bill (incentive % is set in Staff Directory) */}
+      {documentType !== 'Quotation' && (
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xs">
+          {!showSalesperson ? (
+            <button
+              type="button"
+              onClick={() => setShowSalesperson(true)}
+              className="text-[11px] font-bold text-violet-700 hover:text-violet-900 cursor-pointer"
+            >
+              + Add Salesperson
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-violet-700 shrink-0">Salesperson</span>
+              <div className="w-52">
+                <UniversalDropdown
+                  value={salespersonId}
+                  onChange={(v) => setSalespersonId(String(v))}
+                  options={[
+                    { value: '', label: 'No salesperson' },
+                    ...employees.filter((e) => e.status === 'Active').map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
+                  ]}
+                  placeholder="Select employee…"
+                  buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400">Incentive % is set in Staff Directory</span>
+              <button
+                type="button"
+                onClick={() => { setShowSalesperson(false); setSalespersonId(''); setIncentivePercent(0); }}
+                className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sticky billing total bar — always visible while scrolling (POS feel) */}
       <div className="sticky bottom-0 z-30 bg-white border-t-2 border-slate-300 shadow-[0_-4px_14px_rgba(0,0,0,0.07)] -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
