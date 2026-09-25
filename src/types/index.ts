@@ -882,6 +882,7 @@ export interface Employee {
   designation: string; // e.g. "Counter Staff", "Inventory Manager", "Robotics Technician"
   branchId: BranchId;
   monthlySalary: number; // Agreed fixed monthly salary in INR
+  incentivePercent?: number; // CEO-set sales incentive % applied per sale credited to this staff
   pin: string; // 4-digit PIN for kiosk check-in/out
   status: 'Active' | 'Inactive';
   phone?: string;

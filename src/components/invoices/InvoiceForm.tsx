@@ -259,7 +259,6 @@ export const InvoiceForm: React.FC<Props> = ({
   const [stateOfSupply, setStateOfSupply] = useState('33-Tamil Nadu');
   // Salesperson incentive — manually assigned per bill.
   const [salespersonId, setSalespersonId] = useState<string>(initialInvoice?.salespersonId || '');
-  const [incentivePercent, setIncentivePercent] = useState<number>(initialInvoice?.incentivePercent || 0);
 
   // GST Toggle
   const [withGst, setWithGst] = useState(true);
@@ -1242,11 +1241,16 @@ export const InvoiceForm: React.FC<Props> = ({
       roundOffEnabled,
       grandTotal: totals.grandTotal,
       amountInWords: totals.amountInWords,
-      // Salesperson incentive (₹ computed & stored at save time).
+      // Salesperson incentive — rate is the CEO-set % from the Staff Directory.
       salespersonId: salespersonId || undefined,
       salespersonName: salespersonId ? employees.find((e) => e.id === salespersonId)?.name : undefined,
-      incentivePercent: salespersonId && incentivePercent > 0 ? incentivePercent : undefined,
-      incentiveAmount: salespersonId && incentivePercent > 0 ? Math.round(totals.grandTotal * incentivePercent) / 100 : undefined,
+      ...(() => {
+        const emp = salespersonId ? employees.find((e) => e.id === salespersonId) : undefined;
+        const pct = emp?.incentivePercent || 0;
+        return salespersonId && pct > 0
+          ? { incentivePercent: pct, incentiveAmount: Math.round(totals.grandTotal * pct) / 100 }
+          : { incentivePercent: undefined, incentiveAmount: undefined };
+      })(),
       termsAndConditions: terms,
       description: description.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -2631,7 +2635,7 @@ export const InvoiceForm: React.FC<Props> = ({
               <span className="text-[10px] text-slate-400">Incentive % is set in Staff Directory</span>
               <button
                 type="button"
-                onClick={() => { setShowSalesperson(false); setSalespersonId(''); setIncentivePercent(0); }}
+                onClick={() => { setShowSalesperson(false); setSalespersonId(''); }}
                 className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
               >
                 Remove

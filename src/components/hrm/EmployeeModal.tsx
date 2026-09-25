@@ -38,6 +38,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const [designation, setDesignation] = useState('');
   const [branchId, setBranchId] = useState<BranchId>('erode-hq');
   const [monthlySalary, setMonthlySalary] = useState<number>(20000);
+  const [incentivePercent, setIncentivePercent] = useState<number>(0);
   const [pin, setPin] = useState('1001');
   const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
   const [phone, setPhone] = useState('');
@@ -56,6 +57,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setDesignation(employeeToEdit.designation);
       setBranchId(employeeToEdit.branchId);
       setMonthlySalary(employeeToEdit.monthlySalary);
+      setIncentivePercent(employeeToEdit.incentivePercent || 0);
       setPin(employeeToEdit.pin);
       setStatus(employeeToEdit.status);
       setPhone(employeeToEdit.phone || '');
@@ -113,6 +115,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       designation: designation.trim(),
       branchId,
       monthlySalary: Number(monthlySalary),
+      incentivePercent: Number(incentivePercent) || 0,
       pin: pin.trim(),
       status,
       phone: cleanPhoneDigits(phone) || undefined,
@@ -278,6 +281,37 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </div>
             <p className="text-[11px] text-slate-400 mt-1 font-mono">
               Agreed full-month remuneration for 208 working hours (₹{(monthlySalary / 208).toFixed(2)}/hr)
+            </p>
+          </div>
+
+          {/* Sales Incentive % (CEO-set; applied on sales credited to this staff) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Sales Incentive (%)
+              </label>
+              {!canEditSalaries && (
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-none border border-amber-300 flex items-center gap-1 font-bold">
+                  <Lock className="h-3 w-3" /> CEO Only
+                </span>
+              )}
+            </div>
+            <div className="relative w-40">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={incentivePercent}
+                onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                disabled={!canEditSalaries}
+                placeholder="0"
+                className="w-full pr-7 pl-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 disabled:bg-slate-100 disabled:text-slate-500"
+              />
+              <span className="absolute right-3 top-2 text-sm font-bold text-slate-400">%</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Applied on each sale credited to this salesperson (fixed by CEO; not shown on the billing screen).
             </p>
           </div>
 

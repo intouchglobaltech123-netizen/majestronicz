@@ -338,6 +338,7 @@ model Employee {
   designation   String
   branchId      String
   monthlySalary Float
+  incentivePercent Float?
   pin           String
   status        String
   phone         String?
