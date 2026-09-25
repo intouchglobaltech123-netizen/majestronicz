@@ -285,6 +285,35 @@ export function processReturn(
     const validLines = (returnLines || []).filter((l: any) => l.returnQty > 0);
     if (!validLines.length) throw new AppError('NO_LINES', 'No return quantity specified', 400);
 
+    // Cap each return to what was actually sold and not already returned, keyed by
+    // item (or combo). Without this, returning more than sold — or an item never on
+    // the bill — created stock from nothing (SAL2-4).
+    const keyOf = (x: any) => (x.isCombo && x.comboId ? `combo:${x.comboId}` : (x.itemId || x.id));
+    const soldByKey = new Map<string, number>();
+    for (const it of (inv.items as any[]) || []) {
+      soldByKey.set(keyOf(it), (soldByKey.get(keyOf(it)) || 0) + (Number(it.quantity) || 0));
+    }
+    const returnedByKey = new Map<string, number>();
+    for (const r of (inv.returns as any[]) || []) {
+      returnedByKey.set(keyOf(r), (returnedByKey.get(keyOf(r)) || 0) + (Number(r.returnedQuantity) || 0));
+    }
+    const batchByKey = new Map<string, number>();
+    for (const line of validLines) {
+      const key = keyOf(line);
+      const sold = soldByKey.get(key) || 0;
+      const already = returnedByKey.get(key) || 0;
+      const batch = batchByKey.get(key) || 0;
+      const want = Number(line.returnQty) || 0;
+      if (sold <= 0) {
+        throw new AppError('NOT_ON_BILL', `"${line.itemName || key}" was not sold on this bill and cannot be returned.`, 400);
+      }
+      if (already + batch + want > sold) {
+        const remaining = Math.max(0, sold - already - batch);
+        throw new AppError('OVER_RETURN', `Cannot return ${want} of "${line.itemName}" — only ${remaining} remaining to return.`, 400);
+      }
+      batchByKey.set(key, batch + want);
+    }
+
     const ts = nowIso();
     // Business rule: damaged goods are written off, NOT added back to stock.
     const isDamaged = /damag/i.test(reason || '');
