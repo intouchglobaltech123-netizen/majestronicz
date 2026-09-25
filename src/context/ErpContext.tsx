@@ -3060,6 +3060,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    // A cancelled enquiry must stop nagging: mark its open follow-up reminders
+    // completed so they drop off the active reminders list (CRM-9).
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.enquiryId === enquiryId && !r.isCompleted
+          ? { ...r, isCompleted: true, completedAt: new Date().toISOString() }
+          : r
+      )
+    );
+
     persist(apiPost('/api/enquiry/cancel', { enquiryId, reason, actor: currentUser.name }));
     toast.info('Enquiry marked as Cancelled', {
       description: `Reason: ${reason}`,
@@ -3393,6 +3403,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updatedAt: new Date().toISOString(),
           }
         : prev
+    );
+
+    // A converted enquiry is closed: clear its open follow-up reminders so they
+    // no longer surface as pending call-backs (CRM-10).
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.enquiryId === enquiryId && !r.isCompleted
+          ? { ...r, isCompleted: true, completedAt: new Date().toISOString() }
+          : r
+      )
     );
 
     persist(apiPost('/api/enquiry/convert', { enquiryId, targetType, docId: preFilledEstimate.id, docNumber: preFilledEstimate.estimateNumber, actor: currentUser.name }));

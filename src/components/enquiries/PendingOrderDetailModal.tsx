@@ -435,7 +435,12 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                         {currentBranchStock}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        {canFulfillNow ? (
+                        {pendingOrder.status === 'Fulfilled' || pendingOrder.status === 'Cancelled' ? (
+                          // Terminal order: the live "stock in hand" hint no longer
+                          // applies — showing it read as if the order were still
+                          // actionable (CRM-12).
+                          <span className="text-[11px] font-semibold text-slate-400">—</span>
+                        ) : canFulfillNow ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             <PackageCheck className="h-3 w-3 text-emerald-600" />
                             Stock In Hand ({currentBranchStock} available)
