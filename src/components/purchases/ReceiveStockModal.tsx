@@ -5,10 +5,9 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { PurchaseOrder, BRANCHES, COMPANY_PROFILE } from '../../types';
+import { PurchaseOrder, BRANCHES } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency, getTodayDateString } from '../../lib/utils';
-import { toast } from 'sonner';
+import { formatCurrency } from '../../lib/utils';
 
 interface ReceiveStockModalProps {
   isOpen: boolean;
@@ -138,50 +137,6 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const totalUnitsReceivingNow = Object.values(quantitiesToReceive).reduce((sum, val) => sum + (val || 0), 0);
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
-  // Build & print a debit-note bill for the damaged units, straight from this window.
-  const openDamageBill = (
-    lines: { itemName: string; itemCode?: string; damagedQuantity: number; unitPrice: number; amount: number }[],
-    total: number
-  ) => {
-    if (!purchaseOrder) return;
-    const noteNumber = `${purchaseOrder.poNumber}-DN${(purchaseOrder.debitNotes?.length || 0) + 1}`;
-    const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
-    const rows = lines
-      .map(
-        (l, i) => `<tr>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:center">${i + 1}</td>
-          <td style="border:1px solid #333;padding:6px 8px">${esc(l.itemName)}${l.itemCode ? ` <span style="color:#666">(${esc(l.itemCode)})</span>` : ''}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${l.damagedQuantity}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.unitPrice || 0).toFixed(2)}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.amount || 0).toFixed(2)}</td>
-        </tr>`
-      )
-      .join('');
-    const html = `<!doctype html><html><head><title>${esc(noteNumber)}</title>
-      <style>body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}th{border:1px solid #333;padding:6px 8px;background:#f3f3f3;text-align:left}.noprint{position:fixed;top:12px;right:12px;padding:8px 14px;background:#b91c1c;color:#fff;border:none;border-radius:6px;font:bold 13px system-ui;cursor:pointer}@media print{.noprint{display:none!important}}</style>
-      </head><body><button class="noprint" onclick="window.print()">Print / Save PDF</button>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #b91c1c;padding-bottom:10px">
-        <div><h1>${esc(COMPANY_PROFILE.name)}</h1><div style="color:#555">${esc(COMPANY_PROFILE.address)}</div>
-        <div style="color:#555">GSTIN: ${esc(COMPANY_PROFILE.gstin)} · ${esc(COMPANY_PROFILE.phone)}</div></div>
-        <div style="text-align:right"><h2 style="margin:0;color:#b91c1c">DEBIT NOTE</h2>
-        <div><strong>${esc(noteNumber)}</strong></div><div>Date: ${getTodayDateString()}</div></div>
-      </div>
-      <div style="margin-top:12px"><strong>Vendor:</strong> ${esc(purchaseOrder.vendorName)}${purchaseOrder.vendorGstin ? ` · GSTIN: ${esc(purchaseOrder.vendorGstin)}` : ''}</div>
-      <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected goods at quality check</div>
-      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="4" style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">Total Debit</td>
-      <td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">₹${(total || 0).toFixed(2)}</td></tr></tfoot></table>
-      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged. Amount is recoverable / adjustable against payables.</p>
-      <div style="margin-top:40px;text-align:right">For ${esc(COMPANY_PROFILE.name)}<br/><br/>Authorised Signatory</div>
-      
-      </body></html>`;
-    const w = window.open('', '_blank', 'width=800,height=900');
-    if (!w) { toast.error('Allow pop-ups to print the damage bill'); return; }
-    w.document.write(html);
-    w.document.close();
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0) return;
@@ -223,26 +178,11 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       payNow > 0 ? { amount: payNow, mode: payMode } : undefined
     );
 
-    // If any goods were damaged, generate the debit-note bill right away.
-    const damagedLines = receipts
-      .filter((r) => (r.damagedQuantity || 0) > 0)
-      .map((r) => {
-        const line = purchaseOrder.items.find((l) => l.itemId === r.itemId);
-        const unitPrice = r.purchasePrice ?? line?.purchasePrice ?? 0;
-        const dq = r.damagedQuantity || 0;
-        return {
-          itemName: line?.itemName || r.itemId,
-          itemCode: line?.itemCode,
-          damagedQuantity: dq,
-          unitPrice,
-          amount: Math.round(unitPrice * dq * 100) / 100,
-        };
-      });
-    if (damagedLines.length > 0) {
-      const dnTotal = Math.round(damagedLines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
-      openDamageBill(damagedLines, dnTotal);
-    }
-
+    // Damaged goods are recorded as a vendor debit note by receivePurchaseOrderStock
+    // above. We intentionally do NOT pop open / print the bill here — the user asked
+    // that submitting not trigger an immediate print. The debit note appears in the
+    // Purchase Order detail under "Vendor Debit Notes", where a "Print Bill" button
+    // prints it on demand.
     onClose();
   };
 
