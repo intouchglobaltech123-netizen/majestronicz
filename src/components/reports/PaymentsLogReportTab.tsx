@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, getInvoicePaymentSplits } from '../../types';
+import { BranchScope, BRANCHES, getInvoicePaymentSplits, expenseIsEffective } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
@@ -26,7 +26,7 @@ type PayRow = {
 
 /** Payments log: every rupee in (sales receipts, advances) and out (vendor payments, expenses). */
 export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
-  const { invoices, purchaseOrders, pendingOrders, cashRegisters } = useErp();
+  const { invoices, purchaseOrders, pendingOrders, cashRegisters, payments } = useErp();
 
   const rows = useMemo(() => {
     const out: PayRow[] = [];
@@ -40,6 +40,30 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
           date: inv.date, direction: 'IN', type: 'Sale receipt', party: inv.customerName,
           mode: s.mode, amount: Number(s.amount) || 0, ref: inv.invoiceNumber, branchId: inv.branchId,
         });
+      });
+      // Sale refunds / returns (money OUT) — cash refunded to the customer.
+      const refunded = Number(inv.totalReturnedAmount) || 0;
+      if (refunded > 0) {
+        out.push({
+          date: inv.date, direction: 'OUT', type: 'Sale refund', party: inv.customerName,
+          mode: '—', amount: refunded, ref: inv.invoiceNumber, branchId: inv.branchId,
+        });
+      }
+    });
+
+    // Party-ledger payments — customer receipts (type 'in') & vendor payments (type 'out').
+    payments.forEach((p) => {
+      const amount = Number(p.amount) || 0;
+      if (!amount) return;
+      out.push({
+        date: (p.date || p.createdAt || '').slice(0, 10),
+        direction: p.type === 'in' ? 'IN' : 'OUT',
+        type: p.type === 'in' ? 'Customer receipt' : 'Vendor payment',
+        party: p.partyName,
+        mode: p.paymentMode || 'Cash',
+        amount,
+        ref: p.receiptNumber,
+        branchId: p.branchId,
       });
     });
 
@@ -63,9 +87,11 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
       });
     });
 
-    // Expenses (money OUT) — cash & gpay logged separately
+    // Expenses (money OUT) — cash & gpay logged separately. Only EFFECTIVE expenses
+    // hit the drawer; skip pending / rejected bank deposits (they aren't money out yet).
     cashRegisters.forEach((reg: any) => {
       (reg.expenses || []).forEach((e: any) => {
+        if (!expenseIsEffective(e)) return;
         if (e.cashAmount > 0) out.push({ date: reg.date, direction: 'OUT', type: 'Expense', party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'Cash', amount: e.cashAmount, ref: '', branchId: reg.branchId });
         if (e.gpayAmount > 0) out.push({ date: reg.date, direction: 'OUT', type: 'Expense', party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'GPay', amount: e.gpayAmount, ref: '', branchId: reg.branchId });
       });
@@ -79,7 +105,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
         return true;
       })
       .sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [invoices, purchaseOrders, pendingOrders, cashRegisters, startDate, endDate, branchScope]);
+  }, [invoices, purchaseOrders, pendingOrders, cashRegisters, payments, startDate, endDate, branchScope]);
 
   const totals = useMemo(() => {
     const inTotal = rows.filter((r) => r.direction === 'IN').reduce((s, r) => s + r.amount, 0);
