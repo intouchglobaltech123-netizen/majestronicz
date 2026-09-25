@@ -130,10 +130,11 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
   // 2. Summary stats (lifetime)
   const summaryStats = useMemo(() => {
-    // Total Purchased (lifetime units received across non-cancelled orders)
+    // Total Purchased = units actually RECEIVED (not merely ordered). Using
+    // `qtyReceived || qtyOrdered` counted still-Ordered POs as purchased (INV-14).
     const totalPurchased = allItemPos
       .filter((p) => p.status !== 'Cancelled')
-      .reduce((sum, p) => sum + (p.qtyReceived || p.qtyOrdered), 0);
+      .reduce((sum, p) => sum + (p.qtyReceived || 0), 0);
 
     // Total Sold (lifetime units sold across non-voided invoices)
     const totalSold = allItemSales

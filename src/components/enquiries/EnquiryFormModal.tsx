@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES, Enquiry } from '../../types';
 import { cn } from '../../lib/utils';
@@ -88,6 +88,39 @@ export const EnquiryFormModal: React.FC<Props> = ({
   });
   const [reminderTime, setReminderTime] = useState('11:00');
   const [reminderNotes, setReminderNotes] = useState('');
+
+  // Reset the form to a clean slate every time the modal opens so a new enquiry
+  // never inherits the previous customer's name/phone/item/notes (CRM-13). The
+  // modal stays mounted (`if (!isOpen) return null` below), so state would
+  // otherwise persist across opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    const now = new Date();
+    const iso = (d: Date) => d.toISOString().split('T')[0];
+    const restock = new Date();
+    restock.setDate(restock.getDate() + 7);
+    const reminder = new Date();
+    reminder.setDate(reminder.getDate() + 1);
+
+    setBranchId(!isAllBranches && currentBranch !== 'all' ? (currentBranch as BranchId) : 'erode-hq');
+    setCustomerName('');
+    setCustomerPhone('');
+    setItemMode('existing');
+    setSelectedItem(null);
+    setSearchQuery('');
+    setQuantity(1);
+    setNewItemName('');
+    setNewItemImageUrl('');
+    setNewItemUnit('Units');
+    setDate(iso(now));
+    setTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    setExpectedRestockDate(iso(restock));
+    setNotes('');
+    setReminderDate(iso(reminder));
+    setReminderTime('11:00');
+    setReminderNotes('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
