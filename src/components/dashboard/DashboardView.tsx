@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
+import { computeDayCashClosing } from '../../lib/cashClosing';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
@@ -24,7 +25,7 @@ const MODE_META: Record<string, { label: string; icon: React.ComponentType<{ cla
 export const DashboardView: React.FC = () => {
   const {
     items, branchStocks, currentBranch, isAllBranches, currentBranchData, switchBranch, setCurrentView,
-    currentUser, invoices, purchaseOrders, cashRegisters, enquiries, pendingOrders,
+    currentUser, invoices, payments, purchaseOrders, cashRegisters, enquiries, pendingOrders,
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
     employees,
     activeSubTab,
@@ -102,34 +103,50 @@ export const DashboardView: React.FC = () => {
       .filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
       .reduce((t, p) => t + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
 
-    // Cash-in-hand (approx): latest register per in-scope branch (opening − expenses) + today's cash sales.
+    // Cash-in-hand: for each in-scope branch, use the SAME shared closing formula
+    // as the cash register (opening + cash sales + cash receipts − vendor cash −
+    // effective cash expenses) on the most recent non-future register, plus today's
+    // cash movements if that register predates today. The old code read a
+    // non-existent `e.amount` field (so expenses never counted) and could pick a
+    // future/invalid register (RPT2-2).
     const branchesInScope = isAllBranches ? BRANCHES.map((b) => b.id) : [currentBranch];
     let cashInHand = 0;
     for (const bId of branchesInScope) {
-      const regs = cashRegisters.filter((r) => r.branchId === bId).sort((a, b) => (a.date < b.date ? 1 : -1));
+      const regs = cashRegisters
+        .filter((r) => r.branchId === bId && r.date <= today)
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
       const latest = regs[0];
       if (latest) {
-        const exp = Array.isArray(latest.expenses) ? latest.expenses.reduce((t: number, e: any) => t + (Number(e?.amount) || 0), 0) : 0;
-        cashInHand += (latest.openingAmount || 0) - exp;
+        cashInHand += computeDayCashClosing(bId, latest.date, latest.openingAmount || 0, invoices, payments, latest.expenses).closing;
+        if (latest.date < today) {
+          // No register opened today yet: add today's cash movements on top of the
+          // carried-forward closing (opening 0, no expenses → sales + receipts − vendor).
+          cashInHand += computeDayCashClosing(bId, today, 0, invoices, payments, []).closing;
+        }
+      } else {
+        cashInHand += computeDayCashClosing(bId, today, 0, invoices, payments, []).closing;
       }
     }
-    const todayCash = scopedSales
-      .filter((i) => i.date === today)
-      .reduce((t, i) => t + getInvoicePaymentSplits(i).filter((s) => s.mode === 'Cash').reduce((x, s) => x + s.amount, 0), 0);
-    cashInHand += todayCash;
 
     return { salesToday, salesYest, salesMonth, salesPrevMonth, countToday, receivables, payables, cashInHand };
-  }, [scopedSales, purchaseOrders, cashRegisters, isAllBranches, currentBranch, today, yesterday, thisMonth, lastMonth]);
+  }, [scopedSales, invoices, payments, purchaseOrders, cashRegisters, isAllBranches, currentBranch, today, yesterday, thisMonth, lastMonth]);
 
   // ---- Profit / margin (this month): revenue − cost of goods sold ----
   const profit = useMemo(() => {
     const monthInv = scopedSales.filter((i) => (i.date || '').startsWith(thisMonth));
     let revenue = 0, cost = 0;
     for (const i of monthInv) {
-      revenue += netRevenue(i);
+      // Revenue must be the taxable value net of GST and net of returns — GST is a
+      // pass-through liability, not profit, and returned goods aren't revenue
+      // (RPT2-3). Apply the return fraction to both revenue and cost of goods.
+      const fin = computeInvoiceFinance(i);
+      const grand = Number(i.grandTotal) || 0;
+      const ratio = grand > 0 ? fin.net / grand : 1; // fraction remaining after returns
+      const exGstRevenue = fin.net - (Number(i.totalTax) || 0) * ratio;
+      revenue += exGstRevenue;
       for (const li of (i.items || []) as any[]) {
         const it = itemById.get(li.itemId) || itemByCode.get(li.itemCode) || itemByName.get((li.itemName || '').toLowerCase());
-        cost += (li.quantity || 0) * (it?.purchasePrice || 0);
+        cost += (li.quantity || 0) * (it?.purchasePrice || 0) * ratio;
       }
     }
     return { value: revenue - cost, margin: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0 };
