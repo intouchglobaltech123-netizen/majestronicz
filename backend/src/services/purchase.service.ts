@@ -220,3 +220,24 @@ export function deleteAttachment(poId: string, attachmentId: string) {
     return poSnapshot(tx);
   });
 }
+
+/** Record a payment made to the vendor against a PO (increments Paid, logs history). */
+export function recordPurchaseOrderPayment(poId: string, amount: number, mode: string, actor: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    const pay = Math.max(0, Number(amount) || 0);
+    if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
+    const ts = nowIso();
+    const entry = { id: rid('pay'), date: ts.split('T')[0], amount: pay, mode: mode || 'Cash', by: actor };
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: {
+        amountPaid: Math.round(((po.amountPaid || 0) + pay) * 100) / 100,
+        payments: [entry, ...((po.payments as any[]) || [])],
+        updatedAt: ts,
+      },
+    });
+    return poSnapshot(tx);
+  });
+}

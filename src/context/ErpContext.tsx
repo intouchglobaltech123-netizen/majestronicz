@@ -396,6 +396,7 @@ interface ErpContextType {
     notes?: string,
     payment?: { amount?: number; mode?: string }
   ) => void;
+  recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => void;
   addPurchaseOrderAttachment: (
     poId: string,
     attachment: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
@@ -3639,6 +3640,28 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const recordPurchaseOrderPayment = (poId: string, amount: number, mode: string) => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    if (!po) { toast.error('Purchase order not found'); return; }
+    const pay = Math.max(0, Number(amount) || 0);
+    if (pay <= 0) { toast.error('Enter a payment amount greater than 0'); return; }
+    const entry = {
+      id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      date: new Date().toISOString().split('T')[0],
+      amount: pay, mode: mode || 'Cash', by: currentUser.name || currentUser.role,
+    };
+    const updatedPo: PurchaseOrder = {
+      ...po,
+      amountPaid: Math.round(((po.amountPaid || 0) + pay) * 100) / 100,
+      payments: [entry, ...(po.payments || [])],
+      updatedAt: new Date().toISOString(),
+    };
+    setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? updatedPo : p)));
+    setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? updatedPo : cur));
+    persist(apiPost('/api/purchase/payment', { poId, amount: pay, mode: mode || 'Cash', actor: currentUser.name }));
+    toast.success(`Recorded ₹${pay.toLocaleString('en-IN')} paid to ${po.vendorName}`);
+  };
+
   const addPurchaseOrderAttachment = (
     poId: string,
     attachmentData: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
@@ -4096,6 +4119,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePurchaseOrder,
         cancelPurchaseOrder,
         receivePurchaseOrderStock,
+        recordPurchaseOrderPayment,
         addPurchaseOrderAttachment,
         deletePurchaseOrderAttachment,
         getNextPoNumber,

@@ -23,3 +23,7 @@ export const deleteAttachment = async (req: Request, res: Response) => {
   const { poId, attachmentId } = req.body;
   res.json(await purchase.deleteAttachment(poId, attachmentId));
 };
+export const recordPayment = async (req: Request, res: Response) => {
+  const { poId, amount, mode, actor } = req.body;
+  res.json(await purchase.recordPurchaseOrderPayment(poId, amount, mode, actor));
+};

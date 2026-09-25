@@ -53,10 +53,13 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     cancelPurchaseOrder,
     addPurchaseOrderAttachment,
     deletePurchaseOrderAttachment,
+    recordPurchaseOrderPayment,
     pendingOrders,
     setSelectedPendingOrderForDetail,
     setCurrentView,
   } = useErp();
+  const [payAmt, setPayAmt] = React.useState<string>('');
+  const [payMode, setPayMode] = React.useState<string>('Cash');
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isUploading, setIsUploading] = useState(false);
@@ -546,6 +549,90 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                   </div>
                 </div>
               </div>
+
+              {/* Vendor payments — how much paid to the vendor, how much still due */}
+              {(() => {
+                const total = purchaseOrder.totalAmount || 0;
+                const paid = purchaseOrder.amountPaid || 0;
+                const remaining = Math.max(0, total - paid);
+                const payments = purchaseOrder.payments || [];
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                    <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Vendor Payments</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {/* Total / Paid / Remaining */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2.5 rounded-none bg-slate-50 border border-slate-200 text-center">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PO Total</div>
+                          <div className="text-sm font-bold font-mono text-slate-900 mt-0.5">{formatCurrency(total)}</div>
+                        </div>
+                        <div className="p-2.5 rounded-none bg-emerald-50 border border-emerald-200 text-center">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Paid</div>
+                          <div className="text-sm font-bold font-mono text-emerald-800 mt-0.5">{formatCurrency(paid)}</div>
+                        </div>
+                        <div className={`p-2.5 rounded-none text-center border ${remaining > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                          <div className={`text-[10px] font-bold uppercase tracking-wider ${remaining > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>Remaining</div>
+                          <div className={`text-sm font-bold font-mono mt-0.5 ${remaining > 0 ? 'text-rose-800' : 'text-emerald-800'}`}>{formatCurrency(remaining)}</div>
+                        </div>
+                      </div>
+
+                      {/* Record a payment */}
+                      {canManagePurchases && remaining > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
+                            <input
+                              type="number" min={0} value={payAmt}
+                              onChange={(e) => setPayAmt(e.target.value)}
+                              placeholder="Amount paid"
+                              className="w-32 pl-5 pr-2 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                            />
+                          </div>
+                          <select
+                            value={payMode}
+                            onChange={(e) => setPayMode(e.target.value)}
+                            className="px-2 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
+                          >
+                            <option>Cash</option><option>GPay</option><option>HDFC</option><option>Bank Transfer</option><option>Cheque</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => { recordPurchaseOrderPayment(purchaseOrder.id, Number(payAmt) || 0, payMode); setPayAmt(''); }}
+                            disabled={!(Number(payAmt) > 0)}
+                            className="px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Record Payment
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { recordPurchaseOrderPayment(purchaseOrder.id, remaining, payMode); setPayAmt(''); }}
+                            className="px-3 py-1.5 rounded-none bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 transition-colors cursor-pointer"
+                            title="Pay the full remaining amount"
+                          >
+                            Pay Full ({formatCurrency(remaining)})
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Payment history */}
+                      {payments.length > 0 ? (
+                        <div className="divide-y divide-slate-100 border-t border-slate-100 pt-1">
+                          {payments.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between py-1.5 text-xs">
+                              <span className="text-slate-500">{p.date} · <span className="font-semibold text-slate-700">{p.mode}</span> · by {p.by}</span>
+                              <span className="font-mono font-bold text-emerald-700">{formatCurrency(p.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">No payments recorded yet.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Quality-check debit notes raised on the vendor for damaged goods */}
               {debitNotes.length > 0 && (
