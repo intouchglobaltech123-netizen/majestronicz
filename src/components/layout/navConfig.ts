@@ -138,6 +138,13 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'reports', subTabId: 'enquiry-conversion', label: 'Enquiry Conversion', cap: 'reports' },
       { id: 'reports', subTabId: 'purchase-orders', label: 'PO Procurement', cap: 'reports' },
       { id: 'reports', subTabId: 'gst', label: 'GST Filing (GSTR-1 & 3B)', cap: 'reports' },
+      { id: 'reports', subTabId: 'itc', label: 'Input Tax Credit', cap: 'reports' },
+      // These three were reachable only on mobile — the desktop tab strip is
+      // lg:hidden, so without a sidebar entry they couldn't be opened at all on a
+      // desktop screen (RPT2-7).
+      { id: 'reports', subTabId: 'expenses', label: 'Expense Report', cap: 'reports' },
+      { id: 'reports', subTabId: 'payments', label: 'Payments Log', cap: 'reports' },
+      { id: 'reports', subTabId: 'audit', label: 'Audit Trail', cap: 'reports' },
       { id: 'reports', subTabId: 'payroll', label: 'Payroll Summary', cap: 'reports' },
     ],
   },
