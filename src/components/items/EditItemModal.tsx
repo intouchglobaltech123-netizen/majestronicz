@@ -476,27 +476,17 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       <span>Sale Price (₹)</span>
                       <span className="text-[11px] text-slate-400">Price across all branches</span>
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        min="0"
-                        step="any"
-                        value={salePrice}
-                        onChange={(e) =>
-                          setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                        }
-                        className="flex-1 px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-red-600"
-                      />
-                      <select
-                        value={salePriceTaxMode}
-                        onChange={(e) => setSalePriceTaxMode(e.target.value as SalePriceTaxMode)}
-                        className="px-3 py-2 rounded-none bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none"
-                      >
-                        <option value="without">Without Tax</option>
-                        <option value="with">With Tax</option>
-                      </select>
-                    </div>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      min="0"
+                      step="any"
+                      value={salePrice}
+                      onChange={(e) =>
+                        setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-red-600"
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -532,9 +522,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   {currentUser.role !== 'Sales' && (
                     <>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">
                           <span>Wholesale Price (₹)</span>
-                          <span className="text-[11px] text-slate-400">Bulk purchase tier</span>
                         </label>
                         <input
                           type="number"

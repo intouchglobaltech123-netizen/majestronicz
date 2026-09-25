@@ -495,27 +495,17 @@ export const AddItemModal: React.FC<Props> = ({
                       <span>Sale Price (₹)</span>
                       <span className="text-[11px] text-slate-400 font-normal normal-case">Price across all branches</span>
                     </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        min="0"
-                        step="any"
-                        value={salePrice}
-                        onChange={(e) =>
-                          setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                        }
-                        className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 font-mono"
-                      />
-                      <select
-                        value={salePriceTaxMode}
-                        onChange={(e) => setSalePriceTaxMode(e.target.value as SalePriceTaxMode)}
-                        className="px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-700 focus:outline-none focus:border-red-600 shrink-0 cursor-pointer"
-                      >
-                        <option value="without">Without Tax</option>
-                        <option value="with">With Tax</option>
-                      </select>
-                    </div>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      min="0"
+                      step="any"
+                      value={salePrice}
+                      onChange={(e) =>
+                        setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 font-mono"
+                    />
                   </div>
 
                   {/* Standard Discount */}
@@ -550,9 +540,8 @@ export const AddItemModal: React.FC<Props> = ({
                   {/* Wholesale Price */}
                   {currentUser.role !== 'Sales' && (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span>Wholesale Price (₹)</span>
-                        <span className="text-[11px] text-slate-400 font-normal normal-case">Bulk purchase tier</span>
                       </label>
                       <input
                         type="number"

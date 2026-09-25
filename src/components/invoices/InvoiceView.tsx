@@ -527,27 +527,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end min-w-0">
 
-          {/* Neat today's metrics — segmented mini-card (ONLY on the Sales Invoices ledger) */}
-          {activeTab === 'ledger' && (
-            <div className="hidden sm:flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden divide-x divide-slate-200 shadow-2xs">
-              {[
-                { label: 'Bills', value: String(todayStats.count), tone: 'text-slate-900' },
-                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900' },
-                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700' },
-                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700' },
-                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700' },
-              ].map((m) => (
-                <div key={m.label} className="px-3 py-1.5 text-right leading-tight">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{m.label}</div>
-                  <div className={cn('text-xs font-bold font-mono', m.tone)}>{m.value}</div>
-                </div>
-              ))}
-              <div className="px-2 py-1.5 flex items-center bg-slate-50/60">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Today</span>
-              </div>
-            </div>
-          )}
-
           {activeTab !== 'new' && (
             <>
               <button
@@ -811,6 +790,25 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       ) : (
         /* DEFAULT VIEW: SALES LEDGER LIST */
         <div className="space-y-4">
+          {/* Today's KPI tiles — same clean white-card style as the other sections */}
+          {activeTab === 'ledger' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {[
+                { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900' },
+                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900' },
+                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700' },
+                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700' },
+                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700' },
+              ].map((m) => (
+                <div key={m.label} className="p-3.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</span>
+                  <div className={`text-2xl font-bold font-mono mt-0.5 ${m.tone}`}>{m.value}</div>
+                  <span className="text-[11px] text-slate-400">Today</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Slim toolbar: quick search + at-a-glance totals. Date-range, payment
               mode & status filtering (and CSV export) live in the Reports section. */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
