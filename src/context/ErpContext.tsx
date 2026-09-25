@@ -80,6 +80,7 @@ import {
   AccessMatrix,
   Capability,
   expenseNeedsApproval,
+  computeMarginSalePrice,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { LoginScreen } from '../components/auth/LoginScreen';
@@ -3642,6 +3643,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // 3. Increment physical stock in branchStocks for po.branchId
+    // Reflect the confirmed purchase price on the item master + re-price from margin band.
+    setItems((prev) =>
+      prev.map((it) => {
+        const rec = validReceipts.find((r) => r.itemId === it.id && r.purchasePrice != null && (r.purchasePrice as number) >= 0);
+        if (!rec) return it;
+        const sp = computeMarginSalePrice(rec.purchasePrice as number, it.marginCategory);
+        return {
+          ...it,
+          purchasePrice: rec.purchasePrice as number,
+          ...(sp != null ? { salePrice: sp } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+
     setBranchStocks((prevStocks) => {
       const nextStocks = [...prevStocks];
       validReceipts.forEach((rec) => {

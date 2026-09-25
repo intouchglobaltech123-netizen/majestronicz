@@ -105,6 +105,13 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     setPricesToAssign((prev) => ({ ...prev, [lineId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
   };
 
+  // Enter the OVERALL price for all units → derive the per-unit purchase price.
+  const handleTotalChange = (lineId: string, valStr: string, qty: number) => {
+    const total = parseFloat(valStr);
+    const per = qty > 0 && !isNaN(total) && total >= 0 ? Math.round((total / qty) * 100) / 100 : 0;
+    setPricesToAssign((prev) => ({ ...prev, [lineId]: per }));
+  };
+
   const handleDamagedChange = (lineId: string, valStr: string, maxAllowed: number) => {
     const parsed = parseInt(valStr, 10);
     const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, maxAllowed);
@@ -302,14 +309,14 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         {/* Scrollable Line Items Table */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
-            <table className="w-full min-w-[940px] text-left border-collapse text-sm">
+            <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <th className="py-2.5 px-4 min-w-[240px]">Item &amp; Code</th>
                   <th className="py-2.5 px-3 text-center">Ordered</th>
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
-                  <th className="py-2.5 px-3 text-right w-32">Purchase Price (₹)</th>
+                  <th className="py-2.5 px-3 text-right w-44">Purchase Price<br/><span className="text-[9px] font-normal lowercase text-slate-400">total for all units → per unit</span></th>
                   <th className="py-2.5 px-3 text-left">
                     <div className="flex items-center gap-1">
                       <span>Shelve / Rack</span>
@@ -374,19 +381,36 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         </span>
                       </td>
 
-                      {/* Purchase Price (confirmed at receiving) */}
+                      {/* Purchase Price — enter TOTAL for all ordered units → per-unit */}
                       <td className="py-3 px-3 text-right">
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={pricesToAssign[line.id] ?? ''}
-                            onChange={(e) => handlePriceChange(line.id, e.target.value)}
-                            placeholder="0.00"
-                            className="w-24 pl-5 pr-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                          />
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={Math.round((pricesToAssign[line.id] || 0) * ordered * 100) / 100 || ''}
+                              onChange={(e) => handleTotalChange(line.id, e.target.value, ordered)}
+                              placeholder={`Total for ${ordered}`}
+                              title={`Total price for all ${ordered} ${line.unit}`}
+                              className="w-32 pl-5 pr-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={pricesToAssign[line.id] ?? ''}
+                              onChange={(e) => handlePriceChange(line.id, e.target.value)}
+                              placeholder="per unit"
+                              title="Per-unit purchase price"
+                              className="w-32 pl-5 pr-2 py-0.5 text-[11px] font-mono text-right border rounded-lg bg-slate-50 border-slate-200 text-slate-600 focus:outline-hidden focus:border-blue-400"
+                            />
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">/unit</span>
+                          </div>
                         </div>
                       </td>
 

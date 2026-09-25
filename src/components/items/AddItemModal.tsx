@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Item, SalePriceTaxMode, DiscountType, MARGIN_CATEGORIES } from '../../types';
+import { Item, SalePriceTaxMode, DiscountType, MARGIN_CATEGORIES, computeMarginSalePrice } from '../../types';
 import {
   X,
   Plus,
@@ -101,6 +101,13 @@ export const AddItemModal: React.FC<Props> = ({
       setItemCode(generated);
     }
   }, [isOpen, category, subcategory, isCodeOverridden]);
+
+  // Margin band A/B/C → auto-fill Sale Price = Purchase Price + margin (e.g. A: 100 → 135).
+  // Band D (custom) / none leaves the sale price for manual entry.
+  useEffect(() => {
+    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory);
+    if (sp != null) setSalePrice(sp);
+  }, [purchasePrice, marginCategory]);
 
   if (!isOpen) return null;
 

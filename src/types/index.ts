@@ -111,6 +111,19 @@ export const MARGIN_CATEGORIES: { code: MarginCategoryCode; label: string; margi
   { code: 'D', label: 'D — Custom', margin: null },
 ];
 
+/** Markup multiplier for a margin band (A=+35%, B=+25%, C=+15%, D=custom → null). */
+export function marginMultiplier(code?: MarginCategoryCode | string): number | null {
+  const m = MARGIN_CATEGORIES.find((c) => c.code === code);
+  return m && m.margin != null ? 1 + m.margin / 100 : null;
+}
+
+/** Sale price implied by a purchase price + margin band (null when band is D/custom/none). */
+export function computeMarginSalePrice(purchasePrice: number, code?: MarginCategoryCode | string): number | null {
+  const mult = marginMultiplier(code);
+  if (mult == null || !(purchasePrice > 0)) return null;
+  return Math.round(purchasePrice * mult * 100) / 100;
+}
+
 export interface Item {
   id: string;
   itemName: string;

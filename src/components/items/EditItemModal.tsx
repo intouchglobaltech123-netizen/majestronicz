@@ -6,6 +6,7 @@ import {
   DiscountType,
   BRANCHES,
   MARGIN_CATEGORIES,
+  computeMarginSalePrice,
 } from '../../types';
 import {
   X,
@@ -116,6 +117,13 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialTab]);
+
+  // Margin band A/B/C → auto-fill Sale Price = Purchase Price + margin (e.g. A: 100 → 135).
+  useEffect(() => {
+    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory);
+    if (sp != null) setSalePrice(sp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchasePrice, marginCategory]);
 
   if (!isOpen || !item) return null;
 

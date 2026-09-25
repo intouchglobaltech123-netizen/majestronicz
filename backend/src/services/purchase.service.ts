@@ -169,6 +169,19 @@ export function receivePurchaseOrderStock(
       },
     });
 
+    // Reflect the confirmed per-unit purchase price back onto the item master, and
+    // re-price its sale price from the margin band (A +35% / B +25% / C +15%).
+    const marginMult: Record<string, number> = { A: 1.35, B: 1.25, C: 1.15 };
+    for (const rec of valid) {
+      if (rec.purchasePrice == null || rec.purchasePrice < 0) continue;
+      const item = await tx.item.findUnique({ where: { id: rec.itemId } });
+      if (!item) continue;
+      const data: any = { purchasePrice: rec.purchasePrice, updatedAt: ts };
+      const mult = item.marginCategory ? marginMult[item.marginCategory] : undefined;
+      if (mult) data.salePrice = Math.round(rec.purchasePrice * mult * 100) / 100;
+      await tx.item.update({ where: { id: rec.itemId }, data });
+    }
+
     // Increment physical stock at the PO's branch
     for (const rec of valid) {
       const existing = await tx.branchStock.findUnique({
