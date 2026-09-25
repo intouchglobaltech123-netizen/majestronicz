@@ -84,7 +84,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>+ Add Supplier</span>
+            <span>Add Supplier</span>
           </button>
         )}
       </div>

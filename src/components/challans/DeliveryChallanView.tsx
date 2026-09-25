@@ -114,7 +114,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
           )}
         >
           <Plus className="h-3.5 w-3.5" />
-          <span>+ New Challan</span>
+          <span>New Challan</span>
         </button>
 
         <button
@@ -193,7 +193,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
                 className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Create Challan</span>
+                <span>Create Challan</span>
               </button>
             </div>
           </div>

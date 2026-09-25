@@ -100,7 +100,7 @@ export const PurchaseManagementView: React.FC = () => {
               className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              <span>+ Issue Purchase Order</span>
+              <span>Issue Purchase Order</span>
             </button>
           </div>
         )}

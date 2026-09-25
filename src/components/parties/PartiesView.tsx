@@ -360,7 +360,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 shadow-none transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              <span>+ Add Customer</span>
+              <span>Add Customer</span>
             </button>
           )}
           {canManagePurchases && (
@@ -839,7 +839,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-none border border-red-700 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>+ Add New Customer</span>
+                  <span>Add New Customer</span>
                 </button>
               </div>
             )}
@@ -1052,7 +1052,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-none border border-red-700 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>+ Add New Supplier</span>
+                  <span>Add New Supplier</span>
                 </button>
               </div>
             )}

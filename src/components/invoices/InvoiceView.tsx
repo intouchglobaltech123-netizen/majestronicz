@@ -536,7 +536,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Add Sale</span>
+                <span>Add Sale</span>
               </button>
               <button
                 type="button"
@@ -544,7 +544,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-none bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold border border-slate-900 transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Add Quote</span>
+                <span>Add Quote</span>
               </button>
             </>
           )}
