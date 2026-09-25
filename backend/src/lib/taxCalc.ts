@@ -115,7 +115,16 @@ export function numberToWordsIndian(num: number): string {
   const lk = Math.floor(rem / 100000); rem %= 100000;
   const th = Math.floor(rem / 1000); rem %= 1000;
   const parts: string[] = [];
-  if (cr > 0) parts.push(two(cr) + ' Crore');
+  // Crores can exceed 99 (e.g. 141 crore) — `two()` only covered 0–99 and emitted
+  // "undefined" (PLT-14). Use three-digit words up to 999 crore, split beyond.
+  if (cr > 0) {
+    if (cr >= 1000) {
+      const cTh = Math.floor(cr / 1000); const cRest = cr % 1000;
+      parts.push((three(cTh) + ' Thousand ' + (cRest > 0 ? three(cRest) : '')).trim() + ' Crore');
+    } else {
+      parts.push(three(cr) + ' Crore');
+    }
+  }
   if (lk > 0) parts.push(two(lk) + ' Lakh');
   if (th > 0) parts.push(two(th) + ' Thousand');
   if (rem > 0) parts.push(three(rem));

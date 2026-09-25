@@ -295,7 +295,9 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot record a payment against a cancelled purchase order.', 400);
     const pay = Math.max(0, Number(amount) || 0);
     if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
-    const remaining = Math.round(((po.totalAmount || 0) - (po.amountPaid || 0)) * 100) / 100;
+    // Debit notes (damaged/rejected goods billed back) reduce what we owe (PUR2-19).
+    const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+    const remaining = Math.round(((po.totalAmount || 0) - (po.amountPaid || 0) - debitTotal) * 100) / 100;
     if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
     if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();
