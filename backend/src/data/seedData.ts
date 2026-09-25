@@ -958,7 +958,7 @@ export const INITIAL_PENDING_ORDERS: PendingOrder[] = [
 export const INITIAL_DAILY_CASH_REGISTERS: DailyCashRegister[] = [
   // Erode HQ - Yesterday (Closed)
   {
-    id: 'dcr-erd-2026-09-06',
+    id: 'dcr-erode-hq-2026-09-06',
     branchId: 'erode-hq',
     date: '2026-09-06',
     openingAmount: 12000,
@@ -996,7 +996,7 @@ export const INITIAL_DAILY_CASH_REGISTERS: DailyCashRegister[] = [
   },
   // Erode HQ - Today (Active/Open)
   {
-    id: 'dcr-erd-2026-09-07',
+    id: 'dcr-erode-hq-2026-09-07',
     branchId: 'erode-hq',
     date: '2026-09-07',
     openingAmount: 15414, // Automatically carried forward from yesterday's closing
@@ -1023,7 +1023,7 @@ export const INITIAL_DAILY_CASH_REGISTERS: DailyCashRegister[] = [
   },
   // Coimbatore - Yesterday (Closed)
   {
-    id: 'dcr-cbe-2026-09-06',
+    id: 'dcr-coimbatore-2026-09-06',
     branchId: 'coimbatore',
     date: '2026-09-06',
     openingAmount: 8000,
@@ -1045,7 +1045,7 @@ export const INITIAL_DAILY_CASH_REGISTERS: DailyCashRegister[] = [
   },
   // Coimbatore - Today (Active/Open)
   {
-    id: 'dcr-cbe-2026-09-07',
+    id: 'dcr-coimbatore-2026-09-07',
     branchId: 'coimbatore',
     date: '2026-09-07',
     openingAmount: 9800,

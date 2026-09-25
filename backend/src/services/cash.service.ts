@@ -42,7 +42,15 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
 }
 
 async function loadRegister(tx: any, branchId: string, date: string) {
-  return tx.dailyCashRegister.findUnique({ where: { id: `dcr-${branchId}-${date}` } });
+  // Look up by (branchId, date), NOT by a constructed `dcr-${branchId}-${date}`
+  // id. Seeded rows use abbreviated ids (dcr-erd-…, dcr-cbe-…) that never matched
+  // the constructed id, so closing a seeded day created a hidden duplicate row
+  // while the original stayed open (CASH2-1). orderBy keeps the choice
+  // deterministic if a legacy duplicate already exists.
+  return tx.dailyCashRegister.findFirst({
+    where: { branchId, date },
+    orderBy: { id: 'asc' },
+  });
 }
 
 async function ensureRegister(tx: any, branchId: string, date: string) {
