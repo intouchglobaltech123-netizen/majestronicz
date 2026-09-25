@@ -13,8 +13,11 @@ export const exportToCsv = (
     const escapeCell = (cell: string | number | boolean | null | undefined): string => {
       if (cell === null || cell === undefined) return '""';
       let str = String(cell);
-      // Neutralize spreadsheet formula injection (=, +, -, @ prefixes).
-      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+      // Neutralize spreadsheet formula injection (=, +, -, @ prefixes) — but NOT
+      // genuine numbers. A negative number like -53998.00 is data, not a formula,
+      // and must not be turned into the text "'-53998.00" (RPT2-6).
+      const isNumeric = typeof cell === 'number' || /^-?\d+(\.\d+)?$/.test(str.trim());
+      if (!isNumeric && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
       if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
         return `"${str.replace(/"/g, '""')}"`;
       }
