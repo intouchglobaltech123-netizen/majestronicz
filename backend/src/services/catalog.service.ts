@@ -128,7 +128,13 @@ export function saveCustomer(data: any) {
     const ts = nowIso();
     const existing = data.id ? await tx.customer.findUnique({ where: { id: data.id } }) : null;
     if (existing) {
-      const { id, ...rest } = data;
+      // Never let a customer edit (often from a stale form) overwrite the
+      // server-maintained purchase aggregates — only master details are editable
+      // here. Strip the calculated fields so the DB keeps its own values (CRM2-10).
+      const {
+        id, purchaseCount, totalSpent, firstPurchaseDate,
+        lastRewardRedeemedPurchaseCount, ...rest
+      } = data;
       await tx.customer.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = data.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;

@@ -23,7 +23,10 @@ export async function reseedDatabase() {
     prisma.followUpReminder.deleteMany(), prisma.dailyCashRegister.deleteMany(),
     prisma.recurringExpenseTemplate.deleteMany(), prisma.vendor.deleteMany(), prisma.purchaseOrder.deleteMany(),
     prisma.employee.deleteMany(), prisma.attendanceRecord.deleteMany(), prisma.payrollRecord.deleteMany(),
-    prisma.customer.deleteMany(), prisma.stockTransfer.deleteMany(), prisma.appConfig.deleteMany(),
+    prisma.customer.deleteMany(), prisma.stockTransfer.deleteMany(),
+    // Clear payments + audit trail too, otherwise old receipts survive a reset and
+    // their receipt numbers collide with a freshly reseeded sequence (CRM2-15).
+    prisma.payment.deleteMany(), prisma.auditLog.deleteMany(), prisma.appConfig.deleteMany(),
   ]);
 
   await prisma.item.createMany({ data: INITIAL_ITEMS as any });

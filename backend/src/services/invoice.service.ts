@@ -100,10 +100,18 @@ export function createSale(inv: any, reqUser?: any) {
       (phoneClean && customers.find((c: any) => cleanPhone(c.phone) === phoneClean)) ||
       null;
 
+    // Customer this bill was previously linked to (edit path). If the edit moves
+    // the bill to a different customer, the old one's totals must be reversed
+    // (CRM2-12) — handled after the new link is applied below.
+    const oldCustomerId = oldInvoice ? (oldInvoice.customerId || null) : null;
+
     if (cust) {
       inv.customerId = cust.id;
-      const oldSpent = oldInvoice ? oldInvoice.grandTotal : 0;
-      const newCount = isNewSale ? (cust.purchaseCount || 0) + 1 : cust.purchaseCount;
+      // A reassigned edit is a fresh purchase for the newly-linked customer: don't
+      // back out an old spend they never had, and do bump their purchase count.
+      const movedFromAnother = !!oldInvoice && oldCustomerId !== cust.id;
+      const oldSpent = oldInvoice && !movedFromAnother ? oldInvoice.grandTotal : 0;
+      const newCount = isNewSale || movedFromAnother ? (cust.purchaseCount || 0) + 1 : cust.purchaseCount;
       const newSpent = Math.max(0, (cust.totalSpent || 0) - oldSpent + inv.grandTotal);
       await tx.customer.update({
         where: { id: cust.id },
@@ -121,7 +129,11 @@ export function createSale(inv: any, reqUser?: any) {
           updatedAt: ts,
         },
       });
-    } else if (inv.customerName?.trim() || phoneClean) {
+    } else if (phoneClean || inv.customerId) {
+      // Only create/link a customer master when there is a real phone or an explicit
+      // customerId. A walk-in with no phone must NOT create a phone:'' record — the
+      // phone column is unique, so the second such walk-in would 409 (SAL2-2). The
+      // invoice still keeps customerName for display.
       const newCustId = inv.customerId || rid('cust');
       inv.customerId = newCustId;
       await tx.customer.create({
@@ -139,6 +151,25 @@ export function createSale(inv: any, reqUser?: any) {
           updatedAt: ts,
         },
       });
+    } else {
+      // Walk-in with no phone / no customerId: no customer master, display-only name.
+      inv.customerId = null;
+    }
+
+    // Editing a bill onto a different customer: back the old invoice's contribution
+    // off the previously-linked customer so its totals don't stay inflated (CRM2-12).
+    if (oldCustomerId && oldCustomerId !== inv.customerId) {
+      const oldCust = customers.find((c: any) => c.id === oldCustomerId);
+      if (oldCust) {
+        await tx.customer.update({
+          where: { id: oldCustomerId },
+          data: {
+            purchaseCount: Math.max(0, (oldCust.purchaseCount || 1) - 1),
+            totalSpent: Math.max(0, (oldCust.totalSpent || 0) - (oldInvoice.grandTotal || 0)),
+            updatedAt: ts,
+          },
+        });
+      }
     }
 
     // Branch stock: restore old invoice qty (edit), then validate and decrement new items
@@ -252,20 +283,20 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
       data: { isVoided: true, voidReason: reason || 'Cancelled / Voided', voidedAt: ts, voidedBy: actor, updatedAt: ts },
     });
 
-    const phoneClean = cleanPhone(inv.customerPhone);
-    if (inv.customerId || phoneClean) {
-      const custs = await tx.customer.findMany();
-      for (const c of custs) {
-        if (c.id === inv.customerId || (phoneClean && cleanPhone(c.phone) === phoneClean)) {
-          await tx.customer.update({
-            where: { id: c.id },
-            data: {
-              purchaseCount: Math.max(0, (c.purchaseCount || 1) - 1),
-              totalSpent: Math.max(0, (c.totalSpent || 0) - inv.grandTotal),
-              updatedAt: ts,
-            },
-          });
-        }
+    // Reverse the customer's totals for exactly the bill's own linked customer.
+    // Matching by phone/name could hit a different customer who happens to share a
+    // phone and wrongly shrink their totals (CRM2-11), so key strictly on customerId.
+    if (inv.customerId) {
+      const cust = await tx.customer.findUnique({ where: { id: inv.customerId } });
+      if (cust) {
+        await tx.customer.update({
+          where: { id: cust.id },
+          data: {
+            purchaseCount: Math.max(0, (cust.purchaseCount || 1) - 1),
+            totalSpent: Math.max(0, (cust.totalSpent || 0) - inv.grandTotal),
+            updatedAt: ts,
+          },
+        });
       }
     }
     return snapshot(tx);
