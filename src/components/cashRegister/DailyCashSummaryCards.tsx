@@ -165,7 +165,10 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
                   Manually Overridden
                 </span>
               ) : (
-                <span>Carried from yesterday's close</span>
+                // The opening carries from the most recent EARLIER closed day, which
+                // isn't necessarily yesterday when intervening days were left open
+                // (CASH-11) — so don't claim "yesterday".
+                <span>Carried from the previous closed day</span>
               )}
             </p>
           </div>

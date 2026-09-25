@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CashExpense, EXPENSE_CATEGORIES } from '../../types';
+import { CashExpense, EXPENSE_CATEGORIES, expenseIsEffective } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import {
   Wallet,
@@ -14,6 +14,9 @@ import { toast } from 'sonner';
 interface Props {
   expenses: CashExpense[];
   isClosed: boolean;
+  /** Cash currently in the drawer (opening + cash sales − cash expenses). Used to
+   *  warn when a new cash expense would overdraw it (CASH-10). */
+  drawerCash?: number;
   onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
   onDeleteExpense: (expenseId: string) => void;
   canApprove?: boolean;
@@ -32,6 +35,7 @@ const QUICK_EXPENSE_SUGGESTIONS = [
 export const DailyCashExpensesTable: React.FC<Props> = ({
   expenses,
   isClosed,
+  drawerCash,
   onAddExpense,
   onDeleteExpense,
   canApprove,
@@ -44,12 +48,16 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   const [billUrl, setBillUrl] = useState<string>('');
   const [billName, setBillName] = useState<string>('');
 
-  const totalCash = expenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
-  const totalGpay = expenses.reduce((sum, e) => sum + (e.gpayAmount || 0), 0);
+  // Totals count only EFFECTIVE expenses (approved, or not needing approval). A
+  // pending/rejected entry — e.g. a bank deposit awaiting approval — must not be
+  // added to the drawer's Total Expense (CASH2-9).
+  const effectiveExpenses = expenses.filter(expenseIsEffective);
+  const totalCash = effectiveExpenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
+  const totalGpay = effectiveExpenses.reduce((sum, e) => sum + (e.gpayAmount || 0), 0);
   const totalExpenses = totalCash + totalGpay;
 
-  // Report: total per category
-  const byCategory = expenses.reduce<Record<string, number>>((acc, e) => {
+  // Report: total per category (effective entries only, same rule as above)
+  const byCategory = effectiveExpenses.reduce<Record<string, number>>((acc, e) => {
     const key = e.category || 'Uncategorised';
     acc[key] = (acc[key] || 0) + (e.cashAmount || 0) + (e.gpayAmount || 0);
     return acc;
@@ -80,6 +88,16 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
     if (c <= 0 && g <= 0) {
       toast.error('Please specify an expense amount in Cash or GPay');
       return;
+    }
+
+    // Warn (but allow) when the cash portion would push the drawer below zero, so
+    // an over-large cash expense isn't recorded silently (CASH-10).
+    if (c > 0 && drawerCash != null && c > drawerCash) {
+      const shortfall = Math.round((c - drawerCash) * 100) / 100;
+      const ok = window.confirm(
+        `This cash expense (₹${c.toLocaleString('en-IN')}) is more than the ₹${Math.max(0, drawerCash).toLocaleString('en-IN')} currently in the drawer and would leave it ₹${shortfall.toLocaleString('en-IN')} negative.\n\nRecord it anyway?`
+      );
+      if (!ok) return;
     }
 
     onAddExpense({

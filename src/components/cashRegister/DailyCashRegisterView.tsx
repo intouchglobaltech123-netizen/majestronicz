@@ -451,6 +451,7 @@ export const DailyCashRegisterView: React.FC = () => {
           <DailyCashExpensesTable
             expenses={currentRegister.expenses}
             isClosed={currentRegister.isClosed}
+            drawerCash={closingBalance}
             onAddExpense={(expense) =>
               addCashExpense(activeBranchId, selectedDate, expense)
             }

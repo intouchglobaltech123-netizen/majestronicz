@@ -98,8 +98,13 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, date, branchNam
                 const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
 
                 const getSplitModeAmount = (mode: PaymentMode) => {
-                  const s = splits.find((item) => item.mode === mode);
-                  return s ? s.amount * ratio : 0;
+                  // Sum ALL splits of this mode — a bill can legitimately carry two
+                  // splits of the same mode (e.g. Cash 1,000 + Cash 1,242), and taking
+                  // only the first understated the row (CASH-3).
+                  const total = splits
+                    .filter((item) => item.mode === mode)
+                    .reduce((sum, item) => sum + item.amount, 0);
+                  return total * ratio;
                 };
 
                 const hdfcAmount = getSplitModeAmount('HDFC');
