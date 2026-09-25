@@ -273,9 +273,19 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                         )}
                       </td>
 
-                      {/* Total */}
+                      {/* Total + vendor payment status */}
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(po.totalAmount)}
+                        {(() => {
+                          const due = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
+                          return po.status === 'Cancelled' ? null : due > 0 ? (
+                            <div className="text-[10px] font-bold text-rose-600 mt-0.5" title="Amount still to pay the vendor">
+                              Due {formatCurrency(due)}
+                            </div>
+                          ) : (po.amountPaid || 0) > 0 ? (
+                            <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Paid ✓</div>
+                          ) : null;
+                        })()}
                       </td>
 
                       {/* Vendor Bills Attached Indicator */}

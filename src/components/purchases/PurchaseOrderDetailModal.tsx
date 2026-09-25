@@ -222,8 +222,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       )
       .join('');
     const html = `<!doctype html><html><head><title>${esc(dn.noteNumber)}</title>
-      <style>body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}th{border:1px solid #333;padding:6px 8px;background:#f3f3f3;text-align:left}</style>
-      </head><body>
+      <style>body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}th{border:1px solid #333;padding:6px 8px;background:#f3f3f3;text-align:left}.noprint{position:fixed;top:12px;right:12px;padding:8px 14px;background:#b91c1c;color:#fff;border:none;border-radius:6px;font:bold 13px system-ui;cursor:pointer}@media print{.noprint{display:none!important}}</style>
+      </head><body><button class="noprint" onclick="window.print()">Print / Save PDF</button>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #b91c1c;padding-bottom:10px">
         <div><h1>${esc(COMPANY_PROFILE.name)}</h1><div style="color:#555">${esc(COMPANY_PROFILE.address)}</div>
         <div style="color:#555">GSTIN: ${esc(COMPANY_PROFILE.gstin)} · ${esc(COMPANY_PROFILE.phone)}</div></div>
@@ -238,7 +238,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       <td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">₹${(dn.totalAmount || 0).toFixed(2)}</td></tr></tfoot></table>
       <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged. Amount is recoverable / adjustable against payables.</p>
       <div style="margin-top:40px;text-align:right">For ${esc(COMPANY_PROFILE.name)}<br/><br/>Authorised Signatory</div>
-      <script>window.onload=function(){window.print()}</script>
+      
       </body></html>`;
     const w = window.open('', '_blank', 'width=800,height=900');
     if (!w) { toast.error('Allow pop-ups to print the debit note'); return; }
