@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES } from '../../types';
+import { dynamicReorderThreshold } from '../../lib/stockThreshold';
 import {
   Layers,
   History,
@@ -54,6 +55,7 @@ export const InventoryView: React.FC = () => {
     getTotalStockAcrossBranches,
     getBranchStock,
     activeSubTab,
+    invoices,
   } = useErp();
 
   // Search and Filters
@@ -122,7 +124,14 @@ export const InventoryView: React.FC = () => {
 
   // Compute stock and status for an item based on branch scope
   const getItemStockData = (item: Item) => {
-    const threshold = item.reorderThreshold ?? 10;
+    // Dynamic low-stock threshold: the item's average monthly sales + 10 (falls back
+    // to the manual/static threshold when there's no sales history yet).
+    const threshold = dynamicReorderThreshold(
+      item.id,
+      invoices,
+      isAllBranches ? undefined : currentBranch,
+      item.reorderThreshold ?? 10
+    );
 
     if (isAllBranches) {
       const branchCounts: Record<BranchId, number> = {
@@ -964,7 +973,7 @@ export const InventoryView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setThresholdItem(item)}
-                          title="Click to edit alert threshold"
+                          title="Auto alert level = avg monthly sales + 10 (uses this manual value only when there's no sales history). Click to edit the manual fallback."
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all text-xs font-semibold text-slate-700 group"
                         >
                           <span>{stockData.threshold} {item.unit}</span>
