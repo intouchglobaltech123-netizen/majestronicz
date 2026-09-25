@@ -691,6 +691,10 @@ export interface PendingOrder {
   purchaseOrderId?: string;
   purchaseOrderNumber?: string;
   linkedPurchaseOrderId?: string;
+  // Advance / token payment taken from the customer while they wait for stock.
+  advanceAmount?: number;
+  advanceMode?: string; // Cash / GPay / HDFC / etc.
+  advancePaidAt?: string; // ISO timestamp
   notes?: string;
   createdAt: string;
   updatedAt: string;

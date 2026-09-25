@@ -245,6 +245,9 @@ model PendingOrder {
   purchaseOrderId       String?
   purchaseOrderNumber   String?
   linkedPurchaseOrderId String?
+  advanceAmount         Float?
+  advanceMode           String?
+  advancePaidAt         String?
   notes                 String?
   createdAt             String
   updatedAt             String

@@ -60,6 +60,8 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
 
   const [isEditingExpectedDate, setIsEditingExpectedDate] = useState(false);
   const [newDateVal, setNewDateVal] = useState('');
+  const [advanceInput, setAdvanceInput] = useState<string>('');
+  const [advanceModeInput, setAdvanceModeInput] = useState<string>('Cash');
 
   React.useEffect(() => {
     if (pendingOrder) {
@@ -124,6 +126,25 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
   const handleSaveExpectedDate = () => {
     updatePendingOrder(pendingOrder.id, { expectedRestockDate: newDateVal });
     setIsEditingExpectedDate(false);
+  };
+
+  const handleRecordAdvance = () => {
+    const amt = Math.max(0, Number(advanceInput) || 0);
+    if (amt <= 0) return;
+    updatePendingOrder(pendingOrder.id, {
+      advanceAmount: (pendingOrder.advanceAmount || 0) + amt,
+      advanceMode: advanceModeInput,
+      advancePaidAt: new Date().toISOString(),
+    });
+    setAdvanceInput('');
+  };
+
+  const handleClearAdvance = () => {
+    updatePendingOrder(pendingOrder.id, {
+      advanceAmount: 0,
+      advanceMode: undefined,
+      advancePaidAt: undefined,
+    });
   };
 
   const handleJumpToEnquiry = () => {
@@ -325,6 +346,56 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Advance / token payment taken while the customer waits for stock */}
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2">
+                Advance Payment
+              </div>
+              <div className="border border-slate-300 rounded-none p-3 bg-emerald-50/40">
+                {pendingOrder.advanceAmount && pendingOrder.advanceAmount > 0 ? (
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                    <div className="text-sm">
+                      <span className="font-bold text-emerald-800 font-mono text-base">₹{(pendingOrder.advanceAmount).toLocaleString('en-IN')}</span>
+                      <span className="text-slate-500 text-xs"> advance received{pendingOrder.advanceMode ? ` · ${pendingOrder.advanceMode}` : ''}{pendingOrder.advancePaidAt ? ` · ${pendingOrder.advancePaidAt.slice(0, 10)}` : ''}</span>
+                    </div>
+                    <button type="button" onClick={handleClearAdvance} className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer">Clear</button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 mb-2">No advance recorded yet.</p>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
+                    <input
+                      type="number" min={0} value={advanceInput}
+                      onChange={(e) => setAdvanceInput(e.target.value)}
+                      placeholder="Advance amount"
+                      className="w-32 pl-5 pr-2 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <select
+                    value={advanceModeInput}
+                    onChange={(e) => setAdvanceModeInput(e.target.value)}
+                    className="px-2 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
+                  >
+                    <option>Cash</option>
+                    <option>GPay</option>
+                    <option>HDFC</option>
+                    <option>Card</option>
+                    <option>Bank Transfer</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleRecordAdvance}
+                    disabled={!(Number(advanceInput) > 0)}
+                    className="px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {pendingOrder.advanceAmount ? 'Add More' : 'Record Advance'}
+                  </button>
+                </div>
               </div>
             </div>
 
