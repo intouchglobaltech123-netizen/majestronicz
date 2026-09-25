@@ -73,7 +73,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'invoices', subTabId: 'draft-sales', label: 'Saved Sale Drafts', cap: 'invoices' },
       { id: 'invoices', subTabId: 'draft-quotes', label: 'Saved Quote Drafts', cap: 'invoices' },
       { id: 'enquiries', label: 'Enquiries', cap: 'enquiries' },
-      { id: 'pending-orders', label: 'Pending Orders', cap: 'pending-orders' },
     ],
   },
   {
