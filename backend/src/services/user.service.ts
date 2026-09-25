@@ -21,6 +21,29 @@ const DESIGNATION_BY_ROLE: Record<string, string> = {
   CEO: 'Proprietor',
 };
 
+/**
+ * Recovery: re-hash the 5 preset accounts' PINs (1111/2222/3333/4444/5555 from
+ * ROLE_DEFS) to the CURRENT AUTH_SECRET. Gated by RESET_SYSTEM_PINS=1 in the
+ * environment so it only runs on demand. Use this to recover when an AUTH_SECRET
+ * change left the stored PIN hashes unmatchable and locked everyone out — it is
+ * secret-agnostic (doesn't need to know the old secret). Remove the env flag
+ * afterwards. Custom (non-preset) staff can then be PIN-reset by the CEO.
+ */
+export async function resetSystemPins(): Promise<number> {
+  let n = 0;
+  for (const def of ROLE_DEFS) {
+    const id = `user-${def.role.toLowerCase()}`;
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) continue;
+    await prisma.user.update({
+      where: { id },
+      data: { pin: hashPin(def.pin), mustResetPin: false, updatedAt: nowIso() },
+    });
+    n++;
+  }
+  return n;
+}
+
 /** Seed the 5 preset accounts once (idempotent). */
 export async function ensureUsers(): Promise<void> {
   const count = await prisma.user.count();

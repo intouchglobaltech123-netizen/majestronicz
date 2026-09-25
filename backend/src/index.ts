@@ -63,11 +63,18 @@ app.listen(port, async () => {
     await ensureAccessMatrix();
     await migrateAccessMatrix();
     console.log('Access-control matrix loaded.');
-    const { ensureUsers, migrateUserPins, provisionUserEmployees } = await import('./services/user.service.js');
+    const { ensureUsers, migrateUserPins, provisionUserEmployees, resetSystemPins } = await import('./services/user.service.js');
     await ensureUsers();
     const migrated = await migrateUserPins();
     const linked = await provisionUserEmployees();
     console.log(`Staff accounts ready.${migrated ? ` Secured ${migrated} legacy PIN(s).` : ''}${linked ? ` Linked ${linked} attendance profile(s).` : ''}`);
+    // Recovery hatch: re-hash the 5 preset PINs to the current AUTH_SECRET when
+    // RESET_SYSTEM_PINS=1 is set (used after a secret change locks everyone out).
+    // Remove the env flag once you've logged back in.
+    if (process.env.RESET_SYSTEM_PINS === '1') {
+      const reset = await resetSystemPins();
+      console.log(`RESET_SYSTEM_PINS active: re-hashed ${reset} preset account PIN(s) to the current AUTH_SECRET. Remove this env var now.`);
+    }
   } catch (e) {
     console.error('Failed during startup init (using defaults):', e);
   }
