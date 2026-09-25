@@ -97,6 +97,22 @@ export function deleteExpense(branchId: string, date: string, expenseId: string)
     await tx.dailyCashRegister.update({
       where: { id: reg.id }, data: { expenses: (reg.expenses as any[]).filter((e) => e.id !== expenseId) },
     });
+
+    // If this expense came from a recurring template's approval, clear that
+    // approval too — otherwise the template stays "Approved" for the month with no
+    // matching expense in the drawer (CASH-7).
+    const templates = await tx.recurringExpenseTemplate.findMany();
+    for (const t of templates) {
+      const hist = (t.approvalHistory as any[]) || [];
+      if (!hist.some((a) => a.cashExpenseId === expenseId)) continue;
+      const newHist = hist.filter((a) => a.cashExpenseId !== expenseId);
+      const months = newHist.map((a) => a.month).filter(Boolean).sort();
+      await tx.recurringExpenseTemplate.update({
+        where: { id: t.id },
+        data: { approvalHistory: newHist, lastApprovedMonth: months.length ? months[months.length - 1] : null },
+      });
+      break;
+    }
     return snap(tx);
   });
 }
@@ -114,6 +130,10 @@ export function overrideOpening(branchId: string, date: string, amount: number, 
 
 export function closeDay(branchId: string, date: string, notes: string | undefined, actor: string) {
   return prisma.$transaction(async (tx: any) => {
+    // Never close a day in the future — it has no transactions yet and locking it
+    // corrupts the opening-balance chain (CASH-9). Compare against the IST date.
+    const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    if (date > todayIST) throw new AppError('FUTURE_DAY', 'Cannot close a future day.', 400);
     const reg = await ensureRegister(tx, branchId, date);
     await tx.dailyCashRegister.update({
       where: { id: reg.id }, data: { isClosed: true, closedAt: nowIso(), closedBy: actor, closingNotes: notes ?? null },
@@ -134,7 +154,11 @@ export function approveRecurring(templateId: string, branchId: string, date: str
   return prisma.$transaction(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id: templateId } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
-    const reg = await ensureRegister(tx, branchId, date);
+    // Post the approved expense to the TEMPLATE's own branch, not whichever drawer
+    // the approver happens to be viewing — otherwise e.g. Coimbatore rent lands in
+    // the Erode register (CASH-6).
+    const targetBranch = template.branchId || branchId;
+    const reg = await ensureRegister(tx, targetBranch, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
 
     const expenseId = rid('exp-rec');
