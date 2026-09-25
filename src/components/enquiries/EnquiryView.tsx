@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Enquiry, EnquiryStatus } from '../../types';
 import { cn } from '../../lib/utils';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { ItemImage } from '../common/ItemImage';
 import { AddItemModal } from '../items/AddItemModal';
+import { toast } from 'sonner';
 
 export const EnquiryView: React.FC = () => {
   const {
@@ -54,6 +55,11 @@ export const EnquiryView: React.FC = () => {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [cancellingEnquiry, setCancellingEnquiry] = useState<Enquiry | null>(null);
   const [schedulingReminderEnquiry, setSchedulingReminderEnquiry] = useState<Enquiry | null>(null);
+
+  // Enquiries already linked to a catalog item + pending order this session, so a
+  // second "Add to Catalog" (e.g. the Save & New path) can't create a duplicate
+  // pending order for the same enquiry (CRM-19).
+  const linkedEnquiryIdsRef = useRef<Set<string>>(new Set());
 
   // Synchronize view tab and actions when triggered from secondary navbar flyout
   useEffect(() => {
@@ -132,6 +138,21 @@ export const EnquiryView: React.FC = () => {
     });
   }, [enquiries, isAllBranches, currentBranch, statusFilter, searchQuery]);
 
+  // Branch-scoped counts (CRM-16): header/tab totals must respect the branch
+  // switcher instead of counting every branch, and each enquiry counts once.
+  const branchScopedEnquiries = useMemo(
+    () => enquiries.filter((enq) => isAllBranches || enq.branchId === currentBranch),
+    [enquiries, isAllBranches, currentBranch]
+  );
+  const branchScopedPendingOrders = useMemo(
+    () => pendingOrders.filter((po) => isAllBranches || po.branchId === currentBranch),
+    [pendingOrders, isAllBranches, currentBranch]
+  );
+  const branchScopedNewItemRequests = useMemo(
+    () => unresolvedNewItemRequests.filter((enq) => isAllBranches || enq.branchId === currentBranch),
+    [unresolvedNewItemRequests, isAllBranches, currentBranch]
+  );
+
   const handleClearFilter = () => {
     setSearchQuery('');
     setEnquiryFilterQuery('');
@@ -147,7 +168,7 @@ export const EnquiryView: React.FC = () => {
               {activeTab === 'new-item-requests' ? 'New Item Catalog Requests' : 'Customer Enquiries'}
             </h1>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
-              {activeTab === 'new-item-requests' ? `${unresolvedNewItemRequests.length} Pending` : `${enquiries.length} Total`}
+              {activeTab === 'new-item-requests' ? `${branchScopedNewItemRequests.length} Pending` : `${branchScopedEnquiries.length} Total`}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -200,7 +221,7 @@ export const EnquiryView: React.FC = () => {
             'px-1.5 py-0.2 rounded-none text-[10px] font-mono',
             activeTab === 'all' ? 'bg-red-800 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
-            {enquiries.length}
+            {branchScopedEnquiries.length}
           </span>
         </button>
 
@@ -217,12 +238,12 @@ export const EnquiryView: React.FC = () => {
           >
             <PackagePlus className="h-3.5 w-3.5" />
             <span>New Item Requests</span>
-            {unresolvedNewItemRequests.length > 0 && (
+            {branchScopedNewItemRequests.length > 0 && (
               <span className={cn(
                 'px-1.5 py-0.2 rounded-none text-[10px] font-bold font-mono',
                 activeTab === 'new-item-requests' ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-800'
               )}>
-                {unresolvedNewItemRequests.length}
+                {branchScopedNewItemRequests.length}
               </span>
             )}
           </button>
@@ -231,8 +252,8 @@ export const EnquiryView: React.FC = () => {
 
       {/* Reports Tie-In KPI Summary Card */}
       <EnquiryConversionReportWidget
-        enquiries={enquiries}
-        pendingOrders={pendingOrders}
+        enquiries={branchScopedEnquiries}
+        pendingOrders={branchScopedPendingOrders}
       />
 
       {/* ENQUIRIES TABLE & FILTERS */}
@@ -754,7 +775,23 @@ export const EnquiryView: React.FC = () => {
             imageUrl: catalogEnquiry.itemImageUrl,
           }}
           onItemAdded={(newItem) => {
-            linkItemToEnquiry(catalogEnquiry.id, newItem);
+            // Never link the same enquiry twice — a second add would spawn a
+            // duplicate pending order (CRM-19).
+            if (linkedEnquiryIdsRef.current.has(catalogEnquiry.id)) {
+              toast.error('This enquiry is already linked to a catalog item & pending order.');
+              return;
+            }
+            // Block a ₹0 item — it would seed the linked pending order (and any
+            // future bill) at zero value (CRM-19).
+            if (!newItem.salePrice || newItem.salePrice <= 0) {
+              toast.error('Set a sale price greater than ₹0 before adding this item to the catalog.');
+              return;
+            }
+            // Keep the unit the customer actually requested instead of the
+            // catalog default so the enquiry & pending order don't flip to PCS (CRM-19).
+            const linkedItem = { ...newItem, unit: catalogEnquiry.unit || newItem.unit };
+            linkedEnquiryIdsRef.current.add(catalogEnquiry.id);
+            linkItemToEnquiry(catalogEnquiry.id, linkedItem);
             setIsAddCatalogModalOpen(false);
             setCatalogEnquiry(null);
           }}

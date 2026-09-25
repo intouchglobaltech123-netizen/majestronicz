@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary } from '../../types';
+import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -113,7 +113,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const isEligible = isLoyaltyMilestoneEligible(currentCustomer, loyaltySettings);
   const progress = getLoyaltyProgress(currentCustomer, loyaltySettings);
   const nonVoidedInvoices = customerInvoices.filter((i) => !i.isVoided);
-  const totalLifetimeSpent = nonVoidedInvoices.reduce((sum, i) => sum + i.grandTotal, 0);
+  // Lifetime spent nets out returns/credits — computeInvoiceFinance(i).net is
+  // grandTotal minus returns — so it matches the Parties list row (CRM-8).
+  const totalLifetimeSpent = nonVoidedInvoices.reduce((sum, i) => sum + computeInvoiceFinance(i).net, 0);
   const avgOrderValue = nonVoidedInvoices.length > 0 ? Math.round(totalLifetimeSpent / nonVoidedInvoices.length) : 0;
 
   return (

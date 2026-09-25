@@ -20,7 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
+import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -197,6 +197,29 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       });
   }, [parties, searchQuery]);
 
+  // Lifetime spent per customer, computed the SAME way as CustomerDetailModal:
+  // the sum of computeInvoiceFinance(inv).net (grandTotal minus returns) over the
+  // customer's non-voided invoices. This replaces the stored `totalSpent` figure
+  // so the list row, sort, export and the detail view agree and reflect returns (CRM-8).
+  const customerLifetimeSpent = useMemo(() => {
+    const map = new Map<string, number>();
+    const nonVoided = invoices.filter((i) => !i.isVoided);
+    const belongsToCustomer = (inv: Invoice, c: Customer) => {
+      if (inv.customerId && inv.customerId === c.id) return true;
+      const cleanPhone = (c.phone || '').trim().replace(/\D/g, '');
+      if (cleanPhone && inv.customerPhone && inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
+      if (c.name && inv.customerName && inv.customerName.trim().toLowerCase() === c.name.trim().toLowerCase()) return true;
+      return false;
+    };
+    for (const c of customers) {
+      const spent = nonVoided
+        .filter((inv) => belongsToCustomer(inv, c))
+        .reduce((s, inv) => s + computeInvoiceFinance(inv).net, 0);
+      map.set(c.id, spent);
+    }
+    return map;
+  }, [invoices, customers]);
+
   // Filtered & Sorted Customers
   const filteredCustomers = useMemo(() => {
     let result = [...customers];
@@ -224,7 +247,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
 
     result.sort((a, b) => {
       if (customerSortBy === 'purchases') return (b.purchaseCount || 0) - (a.purchaseCount || 0);
-      if (customerSortBy === 'spent') return (b.totalSpent || 0) - (a.totalSpent || 0);
+      if (customerSortBy === 'spent') return (customerLifetimeSpent.get(b.id) || 0) - (customerLifetimeSpent.get(a.id) || 0);
       if (customerSortBy === 'name') return a.name.localeCompare(b.name);
       if (customerSortBy === 'recent') {
         return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
@@ -233,7 +256,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     });
 
     return result;
-  }, [customers, searchQuery, customerTypeFilter, customerStatusFilter, customerSortBy, loyaltySettings]);
+  }, [customers, searchQuery, customerTypeFilter, customerStatusFilter, customerSortBy, loyaltySettings, customerLifetimeSpent]);
 
   // Filtered Suppliers
   const filteredSuppliers = useMemo(() => {
@@ -272,8 +295,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
   }, [customers, loyaltySettings]);
 
   const totalCustomerSales = useMemo(() => {
-    return customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
-  }, [customers]);
+    return customers.reduce((sum, c) => sum + (customerLifetimeSpent.get(c.id) || 0), 0);
+  }, [customers, customerLifetimeSpent]);
 
   const customersWithDueCount = useMemo(() => {
     return customers.filter((c) => getCustomerOutstandingBalance(c) > 0).length;
@@ -538,7 +561,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                 headers: ['Name', 'Phone', 'Type', 'GSTIN', 'Address', 'Purchases', 'Total Spent (₹)'],
                 rows: filteredCustomers.map((c) => [
                   c.name, c.phone, c.customerType || 'Retail', c.gstin || '', c.address || '',
-                  c.purchaseCount || 0, (c.totalSpent || 0).toFixed(2),
+                  c.purchaseCount || 0, (customerLifetimeSpent.get(c.id) || 0).toFixed(2),
                 ]),
                 title: 'Customers', filename: `customers-${getTodayDateString()}`,
               })}
@@ -718,7 +741,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                           </td>
 
                           <td className="p-4 text-right font-mono font-bold text-slate-900">
-                            {formatCurrency(cust.totalSpent || 0)}
+                            {formatCurrency(customerLifetimeSpent.get(cust.id) || 0)}
                           </td>
 
                           <td className="p-4 text-right">

@@ -81,13 +81,22 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     (e) => e.id === pendingOrder.enquiryId || e.enquiryNumber === pendingOrder.enquiryNumber
   );
 
-  // Find linked purchase order
-  const linkedPo = purchaseOrders.find(
-    (p) =>
-      p.id === pendingOrder.purchaseOrderId ||
-      p.poNumber === pendingOrder.purchaseOrderNumber ||
-      p.items.some((item) => item.itemId === pendingOrder.itemId && p.branchId === pendingOrder.branchId)
-  );
+  // Find the linked purchase order STRICTLY by the id/number stored on this
+  // pending order. The old fallback matched any PO that merely shared the item &
+  // branch, so an unrelated PO showed up as "Purchase Order Sent" even when this
+  // order was never linked to one (CRM-20). No stored link ⇒ no PO shown.
+  const hasLinkedPoRef =
+    pendingOrder.purchaseOrderId ||
+    pendingOrder.linkedPurchaseOrderId ||
+    pendingOrder.purchaseOrderNumber;
+  const linkedPo = hasLinkedPoRef
+    ? purchaseOrders.find(
+        (p) =>
+          (pendingOrder.purchaseOrderId && p.id === pendingOrder.purchaseOrderId) ||
+          (pendingOrder.linkedPurchaseOrderId && p.id === pendingOrder.linkedPurchaseOrderId) ||
+          (pendingOrder.purchaseOrderNumber && p.poNumber === pendingOrder.purchaseOrderNumber)
+      )
+    : undefined;
 
   const calculateDaysWaiting = (createdAt: string) => {
     const today = new Date();
