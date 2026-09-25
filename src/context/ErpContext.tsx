@@ -392,8 +392,9 @@ interface ErpContextType {
   cancelPurchaseOrder: (poId: string) => void;
   receivePurchaseOrderStock: (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string }[],
-    notes?: string
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
+    notes?: string,
+    payment?: { amount?: number; mode?: string }
   ) => void;
   addPurchaseOrderAttachment: (
     poId: string,
@@ -3472,7 +3473,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const receivePurchaseOrderStock = (
     poId: string,
     receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
-    notes?: string
+    notes?: string,
+    payment?: { amount?: number; mode?: string }
   ) => {
     const po = purchaseOrders.find((p) => p.id === poId);
     if (!po) {
@@ -3568,11 +3570,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ];
     }
 
+    const payNow = Math.max(0, Number(payment?.amount) || 0);
+    const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
+
     const updatedPo: PurchaseOrder = {
       ...po,
       items: updatedLines,
       status: newStatus,
       totalAmount: newTotalAmount,
+      amountPaid: newAmountPaid,
       receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
       debitNotes,
       updatedAt: new Date().toISOString(),
@@ -3614,7 +3620,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextStocks;
     });
 
-    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, actor: currentUser.name }));
+    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name }));
 
     const totalQty = validReceipts.reduce((sum, r) => sum + r.quantityReceived, 0);
     toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {

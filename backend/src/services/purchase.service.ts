@@ -74,6 +74,7 @@ export function receivePurchaseOrderStock(
   poId: string,
   receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
   notes: string | undefined,
+  payment: { amount?: number; mode?: string } | undefined,
   actor: string,
   reqUser?: any
 ) {
@@ -146,10 +147,15 @@ export function receivePurchaseOrderStock(
     const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0);
     const status = allFull ? 'Received' : anyReceived ? 'Partially Received' : po.status;
 
+    // Optional vendor payment recorded at the moment of receiving.
+    const payNow = Math.max(0, Number(payment?.amount) || 0);
+    const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
+
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
         items: updatedLines, status, totalAmount: newTotalAmount,
+        amountPaid: newAmountPaid,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
         debitNotes,
         updatedAt: ts,

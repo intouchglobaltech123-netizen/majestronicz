@@ -30,6 +30,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [pricesToAssign, setPricesToAssign] = useState<Record<string, number>>({});
   // Quality check: line.id -> number of units found damaged (billed back to vendor)
   const [damagedToAssign, setDamagedToAssign] = useState<Record<string, number>>({});
+  // Vendor payment recorded at receiving
+  const [payNowInput, setPayNowInput] = useState<string>('');
+  const [payMode, setPayMode] = useState<string>('Cash');
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
 
@@ -62,6 +65,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setLocationsToAssign(initialLocs);
       setPricesToAssign(initialPrices);
       setDamagedToAssign({});
+      setPayNowInput('');
+      setPayMode('Cash');
       setReceivingNotes('');
     } else if (!isOpen) {
       // Reset the guard when the modal closes so re-opening seeds fresh.
@@ -70,6 +75,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setLocationsToAssign({});
       setPricesToAssign({});
       setDamagedToAssign({});
+      setPayNowInput('');
       setReceivingNotes('');
     }
     // Intentionally keyed on the PO id + open state only (not the object
@@ -146,7 +152,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     });
     const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
 
-    receivePurchaseOrderStock(purchaseOrder.id, receipts, receivingNotes);
+    // Vendor payment validation: confirm whether money was paid before stock-in.
+    const payNow = Math.max(0, Number(payNowInput) || 0);
+    const total = purchaseOrder.totalAmount || 0;
+    const alreadyPaid = purchaseOrder.amountPaid || 0;
+    const outstandingAfter = Math.max(0, total - alreadyPaid - payNow);
+    if (payNow <= 0 && outstandingAfter > 0) {
+      const ok = window.confirm(
+        `No payment is being recorded now and ₹${outstandingAfter.toLocaleString('en-IN')} is still outstanding to the vendor.\n\nConfirm stock-in without recording a payment?`
+      );
+      if (!ok) return;
+    }
+
+    receivePurchaseOrderStock(
+      purchaseOrder.id,
+      receipts,
+      receivingNotes,
+      payNow > 0 ? { amount: payNow, mode: payMode } : undefined
+    );
     onClose();
   };
 
@@ -400,10 +423,34 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
           const paid = purchaseOrder.amountPaid || 0;
           const outstanding = Math.max(0, total - paid);
           return (
-            <div className="px-6 py-2.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs shrink-0">
+            <div className="px-6 py-2.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs shrink-0">
               <span className="text-slate-500">PO Value: <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
               <span className="text-slate-500">Paid to Vendor: <span className="font-bold text-emerald-700 font-mono">{formatCurrency(paid)}</span></span>
               <span className="text-slate-500">Outstanding: <span className={`font-bold font-mono ${outstanding > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatCurrency(outstanding)}</span></span>
+              {/* Record a vendor payment now (validated before stock-in) */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-semibold">Pay now:</span>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
+                  <input
+                    type="number" min={0} value={payNowInput}
+                    onChange={(e) => setPayNowInput(e.target.value)}
+                    placeholder="0"
+                    className="w-24 pl-5 pr-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <select
+                  value={payMode}
+                  onChange={(e) => setPayMode(e.target.value)}
+                  className="px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
+                >
+                  <option>Cash</option>
+                  <option>GPay</option>
+                  <option>HDFC</option>
+                  <option>Bank Transfer</option>
+                  <option>Cheque</option>
+                </select>
+              </div>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${outstanding > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                 {outstanding > 0 ? 'Payment Due' : 'Fully Paid'}
               </span>

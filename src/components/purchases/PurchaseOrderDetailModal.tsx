@@ -23,6 +23,8 @@ import {
 import {
   PurchaseOrder,
   PurchaseOrderAttachment,
+  PODebitNote,
+  COMPANY_PROFILE,
   BRANCHES,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
@@ -200,6 +202,45 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       setCurrentView('pending-orders');
       onClose();
     }
+  };
+
+  // Print the damaged-goods debit note as a standalone bill for the vendor.
+  const handlePrintDebitNote = (dn: PODebitNote) => {
+    const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const rows = dn.lines
+      .map(
+        (l, i) => `<tr>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:center">${i + 1}</td>
+          <td style="border:1px solid #333;padding:6px 8px">${esc(l.itemName)}${l.itemCode ? ` <span style="color:#666">(${esc(l.itemCode)})</span>` : ''}</td>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${l.damagedQuantity}</td>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.unitPrice || 0).toFixed(2)}</td>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.amount || 0).toFixed(2)}</td>
+        </tr>`
+      )
+      .join('');
+    const html = `<!doctype html><html><head><title>${esc(dn.noteNumber)}</title>
+      <style>body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}th{border:1px solid #333;padding:6px 8px;background:#f3f3f3;text-align:left}</style>
+      </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #b91c1c;padding-bottom:10px">
+        <div><h1>${esc(COMPANY_PROFILE.name)}</h1><div style="color:#555">${esc(COMPANY_PROFILE.address)}</div>
+        <div style="color:#555">GSTIN: ${esc(COMPANY_PROFILE.gstin)} · ${esc(COMPANY_PROFILE.phone)}</div></div>
+        <div style="text-align:right"><h2 style="margin:0;color:#b91c1c">DEBIT NOTE</h2>
+        <div><strong>${esc(dn.noteNumber)}</strong></div><div>Date: ${esc(dn.date)}</div></div>
+      </div>
+      <div style="margin-top:12px"><strong>Vendor:</strong> ${esc(purchaseOrder.vendorName)}${purchaseOrder.vendorGstin ? ` · GSTIN: ${esc(purchaseOrder.vendorGstin)}` : ''}</div>
+      <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected goods at quality check</div>
+      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="4" style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">Total Debit</td>
+      <td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">₹${(dn.totalAmount || 0).toFixed(2)}</td></tr></tfoot></table>
+      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged. Amount is recoverable / adjustable against payables.</p>
+      <div style="margin-top:40px;text-align:right">For ${esc(COMPANY_PROFILE.name)}<br/><br/>Authorised Signatory</div>
+      <script>window.onload=function(){window.print()}</script>
+      </body></html>`;
+    const w = window.open('', '_blank', 'width=800,height=900');
+    if (!w) { toast.error('Allow pop-ups to print the debit note'); return; }
+    w.document.write(html);
+    w.document.close();
   };
 
   return (
@@ -520,7 +561,17 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       <div key={dn.id} className="p-3 text-xs">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="font-bold text-slate-900 font-mono">{dn.noteNumber}</span>
-                          <span className="text-slate-500">{dn.date} · by {dn.createdBy}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-slate-500">{dn.date} · by {dn.createdBy}</span>
+                            <button
+                              type="button"
+                              onClick={() => handlePrintDebitNote(dn)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-white border border-rose-300 text-rose-700 text-[10px] font-bold hover:bg-rose-50 cursor-pointer"
+                              title="Print this debit note as a bill for the vendor"
+                            >
+                              <Printer className="h-3 w-3" /> Print Bill
+                            </button>
+                          </span>
                         </div>
                         <div className="space-y-0.5">
                           {dn.lines.map((l, i) => (
