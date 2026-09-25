@@ -40,11 +40,22 @@ export function transferStockBatch(
   if (fromBranch === toBranch) throw new AppError('SAME_BRANCH', 'Source and destination cannot be the same');
   if (!itemsToTransfer?.length) throw new AppError('NO_ITEMS', 'At least one item must be included');
 
+  // Merge duplicate lines for the same item BEFORE validating stock. Two lines of
+  // the same item were each checked against the full source stock independently, so
+  // 15 + 15 from 20 in stock both passed and the destination gained 30 — creating
+  // stock from nothing (INV2-2).
+  const mergedMap = new Map<string, number>();
+  for (const row of itemsToTransfer) {
+    if (!row.itemId || row.quantity <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
+    mergedMap.set(row.itemId, (mergedMap.get(row.itemId) || 0) + row.quantity);
+  }
+  const mergedItems = Array.from(mergedMap.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+
   return serializableTx(async (tx: any) => {
     const ts = nowIso();
     const validated: { item: any; quantity: number; fromPrevQty: number; toPrevQty: number }[] = [];
 
-    for (const row of itemsToTransfer) {
+    for (const row of mergedItems) {
       if (!row.itemId || row.quantity <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
       const item = await tx.item.findUnique({ where: { id: row.itemId } });
       if (!item) throw new AppError('NOT_FOUND', `Item not found: ${row.itemId}`, 404);
