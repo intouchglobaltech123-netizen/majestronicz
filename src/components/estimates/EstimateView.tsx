@@ -20,6 +20,7 @@ import {
 export const EstimateView: React.FC = () => {
   const {
     estimates,
+    invoices,
     deleteEstimate,
     currentBranch,
     isAllBranches,
@@ -27,6 +28,16 @@ export const EstimateView: React.FC = () => {
     setCurrentView,
     setEstimateToConvert,
   } = useErp();
+
+  // A quote is "already converted" once a non-voided invoice records it as its
+  // source. Used to block converting the same quote into a second invoice (SAL-18).
+  const convertedEstimateMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inv of invoices) {
+      if (inv.sourceEstimateId && !inv.isVoided) map.set(inv.sourceEstimateId, inv.invoiceNumber);
+    }
+    return map;
+  }, [invoices]);
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
@@ -288,17 +299,27 @@ export const EstimateView: React.FC = () => {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setEstimateToConvert(est);
-                                setCurrentView('invoices');
-                              }}
-                              title="Convert this estimate into a Sales Invoice"
-                              className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                            >
-                              <ArrowRightLeft className="h-3 w-3" />
-                              <span>To Invoice</span>
-                            </button>
+                            {convertedEstimateMap.has(est.id) ? (
+                              <span
+                                title={`Already converted to invoice ${convertedEstimateMap.get(est.id)}`}
+                                className="px-2 py-1 rounded-none bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 text-[11px] font-bold"
+                              >
+                                <ArrowRightLeft className="h-3 w-3" />
+                                <span>Converted → {convertedEstimateMap.get(est.id)}</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setEstimateToConvert(est);
+                                  setCurrentView('invoices');
+                                }}
+                                title="Convert this estimate into a Sales Invoice"
+                                className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                              >
+                                <ArrowRightLeft className="h-3 w-3" />
+                                <span>To Invoice</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => setPreviewEstimate(est)}
                               title="Print / Save PDF"
