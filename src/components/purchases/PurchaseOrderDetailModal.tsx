@@ -87,6 +87,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   const attachments = purchaseOrder.attachments || [];
   const receivingHistory = purchaseOrder.receivingHistory || [];
+  const debitNotes = purchaseOrder.debitNotes || [];
+  const debitNotesTotal = debitNotes.reduce((s, dn) => s + (dn.totalAmount || 0), 0);
 
   // File Upload Handler (PDF or Image, base64 stopgap)
   const handleFileUpload = async (files: FileList | null) => {
@@ -503,6 +505,40 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                   </div>
                 </div>
               </div>
+
+              {/* Quality-check debit notes raised on the vendor for damaged goods */}
+              {debitNotes.length > 0 && (
+                <div className="bg-white rounded-xl border border-rose-200 shadow-2xs overflow-hidden">
+                  <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-rose-800">
+                      Vendor Debit Notes (Damaged / QC Rejects)
+                    </span>
+                    <span className="text-xs font-bold text-rose-700 font-mono">Total: {formatCurrency(debitNotesTotal)}</span>
+                  </div>
+                  <div className="divide-y divide-rose-100">
+                    {debitNotes.map((dn) => (
+                      <div key={dn.id} className="p-3 text-xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-slate-900 font-mono">{dn.noteNumber}</span>
+                          <span className="text-slate-500">{dn.date} · by {dn.createdBy}</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          {dn.lines.map((l, i) => (
+                            <div key={i} className="flex items-center justify-between text-slate-600">
+                              <span>{l.itemName} <span className="text-rose-600 font-bold">× {l.damagedQuantity} damaged</span></span>
+                              <span className="font-mono">{formatCurrency(l.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-rose-100 font-bold text-rose-800">
+                          <span>Debit Note Total</span>
+                          <span className="font-mono">{formatCurrency(dn.totalAmount)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Line Items Table */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">

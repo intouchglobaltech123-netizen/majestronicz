@@ -327,6 +327,7 @@ model PurchaseOrder {
   pendingOrderNumber  String?
   attachments         Json?
   receivingHistory    Json?
+  debitNotes          Json?
   createdAt           String
   updatedAt           String
 }

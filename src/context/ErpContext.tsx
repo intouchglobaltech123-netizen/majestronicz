@@ -3471,7 +3471,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const receivePurchaseOrderStock = (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
     notes?: string
   ) => {
     const po = purchaseOrders.find((p) => p.id === poId);
@@ -3480,7 +3480,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const validReceipts = receipts.filter((r) => r.quantityReceived > 0);
+    const validReceipts = receipts.filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
     if (validReceipts.length === 0) {
       toast.error('No items to receive (quantity must be greater than 0)');
       return;
@@ -3535,12 +3535,46 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? 'Partially Received'
       : po.status;
 
+    // Quality check: damaged/rejected units raise a vendor debit note.
+    const existingNotes = po.debitNotes || [];
+    const damagedReceipts = validReceipts.filter((r) => (r.damagedQuantity || 0) > 0);
+    let debitNotes = existingNotes;
+    if (damagedReceipts.length > 0) {
+      const dnLines = damagedReceipts.map((rec) => {
+        const line = updatedLines.find((l) => l.itemId === rec.itemId);
+        const unitPrice = line?.purchasePrice || 0;
+        const dq = rec.damagedQuantity || 0;
+        return {
+          itemId: rec.itemId,
+          itemName: line?.itemName || rec.itemId,
+          itemCode: line?.itemCode,
+          damagedQuantity: dq,
+          unitPrice,
+          amount: Math.round(unitPrice * dq * 100) / 100,
+        };
+      });
+      const dnTotal = Math.round(dnLines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+      debitNotes = [
+        {
+          id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
+          date: new Date().toISOString().split('T')[0],
+          createdBy: currentUser.name || currentUser.role,
+          lines: dnLines,
+          totalAmount: dnTotal,
+          notes: notes?.trim() || undefined,
+        },
+        ...existingNotes,
+      ];
+    }
+
     const updatedPo: PurchaseOrder = {
       ...po,
       items: updatedLines,
       status: newStatus,
       totalAmount: newTotalAmount,
       receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
+      debitNotes,
       updatedAt: new Date().toISOString(),
     };
 

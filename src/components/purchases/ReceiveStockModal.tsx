@@ -28,6 +28,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [locationsToAssign, setLocationsToAssign] = useState<Record<string, string>>({});
   // Map of itemId -> actual purchase price confirmed while receiving
   const [pricesToAssign, setPricesToAssign] = useState<Record<string, number>>({});
+  // Quality check: line.id -> number of units found damaged (billed back to vendor)
+  const [damagedToAssign, setDamagedToAssign] = useState<Record<string, number>>({});
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
 
@@ -59,6 +61,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
       setPricesToAssign(initialPrices);
+      setDamagedToAssign({});
       setReceivingNotes('');
     } else if (!isOpen) {
       // Reset the guard when the modal closes so re-opening seeds fresh.
@@ -66,6 +69,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setQuantitiesToReceive({});
       setLocationsToAssign({});
       setPricesToAssign({});
+      setDamagedToAssign({});
       setReceivingNotes('');
     }
     // Intentionally keyed on the PO id + open state only (not the object
@@ -94,6 +98,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     setPricesToAssign((prev) => ({ ...prev, [lineId]: isNaN(parsed) || parsed < 0 ? 0 : parsed }));
   };
 
+  const handleDamagedChange = (lineId: string, valStr: string, maxAllowed: number) => {
+    const parsed = parseInt(valStr, 10);
+    const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, maxAllowed);
+    setDamagedToAssign((prev) => ({ ...prev, [lineId]: safe }));
+  };
+
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
@@ -112,26 +122,29 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   };
 
   const totalUnitsReceivingNow = Object.values(quantitiesToReceive).reduce((sum, val) => sum + (val || 0), 0);
+  const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalUnitsReceivingNow <= 0) return;
+    if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0) return;
 
     // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
     // quantities if the same product spans multiple PO lines).
-    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }> = {};
+    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }> = {};
     purchaseOrder.items.forEach((line) => {
       const q = Number(quantitiesToReceive[line.id]) || 0;
-      if (q <= 0) return;
-      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0 };
+      const dmg = Number(damagedToAssign[line.id]) || 0;
+      if (q <= 0 && dmg <= 0) return;
+      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0, damagedQuantity: 0 };
       acc.quantityReceived += q;
+      acc.damagedQuantity = (acc.damagedQuantity || 0) + dmg;
       const loc = locationsToAssign[line.id]?.trim();
       if (loc) acc.location = loc;
       const price = pricesToAssign[line.id];
       if (price != null) acc.purchasePrice = price;
       byItem[line.itemId] = acc;
     });
-    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0);
+    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
 
     receivePurchaseOrderStock(purchaseOrder.id, receipts, receivingNotes);
     onClose();
@@ -200,7 +213,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         {/* Scrollable Line Items Table */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
-            <table className="w-full min-w-[820px] text-left border-collapse text-sm">
+            <table className="w-full min-w-[940px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <th className="py-2.5 px-4 min-w-[240px]">Item &amp; Code</th>
@@ -214,7 +227,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                       <span className="text-[11px] font-normal lowercase text-slate-400">(optional)</span>
                     </div>
                   </th>
-                  <th className="py-2.5 px-4 text-right w-44">Inward Now</th>
+                  <th className="py-2.5 px-3 text-right w-28">Inward Now</th>
+                  <th className="py-2.5 px-3 text-right w-28 text-rose-600">Damaged (QC)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -326,6 +340,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                           </div>
                         )}
                       </td>
+
+                      {/* Damaged / QC-reject qty (raises a vendor debit note) */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={remaining}
+                            value={damagedToAssign[line.id] ?? ''}
+                            onChange={(e) => handleDamagedChange(line.id, e.target.value, remaining)}
+                            placeholder="0"
+                            title="Units received damaged — billed back to the vendor as a debit note"
+                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-rose-200 text-rose-700 focus:outline-hidden focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                          />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -348,10 +380,16 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
           </div>
 
           {/* Verification check */}
-          {totalUnitsReceivingNow === 0 && (
+          {totalUnitsReceivingNow === 0 && totalDamagedNow === 0 && (
             <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
               <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-              <span>Enter inward quantity for at least one item before clicking confirm.</span>
+              <span>Enter an inward or damaged quantity for at least one item before clicking confirm.</span>
+            </div>
+          )}
+          {totalDamagedNow > 0 && (
+            <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span><strong>{totalDamagedNow}</strong> damaged unit(s) will raise a <strong>vendor debit note</strong> — these are NOT added to stock.</span>
             </div>
           )}
         </form>
@@ -391,15 +429,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={totalUnitsReceivingNow <= 0}
+              disabled={totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0}
               className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl shadow-xs transition-colors ${
-                totalUnitsReceivingNow > 0
+                totalUnitsReceivingNow > 0 || totalDamagedNow > 0
                   ? 'text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
                   : 'text-slate-400 bg-slate-200 cursor-not-allowed'
               }`}
             >
               <PackageCheck className="h-4 w-4" />
-              <span>Confirm Stock In ({totalUnitsReceivingNow})</span>
+              <span>Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}</span>
             </button>
           </div>
         </div>

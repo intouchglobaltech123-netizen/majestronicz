@@ -834,8 +834,28 @@ export interface PurchaseOrder {
   pendingOrderNumber?: string;
   attachments?: PurchaseOrderAttachment[];
   receivingHistory?: PurchaseOrderReceivingEvent[];
+  debitNotes?: PODebitNote[]; // Quality-check rejections billed back to the vendor
   createdAt: string;
   updatedAt: string;
+}
+
+/** A debit note raised on the vendor for damaged / rejected goods found at receiving (QC). */
+export interface PODebitNoteLine {
+  itemId: string;
+  itemName: string;
+  itemCode?: string;
+  damagedQuantity: number;
+  unitPrice: number;
+  amount: number; // damagedQuantity * unitPrice
+}
+export interface PODebitNote {
+  id: string;
+  noteNumber: string;
+  date: string; // YYYY-MM-DD
+  createdBy: string;
+  lines: PODebitNoteLine[];
+  totalAmount: number;
+  notes?: string;
 }
 
 export function getNextPurchaseOrderSequence(purchaseOrders: PurchaseOrder[], branchId: BranchId): string {

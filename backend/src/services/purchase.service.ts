@@ -72,7 +72,7 @@ export function cancelPurchaseOrder(poId: string) {
 /** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
 export function receivePurchaseOrderStock(
   poId: string,
-  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number }[],
+  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
   notes: string | undefined,
   actor: string,
   reqUser?: any
@@ -82,7 +82,7 @@ export function receivePurchaseOrderStock(
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId);
 
-    const valid = (receipts || []).filter((r) => r.quantityReceived > 0);
+    const valid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
     if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
 
     const ts = nowIso();
@@ -109,6 +109,7 @@ export function receivePurchaseOrderStock(
       return {
         itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
         quantityOrdered: line?.quantityOrdered || 0, quantityReceivedThisEvent: rec.quantityReceived,
+        damagedQuantity: rec.damagedQuantity || 0,
         totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
       };
     });
@@ -116,6 +117,30 @@ export function receivePurchaseOrderStock(
       id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       date: ts.split('T')[0], timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
     };
+
+    // Quality check: any damaged/rejected units raise a debit note back to the vendor.
+    const existingNotes = (po.debitNotes as any[]) || [];
+    const damagedReceipts = valid.filter((r) => (r.damagedQuantity || 0) > 0);
+    let debitNotes = existingNotes;
+    if (damagedReceipts.length) {
+      const dnLines = damagedReceipts.map((rec) => {
+        const line = updatedLines.find((l: any) => l.itemId === rec.itemId) || lines.find((l) => l.itemId === rec.itemId);
+        const unitPrice = line?.purchasePrice || 0;
+        const dq = rec.damagedQuantity || 0;
+        return {
+          itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
+          damagedQuantity: dq, unitPrice, amount: Math.round(unitPrice * dq * 100) / 100,
+        };
+      });
+      const dnTotal = dnLines.reduce((s, l) => s + l.amount, 0);
+      const newNote = {
+        id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
+        date: ts.split('T')[0], createdBy: actor, lines: dnLines,
+        totalAmount: Math.round(dnTotal * 100) / 100, notes: notes?.trim() || undefined,
+      };
+      debitNotes = [newNote, ...existingNotes];
+    }
 
     const allFull = updatedLines.every((l) => (l.receivedQuantity || 0) >= l.quantityOrdered);
     const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0);
@@ -126,6 +151,7 @@ export function receivePurchaseOrderStock(
       data: {
         items: updatedLines, status, totalAmount: newTotalAmount,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
+        debitNotes,
         updatedAt: ts,
       },
     });
