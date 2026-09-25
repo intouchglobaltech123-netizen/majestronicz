@@ -16,7 +16,7 @@ export interface UniversalDropdownProps {
   placeholder?: string;
   addNewLabel?: string;
   addNewPlaceholder?: string;
-  onAddNew?: (newValue: string) => void;
+  onAddNew?: (newValue: string) => string | void;
   disabled?: boolean;
   className?: string;
   buttonClassName?: string;
@@ -78,10 +78,11 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
     const trimmed = newOptionInput.trim();
     if (!trimmed) return;
 
-    if (onAddNew) {
-      onAddNew(trimmed);
-    }
-    onChange(trimmed);
+    // onAddNew may create the record and return its real value/id — select THAT
+    // so e.g. a supplier added from the PO form is actually selected, instead of
+    // selecting the typed name which isn't a valid id (PUR-3).
+    const created = onAddNew ? onAddNew(trimmed) : undefined;
+    onChange(created || trimmed);
     setIsAddingNew(false);
     setNewOptionInput('');
     setIsOpen(false);

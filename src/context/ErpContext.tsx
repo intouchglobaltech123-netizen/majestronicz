@@ -1539,40 +1539,37 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getComboAvailability = (combo: ComboItem, branchId: BranchId | 'all'): number => {
     if (!combo.components || combo.components.length === 0) return 0;
-    let minAvail = Infinity;
 
-    for (const comp of combo.components) {
-      if (!comp.quantity || comp.quantity <= 0) continue;
-      let compStock = 0;
-      if (branchId === 'all') {
-        compStock = branchStocks
-          .filter((s) => s.itemId === comp.itemId)
-          .reduce((sum, s) => sum + s.quantity, 0);
-      } else {
-        const s = branchStocks.find(
-          (stock) => stock.itemId === comp.itemId && stock.branchId === branchId
-        );
-        compStock = s?.quantity ?? 0;
+    // A kit can only be assembled where ALL its components physically sit. For
+    // 'all', sum each branch's own kit count — never pool components across
+    // branches (that showed 36 kits when no single branch could build one) (INV-8).
+    const branchesToCheck: BranchId[] = branchId === 'all' ? BRANCHES.map((b) => b.id) : [branchId];
+    let totalKits = 0;
+    for (const bId of branchesToCheck) {
+      let minAvail = Infinity;
+      for (const comp of combo.components) {
+        if (!comp.quantity || comp.quantity <= 0) continue;
+        const s = branchStocks.find((stock) => stock.itemId === comp.itemId && stock.branchId === bId);
+        const compStock = s?.quantity ?? 0;
+        const possible = Math.floor(compStock / comp.quantity);
+        if (possible < minAvail) minAvail = possible;
       }
-
-      if (compStock <= 0) {
-        return 0; // Any component at 0 stock -> combo availability = 0
-      }
-
-      const possible = Math.floor(compStock / comp.quantity);
-      if (possible < minAvail) {
-        minAvail = possible;
-      }
+      totalKits += minAvail === Infinity ? 0 : minAvail;
     }
-
-    return minAvail === Infinity ? 0 : minAvail;
+    return totalKits;
   };
 
   const getComboBuyingSeparatelyPrice = (combo: ComboItem): number => {
     if (!combo.components) return 0;
+    // Use ONE consistent tax basis (tax-inclusive) for every component so the
+    // "buying separately" figure isn't a mix of with-/without-tax prices (INV-20).
     return combo.components.reduce((sum, comp) => {
       const it = items.find((i) => i.id === comp.itemId);
-      return sum + (it ? it.salePrice * comp.quantity : 0);
+      if (!it) return sum;
+      const inclusive = it.salePriceTaxMode === 'with'
+        ? it.salePrice
+        : it.salePrice * (1 + (it.gstTaxSlab || 0) / 100);
+      return sum + inclusive * comp.quantity;
     }, 0);
   };
 

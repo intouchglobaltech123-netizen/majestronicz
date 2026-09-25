@@ -118,12 +118,14 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialTab]);
 
-  // Margin band A/B/C → auto-fill Sale Price = Purchase Price + margin (e.g. A: 100 → 135).
-  useEffect(() => {
-    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory);
+  // Margin band A/B/C → auto-fill Sale Price = Purchase Price + margin. This runs
+  // ONLY on an explicit user change to cost or band (see the onChange handlers),
+  // NOT in an effect — otherwise merely opening Edit on a band item silently
+  // overwrote a manually-set sale price (INV2-6).
+  const applyMarginPrice = (nextPurchase: number, nextMargin: 'A' | 'B' | 'C' | 'D' | '') => {
+    const sp = computeMarginSalePrice(nextPurchase || 0, nextMargin);
     if (sp != null) setSalePrice(sp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purchasePrice, marginCategory]);
+  };
 
   if (!isOpen || !item) return null;
 
@@ -368,7 +370,11 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Margin Category</label>
                 <select
                   value={marginCategory}
-                  onChange={(e) => setMarginCategory(e.target.value as 'A' | 'B' | 'C' | 'D' | '')}
+                  onChange={(e) => {
+                    const m = e.target.value as 'A' | 'B' | 'C' | 'D' | '';
+                    setMarginCategory(m);
+                    applyMarginPrice(Number(purchasePrice) || 0, m);
+                  }}
                   className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-red-600"
                 >
                   <option value="">— None —</option>
@@ -576,9 +582,11 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           min="0"
                           step="any"
                           value={purchasePrice}
-                          onChange={(e) =>
-                            setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))
-                          }
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            setPurchasePrice(val);
+                            applyMarginPrice(Number(val) || 0, marginCategory);
+                          }}
                           className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                         />
                         <p className="text-[11px] text-slate-500">

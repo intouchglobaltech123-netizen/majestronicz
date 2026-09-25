@@ -613,7 +613,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               {(() => {
                 const total = purchaseOrder.totalAmount || 0;
                 const paid = purchaseOrder.amountPaid || 0;
-                const remaining = Math.max(0, total - paid);
+                // Debit notes (goods billed back to the vendor for damage/rejects)
+                // reduce what we still owe them (PUR2-19).
+                const remaining = Math.max(0, total - paid - debitNotesTotal);
                 const payments = purchaseOrder.payments || [];
                 return (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">

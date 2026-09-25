@@ -92,7 +92,16 @@ export function numberToWordsIndian(num: number): string {
   const parts: string[] = [];
 
   if (crores > 0) {
-    parts.push(twoDigitsToWords(crores) + ' Crore');
+    // Crores can exceed 99 (e.g. 141 crore) — twoDigitsToWords only covered 0–99
+    // and produced "undefined" (PLT-14). Handle up to 999 crore directly, and
+    // split into thousands-of-crore beyond that.
+    if (crores >= 1000) {
+      const cThousands = Math.floor(crores / 1000);
+      const cRest = crores % 1000;
+      parts.push((threeDigitsToWords(cThousands) + ' Thousand ' + (cRest > 0 ? threeDigitsToWords(cRest) : '')).trim() + ' Crore');
+    } else {
+      parts.push(threeDigitsToWords(crores) + ' Crore');
+    }
   }
   if (lakhs > 0) {
     parts.push(twoDigitsToWords(lakhs) + ' Lakh');

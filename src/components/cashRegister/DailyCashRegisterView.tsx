@@ -543,6 +543,9 @@ export const DailyCashRegisterView: React.FC = () => {
         payments={payments}
         onSelectDateAndBranch={(date, branchId) => {
           setSelectedDate(date);
+          // Also switch the drawer's own branch, not just the global branch, so
+          // opening an Erode history row from a Chennai drawer shows Erode (CASH-14).
+          setActiveBranchId(branchId);
           switchBranch(branchId);
         }}
       />

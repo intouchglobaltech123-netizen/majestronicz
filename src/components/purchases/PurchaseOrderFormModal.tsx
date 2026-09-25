@@ -401,6 +401,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                       address: '',
                     });
                     setSelectedVendorId(newV.id);
+                    // Return the new vendor's id so the dropdown selects it (PUR-3).
+                    return newV.id;
                   }}
                 />
                 {formErrors.vendor && (

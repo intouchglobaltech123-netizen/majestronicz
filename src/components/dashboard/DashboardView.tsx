@@ -161,7 +161,9 @@ export const DashboardView: React.FC = () => {
         ? branchStocks.filter((s) => s.itemId === item.id).reduce((s2, s) => s2 + s.quantity, 0)
         : branchStocks.find((s) => s.itemId === item.id && s.branchId === currentBranch)?.quantity ?? 0;
       stockValue += qty * (item.purchasePrice || 0);
-      if (qty <= threshold) lowStock++;
+      // Count "low" only for items that still have stock; a zero-stock item is
+      // "out", not "low" — matching the Inventory view so the counts agree (INV-18).
+      if (qty > 0 && qty <= threshold) lowStock++;
       if (getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch).isDeadStock) deadStock++;
     });
     return { stockValue, lowStock, deadStock, totalItems: items.length };
@@ -518,7 +520,13 @@ export const DashboardView: React.FC = () => {
           icon={AlertTriangle} onClick={() => setCurrentView('inventory')} hint="at or below reorder level" />
         <HealthCard label="Dead Stock" count={inv.deadStock} unit="items" tone={inv.deadStock > 0 ? 'rose' : 'emerald'}
           icon={AlertOctagon} onClick={() => navigateToInventoryWithMovementFilter('not-moving')} hint={`no sale in ${inventorySettings.deadStockThresholdDays}+ days`} />
-        <HealthCard label="Open Enquiries" count={enquiries.filter((e) => e.status === 'Follow-up').length + pendingOrders.filter((p) => p.status === 'Waiting').length} unit="active"
+        <HealthCard label="Open Enquiries" count={
+          // Branch-scoped, and each shortage counted once: a Follow-up enquiry that
+          // already spawned a pending order is counted via the pending order only,
+          // not twice (CRM-16).
+          enquiries.filter((e) => e.status === 'Follow-up' && inScope(e.branchId) && !e.hasPendingOrder).length
+          + pendingOrders.filter((p) => p.status === 'Waiting' && inScope(p.branchId)).length
+        } unit="active"
           tone="blue" icon={ClipboardList} onClick={() => setCurrentView('enquiries')} hint="enquiries + waiting orders" />
       </div>
 
