@@ -14,6 +14,8 @@ import {
   Calendar,
   Building,
   Landmark,
+  Wallet,
+  History,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -23,6 +25,8 @@ import { StockValuationReportTab } from './StockValuationReportTab';
 import { EnquiryConversionReportTab } from './EnquiryConversionReportTab';
 import { PurchaseOrderStatusReportTab } from './PurchaseOrderStatusReportTab';
 import { PayrollSummaryReportTab } from './PayrollSummaryReportTab';
+import { ExpenseReportTab } from './ExpenseReportTab';
+import { AuditLogReportTab } from './AuditLogReportTab';
 
 export type ReportTabType =
   | 'sales'
@@ -31,6 +35,8 @@ export type ReportTabType =
   | 'enquiry-conversion'
   | 'purchase-orders'
   | 'gst'
+  | 'expenses'
+  | 'audit'
   | 'payroll';
 
 export const ReportsView: React.FC = () => {
@@ -103,6 +109,8 @@ export const ReportsView: React.FC = () => {
     { id: 'enquiry-conversion' as const, label: 'Enquiry Conversion', icon: TrendingUp, description: 'Funnel velocity and open pending orders' },
     { id: 'purchase-orders' as const, label: 'PO Procurement', icon: ShoppingBag, description: 'Vendor fulfillment and overdue orders' },
     { id: 'gst' as const, label: 'GST Summary', icon: Landmark, description: 'GSTR-1 / 3B rate-wise & HSN tax report' },
+    { id: 'expenses' as const, label: 'Expense Report', icon: Wallet, description: 'Daily expenses by category, cash vs GPay' },
+    { id: 'audit' as const, label: 'Audit Trail', icon: History, description: 'Who changed what, when — full activity log' },
     ...(canViewPayrollReport
       ? [{ id: 'payroll' as const, label: 'Payroll Summary', icon: Users, description: 'Staff compensation and labor spend' }]
       : []),
@@ -130,6 +138,8 @@ export const ReportsView: React.FC = () => {
       {activeTab === 'enquiry-conversion' && <EnquiryConversionReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'purchase-orders' && <PurchaseOrderStatusReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'gst' && <GstReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'expenses' && <ExpenseReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'audit' && <AuditLogReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'payroll' && canViewPayrollReport && <PayrollSummaryReportTab branchScope={branchScope} />}
     </div>
   );
