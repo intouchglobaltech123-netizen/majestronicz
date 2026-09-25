@@ -11,7 +11,6 @@ import {
   Settings,
   ClipboardList,
   CalendarCheck,
-  Store,
   Sparkles,
 } from 'lucide-react';
 
@@ -154,22 +153,9 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'hrm', subTabId: 'salary', label: 'Salary Structure', cap: 'hrm' },
     ],
   },
-  {
-    id: 'shopify',
-    title: 'Online Store',
-    icon: Store,
-    primaryActions: [
-      { label: '+ Import Orders', subTabId: 'orders', color: 'red' },
-      { label: 'Sync Stock', subTabId: 'inventory', color: 'slate' },
-    ],
-    items: [
-      { id: 'shopify', subTabId: 'orders', label: 'Orders & Shipments', cap: 'shopify' },
-      { id: 'shopify', subTabId: 'inventory', label: 'Stock & Inventory Sync', cap: 'shopify' },
-      { id: 'shopify', subTabId: 'products', label: 'Product Catalog', cap: 'shopify' },
-      { id: 'shopify', subTabId: 'customers', label: 'Online Customers', cap: 'shopify' },
-      { id: 'shopify', subTabId: 'settings', label: 'Connection & Settings', cap: 'shopify' },
-    ],
-  },
+  // NOTE: "Online Store" (shopify) moved to the top bar — it is no longer a left-nav
+  // module (avoids duplicating the entry in two places). The ShopifyView still renders
+  // when currentView === 'shopify' and keeps its own internal sub-tabs.
   {
     id: 'settings',
     title: 'Settings',

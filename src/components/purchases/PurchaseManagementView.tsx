@@ -142,10 +142,10 @@ export const PurchaseManagementView: React.FC = () => {
               Open Purchase Orders
             </p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
-              {formatCurrency(activeOrdersValue)}
+              {pendingUnitsInward.toLocaleString('en-IN')} <span className="text-sm font-bold text-slate-500">units</span>
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {activeOrders.length} active supplier order{activeOrders.length === 1 ? '' : 's'}
+              {activeOrders.length} active order{activeOrders.length === 1 ? '' : 's'} · {formatCurrency(activeOrdersValue)}
             </p>
           </div>
         </div>

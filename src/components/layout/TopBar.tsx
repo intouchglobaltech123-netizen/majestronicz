@@ -15,6 +15,7 @@ import {
   Menu,
   Maximize2,
   Minimize2,
+  Store,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
@@ -52,6 +53,8 @@ export const TopBar: React.FC<TopBarProps> = ({
     setSelectedEnquiryForDetail,
     setSelectedPendingOrderForDetail,
     setCurrentView,
+    currentView,
+    navigateToTab,
   } = useErp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -184,6 +187,24 @@ export const TopBar: React.FC<TopBarProps> = ({
             buttonClassName="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-800"
           />
         </div>
+
+        {/* Online Store — top-level context (moved out of the left nav) */}
+        {(currentUser.role === 'CEO' || currentUser.role === 'Manager') && (
+          <button
+            type="button"
+            onClick={() => navigateToTab('shopify', 'orders')}
+            title="Online Store (Shopify) — orders, stock sync, catalog"
+            className={cn(
+              'hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border font-bold text-xs transition-colors cursor-pointer shrink-0',
+              currentView === 'shopify'
+                ? 'bg-indigo-600 text-white border-indigo-700'
+                : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
+            )}
+          >
+            <Store className="h-3.5 w-3.5" />
+            <span>Online Store</span>
+          </button>
+        )}
       </div>
 
       {/* Center: Global search (Vyapar-style) */}
