@@ -166,6 +166,12 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
     // #5 Enforce item-code uniqueness across all other items (exclude self)
     const finalItemCode = itemCode.trim();
+    // An item must always keep a code — a blank one prints the barcode as
+    // "SAMPLE" and breaks lookups (INV-6).
+    if (!finalItemCode) {
+      toast.error('Item code is required. Use Auto Assign if unsure.');
+      return;
+    }
     const codeExists = items.some(
       (it) => it.id !== item.id && (it.itemCode || '').trim().toLowerCase() === finalItemCode.toLowerCase()
     );

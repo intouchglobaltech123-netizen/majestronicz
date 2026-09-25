@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { X, Wallet, IndianRupee, Check, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { UniversalDropdown } from '../common/UniversalDropdown';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import type { PaymentAllocation } from '../../types';
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Cheque'];
@@ -44,14 +44,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   // fractional advance/short-payment.
   const [amount, setAmount] = useState<string>(totalDue > 0 ? String(Math.round(totalDue * 100) / 100) : '');
   const [mode, setMode] = useState('Cash');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => getTodayDateString());
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [autoAllocate, setAutoAllocate] = useState(true);
   const [manual, setManual] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-
-  if (!isOpen) return null;
 
   const amountNum = Number(amount) || 0;
 
@@ -83,6 +81,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     }
     return out;
   }, [outstanding, autoAllocate, manual, amountNum]);
+
+  // Early return must come AFTER every hook — placing it above the allocations
+  // useMemo changed the hook count between renders and crashed the whole app to a
+  // blank page ("Rendered more hooks than during the previous render") the moment
+  // "Receive Payment" opened (CRM2-1).
+  if (!isOpen) return null;
 
   const allocatedTotal = allocations.reduce((t, a) => t + a.amount, 0);
   const unallocated = Math.round((amountNum - allocatedTotal) * 100) / 100;

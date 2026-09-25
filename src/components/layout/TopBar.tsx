@@ -16,7 +16,7 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { cn, formatCurrency } from '../../lib/utils';
+import { cn, formatCurrency, getTodayDateString } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
@@ -75,7 +75,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     };
   }, [isNotificationsOpen]);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => getTodayDateString(), []);
 
   // Filter branch-scoped or all reminders based on current branch
   const activeReminders = useMemo(() => {
@@ -184,7 +184,11 @@ export const TopBar: React.FC<TopBarProps> = ({
               ...(currentUser.role === 'CEO' ? [{ value: 'all', label: 'All Branches', sublabel: 'Erode · Coimbatore · Chennai' }] : []),
               ...BRANCHES.filter((b) =>
                 currentUser.role === 'CEO' ? true : b.id === (currentUser.assignedBranchId || 'coimbatore')
-              ).map((b) => ({ value: b.name + (b.isHq ? ' (HQ)' : ''), label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
+              // value MUST be the branch id — switchBranch() and the `value` prop
+              // above both work in branch ids. Using the display name here made
+              // switchBranch receive "Erode HQ (HQ)", producing "undefined Dashboard",
+              // ₹0 and all-out-of-stock, and adjustments saved to a bogus branch (INV2-1).
+              ).map((b) => ({ value: b.id, label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
               ...(currentUser.role === 'CEO' || currentUser.role === 'Manager'
                 ? [{ value: '__online_store__', label: '🛒 Online Store', sublabel: 'Shopify — orders, stock, catalog' }]
                 : []),
