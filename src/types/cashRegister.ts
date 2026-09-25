@@ -3,11 +3,30 @@ import { BranchId } from './index';
 export interface CashExpense {
   id: string;
   reason: string;
+  category?: string; // Expense category (built-in list + custom)
+  billUrl?: string; // Uploaded bill/receipt (data URL) — optional proof of expense
   cashAmount: number;
   gpayAmount: number;
   createdBy: string;
   createdAt: string;
 }
+
+/** Built-in daily-expense categories (staff can also type a custom one). */
+export const EXPENSE_CATEGORIES: string[] = [
+  'Rent',
+  'Salary / Wages',
+  'Electricity',
+  'Water',
+  'Internet / Phone',
+  'Transport / Fuel',
+  'Packing / Supplies',
+  'Tea / Snacks',
+  'Repairs / Maintenance',
+  'Stationery / Printing',
+  'Marketing',
+  'Bank / Charges',
+  'Miscellaneous',
+];
 
 export interface DailyCashRegister {
   id: string;

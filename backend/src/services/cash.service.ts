@@ -57,6 +57,8 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
     const newExpense = {
       id: rid('exp'), reason: (expense.reason || '').trim(),
+      category: (expense.category || '').trim() || undefined,
+      billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0, gpayAmount: Number(expense.gpayAmount) || 0,
       createdBy: actor, createdAt: nowIso(),
     };

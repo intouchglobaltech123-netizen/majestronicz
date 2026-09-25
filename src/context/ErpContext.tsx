@@ -279,7 +279,7 @@ interface ErpContextType {
   // Daily Cash Register
   cashRegisters: DailyCashRegister[];
   getDailyCashRegister: (branchId: BranchId, date: string) => DailyCashRegister;
-  addCashExpense: (branchId: BranchId, date: string, expense: { reason: string; cashAmount: number; gpayAmount: number }) => void;
+  addCashExpense: (branchId: BranchId, date: string, expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
   deleteCashExpense: (branchId: BranchId, date: string, expenseId: string) => void;
   overrideOpeningAmount: (branchId: BranchId, date: string, amount: number, reason: string) => void;
   closeDailyRegister: (branchId: BranchId, date: string, notes?: string) => void;
@@ -2144,7 +2144,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addCashExpense = (
     branchId: BranchId,
     date: string,
-    expense: { reason: string; cashAmount: number; gpayAmount: number }
+    expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }
   ) => {
     if (isDayClosed(branchId, date)) {
       toast.error('Cannot add expense: Cash register for this day is already closed.');
@@ -2154,6 +2154,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newExpense = {
       id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
       reason: expense.reason.trim(),
+      category: expense.category?.trim() || undefined,
+      billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0,
       gpayAmount: Number(expense.gpayAmount) || 0,
       createdBy: currentUser.name,

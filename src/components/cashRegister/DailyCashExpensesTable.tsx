@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CashExpense } from '../../types';
+import { CashExpense, EXPENSE_CATEGORIES } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import {
   Wallet,
@@ -7,13 +7,14 @@ import {
   Trash2,
   Lock,
   DollarSign,
+  Paperclip,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props {
   expenses: CashExpense[];
   isClosed: boolean;
-  onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number }) => void;
+  onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
   onDeleteExpense: (expenseId: string) => void;
 }
 
@@ -33,12 +34,34 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   onDeleteExpense,
 }) => {
   const [reason, setReason] = useState('');
+  const [category, setCategory] = useState<string>('');
   const [cashAmount, setCashAmount] = useState<string>('');
   const [gpayAmount, setGpayAmount] = useState<string>('');
+  const [billUrl, setBillUrl] = useState<string>('');
+  const [billName, setBillName] = useState<string>('');
 
   const totalCash = expenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
   const totalGpay = expenses.reduce((sum, e) => sum + (e.gpayAmount || 0), 0);
   const totalExpenses = totalCash + totalGpay;
+
+  // Report: total per category
+  const byCategory = expenses.reduce<Record<string, number>>((acc, e) => {
+    const key = e.category || 'Uncategorised';
+    acc[key] = (acc[key] || 0) + (e.cashAmount || 0) + (e.gpayAmount || 0);
+    return acc;
+  }, {});
+  const categorySummary = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+
+  const handleBillFile = (file: File | null) => {
+    if (!file) { setBillUrl(''); setBillName(''); return; }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Bill file too large (max 2 MB)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setBillUrl(String(reader.result || '')); setBillName(file.name); };
+    reader.readAsDataURL(file);
+  };
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,14 +80,19 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
     onAddExpense({
       reason: reason.trim(),
+      category: category.trim() || undefined,
+      billUrl: billUrl || undefined,
       cashAmount: c,
       gpayAmount: g,
     });
 
     // Reset input fields
     setReason('');
+    setCategory('');
     setCashAmount('');
     setGpayAmount('');
+    setBillUrl('');
+    setBillName('');
   };
 
   return (
@@ -164,6 +192,39 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* Category + Bill upload row */}
+            <div className="flex flex-wrap items-end gap-2.5">
+              <div className="flex-1 min-w-[180px]">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Category</label>
+                <input
+                  list="expense-category-list"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Pick or type a category…"
+                  className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
+                />
+                <datalist id="expense-category-list">
+                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              <div className="min-w-[160px]">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Bill / Receipt</label>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-none px-3 py-2 cursor-pointer hover:bg-slate-50">
+                  <Paperclip className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="truncate max-w-[120px]">{billName || 'Upload bill'}</span>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => handleBillFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              {billUrl && (
+                <button type="button" onClick={() => handleBillFile(null)} className="text-[11px] font-bold text-rose-600 hover:text-rose-800 pb-2 cursor-pointer">Remove bill</button>
+              )}
+            </div>
+
             {/* Quick Suggestions Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-[11px] text-slate-400 font-semibold">
@@ -220,8 +281,16 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                 <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
                   {/* Reason & Staff Stamp */}
                   <td className="py-3 px-4">
-                    <div className="font-bold text-slate-900 truncate max-w-xs">
-                      {exp.reason}
+                    <div className="font-bold text-slate-900 truncate max-w-xs flex items-center gap-1.5 flex-wrap">
+                      <span className="truncate">{exp.reason}</span>
+                      {exp.category && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">{exp.category}</span>
+                      )}
+                      {exp.billUrl && (
+                        <a href={exp.billUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-800" title="View uploaded bill">
+                          <Paperclip className="h-3 w-3" /> Bill
+                        </a>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400">
                       Logged by {exp.createdBy || 'Staff'}
@@ -273,6 +342,20 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {/* By-category summary (mini report) */}
+      {categorySummary.length > 0 && (
+        <div className="px-3 py-2 border-t border-slate-200 bg-white">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">By Category</div>
+          <div className="flex flex-wrap gap-1.5">
+            {categorySummary.map(([cat, amt]) => (
+              <span key={cat} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-700">
+                {cat}: <span className="font-mono font-bold text-slate-900">{formatCurrency(amt)}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
