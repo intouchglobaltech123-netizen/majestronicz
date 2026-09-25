@@ -219,6 +219,27 @@ export const AddItemModal: React.FC<Props> = ({
       return;
     }
 
+    // Reject negative money — a negative sale/purchase/wholesale price silently
+    // corrupts every downstream total (INV-9).
+    if (Number(salePrice) < 0 || Number(purchasePrice) < 0 || Number(wholesalePrice) < 0) {
+      toast.error('Prices cannot be negative.');
+      return;
+    }
+
+    // HSN, when provided, must be a valid 4/6/8-digit numeric code (INV-10).
+    const hsnTrimmed = itemHSN.trim();
+    if (hsnTrimmed && !/^\d{4}(\d{2}(\d{2})?)?$/.test(hsnTrimmed)) {
+      toast.error('HSN code must be 4, 6, or 8 digits (numbers only).');
+      return;
+    }
+
+    // GST slab must be one of the statutory rates (INV-24).
+    const VALID_GST_SLABS = [0, 5, 12, 18, 28];
+    if (!VALID_GST_SLABS.includes(gstTaxSlab)) {
+      toast.error('GST rate must be one of 0%, 5%, 12%, 18%, or 28%.');
+      return;
+    }
+
     const savedItem = addItem({
       itemName: itemName.trim(),
       itemHSN: itemHSN.trim() || '85371000',
