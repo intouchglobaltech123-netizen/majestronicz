@@ -2,6 +2,42 @@ import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { SessionUser, roleCan } from '../lib/auth.js';
 
+/**
+ * Restrict a bootstrap payload to a non-CEO user's own branch, and strip
+ * salary/PIN from employees (SEC2-1 reads + SEC2-2). CEO is cross-branch and
+ * sees everything. Stock rows/transfers are left unfiltered so branch transfers
+ * still work; the sensitive leaks (other branches' invoices/cash/payments and
+ * every employee's salary & PIN) are closed.
+ */
+function scopeBootstrap(data: any, user: SessionUser) {
+  if (user.role === 'CEO') return data;
+  const branch = user.assignedBranchId;
+  const byBranch = (arr: any) =>
+    branch && Array.isArray(arr) ? arr.filter((r: any) => !r?.branchId || r.branchId === branch) : arr;
+  const employees = Array.isArray(data.employees)
+    ? data.employees
+        .filter((e: any) => !branch || e.branchId === branch)
+        .map((e: any) => {
+          const { monthlySalary, incentivePercent, pin, ...safe } = e;
+          return safe;
+        })
+    : data.employees;
+  return {
+    ...data,
+    invoices: byBranch(data.invoices),
+    estimates: byBranch(data.estimates),
+    challans: byBranch(data.challans),
+    enquiries: byBranch(data.enquiries),
+    pendingOrders: byBranch(data.pendingOrders),
+    reminders: byBranch(data.reminders),
+    cashRegisters: byBranch(data.cashRegisters),
+    recurringExpenses: byBranch(data.recurringExpenses),
+    purchaseOrders: byBranch(data.purchaseOrders),
+    payments: byBranch(data.payments),
+    employees,
+  };
+}
+
 /** Scoped ERP state payload matching role authorization. */
 export async function getBootstrap(user?: SessionUser | null) {
   if (!user) {
@@ -64,12 +100,12 @@ export async function getBootstrap(user?: SessionUser | null) {
       prisma.enquiry.findMany(), prisma.pendingOrder.findMany(), prisma.followUpReminder.findMany(),
       prisma.dailyCashRegister.findMany(), prisma.customer.findMany(), prisma.payment.findMany(),
     ]);
-    return {
+    return scopeBootstrap({
       items, branchStocks, combos, stockAdjustmentLogs: [], estimates, challans, invoices,
       enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses: [], vendors: [],
       purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers,
       stockTransfers: [], payments, ...config,
-    };
+    }, user);
   }
 
   // Manager & CEO: full operational data. Payroll is restricted to payroll:admin (CEO).
@@ -88,11 +124,11 @@ export async function getBootstrap(user?: SessionUser | null) {
     prisma.customer.findMany(), prisma.stockTransfer.findMany(), prisma.payment.findMany(),
   ]);
 
-  return {
+  return scopeBootstrap({
     items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices,
     enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses, vendors,
     purchaseOrders, employees, attendanceRecords, payrollRecords, customers, stockTransfers, payments, ...config,
-  };
+  }, user);
 }
 
 export async function healthCheck() {

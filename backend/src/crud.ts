@@ -42,8 +42,17 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
         if (!res.headersSent) res.json(result);
         if (req.method !== 'GET') broadcastChange(`${req.method} ${req.baseUrl}`);
       } catch (err: any) {
+        // Map common failures to proper status codes and NEVER leak raw Prisma
+        // messages / source paths to the client (ERR-1).
+        if (err instanceof AppError) {
+          return res.status(err.status).json({ error: err.code, message: err.message });
+        }
+        if (err?.code === 'P2025') return res.status(404).json({ error: 'NOT_FOUND', message: 'Record not found.' });
+        if (err?.code === 'P2002') return res.status(409).json({ error: 'UNIQUE_CONFLICT', message: 'A record with that unique value already exists.' });
+        if (err?.code === 'P2003') return res.status(409).json({ error: 'RELATION_CONFLICT', message: 'This record is referenced by other data.' });
         console.error(err);
-        res.status(500).json({ error: err?.message ?? 'Internal error' });
+        const message = process.env.NODE_ENV === 'production' ? 'Something went wrong. Please try again.' : (err?.message ?? 'Internal error');
+        res.status(500).json({ error: 'INTERNAL', message });
       }
     };
 

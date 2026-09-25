@@ -381,12 +381,16 @@ export const GST_RATES = [
   { rate: 28, label: 'GST @ 28% (High Tax)' },
 ];
 
+// NOTE: real login PINs are NEVER shipped in the frontend bundle (SEC-4). PINs
+// live only on the server (backend ROLE_DEFS / the users table). This table is
+// used only for default role display names in the access-management screen; the
+// `pin` field is intentionally blank.
 export const PRESET_ROLES: { role: Role; pin: string; defaultName: string; defaultBranch?: BranchId }[] = [
-  { role: 'CEO', pin: '1111', defaultName: 'Sathish Kumar (CEO)' },
-  { role: 'Manager', pin: '2222', defaultName: 'Karthik Raja (Branch Manager)', defaultBranch: 'coimbatore' },
-  { role: 'Billing', pin: '3333', defaultName: 'Praveen (Billing Desk)', defaultBranch: 'erode-hq' },
-  { role: 'Sales', pin: '4444', defaultName: 'Vignesh (Sales Executive)', defaultBranch: 'erode-hq' },
-  { role: 'Purchase', pin: '5555', defaultName: 'Ganesh (Purchase Desk)', defaultBranch: 'erode-hq' },
+  { role: 'CEO', pin: '', defaultName: 'Sathish Kumar (CEO)' },
+  { role: 'Manager', pin: '', defaultName: 'Karthik Raja (Branch Manager)', defaultBranch: 'coimbatore' },
+  { role: 'Billing', pin: '', defaultName: 'Praveen (Billing Desk)', defaultBranch: 'erode-hq' },
+  { role: 'Sales', pin: '', defaultName: 'Vignesh (Sales Executive)', defaultBranch: 'erode-hq' },
+  { role: 'Purchase', pin: '', defaultName: 'Ganesh (Purchase Desk)', defaultBranch: 'erode-hq' },
 ];
 
 /**

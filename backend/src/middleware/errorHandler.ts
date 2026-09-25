@@ -18,7 +18,15 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   }
   // Prisma unique-constraint violation
   if (err?.code === 'P2002') {
-    return res.status(409).json({ error: 'UNIQUE_CONFLICT', message: err.meta?.target });
+    return res.status(409).json({ error: 'UNIQUE_CONFLICT', message: 'A record with that unique value already exists.' });
+  }
+  // Prisma: record to update/delete not found → 404 (not 500).
+  if (err?.code === 'P2025') {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Record not found.' });
+  }
+  // Prisma: foreign-key / relation constraint.
+  if (err?.code === 'P2003') {
+    return res.status(409).json({ error: 'RELATION_CONFLICT', message: 'This record is referenced by other data.' });
   }
   console.error(err);
   // Don't leak internal error detail to clients in production.

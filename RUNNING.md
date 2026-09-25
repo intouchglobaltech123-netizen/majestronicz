@@ -41,8 +41,8 @@ direct API call.
 | CEO | 1111 | Everything (incl. payroll disbursement, demo reset) |
 | Manager | 2222 | Everything for their branch except CEO-only payroll/reset |
 | Billing | 3333 | Sales, Quotes, Challans, Customers, Cash Register, Enquiries, Inventory, Barcode (Item Master read-only) |
-| Purchase | 4444 | Purchases + Items/Inventory view + Enquiries/Pending Orders *(default scope — adjust in `backend/src/lib/auth.ts` → `ROLE_CAPS.Purchase` + `ROLE_VIEWS.Purchase`)* |
-| Sales | 5555 | Items (view) + Enquiries only |
+| Sales | 4444 | Items (view) + Enquiries only |
+| Purchase | 5555 | Purchases + Items/Inventory view + Enquiries/Pending Orders *(default scope — adjust in `backend/src/lib/auth.ts` → `ROLE_CAPS.Purchase` + `ROLE_VIEWS.Purchase`)* |
 
 ## Useful
 - **Reset demo data** (CEO only): sidebar "Reset Demo Data" → `POST /api/admin/reseed`, or `cd backend && npm run seed`.
