@@ -1,8 +1,11 @@
 import { Request, Response } from 'express';
 import * as enquiry from '../services/enquiry.service.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 export const save = async (req: Request, res: Response) => {
   const { enquiry: e, initialExpectedRestockDate, actor } = req.body;
+  // A branch-locked user can only log enquiries for their own branch (SEC2-1/CRM-14).
+  assertBranchAllowed((req as any).user, e?.branchId);
   res.json(await enquiry.saveEnquiry(e, initialExpectedRestockDate, actor));
 };
 export const linkItem = async (req: Request, res: Response) => {
