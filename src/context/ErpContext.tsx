@@ -1372,8 +1372,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Item => {
     const now = new Date().toISOString();
     const newId = `item-${Date.now()}`;
+
+    // Guarantee a unique item code — prevents "Save & New" collisions and manually
+    // typed duplicate codes (INV-1 / INV-2), which would otherwise break barcodes & search.
+    const usedCodes = new Set(items.map((i) => (i.itemCode || '').trim().toUpperCase()));
+    let code = (itemData.itemCode || '').trim() || 'ITEM';
+    if (usedCodes.has(code.toUpperCase())) {
+      const base = code.replace(/-\d+$/, '');
+      let n = 2;
+      while (usedCodes.has(`${base}-${n}`.toUpperCase())) n++;
+      code = `${base}-${n}`;
+      toast.info(`Item code already existed — saved as ${code}`);
+    }
+
     const newItem: Item = {
       ...itemData,
+      itemCode: code,
       id: newId,
       createdAt: now,
       updatedAt: now,
@@ -1405,6 +1419,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     itemId: string,
     updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt'>>
   ) => {
+    // Reject editing an item's code to one already used by another item (INV-2).
+    if (updates.itemCode != null) {
+      const newCode = updates.itemCode.trim().toUpperCase();
+      if (!newCode) { toast.error('Item code cannot be blank'); return; }
+      if (items.some((i) => i.id !== itemId && (i.itemCode || '').trim().toUpperCase() === newCode)) {
+        toast.error(`Item code "${updates.itemCode}" is already used by another item`);
+        return;
+      }
+    }
     const now = new Date().toISOString();
     setItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, ...updates, updatedAt: now } : item))
@@ -1743,7 +1766,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 2. Optional Auto-Generate Delivery Challan
     if (autoGenerateChallan) {
-      const seq = (challans.length + 1).toString().padStart(3, '0');
+      // Highest existing DC-TRF sequence + 1 (not list length — that repeats after a delete, INV-3).
+      const maxSeq = challans.reduce((max, c) => {
+        const m = /DC-TRF-(\d+)/.exec(c.challanNumber || '');
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
+      const seq = (maxSeq + 1).toString().padStart(3, '0');
       generatedChallanNo = `DC-TRF-${seq}`;
 
       const newChallan: DeliveryChallan = {
@@ -2063,6 +2091,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveChallan = (newChallan: DeliveryChallan) => {
+    // Reject a challan number already used by a different challan (INV-12).
+    const num = (newChallan.challanNumber || '').trim().toUpperCase();
+    if (num && challans.some((c) => c.id !== newChallan.id && (c.challanNumber || '').trim().toUpperCase() === num)) {
+      toast.error(`Challan number "${newChallan.challanNumber}" already exists`);
+      return;
+    }
     setChallans((prev) => {
       const existingIdx = prev.findIndex((c) => c.id === newChallan.id);
       if (existingIdx >= 0) {
