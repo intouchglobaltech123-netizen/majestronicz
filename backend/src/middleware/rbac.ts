@@ -29,6 +29,15 @@ export async function attachUser(req: Request & { user?: SessionUser | null }, _
   next();
 }
 
+// Guard: the request must come from a logged-in user (any role), else 401.
+// Used on reads that carry sensitive data but aren't tied to one capability
+// (payments ledger, branch stock, the access matrix) which were previously
+// answerable with no token at all (SEC2-3).
+export function requireAuth(req: Request & { user?: SessionUser | null }, _res: Response, next: NextFunction) {
+  if (!req.user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  next();
+}
+
 // Guard: the request's role must hold the given capability, else 403.
 export function requireCapability(cap: Capability) {
   return (req: Request & { user?: SessionUser | null }, _res: Response, next: NextFunction) => {

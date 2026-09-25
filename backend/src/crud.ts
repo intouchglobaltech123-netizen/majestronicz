@@ -52,23 +52,13 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
     wrap(async () => delegate.findMany())
   );
 
-  // Replace the entire collection with the provided array (atomic). Used by the
-  // frontend's per-collection sync so the DB always mirrors client state after a
-  // mutation. Declared before '/:id' so "bulk" isn't treated as an id.
-  router.put(
-    '/bulk',
-    wrap(async (req) => {
-      const rows: any[] = Array.isArray(req.body) ? req.body : [];
-      const ops = [delegate.deleteMany({}), delegate.createMany({ data: rows })];
-      if (prismaClient?.$transaction) {
-        await prismaClient.$transaction(ops);
-      } else {
-        await ops[0];
-        await ops[1];
-      }
-      return delegate.findMany();
-    })
-  );
+  // NOTE: the generic bulk-replace (PUT /bulk), blind full-row update (PUT /:id)
+  // and delete (DELETE /:id) routes were REMOVED. They let any login with the
+  // resource's write capability wipe or rewrite whole tables, forge stock-history
+  // rows, re-receive transfers, or delete in-use vendors/customers with no state
+  // or referential checks (CRUD-1, PUR2-16, CRM-21). The frontend never called
+  // them — every real update/delete goes through a domain service (/catalog,
+  // /tx, /stock, /purchase, /cash, /hrm, /enquiry) that enforces those rules.
 
   router.get(
     '/:id',
@@ -90,23 +80,6 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
         create: data,
         update: data,
       });
-    })
-  );
-
-  router.put(
-    '/:id',
-    wrap(async (req) => {
-      const data = { ...req.body };
-      delete data.id;
-      return delegate.update({ where: { id: req.params.id }, data });
-    })
-  );
-
-  router.delete(
-    '/:id',
-    wrap(async (req) => {
-      await delegate.delete({ where: { id: req.params.id } });
-      return { ok: true };
     })
   );
 

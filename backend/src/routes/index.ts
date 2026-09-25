@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { requireCapability } from '../middleware/rbac.js';
+import { requireCapability, requireAuth } from '../middleware/rbac.js';
 import { issueToken, Capability } from '../lib/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import invoiceRoutes from './invoice.routes.js';
@@ -175,7 +175,7 @@ router.use('/enquiry', requireCapability('enquiry:write'), enquiryRoutes);
 router.use('/catalog', catalogRoutes); // per-route capabilities inside
 
 // ---- BranchStock (composite key) ----
-router.get('/branch-stock', asyncHandler(async (_req, res) => res.json(await system.listBranchStock())));
+router.get('/branch-stock', requireAuth, asyncHandler(async (_req, res) => res.json(await system.listBranchStock())));
 router.post('/branch-stock', requireCapability('stock:write'), asyncHandler(async (req, res) => res.json(await system.upsertBranchStock(req.body))));
 router.put('/branch-stock', requireCapability('stock:write'), asyncHandler(async (req, res) => res.json(await system.replaceBranchStock(req.body))));
 
@@ -187,7 +187,7 @@ router.put('/config/:key', requireCapability('config:write'), asyncHandler(async
 router.get('/events', sseHandler);
 
 // ---- Access control matrix (view/edit; edit is CEO/admin only) ----
-router.get('/access-matrix', asyncHandler(async (_req, res) =>
+router.get('/access-matrix', requireAuth, asyncHandler(async (_req, res) =>
   res.json({ matrix: getLiveMatrix(), allViews: ALL_VIEWS, allCaps: ALL_CAPS, allFlags: ALL_FLAGS })
 ));
 router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req, res) => {
@@ -198,7 +198,7 @@ router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req
 }));
 
 // ---- Payments / party ledger (receipts from customers, payments to vendors) ----
-router.get('/payments', asyncHandler(async (req, res) => {
+router.get('/payments', requireAuth, asyncHandler(async (req, res) => {
   const { partyType, partyId, type } = req.query as Record<string, string | undefined>;
   res.json(await listPayments({ partyType, partyId, type }));
 }));
