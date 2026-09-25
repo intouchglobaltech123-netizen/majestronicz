@@ -142,8 +142,11 @@ export async function authenticateUser(pin: string, branchId?: string): Promise<
     }
   }
   const role = account.role as Role;
-  const assignedBranchId =
-    role === 'Manager' ? branchId || account.assignedBranchId || 'coimbatore' : account.assignedBranchId || undefined;
+  // Branch comes from the USER'S OWN RECORD, never the login screen (SEC2-1).
+  // A Manager can no longer pick a branch at login to reach another branch's data.
+  // CEO is cross-branch (undefined); any other role without a stored branch falls
+  // back to a non-privileged default rather than becoming cross-branch.
+  const assignedBranchId = role === 'CEO' ? undefined : (account.assignedBranchId || 'coimbatore');
   return {
     user: { role, name: account.name, assignedBranchId: assignedBranchId ?? undefined, userId: account.id, employeeId: account.employeeId ?? undefined, exp: 0 },
     mustResetPin: account.mustResetPin,

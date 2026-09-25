@@ -9,7 +9,7 @@ export const deletePO = async (req: Request, res: Response) => {
   res.json(await purchase.deletePurchaseOrder(req.params.id));
 };
 export const cancelPO = async (req: Request, res: Response) => {
-  res.json(await purchase.cancelPurchaseOrder(req.params.id));
+  res.json(await purchase.cancelPurchaseOrder(req.params.id, (req as any).user));
 };
 export const receive = async (req: Request, res: Response) => {
   const { poId, receipts, notes, payment, actor } = req.body;
@@ -25,7 +25,7 @@ export const deleteAttachment = async (req: Request, res: Response) => {
 };
 export const recordPayment = async (req: Request, res: Response) => {
   const { poId, amount, mode, actor } = req.body;
-  res.json(await purchase.recordPurchaseOrderPayment(poId, amount, mode, actor));
+  res.json(await purchase.recordPurchaseOrderPayment(poId, amount, mode, actor, (req as any).user));
 };
 export const recordBill = async (req: Request, res: Response) => {
   const { poId, bill } = req.body;

@@ -4,6 +4,7 @@ import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
@@ -193,10 +194,11 @@ export function createSale(inv: any, reqUser?: any) {
 }
 
 /** Void an invoice: restore remaining stock, log, mark voided, decrement customer. */
-export function voidInvoice(invoiceId: string, reason: string, actor: string) {
+export function voidInvoice(invoiceId: string, reason: string, actor: string, reqUser?: any) {
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
+    assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('ALREADY_VOIDED', 'Sale already voided', 409);
 
     const ts = nowIso();
@@ -276,11 +278,13 @@ export function processReturn(
   returnLines: any[],
   reason: string,
   notes: string | undefined,
-  actor: string
+  actor: string,
+  reqUser?: any
 ) {
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
+    assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
     const validLines = (returnLines || []).filter((l: any) => l.returnQty > 0);
     if (!validLines.length) throw new AppError('NO_LINES', 'No return quantity specified', 400);
@@ -419,10 +423,11 @@ export function processReturn(
 }
 
 /** Hard delete + restore stock. */
-export function deleteInvoice(invoiceId: string) {
+export function deleteInvoice(invoiceId: string, reqUser?: any) {
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (inv) {
+      assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
       const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
       for (const item of inv.items as any[]) {
         if (item.isCombo && item.comboComponents?.length) {

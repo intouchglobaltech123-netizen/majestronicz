@@ -2,6 +2,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { branchName, branchLocation } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 const stockSnapshot = async (tx: any) => ({
   branchStocks: await tx.branchStock.findMany(),
@@ -133,10 +134,12 @@ export function transferStockBatch(
  * destination stock for every line, writes the paired "in" audit logs, and marks
  * the transfer received. Idempotent — a transfer already received is a no-op.
  */
-export function receiveStockTransfer(transferId: string, actor: string) {
+export function receiveStockTransfer(transferId: string, actor: string, reqUser?: any) {
   return serializableTx(async (tx: any) => {
     const transfer = await tx.stockTransfer.findUnique({ where: { id: transferId } });
     if (!transfer) throw new AppError('NOT_FOUND', 'Transfer not found', 404);
+    // Only the destination branch's staff (or CEO) may receive a transfer (SEC2-1).
+    assertBranchAllowed(reqUser, transfer.toBranch);
     if (transfer.status === 'received') {
       return { ...(await stockSnapshot(tx)), alreadyReceived: true };
     }

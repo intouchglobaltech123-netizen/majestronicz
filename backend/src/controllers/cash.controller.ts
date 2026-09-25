@@ -1,31 +1,41 @@
 import { Request, Response } from 'express';
 import * as cash from '../services/cash.service.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 export const addExpense = async (req: Request, res: Response) => {
   const { branchId, date, expense, actor } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.addExpense(branchId, date, expense, actor));
 };
 export const deleteExpense = async (req: Request, res: Response) => {
   const { branchId, date, expenseId } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.deleteExpense(branchId, date, expenseId));
 };
 export const approveExpense = async (req: Request, res: Response) => {
   const { branchId, date, expenseId, decision, actor } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.approveExpense(branchId, date, expenseId, decision, actor));
 };
 export const overrideOpening = async (req: Request, res: Response) => {
   const { branchId, date, amount, reason } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.overrideOpening(branchId, date, amount, reason));
 };
 export const closeDay = async (req: Request, res: Response) => {
   const { branchId, date, notes, actor } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.closeDay(branchId, date, notes, actor));
 };
 export const reopenDay = async (req: Request, res: Response) => {
   const { branchId, date } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.reopenDay(branchId, date));
 };
 export const approveRecurring = async (req: Request, res: Response) => {
   const { templateId, branchId, date, amount, paymentMode, actor } = req.body;
+  // The recurring approval posts to the template's own branch (see service);
+  // still guard the branch the caller claims to be operating on.
+  assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.approveRecurring(templateId, branchId, date, amount, paymentMode, actor));
 };

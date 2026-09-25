@@ -4,20 +4,13 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
 import { serializableTx } from '../lib/tx.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 const poSnapshot = async (tx: any) => ({
   purchaseOrders: await tx.purchaseOrder.findMany(),
   pendingOrders: await tx.pendingOrder.findMany(),
   branchStocks: await tx.branchStock.findMany(),
 });
-
-/** Branch-locked roles (non-CEO with an assigned branch) may only act on their
- * own branch's POs — server-side enforcement mirroring the billing guard. */
-function assertBranchAllowed(reqUser: any, branchId: string) {
-  if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && branchId !== reqUser.assignedBranchId) {
-    throw new AppError('FORBIDDEN', `You are only authorized for branch ${reqUser.assignedBranchId}`, 403);
-  }
-}
 
 /** Create (server-assigned PO number) or edit a purchase order; link pending order. */
 export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
@@ -62,8 +55,10 @@ export function deletePurchaseOrder(poId: string) {
   });
 }
 
-export function cancelPurchaseOrder(poId: string) {
+export function cancelPurchaseOrder(poId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (po) assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: nowIso() } });
     return poSnapshot(tx);
   });
@@ -275,10 +270,11 @@ export function recordPurchaseBill(poId: string, bill: any) {
 }
 
 /** Record a payment made to the vendor against a PO (increments Paid, logs history). */
-export function recordPurchaseOrderPayment(poId: string, amount: number, mode: string, actor: string) {
+export function recordPurchaseOrderPayment(poId: string, amount: number, mode: string, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     const pay = Math.max(0, Number(amount) || 0);
     if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
     const ts = nowIso();
