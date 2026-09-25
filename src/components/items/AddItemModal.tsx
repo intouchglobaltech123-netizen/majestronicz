@@ -237,7 +237,7 @@ export const AddItemModal: React.FC<Props> = ({
       gstTaxSlab,
       discountOnSalePrice: Number(discountOnSalePrice) || 0,
       discountType,
-      reorderThreshold: Number(reorderThreshold) || 10,
+      reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
     if (onItemAdded) {

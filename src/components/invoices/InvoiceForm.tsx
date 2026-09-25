@@ -1558,9 +1558,10 @@ export const InvoiceForm: React.FC<Props> = ({
               <input
                 type="text"
                 value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
+                readOnly
+                title="Auto-generated number (kept unique per branch & financial year)"
                 className={cn(
-                  'w-36 pr-9 pl-2 py-1 rounded-none text-xs font-mono font-bold focus:outline-none',
+                  'w-36 pr-9 pl-2 py-1 rounded-none text-xs font-mono font-bold focus:outline-none cursor-default',
                   documentType === 'Quotation'
                     ? 'bg-purple-50/60 border border-purple-200 text-purple-800 focus:border-purple-600'
                     : 'bg-blue-50/60 border border-blue-200 text-blue-800 focus:border-blue-600'

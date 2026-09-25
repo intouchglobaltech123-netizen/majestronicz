@@ -1660,7 +1660,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newQuantity: newQty,
       reason,
       notes: notes?.trim() || undefined,
-      adjustedBy: `${currentUser.name} (${currentUser.role})`,
+      adjustedBy: `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`,
       timestamp: now,
     };
 
@@ -1769,7 +1769,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
         deliveredBy: {
           name: `${fromBranchName} Dispatch / ${currentUser.name}`,
-          comment: `Stock transit dispatched by ${currentUser.name} (${currentUser.role})`,
+          comment: `Stock transit dispatched by ${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`,
           date: todayStr,
         },
         receivedBy: {
@@ -1784,7 +1784,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 3. Record the in-transit transfer so it shows in history and can be received.
-    const userLabel = `${currentUser.name} (${currentUser.role})`;
+    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
     const newTransfer: StockTransfer = {
       id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
       items: [{ itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, itemHSN: targetItem.itemHSN, quantity, unit: targetItem.unit }],
@@ -1864,7 +1864,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const todayStr = now.split('T')[0];
     const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
-    const userLabel = `${currentUser.name} (${currentUser.role})`;
+    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
 
     // Dispatch debits the source only; the destination is credited when the
     // receiving branch confirms intake (receiveStockTransfer).
@@ -1929,7 +1929,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (transfer.status === 'received') { toast.info('This transfer is already received'); return; }
 
     const now = new Date().toISOString();
-    const userLabel = `${currentUser.name} (${currentUser.role})`;
+    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
     const fromBranchName = BRANCHES.find((b) => b.id === transfer.fromBranch)?.name || transfer.fromBranch;
     const toBranchName = BRANCHES.find((b) => b.id === transfer.toBranch)?.name || transfer.toBranch;
 
@@ -2601,7 +2601,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-  const actorLabel = () => `${currentUser.name} (${currentUser.role})`;
+  const actorLabel = () => `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
 
   const saveInvoice = async (newInvoice: Invoice) => {
     // Prevent backdating into a closed register

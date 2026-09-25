@@ -193,7 +193,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       gstTaxSlab,
       discountOnSalePrice: Number(discountOnSalePrice) || 0,
       discountType,
-      reorderThreshold: Number(reorderThreshold) || 10,
+      reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
     toast.success('Item details updated successfully');
