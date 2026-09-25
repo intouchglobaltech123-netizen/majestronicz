@@ -1,5 +1,8 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// html2canvas-pro (drop-in fork) understands CSS Color 4 functions like oklch()
+// and lab(), which Tailwind v4 emits. The legacy html2canvas 1.4.1 throws
+// "unsupported color function 'oklch'" and aborts the whole export (SAL-3).
+import html2canvas from 'html2canvas-pro';
 
 interface ExportPdfOptions {
   scale?: number;
