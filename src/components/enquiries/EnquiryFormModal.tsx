@@ -139,6 +139,20 @@ export const EnquiryFormModal: React.FC<Props> = ({
   const handleSaveOnly = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Shared input validation (CRM-15): a phone, when given, must be a valid
+    // 10-digit Indian mobile; a follow-up reminder can't be set in the past.
+    if (customerPhone.trim()) {
+      const digits = customerPhone.replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(digits)) {
+        toast.error('Enter a valid 10-digit mobile number, or leave the phone blank.');
+        return;
+      }
+    }
+    if (reminderDate && reminderDate < getTodayDateString()) {
+      toast.error('Reminder date cannot be in the past.');
+      return;
+    }
+
     if (itemMode === 'new') {
       if (!customerName.trim() || !newItemName.trim() || quantity <= 0) {
         toast.error('Please enter customer name, product description, and quantity.');
@@ -623,6 +637,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
                   <input
                     type="date"
                     required
+                    min={getTodayDateString()}
                     value={reminderDate}
                     onChange={(e) => setReminderDate(e.target.value)}
                     className="w-full pl-3 pr-8 py-2 rounded-none bg-white border border-amber-400 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600"

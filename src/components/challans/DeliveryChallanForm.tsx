@@ -124,7 +124,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
 
   // Total Quantity Calculation (Sums Quantity only)
   const totalQuantity = useMemo(() => {
-    return lineItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    // Count only rows that will actually be saved — a blank/incomplete row is
+    // discarded on save, so including its quantity here inflated the total
+    // (e.g. 1,000,000 + a stray empty row's 7 → 1,000,007) (INV-11).
+    return lineItems
+      .filter((item) => item.itemName.trim() && (Number(item.quantity) || 0) > 0)
+      .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   }, [lineItems]);
 
   const addNewRow = (selectedItem?: Item) => {
