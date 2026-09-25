@@ -108,7 +108,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   // Recurring Expenses due today or overdue for this month
   const activeRecurringAlerts = useMemo(() => {
     const monthKey = todayStr.substring(0, 7);
-    const day = parseInt(todayStr.split('-')[2], 10);
+    const [y, m, day] = todayStr.split('-').map(Number);
+    // Clamp the due day to the last day of the month so a 31st-due expense still
+    // fires in a 30-/28-day month (CASH-8).
+    const lastDay = new Date(y, m, 0).getDate();
 
     return recurringExpenses.filter((template) => {
       if (!isAllBranches && template.branchId !== currentBranch) return false;
@@ -116,7 +119,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         template.lastApprovedMonth === monthKey ||
         template.approvalHistory?.some((a) => a.month === monthKey);
       if (isApproved) return false;
-      return day >= template.dueDay;
+      return day >= Math.min(template.dueDay, lastDay);
     });
   }, [recurringExpenses, isAllBranches, currentBranch, todayStr]);
 

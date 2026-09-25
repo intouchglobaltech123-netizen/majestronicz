@@ -68,6 +68,20 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
   const currentMonthNumber = parseInt(todayStr.split('-')[1], 10); // 1 to 12
   const currentDay = parseInt(todayStr.split('-')[2], 10);
 
+  // Last calendar day of the current month (28–31). A template due on the 31st
+  // must still come due on the last day of a shorter month, not silently skip it
+  // (CASH-8).
+  const lastDayOfMonth = useMemo(() => {
+    const [y, m] = todayStr.split('-').map(Number);
+    return new Date(y, m, 0).getDate();
+  }, [todayStr]);
+  const effectiveDueDay = (dueDay: number) => Math.min(dueDay, lastDayOfMonth);
+  const ordinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  };
+
   const filteredTemplates = useMemo(() => {
     return recurringExpenses.filter((t) => {
       if (selectedBranchFilter !== 'all' && t.branchId !== selectedBranchFilter) return false;
@@ -88,7 +102,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
 
       if (isApproved) {
         approvedCount++;
-      } else if (isDueThisMonth && currentDay >= t.dueDay) {
+      } else if (isDueThisMonth && currentDay >= effectiveDueDay(t.dueDay)) {
         pendingActionCount++;
       }
     });
@@ -302,8 +316,9 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                   const branchObj = BRANCHES.find((b) => b.id === template.branchId);
                   const isDueThisMonth = isExpenseDueInMonth(template, currentMonthNumber);
                   const isApproved = isExpenseApprovedForMonth(template, currentMonthKey);
-                  const isOverdue = isDueThisMonth && !isApproved && currentDay > template.dueDay;
-                  const isDueToday = isDueThisMonth && !isApproved && currentDay === template.dueDay;
+                  const dueDayThisMonth = effectiveDueDay(template.dueDay);
+                  const isOverdue = isDueThisMonth && !isApproved && currentDay > dueDayThisMonth;
+                  const isDueToday = isDueThisMonth && !isApproved && currentDay === dueDayThisMonth;
 
                   return (
                     <tr key={template.id} className="hover:bg-slate-50/80 transition-colors">
@@ -375,7 +390,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-300">
                             <Clock className="h-3 w-3 text-slate-500" />
-                            <span>Upcoming on {template.dueDay}th</span>
+                            <span>Upcoming on {ordinal(dueDayThisMonth)}</span>
                           </span>
                         )}
                       </td>

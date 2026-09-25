@@ -47,9 +47,18 @@ export const DailyCashRegisterView: React.FC = () => {
     activeSubTab,
   } = useErp();
 
-  // Dynamic system dates
-  const todayStr = useMemo(() => getTodayDateString(), []);
-  const yesterdayStr = useMemo(() => getYesterdayDateString(), []);
+  // Dynamic system dates. Recompute on an interval so a drawer left open past
+  // midnight rolls over to the new day instead of staying stuck on the old date
+  // (CASH-13).
+  const [todayStr, setTodayStr] = useState<string>(() => getTodayDateString());
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = getTodayDateString();
+      setTodayStr((prev) => (prev !== d ? d : prev));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const yesterdayStr = useMemo(() => getYesterdayDateString(), [todayStr]);
 
   // Date selection (Defaults to live dynamic today)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
@@ -252,6 +261,13 @@ export const DailyCashRegisterView: React.FC = () => {
               onClick={() => {
                 if (!canCloseDay) {
                   toast.error('Restricted action: Only CEO or Manager can close the day register.');
+                  return;
+                }
+                // A day in the future has no transactions yet and must not be
+                // closable — closing it would lock a date that hasn't happened
+                // and break the opening-balance chain (CASH-9).
+                if (selectedDate > todayStr) {
+                  toast.error("You can't close a future day. Select today or an earlier date.");
                   return;
                 }
                 setIsCloseDayModalOpen(true);
