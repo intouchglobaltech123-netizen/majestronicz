@@ -9,6 +9,10 @@ export const deleteExpense = async (req: Request, res: Response) => {
   const { branchId, date, expenseId } = req.body;
   res.json(await cash.deleteExpense(branchId, date, expenseId));
 };
+export const approveExpense = async (req: Request, res: Response) => {
+  const { branchId, date, expenseId, decision, actor } = req.body;
+  res.json(await cash.approveExpense(branchId, date, expenseId, decision, actor));
+};
 export const overrideOpening = async (req: Request, res: Response) => {
   const { branchId, date, amount, reason } = req.body;
   res.json(await cash.overrideOpening(branchId, date, amount, reason));

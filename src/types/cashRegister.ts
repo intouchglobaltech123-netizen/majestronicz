@@ -7,9 +7,27 @@ export interface CashExpense {
   billUrl?: string; // Uploaded bill/receipt (data URL) — optional proof of expense
   cashAmount: number;
   gpayAmount: number;
+  // Approval workflow — used for categories like "Deposit to Bank". A pending entry
+  // does NOT reduce the cash drawer until a Manager/CEO approves it.
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: string;
   createdBy: string;
   createdAt: string;
 }
+
+/** Category name for cash taken out of the drawer and deposited to the bank. */
+export const BANK_DEPOSIT_CATEGORY = 'Deposit to Bank';
+
+/** Expense categories that require Manager/CEO approval before they hit the drawer. */
+export const APPROVAL_REQUIRED_CATEGORIES: string[] = [BANK_DEPOSIT_CATEGORY];
+
+export const expenseNeedsApproval = (category?: string): boolean =>
+  !!category && APPROVAL_REQUIRED_CATEGORIES.includes(category);
+
+/** An expense reduces the drawer only when it is NOT waiting on / rejected by approval. */
+export const expenseIsEffective = (e: CashExpense): boolean =>
+  e.approvalStatus == null || e.approvalStatus === 'approved';
 
 /** Built-in daily-expense categories (staff can also type a custom one). */
 export const EXPENSE_CATEGORIES: string[] = [
@@ -25,6 +43,7 @@ export const EXPENSE_CATEGORIES: string[] = [
   'Stationery / Printing',
   'Marketing',
   'Bank / Charges',
+  BANK_DEPOSIT_CATEGORY,
   'Miscellaneous',
 ];
 

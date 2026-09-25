@@ -5,6 +5,7 @@ import * as ctrl from '../controllers/cash.controller.js';
 const router = Router();
 router.post('/expense', asyncHandler(ctrl.addExpense));
 router.post('/expense/delete', asyncHandler(ctrl.deleteExpense));
+router.post('/expense/approve', asyncHandler(ctrl.approveExpense));
 router.post('/override', asyncHandler(ctrl.overrideOpening));
 router.post('/close', asyncHandler(ctrl.closeDay));
 router.post('/reopen', asyncHandler(ctrl.reopenDay));

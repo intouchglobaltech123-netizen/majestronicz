@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits } from '../../types';
+import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits, expenseIsEffective } from '../../types';
 import { getTodayDateString, getYesterdayDateString, cn } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
@@ -36,6 +36,7 @@ export const DailyCashRegisterView: React.FC = () => {
     getDailyCashRegister,
     addCashExpense,
     deleteCashExpense,
+    approveCashExpense,
     overrideOpeningAmount,
     closeDailyRegister,
     reopenDailyRegister,
@@ -145,10 +146,12 @@ export const DailyCashRegisterView: React.FC = () => {
     };
   }, [dayInvoices]);
 
-  // Expenses Totals
+  // Expenses Totals — only EFFECTIVE expenses hit the drawer. A bank deposit that
+  // is still pending (or rejected) approval is excluded until a Manager/CEO approves.
   const expenseBreakdown = useMemo(() => {
     const raw = currentRegister.expenses.reduce(
       (acc, exp) => {
+        if (!expenseIsEffective(exp)) return acc;
         const cashPart = Math.round((exp.cashAmount || 0) * 100) / 100;
         const gpayPart = Math.round((exp.gpayAmount || 0) * 100) / 100;
         acc.cash += cashPart;
@@ -437,6 +440,10 @@ export const DailyCashRegisterView: React.FC = () => {
             }
             onDeleteExpense={(expId) =>
               deleteCashExpense(activeBranchId, selectedDate, expId)
+            }
+            canApprove={currentUser.role === 'CEO' || currentUser.role === 'Manager'}
+            onApprove={(expId, decision) =>
+              approveCashExpense(activeBranchId, selectedDate, expId, decision)
             }
           />
         </div>

@@ -16,6 +16,8 @@ interface Props {
   isClosed: boolean;
   onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
   onDeleteExpense: (expenseId: string) => void;
+  canApprove?: boolean;
+  onApprove?: (expenseId: string, decision: 'approved' | 'rejected') => void;
 }
 
 const QUICK_EXPENSE_SUGGESTIONS = [
@@ -32,6 +34,8 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   isClosed,
   onAddExpense,
   onDeleteExpense,
+  canApprove,
+  onApprove,
 }) => {
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -278,13 +282,22 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {expenses.map((exp) => (
-                <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={exp.id} className={`hover:bg-slate-50/80 transition-colors ${exp.approvalStatus === 'pending' ? 'bg-amber-50/50' : exp.approvalStatus === 'rejected' ? 'opacity-60' : ''}`}>
                   {/* Reason & Staff Stamp */}
                   <td className="py-3 px-4">
                     <div className="font-bold text-slate-900 truncate max-w-xs flex items-center gap-1.5 flex-wrap">
                       <span className="truncate">{exp.reason}</span>
                       {exp.category && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">{exp.category}</span>
+                      )}
+                      {exp.approvalStatus === 'pending' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">Pending Approval</span>
+                      )}
+                      {exp.approvalStatus === 'approved' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">Approved{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}</span>
+                      )}
+                      {exp.approvalStatus === 'rejected' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">Rejected</span>
                       )}
                       {exp.billUrl && (
                         <a href={exp.billUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-800" title="View uploaded bill">
@@ -307,9 +320,32 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                     {exp.gpayAmount > 0 ? formatCurrency(exp.gpayAmount) : <span className="text-slate-300">-</span>}
                   </td>
 
-                  {/* Action Delete */}
+                  {/* Actions: approve/reject (pending) + delete */}
                   {!isClosed && (
-                    <td className="py-3 px-3 text-center">
+                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                      {exp.approvalStatus === 'pending' && canApprove && onApprove && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onApprove(exp.id, 'approved')}
+                            className="px-1.5 py-1 rounded-none text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer font-bold text-xs"
+                            title="Approve — deduct this cash from the drawer"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onApprove(exp.id, 'rejected')}
+                            className="px-1.5 py-1 rounded-none text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer font-bold text-xs"
+                            title="Reject"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                      {exp.approvalStatus === 'pending' && !canApprove && (
+                        <span className="text-[10px] text-amber-700 font-semibold">Awaiting M/CEO</span>
+                      )}
                       <button
                         type="button"
                         onClick={() => onDeleteExpense(exp.id)}

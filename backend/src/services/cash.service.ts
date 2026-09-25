@@ -32,7 +32,10 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
     const last = pastClosed[0];
     const dayInvoices = await tx.invoice.findMany({ where: { branchId, date: last.date } });
     const cashSales = dayInvoices.reduce((sum: number, i: any) => sum + invoiceCashCollected(i), 0);
-    const cashExpenses = (last.expenses as any[]).reduce((s, e) => s + (e.cashAmount || 0), 0);
+    // Only effective expenses reduce the drawer (skip expenses still pending / rejected approval).
+    const cashExpenses = (last.expenses as any[])
+      .filter((e) => e.approvalStatus == null || e.approvalStatus === 'approved')
+      .reduce((s, e) => s + (e.cashAmount || 0), 0);
     return last.openingAmount + cashSales - cashExpenses;
   }
   return branchId === 'erode-hq' ? 12000 : 8000;
@@ -55,16 +58,33 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
   return prisma.$transaction(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
+    const category = (expense.category || '').trim() || undefined;
     const newExpense = {
       id: rid('exp'), reason: (expense.reason || '').trim(),
-      category: (expense.category || '').trim() || undefined,
+      category,
       billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0, gpayAmount: Number(expense.gpayAmount) || 0,
+      // Bank deposits require Manager/CEO approval before they reduce the drawer.
+      approvalStatus: category === 'Deposit to Bank' ? 'pending' : undefined,
       createdBy: actor, createdAt: nowIso(),
     };
     await tx.dailyCashRegister.update({
       where: { id: reg.id }, data: { expenses: [...(reg.expenses as any[]), newExpense] },
     });
+    return snap(tx);
+  });
+}
+
+/** Manager/CEO decision on a pending expense (e.g. bank deposit). */
+export function approveExpense(branchId: string, date: string, expenseId: string, decision: string, actor: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const reg = await loadRegister(tx, branchId, date);
+    if (!reg) throw new AppError('NOT_FOUND', 'Cash register not found', 404);
+    const status = decision === 'approved' ? 'approved' : 'rejected';
+    const expenses = (reg.expenses as any[]).map((e) =>
+      e.id === expenseId ? { ...e, approvalStatus: status, approvedBy: actor, approvedAt: nowIso() } : e
+    );
+    await tx.dailyCashRegister.update({ where: { id: reg.id }, data: { expenses } });
     return snap(tx);
   });
 }

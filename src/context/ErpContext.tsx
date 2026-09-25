@@ -79,6 +79,7 @@ import {
   normalizePhone,
   AccessMatrix,
   Capability,
+  expenseNeedsApproval,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { LoginScreen } from '../components/auth/LoginScreen';
@@ -281,6 +282,7 @@ interface ErpContextType {
   getDailyCashRegister: (branchId: BranchId, date: string) => DailyCashRegister;
   addCashExpense: (branchId: BranchId, date: string, expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
   deleteCashExpense: (branchId: BranchId, date: string, expenseId: string) => void;
+  approveCashExpense: (branchId: BranchId, date: string, expenseId: string, decision: 'approved' | 'rejected') => void;
   overrideOpeningAmount: (branchId: BranchId, date: string, amount: number, reason: string) => void;
   closeDailyRegister: (branchId: BranchId, date: string, notes?: string) => void;
   reopenDailyRegister: (branchId: BranchId, date: string) => void;
@@ -2153,13 +2155,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    const category = expense.category?.trim() || undefined;
     const newExpense = {
       id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
       reason: expense.reason.trim(),
-      category: expense.category?.trim() || undefined,
+      category,
       billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0,
       gpayAmount: Number(expense.gpayAmount) || 0,
+      // Bank deposits (and other approval categories) start pending; they only hit
+      // the drawer once a Manager/CEO approves.
+      approvalStatus: expenseNeedsApproval(category) ? ('pending' as const) : undefined,
       createdBy: currentUser.name,
       createdAt: new Date().toISOString(),
     };
@@ -2209,6 +2215,37 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     persist(apiPost('/api/cash/expense/delete', { branchId, date, expenseId }));
     toast.success('Expense entry deleted');
+  };
+
+  // Manager/CEO decision on a pending (e.g. bank-deposit) expense. Approving lets it
+  // hit the cash drawer; rejecting keeps it off the drawer.
+  const approveCashExpense = (
+    branchId: BranchId,
+    date: string,
+    expenseId: string,
+    decision: 'approved' | 'rejected'
+  ) => {
+    if (!(currentUser.role === 'CEO' || currentUser.role === 'Manager')) {
+      toast.error('Only a Manager or CEO can approve bank deposits.');
+      return;
+    }
+    const stamp = new Date().toISOString();
+    setCashRegisters((prev) =>
+      prev.map((r) =>
+        r.branchId === branchId && r.date === date
+          ? {
+              ...r,
+              expenses: r.expenses.map((e) =>
+                e.id === expenseId
+                  ? { ...e, approvalStatus: decision, approvedBy: currentUser.name, approvedAt: stamp }
+                  : e
+              ),
+            }
+          : r
+      )
+    );
+    persist(apiPost('/api/cash/expense/approve', { branchId, date, expenseId, decision, actor: currentUser.name }));
+    toast.success(decision === 'approved' ? 'Bank deposit approved — cash deducted' : 'Bank deposit rejected');
   };
 
   const overrideOpeningAmount = (
@@ -4097,6 +4134,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getDailyCashRegister,
         addCashExpense,
         deleteCashExpense,
+        approveCashExpense,
         overrideOpeningAmount,
         closeDailyRegister,
         reopenDailyRegister,
