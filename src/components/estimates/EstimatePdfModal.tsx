@@ -243,6 +243,15 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                           </p>
                         ) : null;
                       })()}
+                      {(() => {
+                        // Surface the per-line discount so the row's Amount reconciles
+                        // to qty × rate − discount (SAL2-13).
+                        const gross = (item.quantity || 0) * (item.unitPrice || 0);
+                        const disc = Math.round((gross - (item.taxableAmount || 0)) * 100) / 100;
+                        return disc > 0.01 ? (
+                          <p className="text-[10px] text-slate-500 italic mt-0.5 font-normal">Less line discount: (-) {disc.toFixed(2)}</p>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{item.itemHSN || '—'}</td>
                     <td className="py-2.5 px-3 text-right font-bold text-slate-900">{item.quantity}</td>

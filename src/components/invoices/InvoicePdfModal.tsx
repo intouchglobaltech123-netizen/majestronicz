@@ -327,6 +327,16 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                     <td className="border-r border-black px-2 py-0.5">
                       <span className="font-semibold">{item.itemName}</span>
                       {item.itemCode && <span className="text-black/60"> ({item.itemCode})</span>}
+                      {(() => {
+                        // Show the per-line discount so Amount visibly reconciles to
+                        // qty × rate − discount (SAL2-13).
+                        const gross = (item.quantity || 0) * (item.unitPrice || 0);
+                        const shown = invoice.withGst ? (item.taxableAmount || 0) : (item.totalAmount || 0);
+                        const disc = Math.round((gross - shown) * 100) / 100;
+                        return disc > 0.01 ? (
+                          <span className="block text-[9px] italic text-black/60">Less line discount: (-) {n2(disc)}</span>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="border-r border-black px-1 py-0.5 text-center">{item.itemHSN || '—'}</td>
                     <td className="border-r border-black px-1 py-0.5 text-right whitespace-nowrap">{item.quantity} {item.unit}</td>
