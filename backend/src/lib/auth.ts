@@ -126,7 +126,20 @@ export const roleFlags = (role: Role): string[] => {
 };
 
 // ---- Signed token (dependency-free HMAC) ----
-const SECRET = process.env.AUTH_SECRET || 'majestronicz-dev-secret-change-in-prod';
+// In production AUTH_SECRET MUST be set to a strong value. Falling back to a
+// secret written in the repo would let anyone forge a CEO token (SEC2-4), so we
+// refuse to start rather than run with the public default. The dev fallback is
+// kept only for local development (NODE_ENV !== 'production').
+const SECRET = (() => {
+  const fromEnv = process.env.AUTH_SECRET;
+  if (fromEnv && fromEnv.length >= 16) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'AUTH_SECRET is missing or too short. Set a strong AUTH_SECRET (>= 16 chars) in the environment before starting the server.'
+    );
+  }
+  return 'majestronicz-dev-secret-change-in-prod';
+})();
 
 // Deterministic keyed hash for login PINs so plaintext is never stored in the DB.
 // Keyed by AUTH_SECRET (an attacker without it can't precompute), and deterministic
