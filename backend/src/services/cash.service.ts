@@ -77,6 +77,12 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
   return prisma.$transaction(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
+    // Amounts can't be negative, and at least one must be positive (CASH2-5/VAL-1).
+    const cashAmt = Number(expense.cashAmount) || 0;
+    const gpayAmt = Number(expense.gpayAmount) || 0;
+    if (cashAmt < 0 || gpayAmt < 0) throw new AppError('BAD_AMOUNT', 'Expense amount cannot be negative', 400);
+    if (cashAmt <= 0 && gpayAmt <= 0) throw new AppError('BAD_AMOUNT', 'Enter a Cash or GPay amount greater than zero', 400);
+    if (!((expense.reason || '').trim())) throw new AppError('REASON_REQUIRED', 'Expense reason is required', 400);
     const category = (expense.category || '').trim() || undefined;
     const newExpense = {
       id: rid('exp'), reason: (expense.reason || '').trim(),
@@ -99,7 +105,19 @@ export function approveExpense(branchId: string, date: string, expenseId: string
   return prisma.$transaction(async (tx: any) => {
     const reg = await loadRegister(tx, branchId, date);
     if (!reg) throw new AppError('NOT_FOUND', 'Cash register not found', 404);
-    const status = decision === 'approved' ? 'approved' : 'rejected';
+    // A closed day's totals are final — no approving/rejecting into it (CASH2-5).
+    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cannot change approvals on a closed day', 409);
+    if (decision !== 'approved' && decision !== 'rejected') {
+      throw new AppError('BAD_REQUEST', "Decision must be 'approved' or 'rejected'", 400);
+    }
+    const target = (reg.expenses as any[]).find((e) => e.id === expenseId);
+    if (!target) throw new AppError('NOT_FOUND', 'Expense not found', 404);
+    // Only a still-pending item can be decided — blocks re-approving an already
+    // decided one, or "approving" an entry that never needed approval (CASH2-5).
+    if (target.approvalStatus !== 'pending') {
+      throw new AppError('NOT_PENDING', 'This expense is not awaiting approval', 409);
+    }
+    const status = decision;
     const expenses = (reg.expenses as any[]).map((e) =>
       e.id === expenseId ? { ...e, approvalStatus: status, approvedBy: actor, approvedAt: nowIso() } : e
     );
@@ -173,6 +191,26 @@ export function approveRecurring(templateId: string, branchId: string, date: str
   return prisma.$transaction(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id: templateId } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+
+    // Validate the money and mode (CASH2-5): no negative/zero amounts, and only
+    // real payment modes — not "Bitcoin".
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError('BAD_AMOUNT', 'Approved amount must be greater than zero', 400);
+    }
+    if (paymentMode !== 'Cash' && paymentMode !== 'GPay') {
+      throw new AppError('BAD_MODE', "Payment mode must be 'Cash' or 'GPay'", 400);
+    }
+
+    // Block a second approval for the same month — otherwise e.g. rent posts
+    // twice (₹25,000 × 2) (CASH2-5).
+    const monthKey = date.substring(0, 7);
+    const alreadyApproved =
+      template.lastApprovedMonth === monthKey ||
+      ((template.approvalHistory as any[]) || []).some((a) => a.month === monthKey);
+    if (alreadyApproved) {
+      throw new AppError('ALREADY_APPROVED', `This recurring expense is already approved for ${monthKey}`, 409);
+    }
+
     // Post the approved expense to the TEMPLATE's own branch, not whichever drawer
     // the approver happens to be viewing — otherwise e.g. Coimbatore rent lands in
     // the Erode register (CASH-6).
@@ -190,7 +228,6 @@ export function approveRecurring(templateId: string, branchId: string, date: str
       where: { id: reg.id }, data: { expenses: [...(reg.expenses as any[]), newExpense] },
     });
 
-    const monthKey = date.substring(0, 7);
     const approval = { id: `appr-${Date.now()}`, month: monthKey, date, approvedAt: nowIso(), approvedBy: actor, actualAmount: amount, paymentMode, cashExpenseId: expenseId };
     await tx.recurringExpenseTemplate.update({
       where: { id: templateId },
