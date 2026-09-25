@@ -1343,6 +1343,20 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   const handleSave = async () => {
+    // Guard against negative prices / shipping and impossible discounts (SAL-17).
+    if (lineItems.some((li) => (li.unitPrice || 0) < 0)) {
+      toast.error('Item price cannot be negative');
+      return;
+    }
+    if ((shippingCharges || 0) < 0) {
+      toast.error('Shipping / freight cannot be negative');
+      return;
+    }
+    if (overallDiscountType === '%' && overallDiscountValue > 100) {
+      toast.error('Overall discount cannot exceed 100%');
+      return;
+    }
+
     if (documentType === 'Quotation') {
       const est = assembleEstimateObject();
       if (!est) return;
@@ -1544,7 +1558,8 @@ export const InvoiceForm: React.FC<Props> = ({
             <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
-              disabled={!isAllBranches && currentBranch !== 'all'}
+              disabled={(!isAllBranches && currentBranch !== 'all') || !!initialInvoice || !!initialEstimate}
+              title={initialInvoice || initialEstimate ? "An existing document's branch can't be changed" : undefined}
               className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 disabled:opacity-70 cursor-pointer"
             >
               {BRANCHES.map((b) => (

@@ -330,15 +330,21 @@ export function processReturn(
           isCombo: true, comboId: line.comboId, comboComponents: line.comboComponents,
         });
       } else {
-        const qtyToRestore = isDamaged ? 0 : line.returnQty;
-        const { prevQty, newQty } = ledger.apply(line.itemId, qtyToRestore);
-        newLogs.push({
-          id: rid('adj'), itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode,
-          branchId: inv.branchId, previousQuantity: prevQty, quantityChange: qtyToRestore,
-          newQuantity: newQty, reason: stockReason,
-          notes: `Sales Return on #${inv.invoiceNumber} - ${reason}${notes ? ` (${notes})` : ''}${isDamaged ? ' [damaged — not restocked]' : ''}`,
-          adjustedBy: actor, timestamp: ts,
-        });
+        // Only restore stock for real catalogue items. A typed service line (e.g.
+        // "Installation Service Charge") has no catalogue item, so restocking it would
+        // create phantom stock and a bogus log entry (SAL-14) — skip it.
+        const isCatalogItem = itemById.has(line.itemId);
+        const qtyToRestore = isDamaged || !isCatalogItem ? 0 : line.returnQty;
+        if (isCatalogItem) {
+          const { prevQty, newQty } = ledger.apply(line.itemId, qtyToRestore);
+          newLogs.push({
+            id: rid('adj'), itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode,
+            branchId: inv.branchId, previousQuantity: prevQty, quantityChange: qtyToRestore,
+            newQuantity: newQty, reason: stockReason,
+            notes: `Sales Return on #${inv.invoiceNumber} - ${reason}${notes ? ` (${notes})` : ''}${isDamaged ? ' [damaged — not restocked]' : ''}`,
+            adjustedBy: actor, timestamp: ts,
+          });
+        }
         returnRecords.push({
           id: rid('ret'), itemId: line.itemId, itemCode: line.itemCode, itemName: line.itemName,
           returnedQuantity: line.returnQty, unitPrice: line.unitPrice, taxRate: line.taxRate,

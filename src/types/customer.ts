@@ -50,28 +50,21 @@ export function gstStateInfo(gstin?: string): { code: string; state: string } | 
   return state ? { code, state } : null;
 }
 
-export function cleanCustomerName(rawName: string, notes?: string): string {
+export function cleanCustomerName(rawName: string, _notes?: string): string {
   if (!rawName) return '';
   let cleaned = rawName.trim();
 
-  // If notes string is provided and was appended to name, remove it
-  if (notes && notes.trim() && cleaned.includes(notes.trim())) {
-    cleaned = cleaned.replace(notes.trim(), '').trim();
-  }
-
-  // Remove common accidental concatenations:
-  // e.g. " • Note: ...", " - Note: ...", " (Note: ...)", "\nNote: ..."
-  // e.g. " • 8 purchases", " - 8 purchases", "#8 purchases", "8/10 to next reward"
-  // e.g. " - Purchase History: ..."
+  // Only strip clearly SYSTEM-generated suffixes accidentally concatenated onto the
+  // name (purchase counts, reward status). Never strip words the user actually typed
+  // — e.g. "Sri Ganesh Electricals" (note "Ganesh") or "Notes & Books Depot" must survive. (CRM-6)
   cleaned = cleaned
     .replace(/\s*[-•|]\s*(?:#?\d+\s*purchases?|\d+\/\d+\s*to\s*next\s*reward|Reward\s*Ready!?|Milestone!?).*/i, '')
     .replace(/\s*[-•|]\s*Purchase History:?.*/i, '')
     .replace(/\s*\(?(?:#?\d+\s*purchases?|\d+\/\d+\s*to\s*next\s*reward)\)?/gi, '')
-    .replace(/\s*[-•|]\s*(?:Notes?|Remarks?):?.*/i, '')
     .trim();
 
-  // Remove any trailing dashes, bullets, colons, or orphaned opening/closing punctuation
-  cleaned = cleaned.replace(/[-•:,(\s]+$/, '').trim();
+  // Tidy only a dangling separator left by the strips above.
+  cleaned = cleaned.replace(/\s*[-•|]\s*$/, '').trim();
 
   return cleaned;
 }
