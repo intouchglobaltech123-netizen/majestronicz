@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, Estimate, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { ListExportBar } from '../common/ListExportBar';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
 import { calculateInvoiceTotals } from '../../lib/taxCalculations';
 import { InvoiceForm } from './InvoiceForm';
@@ -640,13 +641,23 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <Building className="h-4 w-4 text-blue-600" />
                 <span>
                   Scope: <strong>{branchFilter === 'ALL' ? (isAllBranches ? 'All Branches' : currentBranchData?.name) : BRANCHES.find(b => b.id === branchFilter)?.name}</strong>
                 </span>
               </div>
+              <ListExportBar
+                build={(from, to) => ({
+                  headers: ['Date', 'Quote No', 'Customer', 'Phone', 'Branch', 'Grand Total (₹)'],
+                  rows: estimates
+                    .filter((e) => (isAllBranches || e.branchId === currentBranch) && (!from || (e.date || '') >= from) && (!to || (e.date || '') <= to))
+                    .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1))
+                    .map((e) => [e.date, e.estimateNumber, e.customerName, e.customerContact || '', BRANCHES.find((b) => b.id === e.branchId)?.shortCode || e.branchId, (e.grandTotal || 0).toFixed(2)]),
+                  title: 'Quotations', filename: `quotations-${from || 'all'}_to_${to || 'all'}`,
+                })}
+              />
             </div>
           </div>
 
@@ -837,6 +848,25 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 </span>
               )}
             </div>
+
+            {/* Take the report out: pick a date range → PDF / Excel / CSV */}
+            <ListExportBar
+              build={(from, to) => {
+                const rows = invoices
+                  .filter((inv) => (isAllBranches || inv.branchId === currentBranch) && (!from || (inv.date || '') >= from) && (!to || (inv.date || '') <= to))
+                  .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1))
+                  .map((inv) => [
+                    inv.date, inv.invoiceNumber, inv.customerName, inv.customerPhone || '',
+                    BRANCHES.find((b) => b.id === inv.branchId)?.shortCode || inv.branchId,
+                    inv.paymentMode, inv.transactionType,
+                    (inv.grandTotal || 0).toFixed(2), inv.isVoided ? 'VOIDED' : '',
+                  ]);
+                return {
+                  headers: ['Date', 'Invoice No', 'Customer', 'Phone', 'Branch', 'Mode', 'Type', 'Total (₹)', 'Status'],
+                  rows, title: 'Sales Invoices', filename: `sales-invoices-${from || 'all'}_to_${to || 'all'}`,
+                };
+              }}
+            />
           </div>
 
           {/* SALES LEDGER TABLE */}
