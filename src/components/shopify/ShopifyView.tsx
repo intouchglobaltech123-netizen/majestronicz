@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { apiGet, apiPost } from '../../lib/api';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency, cleanPhoneDigits } from '../../lib/utils';
+import { formatCurrency, cleanPhoneDigits, cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ShopifyOrder, ShopifyShopStatus } from '../../types/shopify';
 import { ShopifyOrderDetailModal } from './ShopifyOrderDetailModal';
@@ -213,6 +213,31 @@ export const ShopifyView: React.FC = () => {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Sub-section tab strip (Online Store lives in the top bar; these are its sub-headings) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mt-2">
+        {([
+          { id: 'orders', label: 'Orders & Shipments' },
+          { id: 'inventory', label: 'Stock & Inventory Sync' },
+          { id: 'products', label: 'Product Catalog' },
+          { id: 'customers', label: 'Online Customers' },
+          { id: 'settings', label: 'Connection & Settings' },
+        ] as { id: ShopifyTab; label: string }[]).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setActiveTab(t.id)}
+            className={cn(
+              'px-3.5 py-2 rounded-none text-xs font-bold whitespace-nowrap transition-colors shrink-0 border cursor-pointer',
+              activeTab === t.id
+                ? 'bg-red-600 text-white border-red-700'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Tab Contents */}

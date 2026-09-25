@@ -468,9 +468,54 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         </div>
 
         {/* Action Buttons specific to current sub-view */}
-        <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end">
-          {/* Neat today's metrics — segmented mini-card (billing + sales ledger) */}
-          {(activeTab === 'new' || activeTab === 'ledger') && (
+        <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end min-w-0">
+          {/* Multi-tab bill strip lives on the RIGHT of the heading in New Sale (compact) */}
+          {activeTab === 'new' && (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[52vw]">
+                {openBills.map((tab) => {
+                  const isActive = tab.id === activeBillId;
+                  const isQuote = tab.documentType === 'Quotation';
+                  return (
+                    <div
+                      key={tab.id}
+                      onClick={() => setActiveBillId(tab.id)}
+                      className={cn(
+                        'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
+                        isActive
+                          ? isQuote
+                            ? 'bg-slate-800 text-white border-slate-900'
+                            : 'bg-red-600 text-white border-red-700'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      )}
+                    >
+                      {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
+                      <span className="max-w-[110px] truncate">{tab.label}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
+                        className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
+                        title="Close this bill"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleStartBlank('Invoice')}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
+                title="Start a new sale bill in another tab"
+              >
+                <Plus className="h-3 w-3" /> New Sale
+              </button>
+            </div>
+          )}
+
+          {/* Neat today's metrics — segmented mini-card (ONLY on the Sales Invoices ledger) */}
+          {activeTab === 'ledger' && (
             <div className="hidden sm:flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden divide-x divide-slate-200 shadow-2xs">
               {[
                 { label: 'Bills', value: String(todayStats.count), tone: 'text-slate-900' },
@@ -538,54 +583,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       {/* VIEW CONTENT */}
       {activeTab === 'new' ? (
-        /* MULTI-TAB BILLING — several sale/quotation drafts open at once */
+        /* MULTI-TAB BILLING — several sale/quotation drafts open at once (tabs live in the heading) */
         <div className="space-y-3">
-          {/* Vyapar-style bill tab strip — tabs scroll; the New Sale action stays pinned */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 min-w-0">
-            {openBills.map((tab) => {
-              const isActive = tab.id === activeBillId;
-              const isQuote = tab.documentType === 'Quotation';
-              return (
-                <div
-                  key={tab.id}
-                  onClick={() => setActiveBillId(tab.id)}
-                  className={cn(
-                    'group flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-none border text-xs font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
-                    isActive
-                      ? isQuote
-                        ? 'bg-slate-800 text-white border-slate-900 shadow-none'
-                        : 'bg-red-600 text-white border-red-700 shadow-none'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                  )}
-                >
-                  {isQuote ? <FileText className="h-3.5 w-3.5 shrink-0" /> : <Receipt className="h-3.5 w-3.5 shrink-0" />}
-                  <span className="max-w-[150px] truncate">{tab.label}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
-                    className={cn(
-                      'p-0.5 rounded-md transition-colors',
-                      isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100'
-                    )}
-                    title="Close this bill"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-            </div>
-            <button
-              type="button"
-              onClick={() => handleStartBlank('Invoice')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
-              title="Start a new sale bill in another tab"
-            >
-              <Plus className="h-3.5 w-3.5" /> New Sale
-            </button>
-          </div>
-
           {/* Every open form stays mounted; only the active tab is shown so each
               in-progress bill keeps its state when you switch between them. */}
           {openBills.map((tab) => (
