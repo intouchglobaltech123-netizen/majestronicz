@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { DailyCashRegister, Invoice, BranchId, BRANCHES } from '../../types';
+import { DailyCashRegister, Invoice, Payment, BranchId, BRANCHES } from '../../types';
 import { formatCurrency } from '../../lib/utils';
+import { computeDayCashClosing } from '../../lib/cashClosing';
 import { X, History, Lock, Eye, Calendar } from 'lucide-react';
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
   onClose: () => void;
   registers: DailyCashRegister[];
   invoices: Invoice[];
+  payments: Payment[];
   onSelectDateAndBranch: (date: string, branchId: BranchId) => void;
 }
 
@@ -16,6 +18,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
   onClose,
   registers,
   invoices,
+  payments,
   onSelectDateAndBranch,
 }) => {
   const [filterBranch, setFilterBranch] = useState<string>('all');
@@ -110,25 +113,19 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                     0
                   );
 
-                  // Calculate cash sales for closing balance formula
-                  const cashSales = dayInvoices
-                    .filter((i) => i.paymentMode === 'Cash')
-                    .reduce(
-                      (sum, i) => {
-                        const amount = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
-                        return sum + Math.max(0, amount - (i.totalReturnedAmount || 0));
-                      },
-                      0
-                    );
+                  // Closing via the ONE shared formula, so the history figure
+                  // matches the register card and the carried-forward opening
+                  // exactly (CASH-4, CASH2-3).
+                  const dayClose = computeDayCashClosing(
+                    reg.branchId, reg.date, reg.openingAmount, invoices, payments, reg.expenses,
+                  );
+                  const closing = dayClose.closing;
 
-                  // Total expenses
+                  // Total expenses (all modes, for the expense column display)
                   const totalExpense = reg.expenses.reduce(
                     (sum, e) => sum + (e.cashAmount || 0) + (e.gpayAmount || 0),
                     0
                   );
-                  const cashExpense = reg.expenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
-
-                  const closing = reg.openingAmount + cashSales - cashExpense;
 
                   return (
                     <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">

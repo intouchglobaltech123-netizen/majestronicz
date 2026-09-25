@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { getTodayDateString } from '../lib/utils';
+import { computeDayCashClosing } from '../lib/cashClosing';
 
 /**
  * Persists a collection to the backend whenever it changes, so Postgres always
@@ -2151,16 +2152,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (pastClosed.length > 0) {
       const last = pastClosed[0];
-      const dayInvoices = invoices.filter((i) => i.branchId === branchId && i.date === last.date && !i.isVoided);
-      const cashSales = dayInvoices
-        .filter((i) => i.paymentMode === 'Cash')
-        .reduce((sum, i) => {
-          const amount = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
-          const returned = i.totalReturnedAmount || 0;
-          return sum + Math.max(0, amount - returned);
-        }, 0);
-      const cashExpenses = last.expenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
-      return last.openingAmount + cashSales - cashExpenses;
+      // One shared closing formula for every view so the carried-forward opening
+      // matches the register card and the history modal exactly (CASH2-3, CASH-4).
+      return computeDayCashClosing(branchId, last.date, last.openingAmount, invoices, payments, last.expenses).closing;
     }
 
     return branchId === 'erode-hq' ? 12000 : 8000;

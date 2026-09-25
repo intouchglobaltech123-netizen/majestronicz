@@ -12,6 +12,7 @@ import { RecurringExpenseBanner } from './RecurringExpenseBanner';
 import { ApproveRecurringExpenseModal } from './ApproveRecurringExpenseModal';
 import { RecurringExpensesManagement } from './RecurringExpensesManagement';
 import { RecurringExpenseTemplate } from '../../types';
+import { computeDayCashClosing } from '../../lib/cashClosing';
 import {
   Calendar,
   Building,
@@ -178,32 +179,17 @@ export const DailyCashRegisterView: React.FC = () => {
     };
   }, [currentRegister.expenses]);
 
-  // Cash movements from the Payment ledger for this branch/day: a cash receipt
-  // from a customer adds to the drawer, a cash payment to a vendor removes from it.
-  // These were previously ignored, so the drawer never reflected them (CASH2-6).
-  const cashLedger = useMemo(() => {
-    let inAmt = 0;
-    let outAmt = 0;
-    for (const p of payments || []) {
-      if (p.branchId !== activeBranchId || p.date !== selectedDate) continue;
-      if ((p.paymentMode || '').toLowerCase() !== 'cash') continue;
-      if (p.type === 'in') inAmt += p.amount || 0;
-      else if (p.type === 'out') outAmt += p.amount || 0;
-    }
-    return { in: Math.round(inAmt * 100) / 100, out: Math.round(outAmt * 100) / 100 };
-  }, [payments, activeBranchId, selectedDate]);
-
-  // CLOSING BALANCE FORMULA:
-  // Opening + Cash Sales + Cash Receipts (ledger) − Cash Vendor Payments (ledger) − Cash Expenses
-  const closingBalance = useMemo(() => {
-    return Math.round(
-      ((currentRegister.openingAmount || 0)
-        + salesBreakdown.cash
-        + cashLedger.in
-        - cashLedger.out
-        - expenseBreakdown.cash) * 100
-    ) / 100;
-  }, [currentRegister.openingAmount, salesBreakdown.cash, cashLedger.in, cashLedger.out, expenseBreakdown.cash]);
+  // Closing balance via the ONE shared formula (CASH2-3/CASH-4), so the card, the
+  // next-day opening carry-forward and the history modal all agree. It also folds
+  // in cash receipts / vendor cash payments from the Payment ledger (CASH2-6).
+  const dayClosing = useMemo(
+    () => computeDayCashClosing(
+      activeBranchId, selectedDate, currentRegister.openingAmount || 0, invoices, payments, currentRegister.expenses,
+    ),
+    [activeBranchId, selectedDate, currentRegister.openingAmount, currentRegister.expenses, invoices, payments],
+  );
+  const closingBalance = dayClosing.closing;
+  const cashLedger = { in: dayClosing.cashReceipts, out: dayClosing.cashPaid };
 
   const activeBranchObj = BRANCHES.find((b) => b.id === activeBranchId) || BRANCHES[0];
 
@@ -554,6 +540,7 @@ export const DailyCashRegisterView: React.FC = () => {
         onClose={() => setIsHistoryModalOpen(false)}
         registers={cashRegisters}
         invoices={invoices}
+        payments={payments}
         onSelectDateAndBranch={(date, branchId) => {
           setSelectedDate(date);
           switchBranch(branchId);
