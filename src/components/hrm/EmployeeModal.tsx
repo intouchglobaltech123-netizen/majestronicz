@@ -29,7 +29,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     refreshStaffUsers,
     linkStaffLogin,
     unlinkStaffLogin,
+    payrollSettings,
   } = useErp();
+
+  // Standard monthly working hours come from Payroll Settings — used to derive
+  // the indicative hourly rate shown below (never a hard-coded constant).
+  const standardHours = payrollSettings.standardHoursPerMonth || 208;
 
   const isCEO = currentUser.role === 'CEO';
   const existingLogin = employeeToEdit ? staffUsers.find((u) => u.employeeId === employeeToEdit.id) : undefined;
@@ -280,7 +285,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               />
             </div>
             <p className="text-[11px] text-slate-400 mt-1 font-mono">
-              Agreed full-month remuneration for 208 working hours (₹{(monthlySalary / 208).toFixed(2)}/hr)
+              Agreed full-month remuneration for {standardHours} working hours (₹{(monthlySalary / standardHours).toFixed(2)}/hr)
             </p>
           </div>
 

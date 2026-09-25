@@ -17,12 +17,16 @@ import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
+import { computePayrollRows } from '../../lib/payroll';
 
 export const HrmView: React.FC = () => {
   const {
     employees,
     attendanceRecords,
     payrollSettings,
+    payrollRecords,
+    invoices,
+    currentBranch,
     canViewHrm,
     activeSubTab,
   } = useErp();
@@ -54,15 +58,19 @@ export const HrmView: React.FC = () => {
   const monthRecords = attendanceRecords.filter((a) => a.date.startsWith(currentMonthStr));
   const monthLaborHours = monthRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
 
-  // Approximate monthly payroll expense
+  // Monthly payroll expense — uses the SAME shared computation as the Payroll
+  // rows (attendance pay + incentives + adjustments) so this KPI equals the sum
+  // of the displayed payroll rows rather than a bare hours × rate estimate.
   const standardHours = payrollSettings.standardHoursPerMonth || 208;
-  const monthPayrollExpense = activeStaff.reduce((sum, emp) => {
-    const empHours = monthRecords
-      .filter((r) => r.employeeId === emp.id)
-      .reduce((s, r) => s + (r.hoursWorked || 0), 0);
-    const hourlyRate = emp.monthlySalary / standardHours;
-    return sum + hourlyRate * empHours;
-  }, 0);
+  const monthPayrollExpense = computePayrollRows({
+    employees,
+    attendanceRecords,
+    invoices,
+    payrollRecords,
+    month: currentMonthStr,
+    standardHours,
+    branchScope: currentBranch,
+  }).reduce((sum, r) => sum + r.finalPayable, 0);
 
   // Today's presence — unique active staff who checked in vs those who didn't.
   const presentIds = new Set(todayCheckIns.map((a) => a.employeeId));
@@ -284,7 +292,7 @@ export const HrmView: React.FC = () => {
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {formatCurrency(Math.round(monthPayrollExpense))}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Attendance computed net pay</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Net pay incl. incentives &amp; adjustments</p>
           </div>
         </div>
       </div>

@@ -19,6 +19,18 @@ function istParts(now = new Date()): { date: string; time: string } {
   return { date, time };
 }
 
+// Duration of a shift in hours, correct across a midnight boundary — an overnight
+// shift (e.g. in 22:00, out 06:00) has its check-out on a later calendar day than
+// its check-in, so we add the whole-day gap between the two dates.
+function shiftHours(inDate: string, inTime: string, outDate: string, outTime: string): number {
+  const [inH, inM, inS] = inTime.split(':').map(Number);
+  const [outH, outM, outS] = outTime.split(':').map(Number);
+  const inMinutes = inH * 60 + inM + (inS || 0) / 60;
+  const outMinutes = outH * 60 + outM + (outS || 0) / 60;
+  const dayDiff = Math.max(0, Math.round((Date.parse(outDate) - Date.parse(inDate)) / 86400000));
+  return Math.max(0, parseFloat(((dayDiff * 1440 + outMinutes - inMinutes) / 60).toFixed(2)));
+}
+
 export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
@@ -56,15 +68,16 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
     const today = ist.date;
     const timeStr = customTime || ist.time;
 
-    const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
-    if (!existing) throw new AppError('NO_CHECKIN', `No check-in found for ${emp.name} today.`, 409);
-    if (existing.checkOutTime) throw new AppError('ALREADY_OUT', `${emp.name} has already checked out at ${existing.checkOutTime}`, 409);
+    // Close the most recent OPEN shift (a check-in with no check-out yet), even
+    // if it was opened the previous day — otherwise an overnight shift can never
+    // be clocked out because no record exists for "today".
+    const existing = await tx.attendanceRecord.findFirst({
+      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
+      orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
+    });
+    if (!existing) throw new AppError('NO_CHECKIN', `No open check-in found for ${emp.name}.`, 409);
 
-    const [inH, inM, inS] = existing.checkInTime.split(':').map(Number);
-    const [outH, outM, outS] = timeStr.split(':').map(Number);
-    const inMinutes = inH * 60 + inM + (inS || 0) / 60;
-    const outMinutes = outH * 60 + outM + (outS || 0) / 60;
-    const diffHours = Math.max(0, parseFloat(((outMinutes - inMinutes) / 60).toFixed(2)));
+    const diffHours = shiftHours(existing.date, existing.checkInTime, today, timeStr);
 
     await tx.attendanceRecord.update({
       where: { id: existing.id },
@@ -89,22 +102,27 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
     const now = new Date();
     const ist = istParts(now);
     const today = ist.date;
-    const existing = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
 
-    if (existing?.checkOutTime) {
-      return { action: 'done', record: existing };
-    }
-    if (existing?.checkInTime) {
-      const [inH, inM, inS] = existing.checkInTime.split(':').map(Number);
-      const [outH, outM, outS] = ist.time.split(':').map(Number);
-      const inMinutes = inH * 60 + inM + (inS || 0) / 60;
-      const outMinutes = outH * 60 + outM + (outS || 0) / 60;
-      const diffHours = Math.max(0, parseFloat(((outMinutes - inMinutes) / 60).toFixed(2)));
+    // An open shift (check-in without a check-out) is clocked out first — it may
+    // have been opened yesterday for an overnight shift, so we don't restrict to
+    // today's record.
+    const openShift = await tx.attendanceRecord.findFirst({
+      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
+      orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
+    });
+    if (openShift) {
+      const diffHours = shiftHours(openShift.date, openShift.checkInTime, today, ist.time);
       const record = await tx.attendanceRecord.update({
-        where: { id: existing.id },
+        where: { id: openShift.id },
         data: { checkOutTime: ist.time, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
       });
       return { action: 'out', record };
+    }
+
+    // No open shift: if today's shift is already complete there's nothing to do.
+    const todayRecord = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
+    if (todayRecord?.checkOutTime) {
+      return { action: 'done', record: todayRecord };
     }
     const record = await tx.attendanceRecord.create({
       data: {

@@ -28,15 +28,15 @@ export function computePayrollRows(params: {
     const empAtt = attendanceRecords.filter(
       (a) => a.employeeId === emp.id && a.date.startsWith(month)
     );
-    const totalDaysPresent = empAtt.length;
-    const totalHoursWorked = empAtt.reduce((sum, a) => sum + (a.hoursWorked || 0), 0);
+    const liveDaysPresent = empAtt.length;
+    const liveHoursWorked = empAtt.reduce((sum, a) => sum + (a.hoursWorked || 0), 0);
 
-    const hourlyRate = parseFloat((emp.monthlySalary / standardHours).toFixed(2));
-    const computedPay = Math.round(hourlyRate * totalHoursWorked);
+    const liveHourlyRate = parseFloat((emp.monthlySalary / standardHours).toFixed(2));
+    const liveComputedPay = Math.round(liveHourlyRate * liveHoursWorked);
 
     const existingRec = payrollRecords.find((p) => p.employeeId === emp.id && p.month === month);
 
-    const incentiveEarned = Math.round(
+    const liveIncentive = Math.round(
       invoices
         .filter((inv) => !inv.isVoided && inv.salespersonId === emp.id && (inv.date || '').startsWith(month))
         .reduce((sum, inv) => {
@@ -50,8 +50,22 @@ export function computePayrollRows(params: {
 
     const manualAdjustment = existingRec?.manualAdjustment || 0;
     const adjustmentReason = existingRec?.adjustmentReason;
-    const finalPayable = Math.max(0, computedPay + incentiveEarned + manualAdjustment);
+    const liveFinalPayable = Math.max(0, liveComputedPay + liveIncentive + manualAdjustment);
     const status = existingRec?.status || 'Draft';
+
+    // A disbursed (Paid) payroll is locked: show the STORED figures that were
+    // actually paid out, not a live recomputation from current attendance /
+    // incentives (which the backend also refuses to change).
+    const locked = status === 'Paid' && !!existingRec;
+    const totalDaysPresent = locked ? existingRec!.totalDaysPresent : liveDaysPresent;
+    const totalHoursWorked = locked ? existingRec!.totalHoursWorked : liveHoursWorked;
+    const hourlyRate = locked ? existingRec!.hourlyRate : liveHourlyRate;
+    const computedPay = locked ? existingRec!.computedPay : liveComputedPay;
+    const finalPayable = locked ? existingRec!.finalPayable : liveFinalPayable;
+    const incentiveEarned = locked
+      ? (existingRec!.incentiveEarned ??
+          Math.max(0, existingRec!.finalPayable - existingRec!.computedPay - (existingRec!.manualAdjustment || 0)))
+      : liveIncentive;
 
     return {
       id: existingRec?.id || `calc-${emp.id}-${month}`,
