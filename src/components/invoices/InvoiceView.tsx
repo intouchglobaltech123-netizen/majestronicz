@@ -464,55 +464,56 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   ? 'In-progress drafts saved in this browser'
                   : "Today's tax invoices — search any past bill, or use Reports for a date range"}
               </p>
+
+              {/* Multi-tab bill strip — starts right under the heading (small gap, left aligned) */}
+              {activeTab === 'new' && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[70vw]">
+                    {openBills.map((tab) => {
+                      const isActive = tab.id === activeBillId;
+                      const isQuote = tab.documentType === 'Quotation';
+                      return (
+                        <div
+                          key={tab.id}
+                          onClick={() => setActiveBillId(tab.id)}
+                          className={cn(
+                            'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
+                            isActive
+                              ? isQuote
+                                ? 'bg-slate-800 text-white border-slate-900'
+                                : 'bg-red-600 text-white border-red-700'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                          )}
+                        >
+                          {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
+                          <span className="max-w-[110px] truncate">{tab.label}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
+                            className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
+                            title="Close this bill"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleStartBlank('Invoice')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
+                    title="Start a new sale bill in another tab"
+                  >
+                    <Plus className="h-3 w-3" /> New Sale
+                  </button>
+                </div>
+              )}
             </div>
         </div>
 
         {/* Action Buttons specific to current sub-view */}
         <div className="flex items-center gap-2 gap-y-2 flex-wrap justify-end min-w-0">
-          {/* Multi-tab bill strip lives on the RIGHT of the heading in New Sale (compact) */}
-          {activeTab === 'new' && (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[52vw]">
-                {openBills.map((tab) => {
-                  const isActive = tab.id === activeBillId;
-                  const isQuote = tab.documentType === 'Quotation';
-                  return (
-                    <div
-                      key={tab.id}
-                      onClick={() => setActiveBillId(tab.id)}
-                      className={cn(
-                        'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
-                        isActive
-                          ? isQuote
-                            ? 'bg-slate-800 text-white border-slate-900'
-                            : 'bg-red-600 text-white border-red-700'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                      )}
-                    >
-                      {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
-                      <span className="max-w-[110px] truncate">{tab.label}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
-                        className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
-                        title="Close this bill"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleStartBlank('Invoice')}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors border border-red-700"
-                title="Start a new sale bill in another tab"
-              >
-                <Plus className="h-3 w-3" /> New Sale
-              </button>
-            </div>
-          )}
 
           {/* Neat today's metrics — segmented mini-card (ONLY on the Sales Invoices ledger) */}
           {activeTab === 'ledger' && (
