@@ -32,6 +32,7 @@ export const DailyCashRegisterView: React.FC = () => {
     isAllBranches,
     switchBranch,
     invoices,
+    payments,
     cashRegisters,
     getDailyCashRegister,
     addCashExpense,
@@ -177,11 +178,32 @@ export const DailyCashRegisterView: React.FC = () => {
     };
   }, [currentRegister.expenses]);
 
+  // Cash movements from the Payment ledger for this branch/day: a cash receipt
+  // from a customer adds to the drawer, a cash payment to a vendor removes from it.
+  // These were previously ignored, so the drawer never reflected them (CASH2-6).
+  const cashLedger = useMemo(() => {
+    let inAmt = 0;
+    let outAmt = 0;
+    for (const p of payments || []) {
+      if (p.branchId !== activeBranchId || p.date !== selectedDate) continue;
+      if ((p.paymentMode || '').toLowerCase() !== 'cash') continue;
+      if (p.type === 'in') inAmt += p.amount || 0;
+      else if (p.type === 'out') outAmt += p.amount || 0;
+    }
+    return { in: Math.round(inAmt * 100) / 100, out: Math.round(outAmt * 100) / 100 };
+  }, [payments, activeBranchId, selectedDate]);
+
   // CLOSING BALANCE FORMULA:
-  // Opening Amount + Cash Sales (from Sales section) - Cash Expenses (Cash portion only)
+  // Opening + Cash Sales + Cash Receipts (ledger) − Cash Vendor Payments (ledger) − Cash Expenses
   const closingBalance = useMemo(() => {
-    return Math.round(((currentRegister.openingAmount || 0) + salesBreakdown.cash - expenseBreakdown.cash) * 100) / 100;
-  }, [currentRegister.openingAmount, salesBreakdown.cash, expenseBreakdown.cash]);
+    return Math.round(
+      ((currentRegister.openingAmount || 0)
+        + salesBreakdown.cash
+        + cashLedger.in
+        - cashLedger.out
+        - expenseBreakdown.cash) * 100
+    ) / 100;
+  }, [currentRegister.openingAmount, salesBreakdown.cash, cashLedger.in, cashLedger.out, expenseBreakdown.cash]);
 
   const activeBranchObj = BRANCHES.find((b) => b.id === activeBranchId) || BRANCHES[0];
 
@@ -423,6 +445,8 @@ export const DailyCashRegisterView: React.FC = () => {
         isOpeningOverridden={currentRegister.isOpeningOverridden}
         overrideReason={currentRegister.overrideReason}
         cashSales={salesBreakdown.cash}
+        cashReceipts={cashLedger.in}
+        cashPaid={cashLedger.out}
         cashExpenses={expenseBreakdown.cash}
         gpayExpenses={expenseBreakdown.gpay}
         closingBalance={closingBalance}

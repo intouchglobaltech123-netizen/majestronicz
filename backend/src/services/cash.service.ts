@@ -36,7 +36,13 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
     const cashExpenses = (last.expenses as any[])
       .filter((e) => e.approvalStatus == null || e.approvalStatus === 'approved')
       .reduce((s, e) => s + (e.cashAmount || 0), 0);
-    return last.openingAmount + cashSales - cashExpenses;
+    // Cash receipts/vendor payments from the Payment ledger also move the drawer,
+    // so the carried-forward opening matches the day's real closing (CASH2-6).
+    const dayPayments = await tx.payment.findMany({ where: { branchId, date: last.date } });
+    const isCash = (p: any) => (p.paymentMode || '').toLowerCase() === 'cash';
+    const cashIn = dayPayments.filter((p: any) => p.type === 'in' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+    const cashOut = dayPayments.filter((p: any) => p.type === 'out' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+    return last.openingAmount + cashSales + cashIn - cashOut - cashExpenses;
   }
   return branchId === 'erode-hq' ? 12000 : 8000;
 }

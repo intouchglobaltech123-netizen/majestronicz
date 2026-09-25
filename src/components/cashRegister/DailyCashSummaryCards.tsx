@@ -17,6 +17,8 @@ interface Props {
   isOpeningOverridden?: boolean;
   overrideReason?: string;
   cashSales: number;
+  cashReceipts?: number; // cash received from customers (Payment ledger) — adds to drawer
+  cashPaid?: number; // cash paid to vendors (Payment ledger) — removes from drawer
   cashExpenses: number;
   gpayExpenses: number;
   closingBalance: number;
@@ -33,6 +35,8 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   openingAmount,
   isOpeningOverridden,
   cashSales,
+  cashReceipts = 0,
+  cashPaid = 0,
   cashExpenses,
   gpayExpenses,
   closingBalance,
@@ -93,6 +97,22 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
               <span className="font-semibold text-emerald-700">
                 ₹{cashSales.toLocaleString('en-IN')} (Cash Sales)
               </span>
+              {cashReceipts > 0 && (
+                <>
+                  <span className="text-emerald-600 font-bold">+</span>
+                  <span className="font-semibold text-emerald-700">
+                    ₹{cashReceipts.toLocaleString('en-IN')} (Cash Receipts)
+                  </span>
+                </>
+              )}
+              {cashPaid > 0 && (
+                <>
+                  <span className="text-rose-600 font-bold">-</span>
+                  <span className="font-semibold text-rose-700">
+                    ₹{cashPaid.toLocaleString('en-IN')} (Vendor Cash)
+                  </span>
+                </>
+              )}
               <span className="text-rose-600 font-bold">-</span>
               <span className="font-semibold text-rose-700">
                 ₹{cashExpenses.toLocaleString('en-IN')} (Cash Exp)
