@@ -83,11 +83,32 @@ export function receivePurchaseOrderStock(
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId);
 
+    // A cancelled or already fully-received PO must not accept more stock — doing
+    // so let a cancelled order flip to Received and create stock (PUR-1).
+    if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot receive stock against a cancelled purchase order.', 400);
+    if (po.status === 'Received') throw new AppError('PO_COMPLETE', 'This purchase order is already fully received.', 400);
+
     const valid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
     if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
 
     const ts = nowIso();
     const lines = po.items as any[];
+
+    // Per-line receiving limits (PUR2-2): the item must be on the PO, quantities
+    // can't be negative, and good + damaged this receipt can't exceed what's still
+    // outstanding on the line — otherwise stock is created from nothing.
+    for (const rec of valid) {
+      const line = lines.find((l) => l.itemId === rec.itemId);
+      if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
+      const good = Number(rec.quantityReceived) || 0;
+      const dmg = Number(rec.damagedQuantity) || 0;
+      if (good < 0 || dmg < 0) throw new AppError('NEGATIVE_QTY', 'Received or damaged quantity cannot be negative.', 400);
+      const remaining = (line.quantityOrdered || 0) - (line.receivedQuantity || 0);
+      if (good + dmg > remaining) {
+        throw new AppError('OVER_RECEIPT', `Cannot receive ${good + dmg} of "${line.itemName || rec.itemId}" — only ${remaining} remaining on the PO.`, 400);
+      }
+    }
+
     const updatedLines = lines.map((line) => {
       const rec = valid.find((r) => r.itemId === line.itemId);
       if (!rec) return line;

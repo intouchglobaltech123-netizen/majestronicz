@@ -65,9 +65,29 @@ export function createSale(inv: any, reqUser?: any) {
     });
     if (reg) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
 
+    // Reject nonsensical line quantities: a zero or negative quantity produced a
+    // ₹0 bill and, worse, a negative quantity *added* stock instead of selling it
+    // (SAL2-8).
+    for (const li of (inv.items as any[]) || []) {
+      const q = Number(li.quantity);
+      if (!Number.isFinite(q) || q <= 0) {
+        throw new AppError('INVALID_QTY', 'Every line must have a quantity greater than zero.', 400);
+      }
+    }
+
     const existing = await tx.invoice.findUnique({ where: { id: inv.id } });
     const isNewSale = !existing;
     const oldInvoice = existing;
+    if (existing) {
+      // A voided bill is final — it must not be edited back into a live sale that
+      // adds phantom stock (SAL2-7).
+      if (existing.isVoided) throw new AppError('VOIDED', 'A voided bill cannot be edited.', 400);
+      // Branch and invoice number are immutable on edit: changing the branch
+      // orphans the original branch's stock, and changing the number breaks the
+      // sequence (SAL2-6).
+      inv.branchId = existing.branchId;
+      inv.invoiceNumber = existing.invoiceNumber;
+    }
     if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
