@@ -22,7 +22,7 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
 import { CustomerFormModal } from '../customers/CustomerFormModal';
 import { CustomerDetailModal } from '../customers/CustomerDetailModal';
@@ -540,7 +540,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   c.name, c.phone, c.customerType || 'Retail', c.gstin || '', c.address || '',
                   c.purchaseCount || 0, (c.totalSpent || 0).toFixed(2),
                 ]),
-                title: 'Customers', filename: `customers-${new Date().toISOString().slice(0, 10)}`,
+                title: 'Customers', filename: `customers-${getTodayDateString()}`,
               })}
             />
 
@@ -888,7 +888,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   v.vendorName, v.contactNo || '', v.gstin || '', v.address || '',
                   (vendorPayable.get(v.id) || 0).toFixed(2),
                 ]),
-                title: 'Suppliers', filename: `suppliers-${new Date().toISOString().slice(0, 10)}`,
+                title: 'Suppliers', filename: `suppliers-${getTodayDateString()}`,
               })}
             />
           </div>

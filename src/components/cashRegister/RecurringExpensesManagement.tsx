@@ -10,7 +10,7 @@ import {
   MONTH_NAMES,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 import {
   Plus,
   Edit2,
@@ -63,7 +63,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
   const [formPaymentMode, setFormPaymentMode] = useState<'Cash' | 'GPay'>('Cash');
 
   // Today context for monthly status calculation
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => getTodayDateString(), []);
   const currentMonthKey = todayStr.substring(0, 7); // YYYY-MM
   const currentMonthNumber = parseInt(todayStr.split('-')[1], 10); // 1 to 12
   const currentDay = parseInt(todayStr.split('-')[2], 10);

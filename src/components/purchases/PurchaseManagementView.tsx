@@ -13,7 +13,7 @@ import { Vendor } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
   const { purchaseOrders, vendors, canManagePurchases, activeSubTab } = useErp();
@@ -37,7 +37,7 @@ export const PurchaseManagementView: React.FC = () => {
     }
   }, [activeSubTab]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
 
   // KPI Calculations
   const activeOrders = purchaseOrders.filter(

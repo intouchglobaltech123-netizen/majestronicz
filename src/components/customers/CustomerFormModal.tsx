@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Customer, CustomerType, cleanCustomerName, gstStateInfo } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { X, User, MapPin, FileText, Building2 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 import { PhoneInput } from '../common/PhoneInput';
 
 interface CustomerFormModalProps {
@@ -84,7 +84,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       address: address.trim(),
       gstin: gstin.trim().toUpperCase() || undefined,
       notes: notes.trim() || undefined,
-      firstPurchaseDate: customerToEdit?.firstPurchaseDate || new Date().toISOString().split('T')[0],
+      firstPurchaseDate: customerToEdit?.firstPurchaseDate || getTodayDateString(),
       purchaseCount: customerToEdit?.purchaseCount ?? 0,
       totalSpent: customerToEdit?.totalSpent ?? 0,
       lastRewardRedeemedPurchaseCount: customerToEdit?.lastRewardRedeemedPurchaseCount,

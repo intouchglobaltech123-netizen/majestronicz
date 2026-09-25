@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Search,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 
 interface Props {
   branchScope: BranchScope;
@@ -167,7 +167,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
 
   const handleExport = (format: ExportFormat = 'csv') => {
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
-    const filename = `Stock_Valuation_Report_${branchLabel}_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Stock_Valuation_Report_${branchLabel}_${getTodayDateString()}.csv`;
 
     const headers = [
       'Item Name',

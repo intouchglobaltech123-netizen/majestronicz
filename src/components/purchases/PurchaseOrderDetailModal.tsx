@@ -28,7 +28,7 @@ import {
   BRANCHES,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { toast } from 'sonner';
 import { ReceiveStockModal } from './ReceiveStockModal';
@@ -87,7 +87,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const totalOrdered = purchaseOrder.items.reduce((s, it) => s + it.quantityOrdered, 0);
   const totalReceived = purchaseOrder.items.reduce((s, it) => s + (it.receivedQuantity || 0), 0);
   const progressPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
   const isOverdue =
     (purchaseOrder.status === 'Ordered' || purchaseOrder.status === 'Partially Received') &&
     purchaseOrder.expectedDeliveryDate < todayStr;

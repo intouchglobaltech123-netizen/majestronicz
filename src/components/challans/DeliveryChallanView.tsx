@@ -13,7 +13,7 @@ import {
   Calendar,
   Building,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 
 interface DeliveryChallanViewProps {
   /** Which tab to open first when embedded (e.g. inside the Sales screen). */
@@ -56,7 +56,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
 
   // Dispatch metrics.
   const challanStats = useMemo(() => {
-    const month = new Date().toISOString().slice(0, 7);
+    const month = getTodayDateString().slice(0, 7);
     const monthList = challans.filter((c) => (c.date || '').startsWith(month));
     const totalUnits = challans.reduce((t, c) => t + ((c.items as any[]) || []).reduce((s, it) => s + (it.quantity || 0), 0), 0);
     return {

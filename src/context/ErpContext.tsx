@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
+import { getTodayDateString } from '../lib/utils';
 
 /**
  * Persists a collection to the backend whenever it changes, so Postgres always
@@ -1759,7 +1760,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const fromBranchName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
     const toBranchName = BRANCHES.find((b) => b.id === toBranch)?.name || toBranch;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayDateString();
     const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
     let generatedChallanNo: string | undefined = undefined;
@@ -2001,7 +2002,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (matchingDates.length === 0) return { lastSaleDate: null, daysSinceLastSale: null, hasSales: false, isDeadStock: true };
     matchingDates.sort((a, b) => b.localeCompare(a));
     const latestDate = matchingDates[0];
-    const todayMs = new Date(new Date().toISOString().split('T')[0]).getTime();
+    const todayMs = new Date(getTodayDateString()).getTime();
     const daysSinceLastSale = Math.max(0, Math.floor((todayMs - new Date(latestDate).getTime()) / 86400000));
     return { lastSaleDate: latestDate, daysSinceLastSale, hasSales: true, isDeadStock: daysSinceLastSale >= threshold };
   };
@@ -3289,7 +3290,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `est-conv-${Date.now()}`,
       estimateNumber: targetType === 'estimate' ? getNextEstimateNumber(enq.branchId) : `ENQ-${enq.enquiryNumber}`,
       branchId: enq.branchId,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
       customerName: enq.customerName,
       customerContact: enq.customerPhone,
@@ -3615,7 +3616,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newReceivingEvent: PurchaseOrderReceivingEvent = {
       id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       timestamp: new Date().toISOString(),
       receivedBy: currentUser.name || currentUser.role,
       notes: notes?.trim() || undefined,
@@ -3654,7 +3655,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
-          date: new Date().toISOString().split('T')[0],
+          date: getTodayDateString(),
           createdBy: currentUser.name || currentUser.role,
           lines: dnLines,
           totalAmount: dnTotal,
@@ -3670,7 +3671,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (payNow > 0) {
       payments.unshift({
         id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayDateString(),
         amount: payNow,
         mode: payment?.mode || 'Cash',
         by: currentUser.name || currentUser.role,
@@ -3775,7 +3776,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (pay <= 0) { toast.error('Enter a payment amount greater than 0'); return; }
     const entry = {
       id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       amount: pay, mode: mode || 'Cash', by: currentUser.name || currentUser.role,
     };
     const updatedPo: PurchaseOrder = {
@@ -3896,7 +3897,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (emp.status !== 'Active') return { success: false, message: 'Employee profile is inactive' };
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = getTodayDateString(now);
     const timeStr = customTime || now.toTimeString().split(' ')[0];
 
     // Check duplicate check-in today
@@ -3942,7 +3943,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!emp) return { success: false, message: 'Employee not found' };
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = getTodayDateString(now);
     const timeStr = customTime || now.toTimeString().split(' ')[0];
 
     // Find today's check-in

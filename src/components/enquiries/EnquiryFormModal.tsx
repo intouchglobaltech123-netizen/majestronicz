@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES, Enquiry } from '../../types';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 import {
   X,
   User,
@@ -64,7 +64,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
   const [newItemUnit, setNewItemUnit] = useState('Units');
 
   // Date & Time
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getTodayDateString());
   const [time, setTime] = useState(() => {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -74,7 +74,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
   const [expectedRestockDate, setExpectedRestockDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return getTodayDateString(d);
   });
 
   // Notes
@@ -84,7 +84,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
   const [reminderDate, setReminderDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    return getTodayDateString(d);
   });
   const [reminderTime, setReminderTime] = useState('11:00');
   const [reminderNotes, setReminderNotes] = useState('');
@@ -96,7 +96,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) return;
     const now = new Date();
-    const iso = (d: Date) => d.toISOString().split('T')[0];
+    const iso = (d: Date) => getTodayDateString(d);
     const restock = new Date();
     restock.setDate(restock.getDate() + 7);
     const reminder = new Date();

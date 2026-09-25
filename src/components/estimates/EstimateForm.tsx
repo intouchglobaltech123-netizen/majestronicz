@@ -10,7 +10,7 @@ import {
   ComboItem,
   cleanCustomerName,
 } from '../../types';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { calculateLineTax, calculateTaxBreakdown, calculateInvoiceTotals } from '../../lib/taxCalculations';
 import {
   Plus,
@@ -63,7 +63,7 @@ export const EstimateForm: React.FC<Props> = ({
 
   // Estimate Header details
   const [estimateNumber, setEstimateNumber] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getTodayDateString());
   const [time, setTime] = useState(() => {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -118,7 +118,7 @@ export const EstimateForm: React.FC<Props> = ({
     } else if (duplicateSourceEstimate) {
       // Duplicate quote: copy branch, withGst, terms, line items; CLEAR customer, fresh date/time & sequence
       setSelectedBranch(duplicateSourceEstimate.branchId);
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayDateString());
       const d = new Date();
       setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
       setCustomerId(undefined);

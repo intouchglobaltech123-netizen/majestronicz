@@ -11,6 +11,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
+import { getTodayDateString } from '../../lib/utils';
 import { GeoLocationCapture, BRANCHES, BranchScope } from '../../types';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
@@ -351,7 +352,7 @@ export const AttendanceLogView: React.FC = () => {
                         ) : (
                           // A missing check-out on a PAST day is a stale shift (needs
                           // correction) — not a live "in progress" one.
-                          (rec.date || '') < new Date().toISOString().slice(0, 10) ? (
+                          (rec.date || '') < getTodayDateString() ? (
                             <span className="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded-none border border-rose-200 font-bold inline-flex items-center gap-1" title="No check-out recorded — correct before running payroll">
                               <AlertTriangle className="h-3 w-3" />
                               <span>Missing check-out</span>

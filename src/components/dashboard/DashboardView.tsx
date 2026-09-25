@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance } from '../../types';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
@@ -75,11 +75,11 @@ export const DashboardView: React.FC = () => {
   const itemByCode = useMemo(() => new Map(items.map((it) => [it.itemCode, it])), [items]);
   const itemByName = useMemo(() => new Map(items.map((it) => [(it.itemName || '').toLowerCase(), it])), [items]);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const today = getTodayDateString();
+  const yesterday = getTodayDateString(new Date(Date.now() - 864e5));
   const thisMonth = today.slice(0, 7);
   const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+  const lastMonth = getTodayDateString(lastMonthDate).slice(0, 7);
 
   const inScope = (branchId: string) => isAllBranches || branchId === currentBranch;
   const scopedSales = useMemo(
@@ -154,7 +154,7 @@ export const DashboardView: React.FC = () => {
   const trend = useMemo(() => {
     const days: { date: string; label: string; total: number }[] = [];
     for (let i = trendDays - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+      const d = getTodayDateString(new Date(Date.now() - i * 864e5));
       const total = scopedSales.filter((x) => x.date === d).reduce((t, x) => t + netRevenue(x), 0);
       days.push({ date: d, label: d.slice(5), total });
     }

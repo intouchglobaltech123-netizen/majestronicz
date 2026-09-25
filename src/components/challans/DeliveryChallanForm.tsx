@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
+import { getTodayDateString } from '../../lib/utils';
 import {
   Item,
   DeliveryChallan,
@@ -41,7 +42,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
 
   // Form State
   const [challanNumber, setChallanNumber] = useState<string>('');
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => getTodayDateString());
   const [time, setTime] = useState<string>(() => {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -90,7 +91,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
       setReceivedByDate(initialChallan.receivedBy?.date || '');
     } else {
       setChallanNumber(getNextChallanNumber());
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayDateString();
       setDate(today);
       const now = new Date();
       setTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);

@@ -13,7 +13,7 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 
 interface Props {
   startDate: string;
@@ -38,7 +38,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
     });
   }, [purchaseOrders, startDate, endDate, branchScope]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
 
   // Compute Metrics & Overdue List
   const metrics = useMemo(() => {

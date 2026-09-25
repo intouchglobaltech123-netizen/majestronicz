@@ -16,7 +16,7 @@ import { useErp } from '../../context/ErpContext';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { VendorMasterModal } from './VendorMasterModal';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 interface PurchaseOrderFormModalProps {
   isOpen: boolean;
@@ -63,8 +63,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
 
   // Dates
-  const todayStr = new Date().toISOString().split('T')[0];
-  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
+  const nextWeek = getTodayDateString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [orderDate, setOrderDate] = useState(todayStr);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(nextWeek);
 

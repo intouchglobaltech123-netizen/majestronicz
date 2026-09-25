@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 import {
@@ -84,7 +84,7 @@ export const ReportsView: React.FC = () => {
   const applyPreset = (preset: 'month' | 'today' | '30days' | 'all') => {
     setActivePreset(preset);
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = getTodayDateString(now);
 
     if (preset === 'today') {
       setStartDate(today);
@@ -99,7 +99,7 @@ export const ReportsView: React.FC = () => {
     } else if (preset === '30days') {
       const prior = new Date();
       prior.setDate(prior.getDate() - 30);
-      setStartDate(prior.toISOString().split('T')[0]);
+      setStartDate(getTodayDateString(prior));
       setEndDate(today);
     } else if (preset === 'all') {
       setStartDate('2026-01-01');

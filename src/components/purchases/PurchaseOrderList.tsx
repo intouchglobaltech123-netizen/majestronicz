@@ -24,7 +24,7 @@ import { useErp } from '../../context/ErpContext';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 interface PurchaseOrderListProps {
   onCreateNewPo: () => void;
@@ -50,7 +50,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   const [selectedPoForReceive, setSelectedPoForReceive] = useState<PurchaseOrder | null>(null);
   const [selectedPoForPdf, setSelectedPoForPdf] = useState<PurchaseOrder | null>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
 
   const isPoOverdue = (po: PurchaseOrder): boolean => {
     return (

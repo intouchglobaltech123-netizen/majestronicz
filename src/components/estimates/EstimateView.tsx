@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Estimate, BRANCHES } from '../../types';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { EstimateForm } from './EstimateForm';
 import { EstimatePdfModal } from './EstimatePdfModal';
 import {
@@ -50,7 +50,7 @@ export const EstimateView: React.FC = () => {
   // Scoped quote metrics.
   const quoteStats = useMemo(() => {
     const scoped = estimates.filter((e) => isAllBranches || e.branchId === currentBranch);
-    const month = new Date().toISOString().slice(0, 7);
+    const month = getTodayDateString().slice(0, 7);
     const totalValue = scoped.reduce((t, e) => t + (e.grandTotal || 0), 0);
     const monthList = scoped.filter((e) => (e.date || '').startsWith(month));
     return {

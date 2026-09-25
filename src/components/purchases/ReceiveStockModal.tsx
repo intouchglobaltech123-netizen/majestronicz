@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { PurchaseOrder, BRANCHES, COMPANY_PROFILE } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 import { toast } from 'sonner';
 
 interface ReceiveStockModalProps {
@@ -164,7 +164,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         <div><h1>${esc(COMPANY_PROFILE.name)}</h1><div style="color:#555">${esc(COMPANY_PROFILE.address)}</div>
         <div style="color:#555">GSTIN: ${esc(COMPANY_PROFILE.gstin)} · ${esc(COMPANY_PROFILE.phone)}</div></div>
         <div style="text-align:right"><h2 style="margin:0;color:#b91c1c">DEBIT NOTE</h2>
-        <div><strong>${esc(noteNumber)}</strong></div><div>Date: ${new Date().toISOString().slice(0, 10)}</div></div>
+        <div><strong>${esc(noteNumber)}</strong></div><div>Date: ${getTodayDateString()}</div></div>
       </div>
       <div style="margin-top:12px"><strong>Vendor:</strong> ${esc(purchaseOrder.vendorName)}${purchaseOrder.vendorGstin ? ` · GSTIN: ${esc(purchaseOrder.vendorGstin)}` : ''}</div>
       <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected goods at quality check</div>

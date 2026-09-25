@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Download, FileSpreadsheet, FileText, Calendar } from 'lucide-react';
 import { exportToCsv } from '../../utils/csvExport';
+import { getTodayDateString } from '../../lib/utils';
 import { exportToExcel, exportToPdf } from '../../utils/exportHelpers';
 
 export type ExportRows = { headers: string[]; rows: (string | number)[][]; title: string; filename: string };
@@ -18,8 +19,8 @@ interface Props {
  * download the current list as PDF / Excel / CSV. Each page supplies `build`.
  */
 export const ListExportBar: React.FC<Props> = ({ build, withDateRange = true, className }) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const today = getTodayDateString();
+  const monthAgo = getTodayDateString(new Date(Date.now() - 30 * 864e5));
   const [from, setFrom] = useState(withDateRange ? monthAgo : '');
   const [to, setTo] = useState(withDateRange ? today : '');
 

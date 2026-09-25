@@ -16,7 +16,7 @@ import { PayrollSummaryView } from './PayrollSummaryView';
 import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 
 export const HrmView: React.FC = () => {
   const {
@@ -45,7 +45,7 @@ export const HrmView: React.FC = () => {
     }
   }, [activeSubTab]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
   const currentMonthStr = '2026-09';
 
   // KPI Calculations

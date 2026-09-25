@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   User,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 import { toast } from 'sonner';
 
 interface Props {
@@ -24,16 +24,16 @@ export const FollowUpReminderModal: React.FC<Props> = ({
   enquiry,
   onConfirm,
 }) => {
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTodayStr = () => getTodayDateString();
   const getTomorrowStr = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    return getTodayDateString(d);
   };
   const getInDaysStr = (days: number) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
+    return getTodayDateString(d);
   };
 
   const [dueDate, setDueDate] = useState<string>(() => {

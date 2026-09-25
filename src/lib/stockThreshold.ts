@@ -1,4 +1,5 @@
 import { Invoice } from '../types';
+import { getTodayDateString } from './utils';
 
 /**
  * Average units of an item sold per month, from real sales history.
@@ -14,7 +15,7 @@ export function averageMonthlyUnitsSold(
 ): number {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - windowDays);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = getTodayDateString(cutoff);
 
   let units = 0;
   for (const inv of invoices) {

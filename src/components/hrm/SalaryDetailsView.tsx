@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Employee, BRANCHES } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 /**
  * Salary Details — per-employee compensation & attendance breakdown.
@@ -161,7 +161,7 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
     [attendanceRecords, employee.id]
   );
 
-  const currentMonthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const currentMonthStr = getTodayDateString().slice(0, 7); // YYYY-MM
 
   const stats = useMemo(() => {
     const totalDaysPresent = empAttendance.length;

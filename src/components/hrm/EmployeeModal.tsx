@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, User, KeyRound, Check, Lock, ShieldCheck } from 'lucide-react';
 import { Employee, BranchId, Role } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { cleanPhoneDigits } from '../../lib/utils';
+import { cleanPhoneDigits, getTodayDateString } from '../../lib/utils';
 import { PhoneInput } from '../common/PhoneInput';
 
 type LoginRole = '' | Extract<Role, 'Manager' | 'Billing' | 'Purchase' | 'Sales'>;
@@ -43,7 +43,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [joinedDate, setJoinedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [joinedDate, setJoinedDate] = useState(getTodayDateString());
   const [loginRole, setLoginRole] = useState<LoginRole>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +80,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setStatus('Active');
       setPhone('');
       setEmail('');
-      setJoinedDate(new Date().toISOString().split('T')[0]);
+      setJoinedDate(getTodayDateString());
       setLoginRole('');
     }
     setErrors({});
