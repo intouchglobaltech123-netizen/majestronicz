@@ -835,8 +835,18 @@ export interface PurchaseOrder {
   attachments?: PurchaseOrderAttachment[];
   receivingHistory?: PurchaseOrderReceivingEvent[];
   debitNotes?: PODebitNote[]; // Quality-check rejections billed back to the vendor
+  payments?: POPayment[]; // Vendor payment history (each amount paid, with mode + who)
   createdAt: string;
   updatedAt: string;
+}
+
+/** A single payment made to the vendor against a PO. */
+export interface POPayment {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  mode: string; // Cash / GPay / HDFC / Bank Transfer / Cheque
+  by: string;
 }
 
 /** A debit note raised on the vendor for damaged / rejected goods found at receiving (QC). */

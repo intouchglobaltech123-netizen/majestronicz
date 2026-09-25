@@ -3572,6 +3572,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const payNow = Math.max(0, Number(payment?.amount) || 0);
     const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
+    const payments = [...(po.payments || [])];
+    if (payNow > 0) {
+      payments.unshift({
+        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        date: new Date().toISOString().split('T')[0],
+        amount: payNow,
+        mode: payment?.mode || 'Cash',
+        by: currentUser.name || currentUser.role,
+      });
+    }
 
     const updatedPo: PurchaseOrder = {
       ...po,
@@ -3581,6 +3591,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amountPaid: newAmountPaid,
       receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
       debitNotes,
+      payments,
       updatedAt: new Date().toISOString(),
     };
 

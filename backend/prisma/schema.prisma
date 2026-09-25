@@ -328,6 +328,7 @@ model PurchaseOrder {
   attachments         Json?
   receivingHistory    Json?
   debitNotes          Json?
+  payments            Json?
   createdAt           String
   updatedAt           String
 }

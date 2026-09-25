@@ -150,6 +150,13 @@ export function receivePurchaseOrderStock(
     // Optional vendor payment recorded at the moment of receiving.
     const payNow = Math.max(0, Number(payment?.amount) || 0);
     const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
+    const payments = (po.payments as any[]) || [];
+    if (payNow > 0) {
+      payments.unshift({
+        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        date: ts.split('T')[0], amount: payNow, mode: payment?.mode || 'Cash', by: actor,
+      });
+    }
 
     await tx.purchaseOrder.update({
       where: { id: poId },
@@ -157,7 +164,7 @@ export function receivePurchaseOrderStock(
         items: updatedLines, status, totalAmount: newTotalAmount,
         amountPaid: newAmountPaid,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
-        debitNotes,
+        debitNotes, payments,
         updatedAt: ts,
       },
     });
