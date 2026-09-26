@@ -17,6 +17,13 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
   const { purchaseOrders, payments, canRecordPayment, deletePayment, currentBranch, isAllBranches } = useErp();
   const [isPayOpen, setIsPayOpen] = useState(false);
 
+  // Debit notes billed back to the supplier reduce what we still owe on a PO.
+  const poDebit = (po: { debitNotes?: { totalAmount: number }[] }): number =>
+    (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+  // Remaining owed on a PO = total − paid − debit notes.
+  const poBalance = (po: { totalAmount?: number; amountPaid?: number; debitNotes?: { totalAmount: number }[] }): number =>
+    Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0) - poDebit(po));
+
   const vendorPOs = useMemo(
     () =>
       vendor
@@ -36,9 +43,15 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
           refId: po.id,
           refNumber: po.poNumber,
           date: po.date,
-          balanceDue: Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0)),
+          balanceDue: poBalance(po),
         }))
         .filter((o) => o.balanceDue > 0.5),
+    [vendorPOs]
+  );
+
+  // POs the supplier is still owed on — the detailed "what's owed" breakdown.
+  const outstandingPOs = useMemo(
+    () => vendorPOs.filter((po) => poBalance(po) > 0.5),
     [vendorPOs]
   );
 
@@ -114,7 +127,14 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           {/* Purchase bills */}
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Purchase Bills (POs)</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Purchase Bills (POs)</p>
+              {outstandingPOs.length > 0 && (
+                <span className="text-[11px] font-bold text-rose-700">
+                  {outstandingPOs.length} unpaid · {formatCurrency(totalPayable)} owed
+                </span>
+              )}
+            </div>
             {vendorPOs.length === 0 ? (
               <p className="text-xs text-slate-400 py-4 text-center">No purchase orders for this supplier.</p>
             ) : (
@@ -131,20 +151,38 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {vendorPOs.map((po) => {
-                      const bal = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
+                      const debit = poDebit(po);
+                      const bal = poBalance(po);
                       return (
-                        <tr key={po.id} className="hover:bg-slate-50/70">
+                        <tr key={po.id} className={`hover:bg-slate-50/70 ${bal > 0.5 ? 'bg-rose-50/30' : ''}`}>
                           <td className="py-2 px-3 font-mono font-bold text-blue-700">{po.poNumber}</td>
                           <td className="py-2 px-3 text-slate-600">{po.date}</td>
                           <td className="py-2 px-3 text-right font-mono text-slate-800">{formatCurrency(po.totalAmount || 0)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatCurrency(po.amountPaid || 0)}</td>
-                          <td className={`py-2 px-3 text-right font-mono font-bold ${bal > 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                            {bal > 0 ? formatCurrency(bal) : '—'}
+                          <td className="py-2 px-3 text-right font-mono text-emerald-700">
+                            {formatCurrency(po.amountPaid || 0)}
+                            {debit > 0 && (
+                              <div className="text-[10px] font-medium text-slate-400" title="Debit note billed back to the supplier">
+                                −{formatCurrency(debit)} debit
+                              </div>
+                            )}
+                          </td>
+                          <td className={`py-2 px-3 text-right font-mono font-bold ${bal > 0.5 ? 'text-rose-700' : 'text-slate-400'}`}>
+                            {bal > 0.5 ? formatCurrency(bal) : '—'}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
+                  {totalPayable > 0.5 && (
+                    <tfoot>
+                      <tr className="bg-rose-50/60 border-t border-rose-100 text-rose-800 font-bold">
+                        <td className="py-2 px-3 uppercase text-[11px] tracking-wider" colSpan={4}>
+                          Total Remaining ({outstandingPOs.length} PO{outstandingPOs.length === 1 ? '' : 's'})
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(totalPayable)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             )}

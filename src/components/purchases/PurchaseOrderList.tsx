@@ -43,7 +43,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<PurchaseOrderStatus | 'ALL'>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<PurchaseOrderStatus | 'ALL' | 'DUE'>('ALL');
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
 
   // Active Modals
@@ -59,14 +59,27 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
     );
   };
 
+  // Amount still owed to the supplier for a PO = total − paid − debit notes billed back.
+  const poRemaining = (po: PurchaseOrder): number => {
+    const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+    return Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0) - debit);
+  };
+
+  // A PO has an outstanding supplier balance (used by the "Due Payment" tab).
+  const isPoDue = (po: PurchaseOrder): boolean => po.status !== 'Cancelled' && poRemaining(po) > 0.5;
+
   // Filtered dataset
   const filteredPos = purchaseOrders.filter((po) => {
     // Branch scope filter
     const effectiveScope = branchFilter === 'all' ? null : branchFilter;
     if (effectiveScope && po.branchId !== effectiveScope) return false;
 
-    // Status filter
-    if (selectedStatus !== 'ALL' && po.status !== selectedStatus) return false;
+    // Status filter (the "Due Payment" tab filters by outstanding balance, not PO status)
+    if (selectedStatus === 'DUE') {
+      if (!isPoDue(po)) return false;
+    } else if (selectedStatus !== 'ALL' && po.status !== selectedStatus) {
+      return false;
+    }
 
     // Search query
     if (searchQuery.trim()) {
@@ -131,10 +144,12 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
       {/* Status Segment Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-        {(['ALL', 'Ordered', 'Partially Received', 'Received', 'Cancelled'] as const).map((st) => {
+        {(['ALL', 'DUE', 'Ordered', 'Partially Received', 'Received', 'Cancelled'] as const).map((st) => {
           const count =
             st === 'ALL'
               ? purchaseOrders.length
+              : st === 'DUE'
+              ? purchaseOrders.filter((p) => isPoDue(p)).length
               : purchaseOrders.filter((p) => p.status === st).length;
 
           return (
@@ -147,7 +162,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                   : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
               }`}
             >
-              <span>{st === 'ALL' ? 'All Orders' : st}</span>
+              <span>{st === 'ALL' ? 'All Orders' : st === 'DUE' ? 'Due Payment' : st}</span>
               <span
                 className={`ml-1.5 text-[11px] px-1.5 py-0.2 rounded-none ${
                   selectedStatus === st ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
@@ -277,12 +292,24 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(po.totalAmount)}
                         {(() => {
-                          const due = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
-                          return po.status === 'Cancelled' ? null : due > 0 ? (
-                            <div className="text-[10px] font-bold text-rose-600 mt-0.5" title="Amount still to pay the vendor">
-                              Due {formatCurrency(due)}
-                            </div>
-                          ) : (po.amountPaid || 0) > 0 ? (
+                          if (po.status === 'Cancelled') return null;
+                          const paid = po.amountPaid || 0;
+                          const remaining = poRemaining(po);
+                          if (remaining > 0.5) {
+                            return (
+                              <>
+                                {paid > 0 && (
+                                  <div className="text-[10px] font-medium text-slate-500 mt-0.5" title="Paid to the vendor so far">
+                                    Paid {formatCurrency(paid)}
+                                  </div>
+                                )}
+                                <div className="text-[10px] font-bold text-rose-600 mt-0.5" title="Amount still to pay the vendor">
+                                  Remaining {formatCurrency(remaining)}
+                                </div>
+                              </>
+                            );
+                          }
+                          return paid > 0 ? (
                             <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Paid ✓</div>
                           ) : null;
                         })()}
