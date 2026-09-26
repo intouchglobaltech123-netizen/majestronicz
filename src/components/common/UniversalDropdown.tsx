@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Plus, Check, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -59,6 +60,23 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  // Screen position of the row the flyout belongs to. The options list scrolls
+  // and clips (max-h-52 overflow-y-auto), so a submenu positioned inside it is
+  // cut off the moment it is taller than the remaining space — which is exactly
+  // what happened. It is rendered in a portal instead, anchored to the row's
+  // rectangle, so it escapes the scroll box entirely.
+  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  const openSubmenuAt = (optValue: string, el: HTMLElement | null) => {
+    if (el) {
+      const r = el.getBoundingClientRect();
+      // Flip to the left of the dropdown when there is no room on the right.
+      const width = 224; // w-56
+      const left = r.right + width + 8 > window.innerWidth ? r.left - width - 4 : r.right + 4;
+      setSubmenuPos({ top: r.top, left });
+    }
+    setOpenSubmenu(optValue);
+  };
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newOptionInput, setNewOptionInput] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -165,12 +183,16 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                     <div
                       key={String(opt.value)}
                       className="relative"
-                      onMouseEnter={() => setOpenSubmenu(String(opt.value))}
+                      onMouseEnter={(e) => openSubmenuAt(String(opt.value), e.currentTarget as HTMLElement)}
                       onMouseLeave={() => setOpenSubmenu((cur) => (cur === String(opt.value) ? null : cur))}
                     >
                       <button
                         type="button"
-                        onClick={() => setOpenSubmenu((cur) => (cur === String(opt.value) ? null : String(opt.value)))}
+                        onClick={(e) =>
+                          openSubmenu === String(opt.value)
+                            ? setOpenSubmenu(null)
+                            : openSubmenuAt(String(opt.value), (e.currentTarget.parentElement as HTMLElement) || null)
+                        }
                         aria-haspopup="menu"
                         aria-expanded={isOpenSub}
                         className={cn(
@@ -190,10 +212,13 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                         <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-400 shrink-0 ml-2" />
                       </button>
 
-                      {isOpenSub && (
+                      {isOpenSub && submenuPos && createPortal(
                         <div
                           role="menu"
-                          className="absolute left-full top-0 ml-0.5 w-56 bg-white border border-slate-300 shadow-lg z-50"
+                          style={{ position: 'fixed', top: submenuPos.top, left: submenuPos.left }}
+                          className="w-56 bg-white border border-slate-300 shadow-lg z-[100]"
+                          onMouseEnter={() => setOpenSubmenu(String(opt.value))}
+                          onMouseLeave={() => setOpenSubmenu(null)}
                         >
                           {opt.submenu.map((sub) => (
                             <button
@@ -222,7 +247,8 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                               </span>
                             </button>
                           ))}
-                        </div>
+                        </div>,
+                        document.body,
                       )}
                     </div>
                   );
