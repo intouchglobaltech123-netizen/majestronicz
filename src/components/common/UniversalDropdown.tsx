@@ -81,12 +81,22 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
   const [newOptionInput, setNewOptionInput] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The submenu flyout is rendered in a portal on document.body, so it is NOT a
+  // DOM child of containerRef. Without excluding it here, a click on the flyout
+  // counts as an "outside" click and closes the whole dropdown on mousedown —
+  // before the flyout item's onClick can fire, so clicking a submenu item did
+  // nothing. Track the flyout element and treat clicks inside it as inside.
+  const submenuRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideContainer = containerRef.current?.contains(target);
+      const insideSubmenu = submenuRef.current?.contains(target);
+      if (!insideContainer && !insideSubmenu) {
         setIsOpen(false);
+        setOpenSubmenu(null);
         setIsAddingNew(false);
         setNewOptionInput('');
       }
@@ -214,6 +224,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
 
                       {isOpenSub && submenuPos && createPortal(
                         <div
+                          ref={submenuRef}
                           role="menu"
                           style={{ position: 'fixed', top: submenuPos.top, left: submenuPos.left }}
                           className="w-56 bg-white border border-slate-300 shadow-lg z-[100]"
