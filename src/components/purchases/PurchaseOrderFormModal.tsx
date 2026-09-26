@@ -17,6 +17,7 @@ import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { VendorMasterModal } from './VendorMasterModal';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
+import { toast } from 'sonner';
 
 interface PurchaseOrderFormModalProps {
   isOpen: boolean;
@@ -164,6 +165,35 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   const handleSelectItem = (index: number, item: Item) => {
     setLines((prev) => {
       const next = [...prev];
+
+      // The same product must not sit on two lines. Two rows of one item split
+      // its quantity, so the vendor sees the same thing asked for twice, the
+      // receive screen lists it twice, and stock posts in two steps. Merging
+      // beats refusing: picking an item already on the order means "more of
+      // that", so the quantities are added and the row being typed in is
+      // cleared rather than removed — the cursor does not jump and the blank
+      // row stays available.
+      const existing = next.findIndex((l, i) => i !== index && l.item?.id === item.id);
+      if (existing !== -1) {
+        const mergedQty = (next[existing].quantity || 0) + (next[index].quantity || 1);
+        next[existing] = {
+          ...next[existing],
+          quantity: mergedQty,
+          quantityText: undefined,
+          amount: mergedQty * (next[existing].purchasePrice || 0),
+        };
+        next[index] = {
+          ...next[index],
+          item: null,
+          searchQuery: '',
+          quantity: 1,
+          purchasePrice: 0,
+          amount: 0,
+        };
+        toast.info(`${item.itemName} is already on this order — quantity increased to ${mergedQty}`);
+        return next;
+      }
+
       const price = item.purchasePrice || Math.round(item.salePrice * 0.7);
       const qty = next[index].quantity || 1;
       next[index] = {
