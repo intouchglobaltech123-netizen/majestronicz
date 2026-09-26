@@ -30,12 +30,12 @@ export const ROLE_DEFS: RoleDef[] = [
 export type Capability =
   | 'items:write' | 'sales:write' | 'stock:write' | 'purchase:write' | 'cash:write'
   | 'hrm:write' | 'payroll:admin' | 'enquiry:write' | 'estimate:write' | 'challan:write'
-  | 'config:write' | 'customer:write' | 'payment:write' | 'ai:use' | 'admin';
+  | 'config:write' | 'customer:write' | 'payment:write' | 'ai:use' | 'audit:read' | 'admin';
 
 const ALL: Capability[] = [
   'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
   'hrm:write', 'payroll:admin', 'enquiry:write', 'estimate:write', 'challan:write',
-  'config:write', 'customer:write', 'payment:write', 'ai:use', 'admin',
+  'config:write', 'customer:write', 'payment:write', 'ai:use', 'audit:read', 'admin',
 ];
 
 export const ALL_CAPS = ALL;
@@ -45,6 +45,12 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
   Manager: [
     'items:write', 'sales:write', 'stock:write', 'purchase:write', 'cash:write',
     'hrm:write', 'enquiry:write', 'estimate:write', 'challan:write', 'config:write', 'customer:write', 'payment:write', 'ai:use',
+    // Reading the audit trail is a manager's job (who voided that invoice, who
+    // reopened the register). It used to sit behind 'admin', which only the CEO
+    // has, so managers lost a screen they had always been able to open. Reading
+    // history is not administration: 'admin' still guards the actions that
+    // change the system — user management, the access matrix, reseed.
+    'audit:read',
   ],
   Billing: ['sales:write', 'cash:write', 'enquiry:write', 'estimate:write', 'challan:write', 'customer:write', 'payment:write'],
   Purchase: ['purchase:write', 'enquiry:write', 'payment:write'],

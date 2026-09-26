@@ -5,6 +5,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireCapability, requireAuth } from '../middleware/rbac.js';
 import { issueToken, Capability } from '../lib/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { verifyGstin, gstinProviderConfigured } from '../services/gstin.service.js';
 import invoiceRoutes from './invoice.routes.js';
 import stockRoutes from './stock.routes.js';
 import purchaseRoutes from './purchase.routes.js';
@@ -134,8 +135,13 @@ router.delete('/staff/login/:employeeId', requireCapability('admin'), asyncHandl
   res.json(result);
 }));
 
-// ---- Audit trail (read-only; CEO/admin) ----
-router.get('/audit', requireCapability('admin'), asyncHandler(async (req, res) => {
+// ---- Audit trail (read-only; CEO + Manager) ----
+// Guarded by 'audit:read', not 'admin': only the CEO holds 'admin', so putting
+// the trail behind it silently took the screen away from managers, who are the
+// people who actually ask "who voided this invoice / reopened this register".
+// It stays read-only — nothing here mutates — and 'admin' still guards the
+// endpoints that change the system.
+router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, res) => {
   const { entity, entityId, action, limit } = req.query as Record<string, string | undefined>;
   res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined }));
 }));
@@ -181,7 +187,36 @@ router.put('/branch-stock', requireCapability('stock:write'), asyncHandler(async
 
 // ---- Config singletons ----
 router.get('/config/:key', asyncHandler(async (req, res) => res.json(await system.getConfig(req.params.key))));
-router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => res.json(await system.setConfig(req.params.key, req.body))));
+// Some config keys are not ordinary settings: the access matrix IS the RBAC
+// rules. It has its own endpoint below that requires 'admin', but it is stored
+// as a config row, so without this guard anyone holding 'config:write' — which
+// includes every Manager — could rewrite the whole matrix through the generic
+// route and grant themselves any capability, 'admin' included. Privilege
+// escalation through the back door of a settings endpoint.
+const PROTECTED_CONFIG_KEYS = new Set(['accessMatrix', 'accessMatrixMigrations']);
+
+router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => {
+  if (PROTECTED_CONFIG_KEYS.has(req.params.key)) {
+    throw new AppError(
+      'FORBIDDEN',
+      'The access matrix cannot be changed here — use PUT /api/access-matrix, which requires admin.',
+      403,
+    );
+  }
+  res.json(await system.setConfig(req.params.key, req.body));
+}));
+
+// ---- GSTIN verification (vendor/customer onboarding) ----
+// Any signed-in user may check a number they are typing — it is a read of a
+// public register, not a mutation. The key never reaches the browser: the
+// lookup happens here, so a client cannot read it out of the bundle or spend
+// our API quota directly.
+router.get('/gstin/status', requireAuth, asyncHandler(async (_req, res) => {
+  res.json({ configured: gstinProviderConfigured() });
+}));
+router.get('/gstin/:gstin', requireAuth, asyncHandler(async (req, res) => {
+  res.json(await verifyGstin(req.params.gstin));
+}));
 
 // ---- Live updates (Server-Sent Events) ----
 router.get('/events', sseHandler);
