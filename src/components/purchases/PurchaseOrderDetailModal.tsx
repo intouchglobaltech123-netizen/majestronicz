@@ -55,10 +55,39 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     deletePurchaseOrderAttachment,
     recordPurchaseOrderPayment,
     recordPurchaseBill,
+    savePurchaseOrder,
     pendingOrders,
     setSelectedPendingOrderForDetail,
     setCurrentView,
   } = useErp();
+  // Edit-prices mode: only before any goods are received (status 'Ordered'), so
+  // we never rewrite the cost of stock already taken in.
+  const [isEditingPrices, setIsEditingPrices] = useState(false);
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+
+  const startEditPrices = () => {
+    if (!purchaseOrder) return;
+    const seed: Record<string, string> = {};
+    purchaseOrder.items.forEach((it) => { seed[it.id] = String(it.purchasePrice ?? 0); });
+    setPriceEdits(seed);
+    setIsEditingPrices(true);
+  };
+  const saveEditedPrices = () => {
+    if (!purchaseOrder) return;
+    const newItems = purchaseOrder.items.map((it) => {
+      const raw = priceEdits[it.id];
+      const price = raw != null && raw !== '' ? Math.max(0, Number(raw) || 0) : (it.purchasePrice || 0);
+      const amount = Math.round(price * (it.quantityOrdered || 0) * 100) / 100;
+      const taxPercent = it.taxPercent || 0;
+      const taxAmount = Math.round((amount * taxPercent) / 100 * 100) / 100;
+      return { ...it, purchasePrice: price, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
+    });
+    const totalAmount = Math.round(newItems.reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100;
+    const totalTax = Math.round(newItems.reduce((s, i) => s + (i.taxAmount || 0), 0) * 100) / 100;
+    savePurchaseOrder({ ...purchaseOrder, items: newItems, totalAmount, totalTax });
+    setIsEditingPrices(false);
+    toast.success('Purchase order prices updated');
+  };
   const [payAmt, setPayAmt] = React.useState<string>('');
   const [payMode, setPayMode] = React.useState<string>('Cash');
   const [billNo, setBillNo] = React.useState<string>('');
@@ -236,7 +265,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
         (l, i) => `<tr>
           <td style="border:1px solid #333;padding:6px 8px;text-align:center">${i + 1}</td>
           <td style="border:1px solid #333;padding:6px 8px">${esc(l.itemName)}${l.itemCode ? ` <span style="color:#666">(${esc(l.itemCode)})</span>` : ''}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${l.damagedQuantity}</td>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${l.damagedQuantity || 0}</td>
+          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${(l as any).missingQuantity || 0}</td>
           <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.unitPrice || 0).toFixed(2)}</td>
           <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.amount || 0).toFixed(2)}</td>
         </tr>`
@@ -252,12 +282,12 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
         <div><strong>${esc(dn.noteNumber)}</strong></div><div>Date: ${esc(dn.date)}</div></div>
       </div>
       <div style="margin-top:12px"><strong>Vendor:</strong> ${esc(purchaseOrder.vendorName)}${purchaseOrder.vendorGstin ? ` · GSTIN: ${esc(purchaseOrder.vendorGstin)}` : ''}</div>
-      <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected goods at quality check</div>
-      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+      <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected or short-shipped (missing) goods</div>
+      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged</th><th style="text-align:right">Missing</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="4" style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">Total Debit</td>
+      <tfoot><tr><td colspan="5" style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">Total Debit</td>
       <td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">₹${(dn.totalAmount || 0).toFixed(2)}</td></tr></tfoot></table>
-      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged. Amount is recoverable / adjustable against payables.</p>
+      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged or not delivered (short shipment). Amount is recoverable / adjustable against payables (a credit due from the vendor).</p>
       <div style="margin-top:40px;text-align:right">For ${esc(COMPANY_PROFILE.name)}<br/><br/>Authorised Signatory</div>
       
       </body></html>`;
@@ -774,9 +804,26 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Line Items Ordered ({purchaseOrder.items.length})
                   </h4>
-                  <span className="text-xs text-slate-500">
-                    Total Qty: <strong>{totalOrdered}</strong> • Received: <strong>{totalReceived}</strong>
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500">
+                      Total Qty: <strong>{totalOrdered}</strong> • Received: <strong>{totalReceived}</strong>
+                    </span>
+                    {/* Edit prices — only before any receipt (status Ordered) so we
+                        don't rewrite the cost of stock already taken in. */}
+                    {canManagePurchases && purchaseOrder.status === 'Ordered' && (
+                      isEditingPrices ? (
+                        <span className="flex items-center gap-1.5">
+                          <button type="button" onClick={saveEditedPrices}
+                            className="px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded border border-emerald-700 cursor-pointer">Save Prices</button>
+                          <button type="button" onClick={() => setIsEditingPrices(false)}
+                            className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 rounded border border-slate-300 cursor-pointer">Cancel</button>
+                        </span>
+                      ) : (
+                        <button type="button" onClick={startEditPrices}
+                          className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 rounded border border-slate-300 cursor-pointer">Edit Prices</button>
+                      )
+                    )}
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -810,7 +857,18 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               {item.itemHSN || '—'}
                             </td>
                             <td className="py-3 px-3 text-right font-mono text-slate-700">
-                              {formatCurrency(item.purchasePrice)}
+                              {isEditingPrices ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={priceEdits[item.id] ?? ''}
+                                  onChange={(e) => setPriceEdits((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                  className="w-24 text-right px-2 py-1 text-sm font-mono border border-slate-300 rounded focus:outline-none focus:border-red-500"
+                                />
+                              ) : (
+                                formatCurrency(item.purchasePrice)
+                              )}
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-slate-800">
                               {item.quantityOrdered} <span className="text-[11px] font-normal text-slate-400">{item.unit}</span>

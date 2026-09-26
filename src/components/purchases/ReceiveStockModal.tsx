@@ -34,6 +34,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [perUnitInputs, setPerUnitInputs] = useState<Record<string, string>>({});
   // Quality check: line.id -> number of units found damaged (billed back to vendor)
   const [damagedToAssign, setDamagedToAssign] = useState<Record<string, number>>({});
+  // Short shipment: line.id -> number of units the vendor never delivered (also
+  // billed back to the vendor, and it settles the ordered quantity).
+  const [missingToAssign, setMissingToAssign] = useState<Record<string, number>>({});
   // Tax % per PO line, pre-filled from the item's catalog slab and editable
   // against the supplier's bill. What is confirmed here becomes this branch's
   // rate for the item (BranchStock.gstTaxSlab), so a rate corrected once at
@@ -86,6 +89,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setTotalPriceInputs({});
       setPerUnitInputs({});
       setDamagedToAssign({});
+      setMissingToAssign({});
       setPayNowInput('');
       setPayMode('Cash');
       setReceivingNotes('');
@@ -98,6 +102,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setTotalPriceInputs({});
       setPerUnitInputs({});
       setDamagedToAssign({});
+      setMissingToAssign({});
       setPayNowInput('');
       setReceivingNotes('');
     }
@@ -160,6 +165,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     setDamagedToAssign((prev) => ({ ...prev, [lineId]: safe }));
   };
 
+  const handleMissingChange = (lineId: string, valStr: string, maxAllowed: number) => {
+    const parsed = parseInt(valStr, 10);
+    const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, maxAllowed);
+    setMissingToAssign((prev) => ({ ...prev, [lineId]: safe }));
+  };
+
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
@@ -197,21 +208,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const receiptTax = Math.round(receiptTotals.tax * 100) / 100;
   const receiptPayable = Math.round((receiptTaxable + receiptTax) * 100) / 100;
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
+  const totalMissingNow = Object.values(missingToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0) return;
+    if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0) return;
 
     // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
     // quantities if the same product spans multiple PO lines).
-    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }> = {};
+    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }> = {};
     purchaseOrder.items.forEach((line) => {
       const q = Number(quantitiesToReceive[line.id]) || 0;
       const dmg = Number(damagedToAssign[line.id]) || 0;
-      if (q <= 0 && dmg <= 0) return;
-      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0, damagedQuantity: 0 };
+      const missing = Number(missingToAssign[line.id]) || 0;
+      if (q <= 0 && dmg <= 0 && missing <= 0) return;
+      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0 };
       acc.quantityReceived += q;
       acc.damagedQuantity = (acc.damagedQuantity || 0) + dmg;
+      acc.missingQuantity = (acc.missingQuantity || 0) + missing;
       const loc = locationsToAssign[line.id]?.trim();
       if (loc) acc.location = loc;
       // Flush any price still held as raw text (submit clicked before blur) — PUR2-7.
@@ -237,7 +251,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       if (tax != null) acc.taxPercent = tax;
       byItem[line.itemId] = acc;
     });
-    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
+    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
 
     // Vendor payment validation: confirm whether money was paid before stock-in.
     const payNow = Math.max(0, Number(payNowInput) || 0);
@@ -346,6 +360,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   </th>
                   <th className="py-2.5 px-3 text-right w-28">Inward Now</th>
                   <th className="py-2.5 px-3 text-right w-28 text-rose-600">Damaged (QC)</th>
+                  <th className="py-2.5 px-3 text-right w-28 text-amber-600">Missing (Short)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -494,6 +509,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                           />
                         )}
                       </td>
+
+                      {/* Missing / short-shipped qty (also billed back to the vendor) */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={remaining}
+                            value={missingToAssign[line.id] ?? ''}
+                            onChange={(e) => handleMissingChange(line.id, e.target.value, remaining)}
+                            placeholder="0"
+                            title="Units the vendor did not deliver (short shipment) — billed back to the vendor and settles the line"
+                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-amber-200 text-amber-700 focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                          />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -516,16 +549,21 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
           </div>
 
           {/* Verification check */}
-          {totalUnitsReceivingNow === 0 && totalDamagedNow === 0 && (
+          {totalUnitsReceivingNow === 0 && totalDamagedNow === 0 && totalMissingNow === 0 && (
             <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
               <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-              <span>Enter an inward or damaged quantity for at least one item before clicking confirm.</span>
+              <span>Enter an inward, damaged or missing quantity for at least one item before clicking confirm.</span>
             </div>
           )}
-          {totalDamagedNow > 0 && (
+          {(totalDamagedNow > 0 || totalMissingNow > 0) && (
             <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-              <span><strong>{totalDamagedNow}</strong> damaged unit(s) will raise a <strong>vendor debit note</strong> — these are NOT added to stock.</span>
+              <span>
+                {totalDamagedNow > 0 && <><strong>{totalDamagedNow}</strong> damaged</>}
+                {totalDamagedNow > 0 && totalMissingNow > 0 && ' and '}
+                {totalMissingNow > 0 && <><strong>{totalMissingNow}</strong> missing</>}
+                {' '}unit(s) will raise a <strong>vendor debit/credit note</strong> — these are NOT added to stock.
+              </span>
             </div>
           )}
         </form>
@@ -605,15 +643,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0}
+              disabled={totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0}
               className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl shadow-xs transition-colors ${
-                totalUnitsReceivingNow > 0 || totalDamagedNow > 0
+                totalUnitsReceivingNow > 0 || totalDamagedNow > 0 || totalMissingNow > 0
                   ? 'text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
                   : 'text-slate-400 bg-slate-200 cursor-not-allowed'
               }`}
             >
               <PackageCheck className="h-4 w-4" />
-              <span>Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}</span>
+              <span>Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}{totalMissingNow > 0 ? ` · ${totalMissingNow} missing` : ''}</span>
             </button>
           </div>
         </div>

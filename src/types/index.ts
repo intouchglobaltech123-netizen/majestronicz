@@ -792,6 +792,8 @@ export interface POLineItem {
   purchasePrice: number; // Pre-fills from Item.purchasePrice; confirmed/edited while receiving
   amount: number; // taxable value: purchasePrice x quantityOrdered, tax excluded
   receivedQuantity: number; // Tracks units actually received into physical stock
+  damagedQuantity?: number; // Cumulative units received damaged (billed back to vendor)
+  missingQuantity?: number; // Cumulative units short-shipped / never delivered (billed back)
   // Confirmed while receiving, against the supplier's bill. Absent on lines
   // created before this existed, and on POs not yet received — treat as 0.
   taxPercent?: number;
@@ -892,8 +894,9 @@ export interface PODebitNoteLine {
   itemName: string;
   itemCode?: string;
   damagedQuantity: number;
+  missingQuantity?: number; // units short-shipped / not delivered, also billed back
   unitPrice: number;
-  amount: number; // damagedQuantity * unitPrice
+  amount: number; // (damagedQuantity + missingQuantity) * unitPrice
 }
 export interface PODebitNote {
   id: string;

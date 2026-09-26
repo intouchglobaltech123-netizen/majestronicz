@@ -78,7 +78,7 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
 /** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
 export function receivePurchaseOrderStock(
   poId: string,
-  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
+  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }[],
   notes: string | undefined,
   payment: { amount?: number; mode?: string } | undefined,
   actor: string,
@@ -94,7 +94,7 @@ export function receivePurchaseOrderStock(
     if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot receive stock against a cancelled purchase order.', 400);
     if (po.status === 'Received') throw new AppError('PO_COMPLETE', 'This purchase order is already fully received.', 400);
 
-    const valid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
+    const valid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
     if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
 
     const ts = nowIso();
@@ -108,13 +108,17 @@ export function receivePurchaseOrderStock(
       if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
       const good = Number(rec.quantityReceived) || 0;
       const dmg = Number(rec.damagedQuantity) || 0;
-      if (good < 0 || dmg < 0) throw new AppError('NEGATIVE_QTY', 'Received or damaged quantity cannot be negative.', 400);
+      const missing = Number(rec.missingQuantity) || 0;
+      if (good < 0 || dmg < 0 || missing < 0) throw new AppError('NEGATIVE_QTY', 'Received, damaged or missing quantity cannot be negative.', 400);
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
         throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);
       }
-      const remaining = (line.quantityOrdered || 0) - (line.receivedQuantity || 0);
-      if (good + dmg > remaining) {
-        throw new AppError('OVER_RECEIPT', `Cannot receive ${good + dmg} of "${line.itemName || rec.itemId}" — only ${remaining} remaining on the PO.`, 400);
+      // Remaining now nets prior good + damaged + missing, since all three settle
+      // the ordered quantity (damaged & missing won't arrive as sellable stock).
+      const settled = (line.receivedQuantity || 0) + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
+      const remaining = (line.quantityOrdered || 0) - settled;
+      if (good + dmg + missing > remaining) {
+        throw new AppError('OVER_RECEIPT', `Cannot settle ${good + dmg + missing} of "${line.itemName || rec.itemId}" — only ${remaining} remaining on the PO.`, 400);
       }
     }
 
@@ -133,6 +137,10 @@ export function receivePurchaseOrderStock(
       return {
         ...line,
         receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
+        // Cumulative damaged & missing (short-shipped) on the line, so the line
+        // can close out and both are billed back to the vendor.
+        damagedQuantity: (line.damagedQuantity || 0) + (Number(rec.damagedQuantity) || 0),
+        missingQuantity: (line.missingQuantity || 0) + (Number(rec.missingQuantity) || 0),
         purchasePrice: nextPrice,
         amount: lineAmount,
         taxPercent: nextTaxPercent,
@@ -152,6 +160,7 @@ export function receivePurchaseOrderStock(
         itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
         quantityOrdered: line?.quantityOrdered || 0, quantityReceivedThisEvent: rec.quantityReceived,
         damagedQuantity: rec.damagedQuantity || 0,
+        missingQuantity: rec.missingQuantity || 0,
         totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
         // What this receipt itself cost, so the history shows the money that
         // moved on the day rather than only the PO's running totals.
@@ -169,18 +178,22 @@ export function receivePurchaseOrderStock(
       date: ts.split('T')[0], timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
     };
 
-    // Quality check: any damaged/rejected units raise a debit note back to the vendor.
+    // Damaged (defective) AND missing (short-shipped) units are both billed back
+    // to the vendor as a debit/credit note — the shop paid for units it didn't
+    // get as sellable stock.
     const existingNotes = (po.debitNotes as any[]) || [];
-    const damagedReceipts = valid.filter((r) => (r.damagedQuantity || 0) > 0);
+    const billBackReceipts = valid.filter((r) => (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
     let debitNotes = existingNotes;
-    if (damagedReceipts.length) {
-      const dnLines = damagedReceipts.map((rec) => {
+    if (billBackReceipts.length) {
+      const dnLines = billBackReceipts.map((rec) => {
         const line = updatedLines.find((l: any) => l.itemId === rec.itemId) || lines.find((l) => l.itemId === rec.itemId);
         const unitPrice = line?.purchasePrice || 0;
-        const dq = rec.damagedQuantity || 0;
+        const dq = Number(rec.damagedQuantity) || 0;
+        const mq = Number(rec.missingQuantity) || 0;
         return {
           itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
-          damagedQuantity: dq, unitPrice, amount: Math.round(unitPrice * dq * 100) / 100,
+          damagedQuantity: dq, missingQuantity: mq, unitPrice,
+          amount: Math.round(unitPrice * (dq + mq) * 100) / 100,
         };
       });
       const dnTotal = dnLines.reduce((s, l) => s + l.amount, 0);
@@ -193,8 +206,10 @@ export function receivePurchaseOrderStock(
       debitNotes = [newNote, ...existingNotes];
     }
 
-    const allFull = updatedLines.every((l) => (l.receivedQuantity || 0) >= l.quantityOrdered);
-    const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0);
+    // A line is settled when good + damaged + missing covers the ordered qty.
+    const lineSettled = (l: any) => (l.receivedQuantity || 0) + (l.damagedQuantity || 0) + (l.missingQuantity || 0);
+    const allFull = updatedLines.every((l) => lineSettled(l) >= l.quantityOrdered);
+    const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0 || (l.damagedQuantity || 0) > 0 || (l.missingQuantity || 0) > 0);
     const status = allFull ? 'Received' : anyReceived ? 'Partially Received' : po.status;
 
     // Optional vendor payment recorded at the moment of receiving.
