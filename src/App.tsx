@@ -16,6 +16,7 @@ import { InventoryView } from './components/inventory/InventoryView';
 import { ReportsView } from './components/reports/ReportsView';
 import { PartiesView } from './components/parties/PartiesView';
 import { ShopifyView } from './components/shopify/ShopifyView';
+import { FlipkartView } from './components/flipkart/FlipkartView';
 import { AccessManagementView } from './components/admin/AccessManagementView';
 import { AiAssistantView } from './components/ai/AiAssistantView';
 import { AppSettingsView } from './components/settings/AppSettingsView';
@@ -251,6 +252,8 @@ const AppContent: React.FC = () => {
               <ReportsView />
             ) : currentView === 'shopify' ? (
               <ShopifyView />
+            ) : currentView === 'flipkart' ? (
+              <FlipkartView />
             ) : currentView === 'ai-assistant' ? (
               <AiAssistantView />
             ) : currentView === 'access' ? (

@@ -59,7 +59,7 @@ export const FLAG_LABELS: Record<string, string> = {
 export const ALL_VIEWS: string[] = [
   'dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
-  'hrm', 'reports', 'shopify', 'ai-assistant', 'access', 'settings',
+  'hrm', 'reports', 'shopify', 'flipkart', 'ai-assistant', 'access', 'settings',
 ];
 
 export const ALL_CAPABILITIES: Capability[] = [

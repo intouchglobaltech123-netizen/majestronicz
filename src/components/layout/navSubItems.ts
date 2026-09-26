@@ -589,6 +589,34 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
       },
     ],
   },
+  flipkart: {
+    id: 'flipkart',
+    title: 'Flipkart',
+    subtitle: 'Seller Hub orders & listings',
+    icon: Store,
+    accentColor: 'amber',
+    primaryAction: {
+      id: 'orders',
+      label: 'Sync Orders',
+      icon: ShoppingCart,
+    },
+    subOptions: [
+      {
+        id: 'orders',
+        label: 'Orders & Shipments',
+        description: 'Flipkart orders awaiting dispatch',
+        icon: ShoppingCart,
+        tag: 'Tab',
+      },
+      {
+        id: 'settings',
+        label: 'Connection & Settings',
+        description: 'Developer Access credentials & branch',
+        icon: Settings,
+        tag: 'Tab',
+      },
+    ],
+  },
   barcodes: {
     id: 'barcodes',
     title: 'Barcode Printing',

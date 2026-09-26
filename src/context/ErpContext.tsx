@@ -107,6 +107,7 @@ export type ActiveNavView =
   | 'hrm'
   | 'reports'
   | 'shopify'
+  | 'flipkart'
   | 'ai-assistant'
   | 'access'
   | 'settings';

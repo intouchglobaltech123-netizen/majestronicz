@@ -61,7 +61,7 @@ export const ROLE_CAPS: Record<Role, Capability[]> = {
 export const ALL_VIEWS = [
   'dashboard', 'items', 'customers', 'parties', 'enquiries', 'pending-orders', 'estimates',
   'challans', 'inventory', 'invoices', 'barcodes', 'cash-register', 'purchases',
-  'hrm', 'reports', 'shopify', 'ai-assistant', 'access',
+  'hrm', 'reports', 'shopify', 'flipkart', 'ai-assistant', 'access',
 ];
 
 export const DEFAULT_ROLE_VIEWS: Record<Role, string[]> = {
