@@ -7,12 +7,14 @@ import {
   PackageCheck,
   Wallet,
   IndianRupee,
+  HandCoins,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Vendor } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
+import { VendorCreditModal, vendorCreditOnPo } from './VendorCreditModal';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
@@ -20,6 +22,7 @@ export const PurchaseManagementView: React.FC = () => {
 
   const [isPoFormOpen, setIsPoFormOpen] = useState(false);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+  const [isVendorCreditOpen, setIsVendorCreditOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
 
   // Synchronize actions when triggered from secondary navbar flyout.
@@ -61,6 +64,12 @@ export const PurchaseManagementView: React.FC = () => {
   };
   const duePos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && poRemaining(p) > 0.5);
   const totalPayable = duePos.reduce((sum, p) => sum + poRemaining(p), 0);
+
+  // Vendor credit = amount the shop advance-paid for units that arrived damaged
+  // (billed back to the vendor), i.e. paid beyond the value of goods kept. The
+  // vendor owes this back.
+  const creditPos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && vendorCreditOnPo(p) > 0.5);
+  const totalVendorCredit = creditPos.reduce((sum, p) => sum + vendorCreditOnPo(p), 0);
   const thisMonth = todayStr.slice(0, 7);
   const monthSpend = purchaseOrders
     .filter((p) => p.status !== 'Cancelled' && (p.date || '').startsWith(thisMonth))
@@ -127,6 +136,27 @@ export const PurchaseManagementView: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Vendor Credit (money suppliers owe back from damaged advance-paid goods) */}
+        <button
+          type="button"
+          onClick={() => setIsVendorCreditOpen(true)}
+          title="View which suppliers owe credit and against which POs"
+          className={`text-left p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 transition-colors cursor-pointer ${totalVendorCredit > 0 ? 'bg-emerald-50/60 border-emerald-200 hover:bg-emerald-50' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+        >
+          <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/60">
+            <HandCoins className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Vendor Credit</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 text-emerald-700">{formatCurrency(totalVendorCredit)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {creditPos.length > 0
+                ? `Owed back across ${creditPos.length} PO${creditPos.length === 1 ? '' : 's'} — tap for detail`
+                : 'From damaged goods on advance-paid POs'}
+            </p>
+          </div>
+        </button>
 
         {/* This month spend */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
@@ -232,6 +262,9 @@ export const PurchaseManagementView: React.FC = () => {
         onClose={() => setIsPoFormOpen(false)}
         preSelectedVendor={selectedVendorForPo}
       />
+
+      {/* Vendor Credit detail */}
+      <VendorCreditModal isOpen={isVendorCreditOpen} onClose={() => setIsVendorCreditOpen(false)} />
 
       {/* Vendor Master Modal */}
       <VendorMasterModal
