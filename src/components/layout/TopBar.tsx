@@ -19,7 +19,8 @@ import {
 import { cn, formatCurrency, getTodayDateString } from '../../lib/utils';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
-import { OnlineStoresMenu } from './OnlineStoresMenu';
+import { ShopifyMark, FlipkartMark, AmazonMark } from '../common/StoreLogos';
+import { toast } from 'sonner';
 import { SelfAttendanceModal } from '../hrm/SelfAttendanceModal';
 import { GlobalSearch } from './GlobalSearch';
 
@@ -179,8 +180,26 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Branch Selector Dropdown — also holds the Online Store context */}
         <div className="w-36 sm:w-56 min-w-0">
           <UniversalDropdown
-            value={isAllBranches ? 'all' : currentBranch}
-            onChange={(v) => switchBranch(v as BranchScope)}
+            value={
+              currentView === 'shopify'
+                ? '__store_shopify__'
+                : currentView === 'flipkart'
+                  ? '__store_flipkart__'
+                  : isAllBranches
+                    ? 'all'
+                    : currentBranch
+            }
+            onChange={(v) => {
+              // Marketplace rows come from the "Online Store" flyout; everything
+              // else is a branch.
+              if (v === '__store_shopify__') { navigateToTab('shopify', 'orders'); return; }
+              if (v === '__store_flipkart__') { navigateToTab('flipkart', 'orders'); return; }
+              if (v === '__store_amazon__') {
+                toast.info('Amazon integration is coming soon', { description: 'Shopify and Flipkart are available today.' });
+                return;
+              }
+              switchBranch(v as BranchScope);
+            }}
             options={[
               ...(currentUser.role === 'CEO' ? [{ value: 'all', label: 'All Branches', sublabel: 'Erode · Coimbatore · Chennai' }] : []),
               ...BRANCHES.filter((b) =>
@@ -190,22 +209,25 @@ export const TopBar: React.FC<TopBarProps> = ({
               // switchBranch receive "Erode HQ (HQ)", producing "undefined Dashboard",
               // ₹0 and all-out-of-stock, and adjustments saved to a bogus branch (INV2-1).
               ).map((b) => ({ value: b.id, label: b.name + (b.isHq ? ' (HQ)' : ''), sublabel: b.location })),
+              // Last row: hovering it opens the marketplaces to the side, so one
+              // row holds every channel instead of the list growing per shop.
+              ...(currentUser.role === 'CEO' || currentUser.role === 'Manager'
+                ? [{
+                    value: '__online_store__',
+                    label: '🛒 Online Store',
+                    sublabel: 'Shopify · Flipkart · Amazon',
+                    submenu: [
+                      { value: '__store_shopify__', label: 'Shopify', sublabel: 'Orders, stock, catalog', icon: <ShopifyMark /> },
+                      { value: '__store_flipkart__', label: 'Flipkart', sublabel: 'Seller Hub orders', icon: <FlipkartMark /> },
+                      { value: '__store_amazon__', label: 'Amazon', icon: <AmazonMark />, disabled: true, disabledNote: 'Coming soon' },
+                    ],
+                  }]
+                : []),
             ]}
             buttonClassName="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-800"
           />
         </div>
 
-        {/* Online stores live in their own menu: which marketplace you are
-            looking at is a different question from which branch you are in, and
-            the branch dropdown had room for exactly one channel. */}
-        {(currentUser.role === 'CEO' || currentUser.role === 'Manager') && (
-          <OnlineStoresMenu
-            active={currentView === 'shopify' ? 'shopify' : currentView === 'flipkart' ? 'flipkart' : null}
-            // 'amazon' never reaches here — the menu shows a "coming soon"
-            // toast for it rather than routing to a view that does not exist.
-            onSelect={(channel) => navigateToTab(channel as 'shopify' | 'flipkart', 'orders')}
-          />
-        )}
       </div>
 
       {/* Center: Global search (Vyapar-style) */}

@@ -2,10 +2,28 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, Check, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+export interface DropdownSubOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  icon?: React.ReactNode;
+  /** Shown greyed with a note instead of being selectable. */
+  disabled?: boolean;
+  disabledNote?: string;
+}
+
 export interface DropdownOption {
   value: string | number;
   label: string;
   sublabel?: string;
+  icon?: React.ReactNode;
+  /**
+   * When present the row does not select itself — it opens a flyout to the side
+   * on hover (and on click, for touch and keyboard, which never hover). Used by
+   * the branch selector's "Online Store" row to hold one marketplace per line
+   * without turning the branch list into a list of shops.
+   */
+  submenu?: DropdownSubOption[];
 }
 
 export interface UniversalDropdownProps {
@@ -40,6 +58,7 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
   required = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newOptionInput, setNewOptionInput] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,6 +158,76 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
             ) : (
               options.map((opt) => {
                 const isSelected = String(opt.value) === String(value);
+
+                if (opt.submenu?.length) {
+                  const isOpenSub = String(openSubmenu) === String(opt.value);
+                  return (
+                    <div
+                      key={String(opt.value)}
+                      className="relative"
+                      onMouseEnter={() => setOpenSubmenu(String(opt.value))}
+                      onMouseLeave={() => setOpenSubmenu((cur) => (cur === String(opt.value) ? null : cur))}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenSubmenu((cur) => (cur === String(opt.value) ? null : String(opt.value)))}
+                        aria-haspopup="menu"
+                        aria-expanded={isOpenSub}
+                        className={cn(
+                          'w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors',
+                          isSelected ? 'bg-red-50 text-red-900 font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                        )}
+                      >
+                        <div className="min-w-0 pr-2 flex items-center gap-2">
+                          {opt.icon}
+                          <div className="min-w-0">
+                            <div className="truncate">{opt.label}</div>
+                            {opt.sublabel && (
+                              <div className="text-[11px] text-slate-400 font-normal truncate">{opt.sublabel}</div>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-400 shrink-0 ml-2" />
+                      </button>
+
+                      {isOpenSub && (
+                        <div
+                          role="menu"
+                          className="absolute left-full top-0 ml-0.5 w-56 bg-white border border-slate-300 shadow-lg z-50"
+                        >
+                          {opt.submenu.map((sub) => (
+                            <button
+                              key={sub.value}
+                              role="menuitem"
+                              type="button"
+                              onClick={() => {
+                                if (sub.disabled) return;
+                                setOpenSubmenu(null);
+                                setIsOpen(false);
+                                onChange(sub.value);
+                              }}
+                              className={cn(
+                                'w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 border-b border-slate-100 last:border-b-0 transition-colors',
+                                sub.disabled ? 'opacity-60 cursor-default hover:bg-slate-50/60' : 'hover:bg-slate-50'
+                              )}
+                            >
+                              <span className="shrink-0">{sub.icon}</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-bold text-slate-800 truncate">{sub.label}</span>
+                                {(sub.disabled ? sub.disabledNote : sub.sublabel) && (
+                                  <span className="block text-[11px] text-slate-400 truncate">
+                                    {sub.disabled ? sub.disabledNote : sub.sublabel}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <button
                     key={String(opt.value)}
@@ -151,13 +240,16 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
                         : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                     )}
                   >
-                    <div className="min-w-0 pr-2">
+                    <div className="min-w-0 pr-2 flex items-center gap-2">
+                      {opt.icon}
+                      <div className="min-w-0">
                       <div className="truncate">{opt.label}</div>
                       {opt.sublabel && (
                         <div className="text-[11px] text-slate-400 font-normal truncate">
                           {opt.sublabel}
                         </div>
                       )}
+                      </div>
                     </div>
                     {isSelected && (
                       <Check className="h-4 w-4 text-red-600 shrink-0 ml-2" />

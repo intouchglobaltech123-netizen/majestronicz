@@ -14,12 +14,15 @@ import { formatCurrency } from '../../lib/utils';
  * yet?" unanswered.
  */
 
+type FlipkartFailure = 'not_configured' | 'pending_approval' | 'bad_credentials' | 'network' | 'unknown';
+
 interface FlipkartStatus {
   configured: boolean;
   connected: boolean;
   appId?: string;
   branchId?: string;
   error?: string;
+  reason?: FlipkartFailure;
 }
 
 interface FlipkartOrder {
@@ -64,7 +67,12 @@ export const FlipkartView: React.FC = () => {
     load();
   }, [load]);
 
-  const pendingApproval = Boolean(status?.error?.toLowerCase().includes('approved'));
+  // The server classifies the failure, because Flipkart's 401 means two very
+  // different things: waiting on their approval (nothing to do here) versus a
+  // wrong Application ID (ours to fix). Telling them apart is the difference
+  // between "wait" and "go and change a setting".
+  const reason = status?.reason;
+  const pendingApproval = reason === 'pending_approval';
 
   return (
     <div className="p-6 space-y-5">

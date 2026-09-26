@@ -51,12 +51,29 @@ async function getAccessToken(cfg: FlipkartConfig): Promise<string> {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    // 401 here means the credentials or the access approval, not the caller.
-    throw new Error(
-      res.status === 401
-        ? 'Flipkart rejected the Application ID / Secret. Check Developer Access is approved (a "Pending" access cannot call the API yet).'
-        : `Flipkart token request failed (${res.status}) ${detail.slice(0, 120)}`,
+    // Flipkart returns 401 for two very different situations, and they need
+    // different actions from different people. Verified against the live API:
+    //   "Self Access Application is not in Approved state" -> credentials are
+    //       correct and recognised; Flipkart has not approved the access yet,
+    //       and nothing on our side can change that.
+    //   "No client with requested id: …"                   -> the Application ID
+    //       is wrong (or swapped with the Secret), which IS ours to fix.
+    // Collapsing both into "rejected" sends someone hunting the wrong problem.
+    const err: any = new Error(
+      /not in Approved state/i.test(detail)
+        ? 'Flipkart has not approved this Developer Access yet. The credentials are correct — the access shows as Pending in Seller Hub and must become Active before any API call succeeds.'
+        : /No client with requested id/i.test(detail)
+          ? 'Flipkart does not recognise this Application ID. Check FLIPKART_APP_ID is the API Key from Seller Hub, and that the ID and Secret are not swapped.'
+          : res.status === 401
+            ? 'Flipkart rejected the credentials.'
+            : `Flipkart token request failed (${res.status}) ${detail.slice(0, 120)}`,
     );
+    err.reason = /not in Approved state/i.test(detail)
+      ? 'pending_approval'
+      : /No client with requested id/i.test(detail)
+        ? 'bad_credentials'
+        : 'unknown';
+    throw err;
   }
   const body: any = await res.json();
   const ttlMs = (Number(body.expires_in) || 3600) * 1000;
@@ -91,12 +108,16 @@ async function flipkartFetch<T = any>(path: string, init: RequestInit = {}): Pro
  * "credentials present but rejected", and an exception collapses both into a
  * red box that says nothing useful.
  */
+export type FlipkartFailure = 'not_configured' | 'pending_approval' | 'bad_credentials' | 'network' | 'unknown';
+
 export async function getFlipkartStatus(): Promise<{
   configured: boolean;
   connected: boolean;
   appId?: string;
   branchId?: string;
   error?: string;
+  /** Why it is not connected — drives what the screen tells the operator to do. */
+  reason?: FlipkartFailure;
 }> {
   const cfg = getFlipkartConfig();
   if (!cfg) {
@@ -104,6 +125,7 @@ export async function getFlipkartStatus(): Promise<{
       configured: false,
       connected: false,
       error: 'Add FLIPKART_APP_ID and FLIPKART_APP_SECRET to the server environment.',
+      reason: 'not_configured',
     };
   }
   try {
@@ -117,7 +139,15 @@ export async function getFlipkartStatus(): Promise<{
       branchId: cfg.branchId,
     };
   } catch (err: any) {
-    return { configured: true, connected: false, appId: `…${cfg.appId.slice(-6)}`, branchId: cfg.branchId, error: err?.message || 'Could not reach Flipkart.' };
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    return {
+      configured: true,
+      connected: false,
+      appId: `…${cfg.appId.slice(-6)}`,
+      branchId: cfg.branchId,
+      error: timedOut ? 'Flipkart did not respond.' : err?.message || 'Could not reach Flipkart.',
+      reason: timedOut ? 'network' : (err?.reason as FlipkartFailure) || 'unknown',
+    };
   }
 }
 
