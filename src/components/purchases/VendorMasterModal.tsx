@@ -3,6 +3,7 @@ import { X, Building2, MapPin, Hash, Check } from 'lucide-react';
 import { Vendor } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { cleanPhoneDigits } from '../../lib/utils';
+import { apiGet } from '../../lib/api';
 import { PhoneInput } from '../common/PhoneInput';
 
 interface VendorMasterModalProps {
@@ -25,6 +26,31 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
   const [address, setAddress] = useState('');
   const [gstin, setGstin] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // GSTIN verification: checked on blur, never on every keystroke — a lookup
+  // costs an API call, and a half-typed number is guaranteed to fail.
+  type GstinCheck = {
+    gstin: string; valid: boolean; source: 'offline' | 'api' | 'cache';
+    legalName?: string; tradeName?: string; status?: string; message?: string;
+  };
+  const [gstinCheck, setGstinCheck] = useState<GstinCheck | null>(null);
+  const [gstinChecking, setGstinChecking] = useState(false);
+
+  const verifyGstin = async (value: string) => {
+    const g = value.trim().toUpperCase();
+    setGstinCheck(null);
+    if (g.length !== 15) return;
+    setGstinChecking(true);
+    try {
+      setGstinCheck(await apiGet<GstinCheck>(`/api/gstin/${g}`));
+    } catch {
+      // A failed check must never block saving a vendor — the field stays
+      // usable and the form's own format rule still applies.
+      setGstinCheck(null);
+    } finally {
+      setGstinChecking(false);
+    }
+  };
 
   useEffect(() => {
     if (vendorToEdit) {
@@ -182,7 +208,8 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
               <input
                 type="text"
                 value={gstin}
-                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                onChange={(e) => { setGstin(e.target.value.toUpperCase()); setGstinCheck(null); }}
+                onBlur={(e) => verifyGstin(e.target.value)}
                 placeholder="e.g. 33AABCD1234E1Z5"
                 maxLength={15}
                 className={`w-full pl-9.5 pr-3 py-2 text-sm font-mono uppercase rounded-xl border bg-white focus:outline-hidden focus:ring-2 transition-all ${
@@ -194,8 +221,28 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
             </div>
             {errors.gstin ? (
               <p className="text-xs text-rose-600 mt-1">{errors.gstin}</p>
+            ) : gstinChecking ? (
+              <p className="text-[11px] text-slate-400 mt-1">Checking GSTIN…</p>
+            ) : gstinCheck && !gstinCheck.valid ? (
+              <p className="text-xs text-rose-600 mt-1">{gstinCheck.message || 'This GSTIN is not valid.'}</p>
+            ) : gstinCheck?.legalName ? (
+              <p className="text-[11px] text-emerald-700 mt-1">
+                {gstinCheck.legalName}
+                {gstinCheck.status ? ` · ${gstinCheck.status}` : ''}
+                {!vendorName.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setVendorName(gstinCheck.legalName!)}
+                    className="ml-2 underline hover:no-underline"
+                  >
+                    use as vendor name
+                  </button>
+                )}
+              </p>
+            ) : gstinCheck?.valid ? (
+              <p className="text-[11px] text-slate-500 mt-1">{gstinCheck.message || 'Valid GSTIN.'}</p>
             ) : (
-              <p className="text-[11px] text-slate-400 mt-1">15-digit alphanumeric Goods & Services Tax Identification Number</p>
+              <p className="text-[11px] text-slate-400 mt-1">15-digit alphanumeric Goods &amp; Services Tax Identification Number</p>
             )}
           </div>
 
