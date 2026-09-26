@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 export const ItemMasterView: React.FC = () => {
   const {
     items,
+    vendors,
     getBranchStock,
     getTotalStockAcrossBranches,
     currentBranch,
@@ -500,6 +501,7 @@ export const ItemMasterView: React.FC = () => {
                   <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-bold uppercase text-[11px] tracking-wider">
                     <th className="py-3.5 px-4">Item Details</th>
                     <th className="py-3.5 px-4">Item Code</th>
+                    <th className="py-3.5 px-4">Vendor Code</th>
                     <th className="py-3.5 px-4">Category & Unit</th>
                     <th className="py-3.5 px-4 text-slate-800">
                       <div className="flex items-center gap-1.5">
@@ -524,7 +526,7 @@ export const ItemMasterView: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 text-slate-800">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={currentUser.role === 'Sales' ? 5 : 7} className="py-12 text-center text-slate-500">
+                      <td colSpan={currentUser.role === 'Sales' ? 6 : 8} className="py-12 text-center text-slate-500">
                         <Boxes className="h-8 w-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-bold text-sm text-slate-700">No items found</p>
                         <p className="text-xs text-slate-400 mt-0.5">
@@ -615,6 +617,29 @@ export const ItemMasterView: React.FC = () => {
                                 <Copy className="h-3 w-3 text-slate-400 group-hover/code:text-slate-600" />
                               )}
                             </button>
+                          </td>
+
+                          {/* Vendor Code */}
+                          <td className="py-3.5 px-4">
+                            {item.vendorCode ? (
+                              <div>
+                                <span className="inline-flex items-center px-2 py-1 rounded-none bg-slate-50 border border-slate-300 font-mono text-[11px] text-slate-700">
+                                  {item.vendorCode}
+                                </span>
+                                {(() => {
+                                  const vendorName = item.vendorId
+                                    ? vendors.find((v) => v.id === item.vendorId)?.vendorName
+                                    : undefined;
+                                  return vendorName ? (
+                                    <div className="text-[11px] text-slate-500 font-medium mt-0.5 truncate max-w-[140px]">
+                                      {vendorName}
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
                           </td>
 
                           {/* Category & Unit */}

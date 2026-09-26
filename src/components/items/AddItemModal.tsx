@@ -54,6 +54,7 @@ export const AddItemModal: React.FC<Props> = ({
     addUnit,
     gstSlabsList,
     addGstSlab,
+    vendors,
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'pricing' | 'stock'>('pricing');
@@ -80,6 +81,10 @@ export const AddItemModal: React.FC<Props> = ({
   const [minWholesaleQty, setMinWholesaleQty] = useState<number | ''>(5);
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
   const [gstTaxSlab, setGstTaxSlab] = useState<number>(18);
+
+  // Preferred supplier / vendor (procurement) — for PO auto-fill
+  const [vendorId, setVendorId] = useState('');
+  const [vendorCode, setVendorCode] = useState('');
 
   // Low Stock Alert Threshold (per-item master)
   const [reorderThreshold, setReorderThreshold] = useState<number | ''>(10);
@@ -193,6 +198,8 @@ export const AddItemModal: React.FC<Props> = ({
     setMinWholesaleQty(5);
     setPurchasePrice('');
     setGstTaxSlab(18);
+    setVendorId('');
+    setVendorCode('');
     setReorderThreshold(10);
     setActiveTab('pricing');
   };
@@ -258,6 +265,8 @@ export const AddItemModal: React.FC<Props> = ({
       gstTaxSlab,
       discountOnSalePrice: Number(discountOnSalePrice) || 0,
       discountType,
+      vendorId: vendorId || undefined,
+      vendorCode: vendorCode.trim() || undefined,
       reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
@@ -601,6 +610,32 @@ export const AddItemModal: React.FC<Props> = ({
                       </p>
                     </div>
                   )}
+
+                  {/* Vendor / Supplier — preferred supplier for procurement / PO auto-fill */}
+                  <UniversalDropdown
+                    label="Vendor / Supplier"
+                    value={vendorId}
+                    onChange={(val) => setVendorId(String(val))}
+                    options={[
+                      { value: '', label: '— None —' },
+                      ...vendors.map((v) => ({ value: v.id, label: v.vendorName })),
+                    ]}
+                  />
+
+                  {/* Vendor Code — the supplier's own product code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                      <span>Vendor Code</span>
+                      <span className="text-[11px] text-slate-400 font-normal normal-case">Supplier's product code</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. DVP-14SS211R"
+                      value={vendorCode}
+                      onChange={(e) => setVendorCode(e.target.value)}
+                      className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-colors font-mono"
+                    />
+                  </div>
 
                   {/* Min Wholesale Quantity */}
                   {currentUser.role !== 'Sales' && (

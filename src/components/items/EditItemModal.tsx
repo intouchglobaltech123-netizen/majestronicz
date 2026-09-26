@@ -48,6 +48,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     gstSlabsList,
     addGstSlab,
     hasFlag,
+    vendors,
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'pricing' | 'stock' | 'history'>(
@@ -76,6 +77,10 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
   const [gstTaxSlab, setGstTaxSlab] = useState<number>(18);
 
+  // Preferred supplier / vendor (procurement) — for PO auto-fill
+  const [vendorId, setVendorId] = useState('');
+  const [vendorCode, setVendorCode] = useState('');
+
   // Low Stock Alert Threshold (per-item master)
   const [reorderThreshold, setReorderThreshold] = useState<number | ''>(10);
 
@@ -103,6 +108,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setMinWholesaleQty(item.minWholesaleQty);
       setPurchasePrice(item.purchasePrice);
       setGstTaxSlab(item.gstTaxSlab);
+      setVendorId(item.vendorId || '');
+      setVendorCode(item.vendorCode || '');
       setReorderThreshold(item.reorderThreshold ?? 10);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,6 +228,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       gstTaxSlab,
       discountOnSalePrice: Number(discountOnSalePrice) || 0,
       discountType,
+      vendorId: vendorId || undefined,
+      vendorCode: vendorCode.trim() || undefined,
       reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
@@ -594,6 +603,33 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         </p>
                       </div>
                       )}
+
+                      {/* Vendor / Supplier — preferred supplier for procurement / PO auto-fill */}
+                      <UniversalDropdown
+                        label="Vendor / Supplier"
+                        value={vendorId}
+                        onChange={(val) => setVendorId(String(val))}
+                        disabled={!canManageItems}
+                        options={[
+                          { value: '', label: '— None —' },
+                          ...vendors.map((v) => ({ value: v.id, label: v.vendorName })),
+                        ]}
+                      />
+
+                      {/* Vendor Code — the supplier's own product code */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Vendor Code</span>
+                          <span className="text-[11px] text-slate-400">Supplier's product code</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. DVP-14SS211R"
+                          value={vendorCode}
+                          onChange={(e) => setVendorCode(e.target.value)}
+                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-red-600"
+                        />
+                      </div>
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">

@@ -79,6 +79,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       item: Item | null;
       searchQuery: string;
       vendorSku?: string;
+      // Supplier's product code fetched from the catalog item (Item.vendorCode)
+      // when the item is picked, so the buyer sees it without retyping.
+      vendorCode?: string;
       quantity: number;
       // Raw text held while the user is typing the qty; parsed/committed on blur
       // (PUR-10) so mid-typing keystrokes are never coerced (e.g. "" → 1 → "125").
@@ -135,6 +138,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
             id: `poli-pf-${idx}-${Date.now()}`,
             item: matchedItem || null,
             searchQuery: matchedItem?.itemName || '',
+            vendorCode: matchedItem?.vendorCode,
             quantity: pf.quantity,
             purchasePrice: price,
             amount: pf.quantity * price,
@@ -200,6 +204,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         ...next[index],
         item,
         searchQuery: item.itemName,
+        // Auto-fetch the supplier's product code from the catalog item.
+        vendorCode: item.vendorCode,
         purchasePrice: price,
         amount: qty * price,
       };
@@ -323,7 +329,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
           itemCode: l.item.itemCode,
           itemName: l.item.itemName,
           itemHSN: l.item.itemHSN || '',
-          vendorSku: (l.vendorSku || '').trim() || undefined,
+          // Persist the staff-entered vendor SKU, else fall back to the
+          // supplier's product code auto-fetched from the catalog item so the
+          // supplier code is stored on the PO without retyping.
+          vendorSku: (l.vendorSku || '').trim() || l.item.vendorCode || undefined,
           unit: l.item.unit || 'PCS',
           quantityOrdered,
           purchasePrice: l.purchasePrice,
@@ -565,6 +574,11 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                               <span>Code: {line.item.itemCode}</span>
                               {line.item.itemHSN && <span>HSN: {line.item.itemHSN}</span>}
                               <span className="font-sans text-slate-600">Unit: {line.item.unit}</span>
+                              {/* Supplier's own product code, fetched from the catalog item. */}
+                              <span className="text-slate-600">
+                                <span className="font-sans">Supplier Code:</span>{' '}
+                                {line.vendorCode || '—'}
+                              </span>
                             </div>
                           )}
                         </td>
