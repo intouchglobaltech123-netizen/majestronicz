@@ -39,3 +39,18 @@ export const approveRecurring = async (req: Request, res: Response) => {
   assertBranchAllowed((req as any).user, branchId);
   res.json(await cash.approveRecurring(templateId, branchId, date, amount, paymentMode, actor));
 };
+
+// Dedicated replacements for the removed generic PUT/DELETE
+// /api/recurring-expenses/:id — see cash.service.ts for why they are not a
+// blind row write. Mounted under /api/cash, which already requires
+// 'cash:write'; the branch guard below stops a branch-scoped user from moving
+// a template into, or deleting one belonging to, a branch they cannot touch.
+export const updateRecurring = async (req: Request, res: Response) => {
+  const updates = (req.body ?? {}) as Record<string, any>;
+  if (updates.branchId !== undefined) assertBranchAllowed((req as any).user, updates.branchId);
+  res.json(await cash.updateRecurringTemplate(req.params.id, updates));
+};
+
+export const deleteRecurring = async (req: Request, res: Response) => {
+  res.json(await cash.deleteRecurringTemplate(req.params.id));
+};

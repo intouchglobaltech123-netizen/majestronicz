@@ -236,3 +236,84 @@ export function approveRecurring(templateId: string, branchId: string, date: str
     return snap(tx);
   });
 }
+
+// ── Recurring expense templates: edit + delete ──────────────────────────────
+//
+// These exist because the generic `PUT/DELETE /api/recurring-expenses/:id`
+// routes were removed from `crud.ts` (rightly — a blind full-row write let any
+// holder of the resource's write capability rewrite whole tables), but the
+// Recurring Expenses screen still called them. Every edit and delete has been
+// returning 404 since, while the UI reported success. Same regression class as
+// Edit Item, vendor delete and employee delete.
+//
+// A dedicated route instead of restoring the generic one, so the rules that a
+// blind update cannot express are enforced here:
+//   * only the template's own descriptive fields are writable,
+//   * the approval ledger (`lastApprovedMonth`, `approvalHistory`) is NOT —
+//     it is the record of money already posted to a register, and a client
+//     that could rewrite it could forge or erase an approved payment, or
+//     re-approve a month that was already paid,
+//   * the same amount/mode/day validation `approveRecurring` already applies.
+
+/** Fields a client may change on a template. Everything else is server-owned. */
+const RECURRING_EDITABLE = [
+  'name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode',
+] as const;
+
+export function updateRecurringTemplate(id: string, updates: Record<string, any>) {
+  return prisma.$transaction(async (tx: any) => {
+    const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
+    if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+
+    const data: Record<string, any> = {};
+    for (const key of RECURRING_EDITABLE) {
+      if (updates[key] !== undefined) data[key] = updates[key];
+    }
+
+    if (data.name !== undefined) {
+      const name = String(data.name).trim();
+      if (!name) throw new AppError('BAD_NAME', 'Name cannot be empty', 400);
+      data.name = name;
+    }
+    if (data.defaultAmount !== undefined) {
+      const amount = Number(data.defaultAmount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new AppError('BAD_AMOUNT', 'Default amount must be greater than zero', 400);
+      }
+      data.defaultAmount = amount;
+    }
+    if (data.dueDay !== undefined) {
+      const day = Number(data.dueDay);
+      if (!Number.isInteger(day) || day < 1 || day > 31) {
+        throw new AppError('BAD_DUE_DAY', 'Due day must be a day of the month (1-31)', 400);
+      }
+      data.dueDay = day;
+    }
+    if (data.paymentMode !== undefined && data.paymentMode !== 'Cash' && data.paymentMode !== 'GPay') {
+      throw new AppError('BAD_MODE', "Payment mode must be 'Cash' or 'GPay'", 400);
+    }
+    if (data.branchId !== undefined && !String(data.branchId).trim()) {
+      throw new AppError('BAD_BRANCH', 'Branch is required', 400);
+    }
+    if (Object.keys(data).length === 0) {
+      throw new AppError('NO_FIELDS', 'Nothing to update', 400);
+    }
+
+    await tx.recurringExpenseTemplate.update({ where: { id }, data });
+    return snap(tx);
+  });
+}
+
+export function deleteRecurringTemplate(id: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
+    if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+
+    // Deleting the template stops future approvals; it does not touch expenses
+    // already posted to a register, which stay in the day's cash book where the
+    // money actually moved. So this is safe to allow even for a template with
+    // approval history — no accounting record is lost.
+    await tx.recurringExpenseTemplate.delete({ where: { id } });
+    return snap(tx);
+  });
+}
