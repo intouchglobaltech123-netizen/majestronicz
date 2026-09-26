@@ -397,7 +397,7 @@ interface ErpContextType {
   cancelPurchaseOrder: (poId: string) => void;
   receivePurchaseOrderStock: (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
     notes?: string,
     payment?: { amount?: number; mode?: string }
   ) => void;
@@ -2410,11 +2410,25 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Only CEO or Manager can edit recurring expense templates.');
       return;
     }
+    const before = recurringExpenses;
     setRecurringExpenses((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
-    persist(apiPut(`/api/recurring-expenses/${id}`, updates));
-    toast.success('Recurring expense template updated');
+    // Success is announced only once the server has actually accepted it, and
+    // the optimistic edit is rolled back if it has not. Announcing up front is
+    // what let a removed route go unnoticed: the screen said "updated" while
+    // every save 404'd and the change vanished on reload.
+    apiPut(`/api/cash/recurring/${id}`, updates)
+      .then((snapshot) => {
+        applySnapshot(snapshot);
+        toast.success('Recurring expense template updated');
+      })
+      .catch((e) => {
+        setRecurringExpenses(before);
+        toast.error('Could not update recurring expense', {
+          description: e?.message || 'The change was not saved — please try again.',
+        });
+      });
   };
 
   const deleteRecurringExpenseTemplate = (id: string) => {
@@ -2422,9 +2436,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Only CEO or Manager can delete recurring expense templates.');
       return;
     }
+    const before = recurringExpenses;
     setRecurringExpenses((prev) => prev.filter((t) => t.id !== id));
-    persist(apiDelete(`/api/recurring-expenses/${id}`));
-    toast.success('Recurring expense template deleted');
+    apiDelete(`/api/cash/recurring/${id}`)
+      .then((snapshot) => {
+        applySnapshot(snapshot);
+        toast.success('Recurring expense template deleted');
+      })
+      .catch((e) => {
+        setRecurringExpenses(before);
+        toast.error('Could not delete recurring expense', {
+          description: e?.message || 'The template was not deleted — please try again.',
+        });
+      });
   };
 
   const approveRecurringExpense = (
@@ -3560,7 +3584,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const receivePurchaseOrderStock = (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
     notes?: string,
     payment?: { amount?: number; mode?: string }
   ) => {
