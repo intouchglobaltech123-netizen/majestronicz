@@ -1968,18 +1968,16 @@ export const InvoiceForm: React.FC<Props> = ({
                     {/* Tax Rate & Amount (With GST only) */}
                     {withGst && (
                       <>
-                        <td className="py-2.5 px-3">
-                          <select
-                            value={item.taxRate}
-                            onChange={(e) => updateLineItem(item.id, { taxRate: Number(e.target.value) })}
-                            className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                        {/* GST rate is sourced from the catalog item's tax slab and is
+                            NOT editable on the sales screen — it only ever reflects the
+                            product's configured rate (set when the item is selected). */}
+                        <td className="py-2.5 px-3 text-right">
+                          <span
+                            className="inline-block w-full px-2 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono font-semibold text-slate-600 text-right cursor-default"
+                            title={item.itemId ? 'GST rate is fixed by the product catalog and cannot be changed here.' : 'Default GST rate for this line.'}
                           >
-                            <option value="0">0%</option>
-                            <option value="5">5%</option>
-                            <option value="12">12%</option>
-                            <option value="18">18%</option>
-                            <option value="28">28%</option>
-                          </select>
+                            {Number(item.taxRate) || 0}%
+                          </span>
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">
                           {item.totalTax.toFixed(2)}
