@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
+import { effectiveTaxSlab } from '../../lib/tax';
 import {
   Item,
   Estimate,
@@ -54,6 +55,14 @@ export const EstimateForm: React.FC<Props> = ({
   } = useErp();
 
   // Target branch for this estimate (if in 'all' scope, default to 'erode-hq' or permit picking)
+  // Same rule as the invoice form: a branch that corrected an item's GST while
+  // receiving charges its own rate; otherwise the catalog slab applies.
+  const taxSlabFor = (item: { id: string; gstTaxSlab: number }): number =>
+    effectiveTaxSlab(
+      item.gstTaxSlab,
+      branchStocks.find((bs) => bs.itemId === item.id && bs.branchId === selectedBranch)?.gstTaxSlab,
+    );
+
   const [selectedBranch, setSelectedBranch] = useState<BranchId>(() => {
     if (initialEstimate) return initialEstimate.branchId;
     if (duplicateSourceEstimate) return duplicateSourceEstimate.branchId;
@@ -170,11 +179,11 @@ export const EstimateForm: React.FC<Props> = ({
     if (selectedItem) {
       const preTaxPrice =
         selectedItem.salePriceTaxMode === 'with'
-          ? selectedItem.salePrice / (1 + selectedItem.gstTaxSlab / 100)
+          ? selectedItem.salePrice / (1 + taxSlabFor(selectedItem) / 100)
           : selectedItem.salePrice;
 
       const taxable = Math.round(preTaxPrice * 100) / 100;
-      const gstRate = selectedItem.gstTaxSlab;
+      const gstRate = taxSlabFor(selectedItem);
       const totalTax = (taxable * gstRate) / 100;
 
       newRow = {
@@ -251,7 +260,7 @@ export const EstimateForm: React.FC<Props> = ({
 
     const preTaxPrice =
       item.salePriceTaxMode === 'with'
-        ? item.salePrice / (1 + item.gstTaxSlab / 100)
+        ? item.salePrice / (1 + taxSlabFor(item) / 100)
         : item.salePrice;
 
     const roundedPrice = Math.round(preTaxPrice * 100) / 100;
@@ -262,7 +271,7 @@ export const EstimateForm: React.FC<Props> = ({
       itemHSN: item.itemHSN,
       unit: item.unit,
       unitPrice: roundedPrice,
-      gstRate: isBulkTaxOpen ? bulkGstRate : item.gstTaxSlab,
+      gstRate: isBulkTaxOpen ? bulkGstRate : taxSlabFor(item),
       isCombo: false,
       comboId: undefined,
       comboComponents: undefined,

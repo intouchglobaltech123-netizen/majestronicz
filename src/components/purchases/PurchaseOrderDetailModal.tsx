@@ -108,6 +108,14 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const debitNotes = purchaseOrder.debitNotes || [];
   const debitNotesTotal = debitNotes.reduce((s, dn) => s + (dn.totalAmount || 0), 0);
 
+  // GST confirmed while receiving. `totalTax` is absent on orders created before
+  // tax was captured, so fall back to summing the lines, and to 0 when neither
+  // exists — an old PO then reads exactly as it always did.
+  const poTotalTax =
+    purchaseOrder.totalTax ??
+    purchaseOrder.items.reduce((sum, l) => sum + (l.taxAmount || 0), 0);
+  const poGrandTotal = Math.round(((purchaseOrder.totalAmount || 0) + poTotalTax) * 100) / 100;
+
   // File Upload Handler (PDF or Image, base64 stopgap)
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -449,9 +457,16 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     Order Value
                   </span>
                   <div className="text-lg font-mono font-bold text-slate-900 mt-1">
-                    {formatCurrency(purchaseOrder.totalAmount)}
+                    {formatCurrency(poGrandTotal)}
                   </div>
-                  <span className="text-[11px] text-slate-500 mt-0.5 block">
+                  {/* Goods and GST shown separately: "order value" alone hid
+                      whether tax was included, so the payable never matched the
+                      supplier's bill. */}
+                  <span className="text-[11px] text-slate-500 mt-0.5 block font-mono">
+                    {formatCurrency(purchaseOrder.totalAmount)} goods
+                    {poTotalTax > 0 ? ` + ${formatCurrency(poTotalTax)} GST` : ''}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
                     {purchaseOrder.items.length} line {purchaseOrder.items.length === 1 ? 'item' : 'items'}
                   </span>
                 </div>
@@ -611,7 +626,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
               {/* Vendor payments — how much paid to the vendor, how much still due */}
               {(() => {
-                const total = purchaseOrder.totalAmount || 0;
+                // What the vendor is actually owed includes the GST on the
+                // bill, not just the goods value.
+                const total = poGrandTotal;
                 const paid = purchaseOrder.amountPaid || 0;
                 // Debit notes (goods billed back to the vendor for damage/rejects)
                 // reduce what we still owe them (PUR2-19).
@@ -772,6 +789,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         <th className="py-2.5 px-3 text-center">Ordered</th>
                         <th className="py-2.5 px-3 text-center">Received</th>
                         <th className="py-2.5 px-3 text-center">Pending</th>
+                        <th className="py-2.5 px-3 text-right">GST</th>
                         <th className="py-2.5 px-4 text-right">Line Total</th>
                         <th className="py-2.5 px-4 text-center">Fulfillment</th>
                       </tr>
@@ -809,8 +827,26 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                                 <span className="text-slate-400">0</span>
                               )}
                             </td>
+                            {/* Per-product GST as confirmed at receipt. A dash
+                                means this line has not been received yet, so no
+                                rate has been agreed with the supplier. */}
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">
+                              {item.taxPercent ? (
+                                <>
+                                  <div className="text-xs font-semibold text-slate-700">{item.taxPercent}%</div>
+                                  <div className="text-[11px] text-slate-500">{formatCurrency(item.taxAmount || 0)}</div>
+                                </>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
                             <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                              {formatCurrency(item.amount)}
+                              {formatCurrency(item.lineTotal ?? item.amount)}
+                              {item.taxAmount ? (
+                                <div className="text-[11px] font-normal text-slate-500">
+                                  {formatCurrency(item.amount)} + tax
+                                </div>
+                              ) : null}
                             </td>
                             <td className="py-3 px-4 text-center">
                               {isDone ? (

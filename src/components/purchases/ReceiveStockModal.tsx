@@ -20,7 +20,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   onClose,
   purchaseOrder,
 }) => {
-  const { receivePurchaseOrderStock, getBranchStock } = useErp();
+  const { receivePurchaseOrderStock, getBranchStock, items } = useErp();
 
   // Map of itemId -> number of units receiving right now
   const [quantitiesToReceive, setQuantitiesToReceive] = useState<Record<string, number>>({});
@@ -34,6 +34,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [perUnitInputs, setPerUnitInputs] = useState<Record<string, string>>({});
   // Quality check: line.id -> number of units found damaged (billed back to vendor)
   const [damagedToAssign, setDamagedToAssign] = useState<Record<string, number>>({});
+  // Tax % per PO line, pre-filled from the item's catalog slab and editable
+  // against the supplier's bill. What is confirmed here becomes this branch's
+  // rate for the item (BranchStock.gstTaxSlab), so a rate corrected once at
+  // receipt does not have to be corrected again on every sale.
+  const [taxToAssign, setTaxToAssign] = useState<Record<string, number>>({});
+  const [taxInputs, setTaxInputs] = useState<Record<string, string>>({});
   // Vendor payment recorded at receiving
   const [payNowInput, setPayNowInput] = useState<string>('');
   const [payMode, setPayMode] = useState<string>('Cash');
@@ -56,6 +62,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       const initial: Record<string, number> = {};
       const initialLocs: Record<string, string> = {};
       const initialPrices: Record<string, number> = {};
+      const initialTax: Record<string, number> = {};
       // Key every input by the PO LINE id (not itemId) so two lines of the same
       // product stay independent — editing one row never changes the other.
       purchaseOrder.items.forEach((item) => {
@@ -64,10 +71,18 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
         initialLocs[item.id] = currentLoc;
         initialPrices[item.id] = item.purchasePrice || 0;
+        // Prefer a rate this branch already corrected; fall back to the
+        // catalog, then to whatever the PO line carried.
+        const branchRow = getBranchStock(item.itemId, purchaseOrder.branchId) as any;
+        const catalogItem = items.find((i) => i.id === item.itemId);
+        initialTax[item.id] =
+          branchRow?.gstTaxSlab ?? catalogItem?.gstTaxSlab ?? (item as any).taxPercent ?? 0;
       });
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);
       setPricesToAssign(initialPrices);
+      setTaxToAssign(initialTax);
+      setTaxInputs({});
       setTotalPriceInputs({});
       setPerUnitInputs({});
       setDamagedToAssign({});
@@ -163,6 +178,24 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   };
 
   const totalUnitsReceivingNow = Object.values(quantitiesToReceive).reduce((sum, val) => sum + (val || 0), 0);
+
+  // What this receipt is worth. Computed from the same per-line inputs the rows
+  // display, so the footer can never disagree with the table above it.
+  const receiptTotals = (purchaseOrder?.items || []).reduce(
+    (acc, line) => {
+      const qty = Number(quantitiesToReceive[line.id]) || 0;
+      if (qty <= 0) return acc;
+      const taxable = (pricesToAssign[line.id] || 0) * qty;
+      const tax = taxable * ((taxToAssign[line.id] || 0) / 100);
+      acc.taxable += taxable;
+      acc.tax += tax;
+      return acc;
+    },
+    { taxable: 0, tax: 0 },
+  );
+  const receiptTaxable = Math.round(receiptTotals.taxable * 100) / 100;
+  const receiptTax = Math.round(receiptTotals.tax * 100) / 100;
+  const receiptPayable = Math.round((receiptTaxable + receiptTax) * 100) / 100;
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -171,7 +204,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
     // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
     // quantities if the same product spans multiple PO lines).
-    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }> = {};
+    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }> = {};
     purchaseOrder.items.forEach((line) => {
       const q = Number(quantitiesToReceive[line.id]) || 0;
       const dmg = Number(damagedToAssign[line.id]) || 0;
@@ -193,6 +226,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         if (!isNaN(t) && t >= 0 && line.quantityOrdered > 0) price = Math.round((t / line.quantityOrdered) * 100) / 100;
       }
       if (price != null) acc.purchasePrice = price;
+      // Same flush-before-submit rule as the price: a rate still sitting as raw
+      // text because the field never lost focus must not be dropped.
+      let tax = taxToAssign[line.id];
+      const rawTax = taxInputs[line.id];
+      if (rawTax != null && rawTax !== '') {
+        const t = parseFloat(rawTax);
+        if (!isNaN(t) && t >= 0 && t <= 100) tax = Math.round(t * 100) / 100;
+      }
+      if (tax != null) acc.taxPercent = tax;
       byItem[line.itemId] = acc;
     });
     const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
@@ -295,6 +337,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
                   <th className="py-2.5 px-3 text-right w-44">Purchase Price<br/><span className="text-[9px] font-normal lowercase text-slate-400">total for all units → per unit</span></th>
+                  <th className="py-2.5 px-3 text-right w-32">GST %<br/><span className="text-[9px] font-normal lowercase text-slate-400">as billed by supplier</span></th>
                   <th className="py-2.5 px-3 text-left">
                     <div className="flex items-center gap-1">
                       <span>Shelve / Rack</span>
@@ -530,9 +573,25 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
         {/* Modal Footer */}
         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between shrink-0">
-          <div className="text-xs text-slate-600">
-            Total units receiving now:{' '}
-            <span className="font-bold text-slate-900 text-sm">{totalUnitsReceivingNow}</span>
+          <div className="text-xs text-slate-600 flex items-center gap-5">
+            <span>
+              Total units receiving now:{' '}
+              <span className="font-bold text-slate-900 text-sm">{totalUnitsReceivingNow}</span>
+            </span>
+            {/* Goods value, the GST on it, and what the vendor is owed for this
+                receipt — the three figures that used to be missing entirely. */}
+            <span className="hidden sm:flex items-center gap-4 border-l border-slate-300 pl-5">
+              <span>
+                Goods <span className="font-semibold font-mono text-slate-800">{formatCurrency(receiptTaxable)}</span>
+              </span>
+              <span>
+                GST <span className="font-semibold font-mono text-slate-800">{formatCurrency(receiptTax)}</span>
+              </span>
+              <span>
+                Payable{' '}
+                <span className="font-bold font-mono text-slate-900 text-sm">{formatCurrency(receiptPayable)}</span>
+              </span>
+            </span>
           </div>
 
           <div className="flex items-center gap-3">

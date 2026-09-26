@@ -43,6 +43,13 @@ model BranchStock {
   quantity     Float
   location     String?
   minStockAlert Float?
+  // Per-branch GST override, set while receiving stock when the supplier bills
+  // this item at a different rate than the catalog says. NULL means "no
+  // override": the item's own gstTaxSlab applies. Every existing row is
+  // therefore unchanged, and only a branch that was explicitly corrected
+  // differs. Always read it through effectiveTaxSlab(), never directly, or the
+  // two rates drift apart between screens.
+  gstTaxSlab   Float?
   updatedAt    String
 
   @@id([itemId, branchId])
@@ -320,7 +327,11 @@ model PurchaseOrder {
   expectedDeliveryDate String
   status              String
   items               Json
-  totalAmount         Float
+  totalAmount         Float   // taxable value: sum of line amounts, tax excluded
+  // GST on this PO, accumulated from the rates confirmed while receiving. Kept
+  // separate from totalAmount so "what the goods cost" and "what the bill comes
+  // to" stay distinguishable — the payable to the vendor is the sum of the two.
+  totalTax            Float?
   amountPaid          Float?  // total paid to vendor against this PO (payables tracking)
   notes               String?
   pendingOrderId      String?

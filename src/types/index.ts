@@ -161,6 +161,13 @@ export interface BranchStock {
   quantity: number;
   location?: string; // Rack / Bin location (e.g. "RACK-A1", "BIN-04")
   minStockAlert?: number;
+  /**
+   * Per-branch GST override, set while receiving stock when the supplier bills
+   * this item at a rate the catalog does not have. Undefined/null means the
+   * item's own gstTaxSlab applies. Resolve it with effectiveTaxSlab() rather
+   * than reading either field alone.
+   */
+  gstTaxSlab?: number | null;
   updatedAt: string;
 }
 
@@ -781,8 +788,13 @@ export interface POLineItem {
   unit: string;
   quantityOrdered: number;
   purchasePrice: number; // Pre-fills from Item.purchasePrice; confirmed/edited while receiving
-  amount: number;
+  amount: number; // taxable value: purchasePrice x quantityOrdered, tax excluded
   receivedQuantity: number; // Tracks units actually received into physical stock
+  // Confirmed while receiving, against the supplier's bill. Absent on lines
+  // created before this existed, and on POs not yet received — treat as 0.
+  taxPercent?: number;
+  taxAmount?: number;
+  lineTotal?: number; // amount + taxAmount
 }
 
 /**
@@ -844,7 +856,8 @@ export interface PurchaseOrder {
   expectedDeliveryDate: string;
   status: PurchaseOrderStatus;
   items: POLineItem[];
-  totalAmount: number;
+  totalAmount: number; // taxable value of the order, tax excluded
+  totalTax?: number;   // GST accumulated from the rates confirmed at receipt
   amountPaid?: number; // total paid to vendor against this PO (payables tracking)
   notes?: string;
   pendingOrderId?: string;

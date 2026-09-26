@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
@@ -77,7 +78,7 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
 /** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
 export function receivePurchaseOrderStock(
   poId: string,
-  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number }[],
+  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
   notes: string | undefined,
   payment: { amount?: number; mode?: string } | undefined,
   actor: string,
@@ -108,6 +109,9 @@ export function receivePurchaseOrderStock(
       const good = Number(rec.quantityReceived) || 0;
       const dmg = Number(rec.damagedQuantity) || 0;
       if (good < 0 || dmg < 0) throw new AppError('NEGATIVE_QTY', 'Received or damaged quantity cannot be negative.', 400);
+      if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
+        throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);
+      }
       const remaining = (line.quantityOrdered || 0) - (line.receivedQuantity || 0);
       if (good + dmg > remaining) {
         throw new AppError('OVER_RECEIPT', `Cannot receive ${good + dmg} of "${line.itemName || rec.itemId}" — only ${remaining} remaining on the PO.`, 400);
@@ -121,14 +125,25 @@ export function receivePurchaseOrderStock(
       // line amount (price × ordered qty) so the PO total reflects the real cost.
       const nextPrice =
         rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
+      // Tax rate confirmed at receipt wins; otherwise keep whatever the line
+      // already carried, falling back to 0 rather than guessing a slab.
+      const nextTaxPercent =
+        rec.taxPercent != null ? Number(rec.taxPercent) : (line.taxPercent ?? 0);
+      const lineAmount = Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100;
       return {
         ...line,
         receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
         purchasePrice: nextPrice,
-        amount: Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100,
+        amount: lineAmount,
+        taxPercent: nextTaxPercent,
+        taxAmount: taxAmountFor(lineAmount, nextTaxPercent),
+        lineTotal: Math.round((lineAmount + taxAmountFor(lineAmount, nextTaxPercent)) * 100) / 100,
       };
     });
     const newTotalAmount = updatedLines.reduce((s: number, l: any) => s + (l.amount || 0), 0);
+    const newTotalTax = Math.round(
+      updatedLines.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100,
+    ) / 100;
 
     const eventLines = valid.map((rec) => {
       const line = lines.find((l) => l.itemId === rec.itemId);
@@ -138,6 +153,15 @@ export function receivePurchaseOrderStock(
         quantityOrdered: line?.quantityOrdered || 0, quantityReceivedThisEvent: rec.quantityReceived,
         damagedQuantity: rec.damagedQuantity || 0,
         totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
+        // What this receipt itself cost, so the history shows the money that
+        // moved on the day rather than only the PO's running totals.
+        purchasePrice: rec.purchasePrice ?? line?.purchasePrice ?? 0,
+        taxPercent: rec.taxPercent ?? line?.taxPercent ?? 0,
+        taxableValue: Math.round((rec.purchasePrice ?? line?.purchasePrice ?? 0) * rec.quantityReceived * 100) / 100,
+        taxAmount: taxAmountFor(
+          (rec.purchasePrice ?? line?.purchasePrice ?? 0) * rec.quantityReceived,
+          rec.taxPercent ?? line?.taxPercent ?? 0,
+        ),
       };
     });
     const receivingEvent = {
@@ -187,7 +211,7 @@ export function receivePurchaseOrderStock(
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
-        items: updatedLines, status, totalAmount: newTotalAmount,
+        items: updatedLines, status, totalAmount: newTotalAmount, totalTax: newTotalTax,
         amountPaid: newAmountPaid,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
         debitNotes, payments,
@@ -223,10 +247,14 @@ export function receivePurchaseOrderStock(
         create: {
           itemId: rec.itemId, branchId: po.branchId, quantity: rec.quantityReceived,
           location: rec.location?.trim() || '', minStockAlert: 5, updatedAt: ts,
+          // The rate confirmed on the supplier's bill becomes this branch's
+          // rate for the item (the receiver corrected it for a reason).
+          ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
         },
         update: {
           quantity: (existing?.quantity ?? 0) + rec.quantityReceived,
           ...(rec.location ? { location: rec.location.trim() } : {}),
+          ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
           updatedAt: ts,
         },
       });

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
+import { effectiveTaxSlab } from '../../lib/tax';
 import {
   Item,
   Invoice,
@@ -665,10 +666,20 @@ export const InvoiceForm: React.FC<Props> = ({
   // the base price; otherwise fall back to the normal sale price. The item's
   // tax mode (incl./excl.) is applied consistently to whichever price is used.
   const isWholesaleCustomer = selectedCustomerObj?.customerType === 'Organization';
+
+  // The GST rate to charge for an item at the branch this bill belongs to.
+  // A branch that corrected the rate while receiving stock (BranchStock.
+  // gstTaxSlab) charges that rate; everywhere else the catalog slab stands.
+  // Reading item.gstTaxSlab directly here would quietly bill the old rate.
+  const taxSlabFor = (item: Item): number =>
+    effectiveTaxSlab(
+      item.gstTaxSlab,
+      branchStocks.find((bs) => bs.itemId === item.id && bs.branchId === selectedBranch)?.gstTaxSlab,
+    );
   const getItemPreTaxPrice = (item: Item): number => {
     const base =
       isWholesaleCustomer && item.wholesalePrice > 0 ? item.wholesalePrice : item.salePrice;
-    const factor = 1 + item.gstTaxSlab / 100;
+    const factor = 1 + taxSlabFor(item) / 100;
     // GST-ON representation of the unit price (pre-tax portion), unchanged from before.
     const preOn = item.salePriceTaxMode === 'with' ? base / factor : base;
     // GST is DISPLAY-ONLY: the amount charged must be identical whether GST is on or off.
@@ -689,7 +700,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
     if (selectedItem) {
       const roundedPrice = getItemPreTaxPrice(selectedItem);
-      const calculated = calculateLineTax(1, roundedPrice, selectedItem.gstTaxSlab, withGst);
+      const calculated = calculateLineTax(1, roundedPrice, taxSlabFor(selectedItem), withGst);
 
       newRow = {
         id: newId,
@@ -703,7 +714,7 @@ export const InvoiceForm: React.FC<Props> = ({
         discountType: '%',
         discountValue: 0,
         discountAmount: 0,
-        taxRate: selectedItem.gstTaxSlab,
+        taxRate: taxSlabFor(selectedItem),
         taxableAmount: calculated.taxableAmount,
         cgstAmount: calculated.cgstAmount,
         sgstAmount: calculated.sgstAmount,
@@ -819,7 +830,7 @@ export const InvoiceForm: React.FC<Props> = ({
       itemHSN: item.itemHSN,
       unit: item.unit,
       unitPrice: roundedPrice,
-      taxRate: isBulkTaxOpen ? bulkTaxRate : item.gstTaxSlab,
+      taxRate: isBulkTaxOpen ? bulkTaxRate : taxSlabFor(item),
       isCombo: false,
       comboId: undefined,
       comboComponents: undefined,
