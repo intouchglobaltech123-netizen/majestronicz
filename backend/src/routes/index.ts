@@ -172,6 +172,25 @@ for (const [path, { delegate, cap, readCap }] of Object.entries(resources)) {
   router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap));
 }
 
+// Dedicated delete routes for vendors & employees (the generic DELETE /:id was
+// removed by CRUD-1; the frontend still needs these, with referential guards).
+router.delete('/vendors/:id', requireCapability('purchase:write'), asyncHandler(async (req, res) => {
+  const id = req.params.id;
+  const linkedPos = await prisma.purchaseOrder.count({ where: { vendorId: id } });
+  if (linkedPos > 0) throw new AppError('VENDOR_IN_USE', 'Cannot delete a supplier that has purchase orders. Archive it instead.', 409);
+  await prisma.vendor.deleteMany({ where: { id } });
+  broadcastChange('DELETE /api/vendors');
+  res.json({ ok: true, vendors: await prisma.vendor.findMany() });
+}));
+router.delete('/employees/:id', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
+  const id = req.params.id;
+  const linkedUser = await prisma.user.findFirst({ where: { employeeId: id, status: 'active' } });
+  if (linkedUser) throw new AppError('EMPLOYEE_HAS_LOGIN', 'This employee has an active app login. Remove the login first.', 409);
+  await prisma.employee.deleteMany({ where: { id } });
+  broadcastChange('DELETE /api/employees');
+  res.json({ ok: true, employees: await prisma.employee.findMany() });
+}));
+
 // ---- Transactional domain endpoints (RBAC-guarded) ----
 router.use('/tx', requireCapability('sales:write'), invoiceRoutes);
 router.use('/stock', requireCapability('stock:write'), stockRoutes);

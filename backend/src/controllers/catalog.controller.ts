@@ -7,6 +7,10 @@ export const addItem = async (req: Request, res: Response) => {
   const { item: itemData, initialStocks, initialLocations } = req.body;
   res.json(await item.addItem(itemData, initialStocks, initialLocations));
 };
+export const updateItem = async (req: Request, res: Response) => {
+  const updates = req.body?.item ?? req.body;
+  res.json(await item.updateItem(req.params.id, updates));
+};
 export const deleteItem = async (req: Request, res: Response) => {
   res.json(await item.deleteItem(req.params.id));
 };

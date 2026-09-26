@@ -6,6 +6,8 @@ import * as ctrl from '../controllers/catalog.controller.js';
 const router = Router();
 // Items (multi-table: item + branch stock) — CEO/Manager only
 router.post('/item', requireCapability('items:write'), asyncHandler(ctrl.addItem));
+// Dedicated item update (replaces the generic PUT /api/items/:id that CRUD-1 removed).
+router.put('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.updateItem));
 router.delete('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.deleteItem));
 // Estimates / Quotes
 router.post('/estimate', requireCapability('estimate:write'), asyncHandler(ctrl.saveEstimate));

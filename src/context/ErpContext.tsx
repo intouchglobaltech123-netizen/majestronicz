@@ -1435,7 +1435,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, ...updates, updatedAt: now } : item))
     );
-    persist(apiPut(`/api/items/${itemId}`, { ...updates, updatedAt: now }));
+    persist(apiPut(`/api/catalog/item/${itemId}`, { ...updates, updatedAt: now }));
     toast.success('Master catalog item updated');
   };
 

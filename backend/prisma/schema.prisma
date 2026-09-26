@@ -28,6 +28,8 @@ model Item {
   minWholesaleQty     Float
   purchasePrice       Float
   gstTaxSlab          Float
+  vendorId            String?
+  vendorCode          String?
   discountOnSalePrice Float?
   discountType        String?
   reorderThreshold    Float?

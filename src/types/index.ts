@@ -141,6 +141,8 @@ export interface Item {
   minWholesaleQty: number;
   purchasePrice: number;
   gstTaxSlab: number; // e.g. 18 for 18%
+  vendorId?: string; // preferred supplier for this item (for PO auto-fill)
+  vendorCode?: string; // the supplier's own product code, shown in inventory & auto-filled onto POs
   discountOnSalePrice?: number;
   discountType?: DiscountType;
   reorderThreshold?: number; // Threshold for Low Stock alerts (default 10)

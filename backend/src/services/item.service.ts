@@ -43,6 +43,47 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
   });
 }
 
+/**
+ * Update a catalog item's master fields. A dedicated route (not the generic
+ * PUT /:id that CRUD-1 removed): it validates the same rules as add and only
+ * lets master fields change. Fixes the Edit Item regression from CRUD-1.
+ */
+export function updateItem(itemId: string, updates: any) {
+  return prisma.$transaction(async (tx: any) => {
+    const existing = await tx.item.findUnique({ where: { id: itemId } });
+    if (!existing) throw new AppError('NOT_FOUND', 'Item not found', 404);
+
+    // Validate only the fields actually being changed (VAL-1 parity with add).
+    if (updates.itemName != null && !String(updates.itemName).trim()) {
+      throw new AppError('NAME_REQUIRED', 'Item name is required', 400);
+    }
+    if (updates.gstTaxSlab != null) {
+      const gst = Number(updates.gstTaxSlab);
+      if (!Number.isFinite(gst) || gst < 0 || gst > 100) throw new AppError('BAD_GST', 'GST rate must be between 0 and 100', 400);
+    }
+    for (const f of ['salePrice', 'purchasePrice', 'wholesalePrice'] as const) {
+      if (updates[f] != null && Number(updates[f]) < 0) throw new AppError('BAD_PRICE', 'Prices cannot be negative', 400);
+    }
+    if (updates.itemHSN != null) {
+      const hsn = String(updates.itemHSN).trim();
+      if (hsn && !/^\d{4}(\d{2}(\d{2})?)?$/.test(hsn)) throw new AppError('BAD_HSN', 'HSN must be 4, 6, or 8 digits', 400);
+    }
+    if (updates.itemCode != null) {
+      const code = String(updates.itemCode).trim();
+      if (!code) throw new AppError('CODE_REQUIRED', 'Item code is required', 400);
+      const all = await tx.item.findMany();
+      if (all.some((i: any) => i.id !== itemId && (i.itemCode || '').trim().toLowerCase() === code.toLowerCase())) {
+        throw new AppError('DUP_CODE', `Item code "${code}" already exists`, 409);
+      }
+    }
+
+    // Never let id/createdAt be overwritten from the client.
+    const { id: _id, createdAt: _c, ...data } = updates;
+    await tx.item.update({ where: { id: itemId }, data: { ...data, updatedAt: nowIso() } });
+    return { items: await tx.item.findMany(), branchStocks: await tx.branchStock.findMany() };
+  });
+}
+
 /** Delete an item and cascade its branch stock + adjustment logs. */
 export function deleteItem(itemId: string) {
   return prisma.$transaction(async (tx: any) => {
