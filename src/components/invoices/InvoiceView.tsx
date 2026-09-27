@@ -284,13 +284,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       if (!matchesBranch) return false;
 
-      // Sales page shows TODAY's invoices only; use a date range in Reports for history.
-      // Searching still looks across ALL invoices so any past bill can be found.
-      if (!searchQuery.trim()) {
-        const t = new Date();
-        const todayStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-        if (!(inv.date || '').startsWith(todayStr)) return false;
-      }
+      // Show ALL invoices (branch-filtered), newest first — staff need to see
+      // previously generated bills here, not just today's. Deep history/date-range
+      // reporting still lives in the Reports section.
 
       // Search filter (Invoice No, Customer, Phone, Items)
       if (searchQuery.trim()) {
@@ -307,6 +303,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       }
 
       return true;
+    }).sort((a, b) => {
+      const d = (b.date || '').localeCompare(a.date || '');
+      return d !== 0 ? d : (b.createdAt || '').localeCompare(a.createdAt || '');
     });
   }, [invoices, branchFilter, isAllBranches, currentBranch, searchQuery]);
 

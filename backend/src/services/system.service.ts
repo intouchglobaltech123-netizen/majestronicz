@@ -18,7 +18,10 @@ function scopeBootstrap(data: any, user: SessionUser) {
     ? data.employees
         .filter((e: any) => !branch || e.branchId === branch)
         .map((e: any) => {
-          const { monthlySalary, incentivePercent, pin, ...safe } = e;
+          // Hide salary/incentive from non-CEO, but KEEP the attendance PIN — the
+          // kiosk verifies it client-side, so stripping it broke clock-in/out.
+          // (Moving kiosk verification server-side is the proper SEC2-2 follow-up.)
+          const { monthlySalary, incentivePercent, ...safe } = e;
           return safe;
         })
     : data.employees;
