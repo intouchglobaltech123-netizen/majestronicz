@@ -19,6 +19,7 @@ import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
+import { sendOtp, verifyOtp, getOtpStatus } from '../services/otp.service.js';
 import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
@@ -279,6 +280,18 @@ router.post('/ai/ask', requireCapability('ai:use'), asyncHandler(async (req, res
   const flags = roleFlags(user.role);
   const result = await askAi(String(req.body?.question || ''), flags, user.role);
   res.json(result);
+}));
+
+// ---- Phone OTP (MSG91). Send/verify are open (pre-auth flows like login), but
+// send is rate-limited per mobile in the service so it can't burn SMS credits. ----
+router.get('/otp/status', asyncHandler(async (_req, res) => res.json(getOtpStatus())));
+router.post('/otp/send', asyncHandler(async (req, res) => {
+  const result = await sendOtp(String(req.body?.phone || ''));
+  res.status(result.ok ? 200 : 400).json(result);
+}));
+router.post('/otp/verify', asyncHandler(async (req, res) => {
+  const result = await verifyOtp(String(req.body?.phone || ''), String(req.body?.otp || ''));
+  res.status(result.ok ? 200 : 400).json(result);
 }));
 
 // ---- Admin: reset to demo dataset (CEO only) ----
