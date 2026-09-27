@@ -255,16 +255,11 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                 print-color-adjust: exact;
                 -webkit-print-color-adjust: exact;
               }
-              /* Isolate the label sheet: hide the entire app behind the modal,
-                 then reveal ONLY the barcode print root. Without this the browser
-                 prints the underlying page content instead of the labels. */
-              body * {
-                visibility: hidden !important;
-              }
-              #barcode-print-root,
-              #barcode-print-root * {
-                visibility: visible !important;
-              }
+              /* Isolation is done with display:none (the app #root is hidden by
+                 index.css .barcode-printing, and the modal's screen chrome is
+                 print:hidden). We must NOT use visibility hidden here — hidden
+                 elements still occupy layout space, which pushed the labels onto a
+                 blank second page. */
               /* Kept in normal flow (NOT fixed) so multi-page label sheets
                  paginate correctly; ancestor clipping is reset below. */
               #barcode-print-root {
@@ -315,10 +310,13 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
               className="barcode-print-page"
             >
               <div
-                className="grid h-full"
+                className="grid"
                 style={{
                   gridTemplateColumns: `repeat(${preset.columns}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${preset.rows}, minmax(0, 1fr))`,
+                  // Rows are exactly one label tall (mm), NOT 1fr of a full-height
+                  // grid — otherwise each label's explicit heightMm overflowed its
+                  // 1fr cell and overlapped the row below (header behind barcode).
+                  gridAutoRows: `${preset.heightMm}mm`,
                   gap: `${preset.gapXmm}mm`,
                 }}
               >

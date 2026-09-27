@@ -19,16 +19,48 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  // Store original scroll position and style adjustments if any
   const scale = options.scale || 2; // Crisp resolution
 
-  const canvas = await html2canvas(element, {
-    scale,
-    useCORS: true,
-    logging: false,
-    backgroundColor: '#ffffff',
-    windowWidth: element.scrollWidth || 1024,
-  });
+  // Render the document at a FIXED A4 width during capture. Without this, the
+  // element was captured at whatever width the modal happened to be, so the
+  // aspect ratio wasn't A4 — the table rendered misaligned and the page had a big
+  // blank strip. 794px = 210mm at 96dpi. We also let it grow to its full height
+  // (the modal normally scrolls it) so the whole invoice is captured.
+  const A4_WIDTH_PX = 794;
+  const saved = {
+    width: element.style.width,
+    maxWidth: element.style.maxWidth,
+    height: element.style.height,
+    maxHeight: element.style.maxHeight,
+    overflow: element.style.overflow,
+    flex: element.style.flex,
+  };
+  element.style.width = `${A4_WIDTH_PX}px`;
+  element.style.maxWidth = `${A4_WIDTH_PX}px`;
+  element.style.height = 'auto';
+  element.style.maxHeight = 'none';
+  element.style.overflow = 'visible';
+  element.style.flex = 'none';
+
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = await html2canvas(element, {
+      scale,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: A4_WIDTH_PX,
+      width: A4_WIDTH_PX,
+    });
+  } finally {
+    // Always restore the on-screen layout, even if capture threw.
+    element.style.width = saved.width;
+    element.style.maxWidth = saved.maxWidth;
+    element.style.height = saved.height;
+    element.style.maxHeight = saved.maxHeight;
+    element.style.overflow = saved.overflow;
+    element.style.flex = saved.flex;
+  }
 
   const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
