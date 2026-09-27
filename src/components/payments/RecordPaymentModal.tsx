@@ -193,25 +193,35 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div className="max-h-44 overflow-y-auto divide-y divide-slate-200">
                 {outstanding.map((o) => {
                   const alloc = allocations.find((a) => a.refId === o.refId)?.amount || 0;
+                  // How much of this bill is still due AFTER this payment applies —
+                  // so paying a lump sum shows, bill by bill, what fills and what's left.
+                  const remainingAfter = Math.max(0, Math.round((o.balanceDue - alloc) * 100) / 100);
                   return (
                     <div key={o.refId} className="flex items-center justify-between px-3 py-2 gap-3 hover:bg-slate-50">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-900 truncate font-mono">{o.refNumber}</p>
                         <p className="text-[11px] text-slate-600 font-mono">{o.date ? `${o.date} · ` : ''}due {formatCurrency(o.balanceDue)}</p>
                       </div>
-                      {autoAllocate ? (
-                        <span className={cn('text-xs font-bold font-mono tabular-nums', alloc > 0 ? 'text-emerald-800' : 'text-slate-400')}>
-                          {alloc > 0 ? formatCurrency(alloc) : '—'}
-                        </span>
-                      ) : (
-                        <input
-                          type="number" min={0} max={o.balanceDue}
-                          value={manual[o.refId] ?? ''}
-                          onChange={(e) => setManual((m) => ({ ...m, [o.refId]: e.target.value }))}
-                          placeholder="0"
-                          className="w-24 px-2 py-1 rounded-none bg-white border border-slate-300 text-xs font-mono font-bold text-right text-slate-900 focus:outline-none focus:border-red-600"
-                        />
-                      )}
+                      <div className="flex flex-col items-end shrink-0">
+                        {autoAllocate ? (
+                          <span className={cn('text-xs font-bold font-mono tabular-nums', alloc > 0 ? 'text-emerald-800' : 'text-slate-400')}>
+                            {alloc > 0 ? formatCurrency(alloc) : '—'}
+                          </span>
+                        ) : (
+                          <input
+                            type="number" min={0} max={o.balanceDue}
+                            value={manual[o.refId] ?? ''}
+                            onChange={(e) => setManual((m) => ({ ...m, [o.refId]: e.target.value }))}
+                            placeholder="0"
+                            className="w-24 px-2 py-1 rounded-none bg-white border border-slate-300 text-xs font-mono font-bold text-right text-slate-900 focus:outline-none focus:border-red-600"
+                          />
+                        )}
+                        {alloc > 0 && (
+                          <span className={cn('text-[10px] font-mono mt-0.5', remainingAfter > 0.5 ? 'text-amber-700' : 'text-emerald-600')}>
+                            {remainingAfter > 0.5 ? `${formatCurrency(remainingAfter)} left` : 'settled ✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

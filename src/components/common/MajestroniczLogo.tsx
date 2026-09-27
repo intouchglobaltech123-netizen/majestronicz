@@ -8,64 +8,91 @@ interface Props {
   variant?: 'horizontal' | 'stacked' | 'emblem-only';
 }
 
+/**
+ * Crisp, resolution-independent brand mark. Previously rendered from raster PNGs
+ * with a baked (non-transparent) background, which looked pixelated when scaled
+ * and showed a background box. This is pure inline SVG + text, so it stays sharp
+ * at any size and on any background.
+ */
+
+const EMBLEM_PX: Record<NonNullable<Props['size']>, number> = { sm: 26, md: 32, lg: 40, xl: 48 };
+const WORD_CLASS: Record<NonNullable<Props['size']>, string> = {
+  sm: 'text-sm', md: 'text-base', lg: 'text-xl', xl: 'text-2xl',
+};
+
+const Emblem: React.FC<{ px: number; className?: string }> = ({ px, className }) => (
+  <svg
+    width={px}
+    height={px}
+    viewBox="0 0 48 48"
+    fill="none"
+    role="img"
+    aria-label="Majestronicz"
+    className={cn('shrink-0', className)}
+  >
+    <defs>
+      <linearGradient id="mz-grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#b91c1c" />
+        <stop offset="1" stopColor="#7f1120" />
+      </linearGradient>
+    </defs>
+    <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#mz-grad)" />
+    {/* Crown mark — "majestic" M */}
+    <path
+      d="M12 32h24l-2.2 5.2a2 2 0 0 1-1.85 1.25H16.05a2 2 0 0 1-1.85-1.25L12 32Z"
+      fill="#fff"
+      fillOpacity="0.95"
+    />
+    <path
+      d="M11.5 30.5 9 15.7l7.4 6.1L24 11l7.6 10.8 7.4-6.1-2.5 14.8H11.5Z"
+      fill="#fff"
+    />
+    <circle cx="24" cy="9" r="2.1" fill="#fde68a" />
+    <circle cx="9" cy="14" r="1.6" fill="#fde68a" />
+    <circle cx="39" cy="14" r="1.6" fill="#fde68a" />
+  </svg>
+);
+
+const Wordmark: React.FC<{ size: NonNullable<Props['size']> }> = ({ size }) => (
+  <span className={cn('font-extrabold tracking-tight leading-none text-slate-900 whitespace-nowrap', WORD_CLASS[size])}>
+    <span className="text-red-700">M</span>ajestronicz
+  </span>
+);
+
 export const MajestroniczLogo: React.FC<Props> = ({
   collapsed = false,
   className,
   size = 'md',
   variant = 'horizontal',
 }) => {
-  // Collapsed sidebar mode: display emblem only, perfectly centered
+  const px = EMBLEM_PX[size];
+
   if (collapsed || variant === 'emblem-only') {
     return (
       <div className={cn('flex items-center justify-center', className)}>
-        <img
-          src="/assets/majestronicz-emblem.png"
-          alt="Majestronicz"
-          className={cn(
-            'object-contain drop-shadow-xs shrink-0 transition-transform duration-200 hover:scale-105',
-            size === 'sm' ? 'h-6 w-6' : size === 'lg' ? 'h-10 w-10' : size === 'xl' ? 'h-12 w-12' : 'h-8 w-8'
-          )}
-        />
+        <Emblem px={px} className="transition-transform duration-200 hover:scale-105" />
       </div>
     );
   }
 
-  // Stacked mode (for Login, splash, or centered headers)
   if (variant === 'stacked') {
+    const stackedPx = size === 'sm' ? 48 : size === 'lg' ? 72 : size === 'xl' ? 88 : 60;
     return (
-      <div className={cn('flex flex-col items-center gap-1.5 select-none', className)}>
-        <img
-          src="/assets/majestronicz-logo.png"
-          alt="Majestronicz"
-          className={cn(
-            'object-contain drop-shadow-sm',
-            size === 'sm' ? 'h-16' : size === 'lg' ? 'h-24' : size === 'xl' ? 'h-32' : 'h-20'
-          )}
-        />
+      <div className={cn('flex flex-col items-center gap-2 select-none', className)}>
+        <Emblem px={stackedPx} />
+        <span className={cn('font-extrabold tracking-tight text-slate-900', size === 'xl' ? 'text-3xl' : 'text-2xl')}>
+          <span className="text-red-700">M</span>ajestronicz
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Retail ERP</span>
       </div>
     );
   }
 
-  // Horizontal mode (default for Sidebar, TopBar, Invoices, PDF prints)
+  // Horizontal (default)
   return (
     <div className={cn('flex items-center gap-2.5 select-none min-w-0', className)}>
-      <img
-        src="/assets/majestronicz-emblem.png"
-        alt="Majestronicz Emblem"
-        className={cn(
-          'object-contain drop-shadow-xs shrink-0',
-          size === 'sm' ? 'h-7 w-7' : size === 'lg' ? 'h-10 w-10' : size === 'xl' ? 'h-12 w-12' : 'h-8 w-8'
-        )}
-      />
-
-      <img
-        src="/assets/majestronicz-text.png"
-        alt="Majestronicz"
-        className={cn(
-          'object-contain shrink-0 max-w-[130px] sm:max-w-[155px]',
-          size === 'sm' ? 'h-3' : size === 'lg' ? 'h-5' : size === 'xl' ? 'h-6' : 'h-3.5'
-        )}
-      />
+      <Emblem px={px} />
+      <Wordmark size={size} />
     </div>
   );
 };
