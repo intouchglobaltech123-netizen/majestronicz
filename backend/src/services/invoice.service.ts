@@ -96,6 +96,19 @@ function reconcileInvoicePayment(inv: any) {
   inv.paymentMode = splits.find((s) => s.mode !== 'COD-Credit')?.mode || 'COD-Credit';
 }
 
+/**
+ * A closed cash day is final: its cash total is derived from the invoices and
+ * payments dated to it, so voiding / returning / deleting one of those bills (or
+ * a payment) would silently change a day that has already been reconciled and
+ * signed off. Block it — the CEO/Manager must reopen the day first (CASH-2).
+ */
+async function assertDayOpen(tx: any, branchId: string, date: string, verb: string) {
+  const closed = await tx.dailyCashRegister.findFirst({ where: { branchId, date, isClosed: true } });
+  if (closed) {
+    throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before you ${verb}.`, 409);
+  }
+}
+
 /** Affected collections returned so the frontend can sync in-memory state. */
 async function snapshot(tx: any) {
   const [invoices, customers, branchStocks, stockAdjustmentLogs] = await Promise.all([
@@ -303,6 +316,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('ALREADY_VOIDED', 'Sale already voided', 409);
+    await assertDayOpen(tx, inv.branchId, inv.date, 'void this bill'); // CASH-2
 
     const ts = nowIso();
     const items = await tx.item.findMany();
@@ -389,6 +403,7 @@ export function processReturn(
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
+    await assertDayOpen(tx, inv.branchId, inv.date, 'process this return'); // CASH-2
     const validLines = (returnLines || []).filter((l: any) => l.returnQty > 0);
     if (!validLines.length) throw new AppError('NO_LINES', 'No return quantity specified', 400);
 
@@ -531,6 +546,7 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (inv) {
       assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
+      await assertDayOpen(tx, inv.branchId, inv.date, 'delete this bill'); // CASH-2
       const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
       for (const item of inv.items as any[]) {
         if (item.isCombo && item.comboComponents?.length) {

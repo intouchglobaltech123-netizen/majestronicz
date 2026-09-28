@@ -102,6 +102,11 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
   }
 
   return prisma.$transaction(async (tx) => {
+    // A receipt/payment dated to a day whose drawer is already closed would
+    // change that reconciled day's cash total after the fact (CASH-2).
+    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: input.branchId, date, isClosed: true } });
+    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before recording this payment.`, 409);
+
     const receiptNumber = await nextReceiptNumber(input.type, date);
 
     // Settle allocated documents.
@@ -179,6 +184,9 @@ export async function deletePayment(id: string, reqUser?: any) {
     const payment = await tx.payment.findUnique({ where: { id } });
     if (!payment) throw new AppError('NOT_FOUND', 'Payment not found', 404);
     assertBranchAllowed(reqUser, payment.branchId); // SEC2-1
+    // Deleting a payment dated to a closed day would change that day's cash (CASH-2).
+    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: payment.branchId, date: payment.date, isClosed: true } });
+    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${payment.date} is closed. Reopen it before deleting this payment.`, 409);
     const allocations: Allocation[] = Array.isArray(payment.allocations) ? (payment.allocations as any) : [];
     if (payment.type === 'in') {
       for (const a of allocations) {
