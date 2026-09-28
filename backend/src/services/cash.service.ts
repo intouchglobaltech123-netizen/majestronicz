@@ -1,6 +1,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 const snap = async (tx: any) => ({
   cashRegisters: await tx.dailyCashRegister.findMany(),
@@ -260,10 +261,13 @@ const RECURRING_EDITABLE = [
   'name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode',
 ] as const;
 
-export function updateRecurringTemplate(id: string, updates: Record<string, any>) {
+export function updateRecurringTemplate(id: string, updates: Record<string, any>, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+    // SEC2-1: a branch-locked user can only touch a template that belongs to
+    // their branch — not just avoid moving it into someone else's.
+    assertBranchAllowed(reqUser, template.branchId);
 
     const data: Record<string, any> = {};
     for (const key of RECURRING_EDITABLE) {
@@ -304,10 +308,11 @@ export function updateRecurringTemplate(id: string, updates: Record<string, any>
   });
 }
 
-export function deleteRecurringTemplate(id: string) {
+export function deleteRecurringTemplate(id: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+    assertBranchAllowed(reqUser, template.branchId); // SEC2-1
 
     // Deleting the template stops future approvals; it does not touch expenses
     // already posted to a register, which stay in the day's cash book where the

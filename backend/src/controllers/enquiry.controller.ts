@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import * as enquiry from '../services/enquiry.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 
+const actorFrom = (req: Request) => (req as any).user;
+
 export const save = async (req: Request, res: Response) => {
   const { enquiry: e, initialExpectedRestockDate, actor } = req.body;
   // A branch-locked user can only log enquiries for their own branch (SEC2-1/CRM-14).
@@ -10,39 +12,39 @@ export const save = async (req: Request, res: Response) => {
 };
 export const linkItem = async (req: Request, res: Response) => {
   const { enquiryId, item, actor } = req.body;
-  res.json(await enquiry.linkItemToEnquiry(enquiryId, item, actor));
+  res.json(await enquiry.linkItemToEnquiry(enquiryId, item, actor, actorFrom(req)));
 };
 export const updatePending = async (req: Request, res: Response) => {
   const { orderId, updates } = req.body;
-  res.json(await enquiry.updatePendingOrder(orderId, updates));
+  res.json(await enquiry.updatePendingOrder(orderId, updates, actorFrom(req)));
 };
 export const cancel = async (req: Request, res: Response) => {
   const { enquiryId, reason, actor } = req.body;
-  res.json(await enquiry.cancelEnquiry(enquiryId, reason, actor));
+  res.json(await enquiry.cancelEnquiry(enquiryId, reason, actor, actorFrom(req)));
 };
 export const cancelPending = async (req: Request, res: Response) => {
   const { orderId, reason } = req.body;
-  res.json(await enquiry.cancelPendingOrder(orderId, reason));
+  res.json(await enquiry.cancelPendingOrder(orderId, reason, actorFrom(req)));
 };
 export const addReminder = async (req: Request, res: Response) => {
   const { enquiryId, dueDate, dueTime, notes, actor } = req.body;
-  res.json(await enquiry.addReminder(enquiryId, dueDate, dueTime, notes, actor));
+  res.json(await enquiry.addReminder(enquiryId, dueDate, dueTime, notes, actor, actorFrom(req)));
 };
 export const completeReminder = async (req: Request, res: Response) => {
-  res.json(await enquiry.completeReminder(req.body.reminderId));
+  res.json(await enquiry.completeReminder(req.body.reminderId, actorFrom(req)));
 };
 export const deleteReminder = async (req: Request, res: Response) => {
-  res.json(await enquiry.deleteReminder(req.body.reminderId));
+  res.json(await enquiry.deleteReminder(req.body.reminderId, actorFrom(req)));
 };
 export const updateNotes = async (req: Request, res: Response) => {
   const { enquiryId, notes, actor } = req.body;
-  res.json(await enquiry.updateNotes(enquiryId, notes, actor));
+  res.json(await enquiry.updateNotes(enquiryId, notes, actor, actorFrom(req)));
 };
 export const updateStatus = async (req: Request, res: Response) => {
   const { enquiryId, status, reason, actor } = req.body;
-  res.json(await enquiry.updateStatus(enquiryId, status, reason, actor));
+  res.json(await enquiry.updateStatus(enquiryId, status, reason, actor, actorFrom(req)));
 };
 export const convert = async (req: Request, res: Response) => {
   const { enquiryId, targetType, docId, docNumber, actor } = req.body;
-  res.json(await enquiry.convertEnquiry(enquiryId, targetType, docId, docNumber, actor));
+  res.json(await enquiry.convertEnquiry(enquiryId, targetType, docId, docNumber, actor, actorFrom(req)));
 };

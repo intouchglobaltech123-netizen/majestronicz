@@ -6,7 +6,7 @@ export const savePO = async (req: Request, res: Response) => {
   res.json(await purchase.savePurchaseOrder(po, actor, (req as any).user));
 };
 export const deletePO = async (req: Request, res: Response) => {
-  res.json(await purchase.deletePurchaseOrder(req.params.id));
+  res.json(await purchase.deletePurchaseOrder(req.params.id, (req as any).user));
 };
 export const cancelPO = async (req: Request, res: Response) => {
   res.json(await purchase.cancelPurchaseOrder(req.params.id, (req as any).user));
@@ -17,11 +17,11 @@ export const receive = async (req: Request, res: Response) => {
 };
 export const addAttachment = async (req: Request, res: Response) => {
   const { poId, attachment, actor } = req.body;
-  res.json(await purchase.addAttachment(poId, attachment, actor));
+  res.json(await purchase.addAttachment(poId, attachment, actor, (req as any).user));
 };
 export const deleteAttachment = async (req: Request, res: Response) => {
   const { poId, attachmentId } = req.body;
-  res.json(await purchase.deleteAttachment(poId, attachmentId));
+  res.json(await purchase.deleteAttachment(poId, attachmentId, (req as any).user));
 };
 export const recordPayment = async (req: Request, res: Response) => {
   const { poId, amount, mode, actor } = req.body;
@@ -29,5 +29,5 @@ export const recordPayment = async (req: Request, res: Response) => {
 };
 export const recordBill = async (req: Request, res: Response) => {
   const { poId, bill } = req.body;
-  res.json(await purchase.recordPurchaseBill(poId, bill));
+  res.json(await purchase.recordPurchaseBill(poId, bill, (req as any).user));
 };

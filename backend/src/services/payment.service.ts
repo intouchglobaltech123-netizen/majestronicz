@@ -1,6 +1,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso } from '../lib/stockLedger.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 /**
  * Party ledger / payments service.
@@ -86,11 +87,12 @@ function settleInvoiceFields(inv: any, amount: number) {
   };
 }
 
-export async function recordPayment(input: RecordPaymentInput, actor?: { name?: string; id?: string }) {
+export async function recordPayment(input: RecordPaymentInput, actor?: { name?: string; id?: string }, reqUser?: any) {
   const amount = Number(input.amount);
   if (!amount || amount <= 0) throw new AppError('BAD_REQUEST', 'Payment amount must be greater than zero', 400);
   if (!input.partyName?.trim()) throw new AppError('BAD_REQUEST', 'Party name is required', 400);
   if (input.type !== 'in' && input.type !== 'out') throw new AppError('BAD_REQUEST', 'Invalid payment type', 400);
+  assertBranchAllowed(reqUser, input.branchId); // SEC2-1: a receipt is booked against a branch's ledger/drawer
 
   const date = input.date || nowIso().slice(0, 10);
   const allocations = (input.allocations || []).filter((a) => a?.refId && a.amount > 0);
@@ -172,10 +174,11 @@ export async function listPayments(filter?: { partyType?: string; partyId?: stri
 }
 
 /** Delete a payment and reverse its allocations (restore invoice balances). */
-export async function deletePayment(id: string) {
+export async function deletePayment(id: string, reqUser?: any) {
   return prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUnique({ where: { id } });
     if (!payment) throw new AppError('NOT_FOUND', 'Payment not found', 404);
+    assertBranchAllowed(reqUser, payment.branchId); // SEC2-1
     const allocations: Allocation[] = Array.isArray(payment.allocations) ? (payment.allocations as any) : [];
     if (payment.type === 'in') {
       for (const a of allocations) {

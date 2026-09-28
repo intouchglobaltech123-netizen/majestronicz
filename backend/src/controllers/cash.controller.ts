@@ -47,10 +47,12 @@ export const approveRecurring = async (req: Request, res: Response) => {
 // a template into, or deleting one belonging to, a branch they cannot touch.
 export const updateRecurring = async (req: Request, res: Response) => {
   const updates = (req.body ?? {}) as Record<string, any>;
+  // Guard the destination branch here; the service also guards the template's
+  // current branch so an out-of-branch template can't be edited at all (SEC2-1).
   if (updates.branchId !== undefined) assertBranchAllowed((req as any).user, updates.branchId);
-  res.json(await cash.updateRecurringTemplate(req.params.id, updates));
+  res.json(await cash.updateRecurringTemplate(req.params.id, updates, (req as any).user));
 };
 
 export const deleteRecurring = async (req: Request, res: Response) => {
-  res.json(await cash.deleteRecurringTemplate(req.params.id));
+  res.json(await cash.deleteRecurringTemplate(req.params.id, (req as any).user));
 };

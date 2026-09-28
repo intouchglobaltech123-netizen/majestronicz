@@ -52,9 +52,10 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
   }));
 }
 
-export function deletePurchaseOrder(poId: string) {
+export function deletePurchaseOrder(poId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (po) assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     if (po && (po.status === 'Received' || po.status === 'Partially Received')) {
       throw new AppError('HAS_RECEIPTS', 'Cannot delete a PO that has received stock. Cancel it instead.', 409);
     }
@@ -285,10 +286,11 @@ export function receivePurchaseOrderStock(
   });
 }
 
-export function addAttachment(poId: string, attachmentData: any, actor: string) {
+export function addAttachment(poId: string, attachmentData: any, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     const newAttachment = {
       ...attachmentData, id: rid('po-att'), uploadedAt: nowIso(), uploadedBy: actor,
     };
@@ -300,10 +302,11 @@ export function addAttachment(poId: string, attachmentData: any, actor: string) 
   });
 }
 
-export function deleteAttachment(poId: string, attachmentId: string) {
+export function deleteAttachment(poId: string, attachmentId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
@@ -316,10 +319,11 @@ export function deleteAttachment(poId: string, attachmentId: string) {
 }
 
 /** Save the supplier's tax invoice (bill) details on a PO — enables Input Tax Credit. */
-export function recordPurchaseBill(poId: string, bill: any) {
+export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId); // SEC2-1
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {

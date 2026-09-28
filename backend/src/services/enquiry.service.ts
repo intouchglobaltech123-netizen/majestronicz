@@ -2,6 +2,7 @@ import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPendingOrderNumber } from '../lib/sequences.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 const snap = async (tx: any) => ({
   enquiries: await tx.enquiry.findMany(),
@@ -60,10 +61,11 @@ export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | u
   });
 }
 
-export function linkItemToEnquiry(enquiryId: string, item: any, actor: string) {
+export function linkItemToEnquiry(enquiryId: string, item: any, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     const orderNumber = await nextPendingOrderNumber(tx);
     const poId = `po-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     await tx.pendingOrder.create({
@@ -87,17 +89,21 @@ export function linkItemToEnquiry(enquiryId: string, item: any, actor: string) {
   });
 }
 
-export function updatePendingOrder(orderId: string, updates: any) {
+export function updatePendingOrder(orderId: string, updates: any, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const order = await tx.pendingOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Pending order not found', 404);
+    assertBranchAllowed(reqUser, order.branchId); // SEC2-1
     await tx.pendingOrder.updateMany({ where: { id: orderId }, data: { ...updates, updatedAt: nowIso() } });
     return snap(tx);
   });
 }
 
-export function cancelEnquiry(enquiryId: string, reason: string, actor: string) {
+export function cancelEnquiry(enquiryId: string, reason: string, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     const timeline = [tl('cancelled', 'Enquiry Cancelled', `Reason: ${reason}`, actor), ...((enq.timeline as any[]) || [])];
     await tx.enquiry.update({ where: { id: enquiryId }, data: { status: 'Cancelled', cancellationReason: reason, timeline, updatedAt: nowIso() } });
     await tx.pendingOrder.updateMany({ where: { enquiryId }, data: { status: 'Cancelled', cancellationReason: reason, updatedAt: nowIso() } });
@@ -105,17 +111,21 @@ export function cancelEnquiry(enquiryId: string, reason: string, actor: string) 
   });
 }
 
-export function cancelPendingOrder(orderId: string, reason: string) {
+export function cancelPendingOrder(orderId: string, reason: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const order = await tx.pendingOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Pending order not found', 404);
+    assertBranchAllowed(reqUser, order.branchId); // SEC2-1
     await tx.pendingOrder.updateMany({ where: { id: orderId }, data: { status: 'Cancelled', cancellationReason: reason, updatedAt: nowIso() } });
     return snap(tx);
   });
 }
 
-export function addReminder(enquiryId: string, dueDate: string, dueTime: string, notes: string | undefined, actor: string) {
+export function addReminder(enquiryId: string, dueDate: string, dueTime: string, notes: string | undefined, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     // Replace any active (incomplete) reminder for this enquiry
     await tx.followUpReminder.deleteMany({ where: { enquiryId, isCompleted: false } });
     await tx.followUpReminder.create({
@@ -131,34 +141,42 @@ export function addReminder(enquiryId: string, dueDate: string, dueTime: string,
   });
 }
 
-export function completeReminder(reminderId: string) {
+export function completeReminder(reminderId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const rem = await tx.followUpReminder.findUnique({ where: { id: reminderId } });
+    if (!rem) throw new AppError('NOT_FOUND', 'Reminder not found', 404);
+    assertBranchAllowed(reqUser, rem.branchId); // SEC2-1
     await tx.followUpReminder.updateMany({ where: { id: reminderId }, data: { isCompleted: true, completedAt: nowIso() } });
     return snap(tx);
   });
 }
 
-export function deleteReminder(reminderId: string) {
+export function deleteReminder(reminderId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const rem = await tx.followUpReminder.findUnique({ where: { id: reminderId } });
+    if (!rem) throw new AppError('NOT_FOUND', 'Reminder not found', 404);
+    assertBranchAllowed(reqUser, rem.branchId); // SEC2-1
     await tx.followUpReminder.deleteMany({ where: { id: reminderId } });
     return snap(tx);
   });
 }
 
-export function updateNotes(enquiryId: string, notes: string, actor: string) {
+export function updateNotes(enquiryId: string, notes: string, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     const timeline = [tl('note_updated', 'Notes Updated', notes, actor), ...((enq.timeline as any[]) || [])];
     await tx.enquiry.update({ where: { id: enquiryId }, data: { notes, timeline, updatedAt: nowIso() } });
     return snap(tx);
   });
 }
 
-export function updateStatus(enquiryId: string, status: string, reason: string | undefined, actor: string) {
+export function updateStatus(enquiryId: string, status: string, reason: string | undefined, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     const timeline = [tl(status === 'Cancelled' ? 'cancelled' : 'status_change', `Status Changed to ${status}`, reason || `Status set to ${status}`, actor), ...((enq.timeline as any[]) || [])];
     await tx.enquiry.update({
       where: { id: enquiryId },
@@ -170,10 +188,11 @@ export function updateStatus(enquiryId: string, status: string, reason: string |
 
 /** Mark enquiry Converted + linked pending orders Fulfilled. The estimate/invoice
  * pre-fill + navigation remains a client concern (UI-only), matching prior behavior. */
-export function convertEnquiry(enquiryId: string, targetType: string, docId: string, docNumber: string, actor: string) {
+export function convertEnquiry(enquiryId: string, targetType: string, docId: string, docNumber: string, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const enq = await tx.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enq) throw new AppError('NOT_FOUND', 'Enquiry not found', 404);
+    assertBranchAllowed(reqUser, enq.branchId); // SEC2-1
     const timeline = [tl('converted', `Converted to ${targetType === 'estimate' ? 'Quotation / Estimate' : 'Sales Invoice'}`, `Generated document #${docNumber}.`, actor), ...((enq.timeline as any[]) || [])];
     await tx.enquiry.update({
       where: { id: enquiryId },

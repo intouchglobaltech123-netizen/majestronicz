@@ -345,14 +345,14 @@ router.get('/payments', requireAuth, asyncHandler(async (req, res) => {
 }));
 router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const user = (req as any).user;
-  const result: any = await recordPayment(req.body, { name: user?.name, id: user?.name });
+  const result: any = await recordPayment(req.body, { name: user?.name, id: user?.name }, user);
   await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
     summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result });
   broadcastChange('POST /api/payments');
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {
-  const result = await deletePayment(req.params.id);
+  const result = await deletePayment(req.params.id, (req as any).user);
   await recordAudit({ actor: actorOf(req), action: 'payment.delete', entity: 'payment', entityId: req.params.id, summary: 'Payment deleted / reversed' });
   broadcastChange('DELETE /api/payments');
   res.json(result);
