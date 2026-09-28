@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance } from '../../types';
+import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { computeDayCashClosing } from '../../lib/cashClosing';
 import {
@@ -101,7 +101,7 @@ export const DashboardView: React.FC = () => {
     const receivables = scopedSales.reduce((t, i) => t + invoiceDue(i), 0);
     const payables = purchaseOrders
       .filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
-      .reduce((t, p) => t + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
+      .reduce((t, p) => t + purchaseOrderBalanceDue(p), 0);
 
     // Cash-in-hand: for each in-scope branch, use the SAME shared closing formula
     // as the cash register (opening + cash sales + cash receipts − vendor cash −

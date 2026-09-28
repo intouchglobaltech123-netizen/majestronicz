@@ -20,7 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
+import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, purchaseOrderBalanceDue } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -141,7 +141,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     const map = new Map<string, number>();
     for (const po of scopedPOs) {
       if (po.status === 'Cancelled') continue;
-      const bal = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
+      const bal = purchaseOrderBalanceDue(po);
       if (bal <= 0.5) continue;
       map.set(po.vendorId, (map.get(po.vendorId) || 0) + bal);
     }

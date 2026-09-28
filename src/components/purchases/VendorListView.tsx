@@ -12,7 +12,7 @@ import {
   ExternalLink,
   Wallet,
 } from 'lucide-react';
-import { Vendor } from '../../types';
+import { Vendor, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { useErp } from '../../context/ErpContext';
 import { VendorMasterModal } from './VendorMasterModal';
@@ -34,7 +34,7 @@ export const VendorListView: React.FC<VendorListViewProps> = ({ onSelectVendorFo
   const vendorUnpaidPOs = (vendorId: string) =>
     purchaseOrders
       .filter((po) => po.vendorId === vendorId && po.status !== 'Cancelled')
-      .map((po) => ({ refId: po.id, refNumber: po.poNumber, date: po.date, balanceDue: Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0)) }))
+      .map((po) => ({ refId: po.id, refNumber: po.poNumber, date: po.date, balanceDue: purchaseOrderBalanceDue(po) }))
       .filter((o) => o.balanceDue > 0.5);
   const vendorPayable = (vendorId: string) => vendorUnpaidPOs(vendorId).reduce((t, o) => t + o.balanceDue, 0);
 

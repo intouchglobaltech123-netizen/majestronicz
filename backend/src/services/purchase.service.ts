@@ -351,7 +351,12 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
     // Debit notes (damaged/rejected goods billed back) reduce what we owe (PUR2-19).
     const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-    const remaining = Math.round(((po.totalAmount || 0) - (po.amountPaid || 0) - debitTotal) * 100) / 100;
+    // PUR4-1/PUR4-2: the vendor is owed the GST too, so the payable is the
+    // tax-INCLUSIVE grand total. Capping at the ex-tax goods value (as before)
+    // rejected the tax portion of a GST PO as "overpayment", so such a PO could
+    // never be marked fully paid. Legacy POs with no tax leave this unchanged.
+    const grandOwed = Math.round(((po.totalAmount || 0) + (Number(po.totalTax) || 0)) * 100) / 100;
+    const remaining = Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100;
     if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
     if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();

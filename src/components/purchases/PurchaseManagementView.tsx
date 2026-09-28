@@ -10,7 +10,7 @@ import {
   HandCoins,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Vendor } from '../../types';
+import { Vendor, purchaseOrderBalanceDue } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
@@ -57,11 +57,8 @@ export const PurchaseManagementView: React.FC = () => {
   }, 0);
 
   // Money owed to suppliers, and this month's purchase spend.
-  // Remaining owed on a PO = total − paid − debit notes billed back to the vendor.
-  const poRemaining = (p: (typeof purchaseOrders)[number]): number => {
-    const debit = (p.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-    return Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0) - debit);
-  };
+  // Remaining owed on a PO — shared, tax-inclusive helper (PUR4-1).
+  const poRemaining = (p: (typeof purchaseOrders)[number]): number => purchaseOrderBalanceDue(p);
   const duePos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && poRemaining(p) > 0.5);
   const totalPayable = duePos.reduce((sum, p) => sum + poRemaining(p), 0);
 

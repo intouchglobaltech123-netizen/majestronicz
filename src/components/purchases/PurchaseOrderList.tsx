@@ -20,6 +20,7 @@ import {
   BRANCHES,
   BranchScope,
 } from '../../types';
+import { purchaseOrderBalanceDue } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
@@ -59,11 +60,8 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
     );
   };
 
-  // Amount still owed to the supplier for a PO = total − paid − debit notes billed back.
-  const poRemaining = (po: PurchaseOrder): number => {
-    const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-    return Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0) - debit);
-  };
+  // Amount still owed to the supplier — shared, tax-inclusive helper (PUR4-1).
+  const poRemaining = (po: PurchaseOrder): number => purchaseOrderBalanceDue(po);
 
   // A PO has an outstanding supplier balance (used by the "Due Payment" tab).
   const isPoDue = (po: PurchaseOrder): boolean => po.status !== 'Cancelled' && poRemaining(po) > 0.5;

@@ -1235,6 +1235,23 @@ export const computeInvoiceFinance = (
 };
 
 /**
+ * The single source of truth for what a vendor is still owed on a purchase order
+ * (PUR4-1). Every screen — PO detail, PO list, vendor statement, parties/vendor
+ * KPIs, dashboard, reports — and the backend payment guard must agree, or the
+ * "Pay full remaining" button sends a figure the server rejects. The vendor is
+ * owed the GST too, so this is the tax-INCLUSIVE grand total, less what's been
+ * paid, less debit notes billed back for damaged/short goods.
+ */
+export const purchaseOrderBalanceDue = (
+  po: Pick<PurchaseOrder, 'totalAmount' | 'totalTax' | 'amountPaid' | 'debitNotes' | 'status'>
+): number => {
+  if (po.status === 'Cancelled') return 0;
+  const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+  const grandOwed = (po.totalAmount || 0) + (po.totalTax || 0);
+  return Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debit) * 100) / 100);
+};
+
+/**
  * Normalize an Indian phone number for equality checks: strip non-digits, a
  * leading country code (91) and a leading trunk 0, so "09842…", "+91 9842…" and
  * "9842…" all compare equal. Does NOT merge different people — just matches formats.

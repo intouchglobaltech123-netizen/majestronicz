@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance } from '../../types';
+import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
@@ -134,7 +134,7 @@ export const ReportsView: React.FC = () => {
     const tax = periodInv.filter((i) => i.withGst).reduce((t, i) => t + (i.totalTax || 0), 0);
     const receivables = scoped.reduce((t, i) => t + invoiceDue(i), 0);
     const payables = purchaseOrders.filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
-      .reduce((t, p) => t + Math.max(0, (p.totalAmount || 0) - (p.amountPaid || 0)), 0);
+      .reduce((t, p) => t + purchaseOrderBalanceDue(p), 0);
     return { sales, tax, receivables, payables, bills: periodInv.length };
   }, [invoices, purchaseOrders, branchScope, startDate, endDate]);
 

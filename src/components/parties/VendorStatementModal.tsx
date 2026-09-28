@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, Phone, MapPin, Hash, Wallet, ShoppingBag, Trash2, Edit2 } from 'lucide-react';
-import { Vendor } from '../../types';
+import { Vendor, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { useErp } from '../../context/ErpContext';
 import { RecordPaymentModal } from '../payments/RecordPaymentModal';
@@ -20,9 +20,9 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
   // Debit notes billed back to the supplier reduce what we still owe on a PO.
   const poDebit = (po: { debitNotes?: { totalAmount: number }[] }): number =>
     (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  // Remaining owed on a PO = total − paid − debit notes.
-  const poBalance = (po: { totalAmount?: number; amountPaid?: number; debitNotes?: { totalAmount: number }[] }): number =>
-    Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0) - poDebit(po));
+  // Remaining owed on a PO — shared, tax-inclusive helper so the statement,
+  // the PO detail screen and the backend payment guard all agree (PUR4-1).
+  const poBalance = purchaseOrderBalanceDue;
 
   const vendorPOs = useMemo(
     () =>
