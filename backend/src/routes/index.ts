@@ -18,7 +18,7 @@ import * as system from '../services/system.service.js';
 import { sseHandler, broadcastChange } from '../lib/events.js';
 import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
-import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags } from '../lib/auth.js';
+import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
 import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
 import {
@@ -282,7 +282,9 @@ router.get('/branch-stock', requireAuth, asyncHandler(async (_req, res) => res.j
 // transfers to create stock. All real stock movement goes through /api/stock/*.
 
 // ---- Config singletons ----
-router.get('/config/:key', asyncHandler(async (req, res) => res.json(await system.getConfig(req.params.key))));
+// Reads require login — some keys (payroll, loyalty) are sensitive settings and
+// were readable anonymously (SEC2-3).
+router.get('/config/:key', requireAuth, asyncHandler(async (req, res) => res.json(await system.getConfig(req.params.key))));
 // Some config keys are not ordinary settings: the access matrix IS the RBAC
 // rules. It has its own endpoint below that requires 'admin', but it is stored
 // as a config row, so without this guard anyone holding 'config:write' — which
@@ -291,15 +293,23 @@ router.get('/config/:key', asyncHandler(async (req, res) => res.json(await syste
 // escalation through the back door of a settings endpoint.
 const PROTECTED_CONFIG_KEYS = new Set(['accessMatrix', 'accessMatrixMigrations']);
 
+// Payroll settings drive everyone's pay, so they are CEO-only, not just any
+// config:write holder (SEC4-1 / SEC3-1).
+const CEO_ONLY_CONFIG_KEYS = new Set(['payrollSettings']);
+
 router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => {
-  if (PROTECTED_CONFIG_KEYS.has(req.params.key)) {
+  const key = req.params.key;
+  if (PROTECTED_CONFIG_KEYS.has(key)) {
     throw new AppError(
       'FORBIDDEN',
       'The access matrix cannot be changed here — use PUT /api/access-matrix, which requires admin.',
       403,
     );
   }
-  res.json(await system.setConfig(req.params.key, req.body));
+  if (CEO_ONLY_CONFIG_KEYS.has(key) && !roleCan((req as any).user?.role, 'payroll:admin')) {
+    throw new AppError('FORBIDDEN', 'Only the CEO can change payroll settings.', 403);
+  }
+  res.json(await system.setConfig(key, req.body));
 }));
 
 // ---- GSTIN verification (vendor/customer onboarding) ----

@@ -38,6 +38,14 @@ export function requireAuth(req: Request & { user?: SessionUser | null }, _res: 
   next();
 }
 
+// Guard: only a Manager or CEO — used for cash-day close/reopen/override and
+// deposit/recurring approval, which Billing must not do (CASH2-4).
+export function requireManagerOrCEO(req: Request & { user?: SessionUser | null }, _res: Response, next: NextFunction) {
+  const role = req.user?.role;
+  if (role === 'CEO' || role === 'Manager') return next();
+  throw new AppError('FORBIDDEN', 'Only a Manager or CEO can perform this action.', 403);
+}
+
 // Guard: the request's role must hold the given capability, else 403.
 export function requireCapability(cap: Capability) {
   return (req: Request & { user?: SessionUser | null }, _res: Response, next: NextFunction) => {

@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { requireManagerOrCEO } from '../middleware/rbac.js';
 import * as ctrl from '../controllers/cash.controller.js';
 
 const router = Router();
 router.post('/expense', asyncHandler(ctrl.addExpense));
 router.post('/expense/delete', asyncHandler(ctrl.deleteExpense));
-router.post('/expense/approve', asyncHandler(ctrl.approveExpense));
-router.post('/override', asyncHandler(ctrl.overrideOpening));
-router.post('/close', asyncHandler(ctrl.closeDay));
-router.post('/reopen', asyncHandler(ctrl.reopenDay));
-router.post('/approve-recurring', asyncHandler(ctrl.approveRecurring));
+// Approving deposits and closing/reopening/overriding a day are Manager/CEO only
+// (Billing must not, even though it holds cash:write) — CASH2-4.
+router.post('/expense/approve', requireManagerOrCEO, asyncHandler(ctrl.approveExpense));
+router.post('/override', requireManagerOrCEO, asyncHandler(ctrl.overrideOpening));
+router.post('/close', requireManagerOrCEO, asyncHandler(ctrl.closeDay));
+router.post('/reopen', requireManagerOrCEO, asyncHandler(ctrl.reopenDay));
+router.post('/approve-recurring', requireManagerOrCEO, asyncHandler(ctrl.approveRecurring));
 
 // Recurring expense templates. These replace the generic
 // PUT/DELETE /api/recurring-expenses/:id routes that crud.ts removed while the
