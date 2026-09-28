@@ -78,19 +78,11 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
     })
   );
 
-  router.post(
-    '/',
-    wrap(async (req) => {
-      const data = { ...req.body };
-      if (!data.id) data.id = randomUUID();
-      // Upsert so the frontend can safely re-send an existing record.
-      return delegate.upsert({
-        where: { id: data.id },
-        create: data,
-        update: data,
-      });
-    })
-  );
+  // NOTE: the generic POST upsert was REMOVED (CRUD-1). It accepted arbitrary
+  // fields on any table, so a write-capable login could rewrite a bill's total,
+  // a closed cash day, a Received PO, customers, enquiries, etc. The three tables
+  // the frontend actually creates through it (vendors, employees, recurring
+  // expenses) now have dedicated, validated routes in routes/index.ts.
 
   return router;
 }

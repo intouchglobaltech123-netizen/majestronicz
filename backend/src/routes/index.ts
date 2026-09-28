@@ -5,7 +5,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireCapability, requireAuth } from '../middleware/rbac.js';
 import { issueToken, Capability } from '../lib/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { verifyGstin, gstinProviderConfigured } from '../services/gstin.service.js';
+import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
+import { nowIso } from '../lib/stockLedger.js';
 import invoiceRoutes from './invoice.routes.js';
 import stockRoutes from './stock.routes.js';
 import purchaseRoutes from './purchase.routes.js';
@@ -161,6 +162,66 @@ router.get('/employees/:id', requireCapability('hrm:write'), asyncHandler(async 
   res.json(rest);
 }));
 
+// ── Dedicated, validated create/update for the three tables the frontend creates
+//    through — the generic POST upsert was removed (CRUD-1). ──
+const pick = (o: any, keys: string[]) =>
+  keys.reduce((a: any, k) => { if (o?.[k] !== undefined) a[k] = o[k]; return a; }, {} as any);
+
+router.post('/vendors', requireCapability('purchase:write'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.vendorName || '').trim()) throw new AppError('NAME_REQUIRED', 'Vendor name is required', 400);
+  if (b.gstin && !GSTIN_RE.test(String(b.gstin).trim().toUpperCase())) throw new AppError('BAD_GSTIN', 'Enter a valid GSTIN or leave it blank', 400);
+  const id = String(b.id || `vnd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const data = {
+    vendorName: String(b.vendorName).trim(),
+    contactNo: String(b.contactNo || ''),
+    address: String(b.address || ''),
+    gstin: b.gstin ? String(b.gstin).trim().toUpperCase() : null,
+    updatedAt: nowIso(),
+  };
+  const vendor = await prisma.vendor.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
+  broadcastChange('POST /api/vendors');
+  res.json({ ok: true, vendor, vendors: await prisma.vendor.findMany() });
+}));
+
+router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.name || '').trim()) throw new AppError('NAME_REQUIRED', 'Employee name is required', 400);
+  if (!String(b.designation || '').trim()) throw new AppError('DESIGNATION_REQUIRED', 'Designation is required', 400);
+  if (b.monthlySalary != null && Number(b.monthlySalary) < 0) throw new AppError('BAD_SALARY', 'Salary cannot be negative', 400);
+  const setPin = b.pin != null && String(b.pin) !== '';
+  if (setPin && !/^\d{4}$/.test(String(b.pin))) throw new AppError('BAD_PIN', 'PIN must be exactly 4 digits', 400);
+  const id = String(b.id || `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const allowed = pick(b, ['name', 'designation', 'branchId', 'monthlySalary', 'incentivePercent', 'status', 'phone', 'email', 'joinedDate']);
+  const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: String(b.pin) } : {}) };
+  const existing = await prisma.employee.findUnique({ where: { id } });
+  let employee;
+  if (existing) {
+    employee = await prisma.employee.update({ where: { id }, data: base }); // blank PIN keeps the existing one
+  } else {
+    if (!setPin) throw new AppError('PIN_REQUIRED', 'A 4-digit PIN is required for a new employee', 400);
+    employee = await prisma.employee.create({ data: { id, createdAt: nowIso(), ...base } });
+  }
+  broadcastChange('POST /api/employees');
+  const { pin, ...safe } = employee as any;
+  res.json({ ok: true, employee: safe });
+}));
+
+router.post('/recurring-expenses', requireCapability('cash:write'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.name || '').trim()) throw new AppError('NAME_REQUIRED', 'Expense name is required', 400);
+  if (Number(b.defaultAmount) <= 0) throw new AppError('BAD_AMOUNT', 'Amount must be greater than zero', 400);
+  const due = Number(b.dueDay);
+  if (!Number.isInteger(due) || due < 1 || due > 31) throw new AppError('BAD_DUE', 'Due day must be 1–31', 400);
+  const id = String(b.id || `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  // The approval ledger (lastApprovedMonth / approvalHistory) is NEVER accepted
+  // from the client — that's how a forged "rent posted twice" got in.
+  const data = pick(b, ['name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode']);
+  const tpl = await prisma.recurringExpenseTemplate.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
+  broadcastChange('POST /api/recurring-expenses');
+  res.json({ ok: true, recurringExpense: tpl, recurringExpenses: await prisma.recurringExpenseTemplate.findMany() });
+}));
+
 // ---- Generic id-keyed CRUD resources (RBAC per resource on writes & sensitive reads) ----
 const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability }> = {
   items: { delegate: prisma.item, cap: 'items:write' },
@@ -216,8 +277,9 @@ router.use('/catalog', catalogRoutes); // per-route capabilities inside
 
 // ---- BranchStock (composite key) ----
 router.get('/branch-stock', requireAuth, asyncHandler(async (_req, res) => res.json(await system.listBranchStock())));
-router.post('/branch-stock', requireCapability('stock:write'), asyncHandler(async (req, res) => res.json(await system.upsertBranchStock(req.body))));
-router.put('/branch-stock', requireCapability('stock:write'), asyncHandler(async (req, res) => res.json(await system.replaceBranchStock(req.body))));
+// The generic branch-stock write routes were REMOVED (CRUD-1): they let any
+// stock-capable login overwrite or wipe every branch's stock rows and re-receive
+// transfers to create stock. All real stock movement goes through /api/stock/*.
 
 // ---- Config singletons ----
 router.get('/config/:key', asyncHandler(async (req, res) => res.json(await system.getConfig(req.params.key))));
