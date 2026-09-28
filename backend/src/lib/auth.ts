@@ -154,7 +154,19 @@ const SECRET = (() => {
 // (see re-hash logic in user.service.authenticateUser). Once every active user
 // has logged in, remove AUTH_SECRET_PREV. This lets you rotate to a real secret
 // without locking anyone out (Option B for SEC2-4).
-const SECRET_PREV = process.env.AUTH_SECRET_PREV || '';
+//
+// A short/empty-but-present AUTH_SECRET_PREV would widen the set of accepted
+// token signatures with a weak key, so in production it must be a real secret
+// (>= 16 chars) or be left unset — never a throwaway value (SEC3-3).
+const SECRET_PREV = (() => {
+  const prev = process.env.AUTH_SECRET_PREV;
+  if (!prev) return '';
+  if (prev.length >= 16) return prev;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SECRET_PREV is set but too short (< 16 chars). Use the real previous secret, or unset it.');
+  }
+  return prev;
+})();
 
 // Deterministic keyed hash for login PINs so plaintext is never stored in the DB.
 // Keyed by AUTH_SECRET (an attacker without it can't precompute), and deterministic
@@ -213,11 +225,9 @@ export function verifyToken(token?: string): SessionUser | null {
   }
 }
 
-/** Verify a PIN and return the session user (no token yet). */
-export function authenticatePin(pin: string, branchId?: string): SessionUser | null {
-  const match = ROLE_DEFS.find((r) => r.pin === pin);
-  if (!match) return null;
-  const assignedBranchId =
-    match.role === 'Manager' ? branchId || match.defaultBranch || 'coimbatore' : undefined;
-  return { role: match.role, name: match.defaultName, assignedBranchId, exp: 0 };
-}
+// NOTE: the old authenticatePin() — which matched a login straight against the
+// hardcoded default PINs in ROLE_DEFS (1111 / 2222 / …) — was REMOVED (SEC3-3).
+// It was dead code (login goes through user.service.authenticateUser against
+// DB accounts with hashed PINs) but was a latent CEO-login-by-default-PIN
+// bypass if ever re-wired. ROLE_DEFS is kept only for first-run seeding and the
+// RESET_SYSTEM_PINS re-hash path, never as a live login path.

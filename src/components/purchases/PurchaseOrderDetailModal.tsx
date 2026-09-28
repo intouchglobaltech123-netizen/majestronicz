@@ -34,6 +34,15 @@ import { toast } from 'sonner';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 
+// An attachment's dataUrl is opened, downloaded and rendered as an <img>/href.
+// A stored value like `javascript:...` would execute when that href/window.open
+// runs, so only ever trust a real base64 image/PDF data URL (PUR4-4). Anything
+// else resolves to '' — the link/preview simply does nothing.
+const safeAttachmentDataUrl = (raw: unknown): string => {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  return /^data:(image\/[a-z0-9.+-]+|application\/pdf);base64,/i.test(s) ? s : '';
+};
+
 interface PurchaseOrderDetailModalProps {
   purchaseOrder: PurchaseOrder | null;
   isOpen: boolean;
@@ -215,9 +224,14 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   };
 
   const handleDownloadAttachment = (attachment: PurchaseOrderAttachment) => {
+    const safe = safeAttachmentDataUrl(attachment.dataUrl);
+    if (!safe) {
+      toast.error('This attachment is not a valid file and cannot be opened.');
+      return;
+    }
     try {
       const link = document.createElement('a');
-      link.href = attachment.dataUrl;
+      link.href = safe;
       link.download = attachment.name;
       document.body.appendChild(link);
       link.click();
@@ -228,12 +242,18 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   };
 
   const handleOpenAttachment = (attachment: PurchaseOrderAttachment) => {
+    const safe = safeAttachmentDataUrl(attachment.dataUrl);
+    if (!safe) {
+      toast.error('This attachment is not a valid file and cannot be opened.');
+      return;
+    }
     if (attachment.fileType === 'image') {
-      setPreviewImage({ src: attachment.dataUrl, title: attachment.name });
+      setPreviewImage({ src: safe, title: attachment.name });
     } else {
-      // PDF: convert base64 to Blob URL to open reliably in a new tab
+      // PDF: convert base64 to Blob URL to open reliably in a new tab. Never
+      // fall back to window.open(dataUrl) with an untrusted string (PUR4-4).
       try {
-        const arr = attachment.dataUrl.split(',');
+        const arr = safe.split(',');
         const bstr = atob(arr[1]);
         let n = bstr.length;
         const u8arr = new Uint8Array(n);
@@ -244,7 +264,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
       } catch (err) {
-        window.open(attachment.dataUrl, '_blank');
+        toast.error('Unable to open this attachment.');
       }
     }
   };
@@ -1243,7 +1263,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       >
                         {att.fileType === 'image' ? (
                           <img
-                            src={att.dataUrl}
+                            src={safeAttachmentDataUrl(att.dataUrl)}
                             alt={att.name}
                             className="h-full w-full object-cover"
                           />
