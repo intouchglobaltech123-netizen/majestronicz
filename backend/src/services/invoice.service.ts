@@ -33,6 +33,69 @@ function recomputeInvoiceMoney(inv: any) {
   return inv;
 }
 
+/**
+ * Make the payment/credit fields server-authoritative against the recomputed
+ * grand total (SAL-9). The client (InvoiceForm) already reconciles splits to the
+ * total, but the server must guarantee it so a tampered or buggy client — or a
+ * bill edited to a new total that leaves stale splits — can never record a
+ * customer "amount due" that is less than what is actually owed, or claim more
+ * cash collected than the bill is worth (which would inflate the drawer).
+ *
+ * Convention (mirrors src/types.ts computeInvoiceFinance / InvoiceForm):
+ *   - A 'COD-Credit' split is money still OWED by the customer (the due).
+ *   - Every other split (Cash / GPay / HDFC) is money actually collected.
+ *   - balanceDue = the COD-Credit total; collected = grand − due.
+ */
+function reconcileInvoicePayment(inv: any) {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const grand = round(Number(inv.grandTotal) || 0);
+
+  let splits: { mode: string; amount: number }[] = Array.isArray(inv.paymentSplits)
+    ? inv.paymentSplits
+        .map((s: any) => ({ mode: s?.mode, amount: Math.max(0, round(Number(s?.amount) || 0)) }))
+        .filter((s: any) => s.mode)
+    : [];
+
+  if (splits.length <= 1) {
+    // Single-mode (or nothing) → one split covering the whole bill in that mode.
+    const mode = splits[0]?.mode || inv.paymentMode || 'Cash';
+    if (mode === 'COD-Credit') {
+      const paid = inv.isPartialPayment
+        ? Math.min(grand, Math.max(0, round(Number(inv.partialAmount) || 0)))
+        : 0;
+      splits = paid > 0
+        ? [{ mode: 'Cash', amount: paid }, { mode: 'COD-Credit', amount: round(grand - paid) }]
+        : [{ mode: 'COD-Credit', amount: grand }];
+    } else {
+      splits = [{ mode, amount: grand }];
+    }
+  } else {
+    // Multi-split: the collected (non-credit) modes are taken as sent (clamped),
+    // and the due is whatever the collection does not cover. If the client
+    // over-stated collection (> grand), scale it down so cash can never exceed
+    // the bill; the residual becomes the credit owed.
+    const nonCredit = splits.filter((s) => s.mode !== 'COD-Credit');
+    let collected = round(nonCredit.reduce((t, s) => t + s.amount, 0));
+    if (collected > grand && collected > 0) {
+      const f = grand / collected;
+      nonCredit.forEach((s) => { s.amount = round(s.amount * f); });
+      collected = grand;
+    }
+    const due = round(Math.max(0, grand - collected));
+    splits = [...nonCredit];
+    if (due > 0.001) splits.push({ mode: 'COD-Credit', amount: due });
+  }
+
+  const codDue = round(splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + s.amount, 0));
+  const collected = round(Math.max(0, grand - codDue));
+  inv.paymentSplits = splits;
+  inv.balanceDue = codDue;
+  inv.isPartialPayment = codDue > 0 && collected > 0;
+  inv.partialAmount = codDue > 0 ? collected : null;
+  // Primary mode is the first collected mode, or COD-Credit when nothing was collected.
+  inv.paymentMode = splits.find((s) => s.mode !== 'COD-Credit')?.mode || 'COD-Credit';
+}
+
 /** Affected collections returned so the frontend can sync in-memory state. */
 async function snapshot(tx: any) {
   const [invoices, customers, branchStocks, stockAdjustmentLogs] = await Promise.all([
@@ -90,6 +153,15 @@ export function createSale(inv: any, reqUser?: any) {
       inv.invoiceNumber = existing.invoiceNumber;
     }
     if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
+    // SAL-9: on a NEW bill the frontend guarantees the splits sum to the total,
+    // so the server can (and must) derive the authoritative paid/due/drawer split
+    // here — this is where a tampered client that understates the due or the cash
+    // collected is corrected. On an EDIT we deliberately do NOT recompute the due
+    // from the splits: a payment recorded via /api/payments reduces the stored
+    // COD-Credit split without touching the collected split, so the stored splits
+    // no longer sum to the total, and recomputing would resurrect already-settled
+    // debt. Edits keep their reconciled-on-the-client payment fields.
+    if (isNewSale) reconcileInvoicePayment(inv);
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
 
