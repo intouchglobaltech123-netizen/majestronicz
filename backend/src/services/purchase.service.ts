@@ -19,14 +19,21 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const ts = nowIso();
     let saved: any;
+    // These are set only by the receive / pay / cancel flows and the server — never
+    // accepted from a save, or a PO could be created/edited as Received with a
+    // fake paid amount and number (PUR2-6).
+    const SERVER_MANAGED = ['status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments', 'createdAt', 'updatedAt'];
     if (poData.id && (await tx.purchaseOrder.findUnique({ where: { id: poData.id } }))) {
       const { id, ...rest } = poData;
+      for (const k of SERVER_MANAGED) delete (rest as any)[k];
       saved = await tx.purchaseOrder.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = poData.id || `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
       const poNumber = await nextPoNumber(tx, poData.branchId); // authoritative, collision-free
+      const clean = { ...poData };
+      for (const k of SERVER_MANAGED) delete (clean as any)[k];
       saved = await tx.purchaseOrder.create({
-        data: { ...poData, id, poNumber, createdAt: ts, updatedAt: ts },
+        data: { ...clean, id, poNumber, status: 'Ordered', amountPaid: 0, createdAt: ts, updatedAt: ts },
       });
     }
 
