@@ -227,7 +227,10 @@ export async function buildContext(flags: string[]): Promise<string> {
   // ---- HRM / PAYROLL ----
   if (has(flags, 'ai.data.hrm')) {
     const emps = await prisma.employee.findMany({ take: 200 });
-    const active = emps.filter((e) => e.status === 'active');
+    // Employee status is 'Active'/'Inactive' (capitalized) — the lowercase
+    // 'active' here matched nothing, so the AI always reported 0 active staff
+    // (HRM3-6). User-account status is the lowercase 'active'/'disabled'.
+    const active = emps.filter((e) => e.status === 'Active');
     const payroll = await prisma.payrollRecord.findMany({ where: { month }, take: 200 });
     const payTotal = payroll.reduce((t, p) => t + (p.finalPayable || 0), 0);
     parts.push(

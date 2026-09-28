@@ -31,7 +31,11 @@ export function computePayrollRows(params: {
     const liveDaysPresent = empAtt.length;
     const liveHoursWorked = empAtt.reduce((sum, a) => sum + (a.hoursWorked || 0), 0);
 
-    const liveHourlyRate = parseFloat((emp.monthlySalary / standardHours).toFixed(2));
+    // Salary is stripped from the data non-CEO roles receive (SEC2-2), so
+    // emp.monthlySalary is undefined for them — guard the division so the row
+    // shows ₹0 rather than ₹NaN (HRM3-3). Also guard a zero standard-hours config.
+    const salary = Number(emp.monthlySalary) || 0;
+    const liveHourlyRate = standardHours > 0 ? parseFloat((salary / standardHours).toFixed(2)) : 0;
     const liveComputedPay = Math.round(liveHourlyRate * liveHoursWorked);
 
     const existingRec = payrollRecords.find((p) => p.employeeId === emp.id && p.month === month);
@@ -74,7 +78,7 @@ export function computePayrollRows(params: {
       designation: emp.designation,
       branchId: emp.branchId,
       month,
-      monthlySalary: emp.monthlySalary,
+      monthlySalary: salary,
       standardHoursPerMonth: standardHours,
       hourlyRate,
       totalDaysPresent,

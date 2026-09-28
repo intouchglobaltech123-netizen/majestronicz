@@ -68,12 +68,16 @@ app.listen(port, async () => {
     const migrated = await migrateUserPins();
     const linked = await provisionUserEmployees();
     console.log(`Staff accounts ready.${migrated ? ` Secured ${migrated} legacy PIN(s).` : ''}${linked ? ` Linked ${linked} attendance profile(s).` : ''}`);
-    // Recovery hatch: re-hash the 5 preset PINs to the current AUTH_SECRET when
-    // RESET_SYSTEM_PINS=1 is set (used after a secret change locks everyone out).
-    // Remove the env flag once you've logged back in.
-    if (process.env.RESET_SYSTEM_PINS === '1') {
-      const reset = await resetSystemPins();
-      console.log(`RESET_SYSTEM_PINS active: re-hashed ${reset} preset account PIN(s) to the current AUTH_SECRET. Remove this env var now.`);
+    // Recovery hatch (SEC3-4): re-hash preset PINs to the current AUTH_SECRET
+    // after a secret change locks everyone out. RESET_SYSTEM_PINS=1 is safe to
+    // leave set — it only fixes accounts still on their default PIN and never
+    // reverts a changed one, so it becomes a no-op once recovered.
+    // RESET_SYSTEM_PINS=force unconditionally restores all five defaults (total
+    // lockout with no AUTH_SECRET_PREV). Remove the flag once you've logged in.
+    const resetFlag = process.env.RESET_SYSTEM_PINS;
+    if (resetFlag === '1' || resetFlag === 'force') {
+      const reset = await resetSystemPins(resetFlag === 'force');
+      console.log(`RESET_SYSTEM_PINS=${resetFlag}: re-hashed ${reset} preset account PIN(s) to the current AUTH_SECRET. Remove this env var once you've logged in.`);
     }
   } catch (e) {
     console.error('Failed during startup init (using defaults):', e);
