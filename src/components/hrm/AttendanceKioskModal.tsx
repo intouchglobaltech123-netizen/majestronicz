@@ -15,6 +15,7 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture } from '../../types';
 import { CameraCapture } from './CameraCapture';
+import { apiPost } from '../../lib/api';
 import { toast } from 'sonner';
 
 interface AttendanceKioskModalProps {
@@ -136,13 +137,21 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
 
   if (!isOpen) return null;
 
-  const proceedToCapture = () => {
+  const proceedToCapture = async () => {
     if (!currentEmp) {
       toast.error('Please select your name');
       return;
     }
-    if (pinInput.trim() !== currentEmp.pin) {
-      toast.error('Incorrect attendance PIN', { description: `PIN verification failed for ${currentEmp.name}` });
+    // Verify the PIN on the SERVER — the PIN is no longer sent to the browser, so
+    // a manager operating the kiosk can't read anyone's PIN (SEC2-2).
+    try {
+      const res: any = await apiPost('/api/hrm/verify-pin', { employeeId: currentEmp.id, pin: pinInput.trim() });
+      if (!res?.ok) {
+        toast.error('Incorrect attendance PIN', { description: `PIN verification failed for ${currentEmp.name}` });
+        return;
+      }
+    } catch {
+      toast.error('Could not verify PIN. Check the connection and try again.');
       return;
     }
     setCapturedPhoto(null);

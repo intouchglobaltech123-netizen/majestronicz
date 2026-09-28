@@ -147,6 +147,20 @@ router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, r
   res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined }));
 }));
 
+// Employee reads must never leak the login/kiosk PIN (SEC2-2). These dedicated
+// GETs strip `pin` and are declared BEFORE the generic crudRouter mount below so
+// they take precedence over its all-columns response.
+router.get('/employees', requireCapability('hrm:write'), asyncHandler(async (_req, res) => {
+  const emps = await prisma.employee.findMany();
+  res.json(emps.map((e: any) => { const { pin, ...rest } = e; return rest; }));
+}));
+router.get('/employees/:id', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
+  const e: any = await prisma.employee.findUnique({ where: { id: req.params.id } });
+  if (!e) return res.json({ error: 'Not found' });
+  const { pin, ...rest } = e;
+  res.json(rest);
+}));
+
 // ---- Generic id-keyed CRUD resources (RBAC per resource on writes & sensitive reads) ----
 const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability }> = {
   items: { delegate: prisma.item, cap: 'items:write' },

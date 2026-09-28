@@ -193,7 +193,8 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                       <td className="py-3.5 px-3 text-center font-mono">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold">
                           <KeyRound className="h-3 w-3 text-slate-400" />
-                          {emp.pin}
+                          {/* PIN is never sent to the client (SEC2-2) — masked. */}
+                          {emp.pin || '••••'}
                         </span>
                       </td>
 

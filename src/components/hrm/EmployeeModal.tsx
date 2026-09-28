@@ -63,7 +63,9 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setBranchId(employeeToEdit.branchId);
       setMonthlySalary(employeeToEdit.monthlySalary);
       setIncentivePercent(employeeToEdit.incentivePercent || 0);
-      setPin(employeeToEdit.pin);
+      // The PIN is no longer sent to the client (SEC2-2), so on edit it starts
+      // blank and is only changed if the user types a new one ("leave blank to keep").
+      setPin(employeeToEdit.pin || '');
       setStatus(employeeToEdit.status);
       setPhone(employeeToEdit.phone || '');
       setEmail(employeeToEdit.email || '');
@@ -97,9 +99,10 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = 'Full name is required';
     if (!designation.trim()) errs.designation = 'Role / Designation is required';
-    if (!pin.trim() || pin.length < 4) errs.pin = '4-digit attendance PIN is required';
-    // App login requires an exact 4-digit PIN (it doubles as the sign-in PIN).
-    if (loginRole && !/^\d{4}$/.test(pin.trim())) errs.pin = 'App login needs an exact 4-digit PIN';
+    // A new employee must set a PIN; when editing, a blank PIN means "keep the
+    // current one" (the PIN is no longer sent to the client — SEC2-2).
+    if (!employeeToEdit && (!pin.trim() || pin.length < 4)) errs.pin = '4-digit attendance PIN is required';
+    if (pin.trim() && !/^\d{4}$/.test(pin.trim())) errs.pin = 'PIN must be exactly 4 digits';
     if (monthlySalary <= 0) errs.salary = 'Monthly salary must be greater than 0';
     if (phone.trim()) {
       const clean = cleanPhoneDigits(phone);
@@ -130,13 +133,15 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
     // Attach / update / remove the app login (CEO only).
     if (isCEO) {
-      if (loginRole) {
+      // Only (re)set the login when a PIN was entered — on edit, a blank PIN keeps
+      // the existing login/PIN untouched.
+      if (loginRole && pin.trim()) {
         const ok = await linkStaffLogin({
           employeeId: saved.id, role: loginRole, name: name.trim(),
           assignedBranchId: branchId, pin: pin.trim(), status,
         });
         if (!ok) { setSubmitting(false); return; } // keep modal open so PIN clash can be fixed
-      } else if (existingLogin) {
+      } else if (!loginRole && existingLogin) {
         await unlinkStaffLogin(saved.id);
       }
     }
@@ -242,7 +247,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Attendance PIN (4-digit) <span className="text-red-600">*</span>
+                Attendance PIN (4-digit) {!employeeToEdit && <span className="text-red-600">*</span>}
+                {employeeToEdit && <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal"> — leave blank to keep current</span>}
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -251,7 +257,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                   maxLength={6}
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  placeholder="1001"
+                  placeholder={employeeToEdit ? 'Leave blank to keep current PIN' : '1001'}
                   className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600"
                 />
               </div>

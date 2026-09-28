@@ -3880,7 +3880,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      persist(apiPost('/api/employees', updated));
+      // Never send a blank PIN on edit — the client no longer holds the PIN
+      // (SEC2-2), and a blank would overwrite the stored one. Omitting it makes
+      // the server keep the existing PIN.
+      const payload: any = { ...updated };
+      if (!payload.pin) delete payload.pin;
+      persist(apiPost('/api/employees', payload));
       toast.success(`Employee "${updated.name}" updated`);
       return updated;
     } else {

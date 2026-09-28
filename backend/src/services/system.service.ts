@@ -10,7 +10,12 @@ import { SessionUser, roleCan } from '../lib/auth.js';
  * every employee's salary & PIN) are closed.
  */
 function scopeBootstrap(data: any, user: SessionUser) {
-  if (user.role === 'CEO') return data;
+  // The login/kiosk PIN is NEVER sent to any client (SEC2-2) — the kiosk verifies
+  // it on the server now. Strip it for every role, including CEO.
+  const stripPin = (arr: any) =>
+    Array.isArray(arr) ? arr.map((e: any) => { const { pin, ...rest } = e; return rest; }) : arr;
+
+  if (user.role === 'CEO') return { ...data, employees: stripPin(data.employees) };
   const branch = user.assignedBranchId;
   const byBranch = (arr: any) =>
     branch && Array.isArray(arr) ? arr.filter((r: any) => !r?.branchId || r.branchId === branch) : arr;
@@ -18,10 +23,8 @@ function scopeBootstrap(data: any, user: SessionUser) {
     ? data.employees
         .filter((e: any) => !branch || e.branchId === branch)
         .map((e: any) => {
-          // Hide salary/incentive from non-CEO, but KEEP the attendance PIN — the
-          // kiosk verifies it client-side, so stripping it broke clock-in/out.
-          // (Moving kiosk verification server-side is the proper SEC2-2 follow-up.)
-          const { monthlySalary, incentivePercent, ...safe } = e;
+          // Hide salary/incentive from non-CEO, and never expose the PIN.
+          const { monthlySalary, incentivePercent, pin, ...safe } = e;
           return safe;
         })
     : data.employees;

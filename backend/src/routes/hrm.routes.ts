@@ -5,6 +5,7 @@ import * as ctrl from '../controllers/hrm.controller.js';
 
 // Mounted behind requireCapability('hrm:write') (CEO/Manager).
 const router = Router();
+router.post('/verify-pin', asyncHandler(ctrl.verifyPin));
 router.post('/clock-in', asyncHandler(ctrl.clockIn));
 router.post('/clock-out', asyncHandler(ctrl.clockOut));
 // Payroll adjustments & disbursement are CEO-only.

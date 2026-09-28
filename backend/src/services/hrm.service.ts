@@ -7,6 +7,17 @@ const snap = async (tx: any) => ({
   payrollRecords: await tx.payrollRecord.findMany(),
 });
 
+/**
+ * Verify a kiosk PIN on the SERVER (SEC2-2). The PIN is never sent to the
+ * browser any more, so the attendance kiosk asks the server to check it instead
+ * of comparing client-side against a PIN in the bootstrap payload.
+ */
+export async function verifyKioskPin(employeeId: string, pin: string): Promise<{ ok: boolean }> {
+  const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!emp) return { ok: false };
+  return { ok: String(emp.pin || '') === String(pin || '').trim() };
+}
+
 // Attendance date/time are recorded in India Standard Time (Asia/Kolkata), not
 // the server's UTC — otherwise check-in/out times show a ~5:30h offset.
 function istParts(now = new Date()): { date: string; time: string } {
