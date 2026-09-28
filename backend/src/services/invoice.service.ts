@@ -167,6 +167,18 @@ export function createSale(inv: any, reqUser?: any) {
       inv.invoiceNumber = existing.invoiceNumber;
     }
     if (isNewSale) {
+      // SAL3-1: a quotation can only become ONE live invoice. The client hides
+      // the Convert button once converted, but that is bypassable and races, so
+      // reject a second conversion of the same estimate on the server. A voided
+      // conversion frees the estimate to be converted again.
+      if (inv.sourceEstimateId) {
+        const already = await tx.invoice.findFirst({
+          where: { sourceEstimateId: inv.sourceEstimateId, isVoided: false },
+        });
+        if (already) {
+          throw new AppError('ALREADY_CONVERTED', `This quotation was already converted to invoice ${already.invoiceNumber}.`, 409);
+        }
+      }
       inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
       // SAL2-1/NUM-1: the browser mints the id as `inv-${Date.now()}`, so two
       // bills saved in the same millisecond collide — the second would be seen

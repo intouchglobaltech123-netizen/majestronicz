@@ -3,7 +3,6 @@ import { AppError } from '../middleware/errorHandler.js';
 import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
-import { withRetry } from '../lib/retry.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 
@@ -16,16 +15,51 @@ const poSnapshot = async (tx: any) => ({
 /** Create (server-assigned PO number) or edit a purchase order; link pending order. */
 export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
   assertBranchAllowed(reqUser, poData.branchId);
-  return withRetry(() => prisma.$transaction(async (tx: any) => {
+  // Serializable + retry so a concurrent Edit-Prices and receive on the same PO
+  // can't lose one another's write (E2E-5).
+  return serializableTx(async (tx: any) => {
     const ts = nowIso();
     let saved: any;
     // These are set only by the receive / pay / cancel flows and the server — never
     // accepted from a save, or a PO could be created/edited as Received with a
     // fake paid amount and number (PUR2-6).
     const SERVER_MANAGED = ['status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments', 'createdAt', 'updatedAt'];
-    if (poData.id && (await tx.purchaseOrder.findUnique({ where: { id: poData.id } }))) {
+    const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
+    if (existingPo) {
       const { id, ...rest } = poData;
       for (const k of SERVER_MANAGED) delete (rest as any)[k];
+      // E2E-5: an Edit-Prices payload is built from a snapshot of the PO the user
+      // opened, which may predate a receipt. Take price / ordered-qty / tax from
+      // the client, but keep the server's per-line received / damaged / missing
+      // quantities so a stale edit can't wipe what was actually received. Totals
+      // are recomputed from the merged lines.
+      if (Array.isArray(rest.items) && Array.isArray(existingPo.items)) {
+        const dbByItem = new Map((existingPo.items as any[]).map((l: any) => [l.itemId, l]));
+        rest.items = rest.items.map((cl: any) => {
+          const db = dbByItem.get(cl.itemId);
+          const price = Number(cl.purchasePrice) || 0;
+          const qtyOrdered = Number(cl.quantityOrdered) || (db?.quantityOrdered ?? 0);
+          const taxPercent = cl.taxPercent != null ? Number(cl.taxPercent) : (db?.taxPercent ?? 0);
+          const amount = Math.round(price * qtyOrdered * 100) / 100;
+          const taxAmount = taxAmountFor(amount, taxPercent);
+          return {
+            ...(db || {}),
+            ...cl,
+            quantityOrdered: qtyOrdered,
+            purchasePrice: price,
+            taxPercent,
+            amount,
+            taxAmount,
+            lineTotal: Math.round((amount + taxAmount) * 100) / 100,
+            // Received state is authoritative from the DB, never the client.
+            receivedQuantity: db?.receivedQuantity ?? 0,
+            damagedQuantity: db?.damagedQuantity ?? 0,
+            missingQuantity: db?.missingQuantity ?? 0,
+          };
+        });
+        rest.totalAmount = Math.round(rest.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
+        rest.totalTax = Math.round(rest.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      }
       saved = await tx.purchaseOrder.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = poData.id || `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -49,7 +83,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       });
     }
     return { ...(await poSnapshot(tx)), saved };
-  }));
+  });
 }
 
 export function deletePurchaseOrder(poId: string, reqUser?: any) {
