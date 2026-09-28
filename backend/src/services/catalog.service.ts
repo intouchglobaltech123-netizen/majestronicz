@@ -4,6 +4,7 @@ import { nowIso, cleanPhone } from '../lib/stockLedger.js';
 import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
+import { GSTIN_RE } from './gstin.service.js';
 
 /**
  * Server-authoritative recompute of estimate line taxes + totals.
@@ -115,7 +116,7 @@ export function saveCustomer(data: any) {
     // must match the 15-char GSTIN format (CRM-7).
     if (data.gstin != null) {
       const g = String(data.gstin).trim().toUpperCase();
-      if (g && !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]Z[A-Z\d]$/.test(g)) {
+      if (g && !GSTIN_RE.test(g)) {
         throw new AppError('INVALID_GSTIN', 'Enter a valid 15-character GSTIN, or leave it blank.', 400);
       }
       data.gstin = g || null;

@@ -72,12 +72,12 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
     // if it was opened the previous day — otherwise an overnight shift can never
     // be clocked out because no record exists for "today".
     const existing = await tx.attendanceRecord.findFirst({
-      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
+      where: { employeeId, checkOutTime: null },
       orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
     });
     if (!existing) throw new AppError('NO_CHECKIN', `No open check-in found for ${emp.name}.`, 409);
 
-    const diffHours = shiftHours(existing.date, existing.checkInTime, today, timeStr);
+    const diffHours = Math.min(16, shiftHours(existing.date, existing.checkInTime, today, timeStr)); // cap a stale open shift (HRM3-5)
 
     await tx.attendanceRecord.update({
       where: { id: existing.id },
@@ -107,11 +107,11 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
     // have been opened yesterday for an overnight shift, so we don't restrict to
     // today's record.
     const openShift = await tx.attendanceRecord.findFirst({
-      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
+      where: { employeeId, checkOutTime: null },
       orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
     });
     if (openShift) {
-      const diffHours = shiftHours(openShift.date, openShift.checkInTime, today, ist.time);
+      const diffHours = Math.min(16, shiftHours(openShift.date, openShift.checkInTime, today, ist.time)); // cap a stale open shift (HRM3-5)
       const record = await tx.attendanceRecord.update({
         where: { id: openShift.id },
         data: { checkOutTime: ist.time, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
