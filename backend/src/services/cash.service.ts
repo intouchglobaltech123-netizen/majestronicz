@@ -1,7 +1,7 @@
-import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { serializableTx } from '../lib/tx.js';
 
 const snap = async (tx: any) => ({
   cashRegisters: await tx.dailyCashRegister.findMany(),
@@ -75,7 +75,7 @@ async function ensureRegister(tx: any, branchId: string, date: string) {
 }
 
 export function addExpense(branchId: string, date: string, expense: any, actor: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
     // Amounts can't be negative, and at least one must be positive (CASH2-5/VAL-1).
@@ -103,7 +103,7 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
 
 /** Manager/CEO decision on a pending expense (e.g. bank deposit). */
 export function approveExpense(branchId: string, date: string, expenseId: string, decision: string, actor: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const reg = await loadRegister(tx, branchId, date);
     if (!reg) throw new AppError('NOT_FOUND', 'Cash register not found', 404);
     // A closed day's totals are final — no approving/rejecting into it (CASH2-5).
@@ -128,7 +128,7 @@ export function approveExpense(branchId: string, date: string, expenseId: string
 }
 
 export function deleteExpense(branchId: string, date: string, expenseId: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const reg = await loadRegister(tx, branchId, date);
     if (!reg) return snap(tx);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
@@ -156,7 +156,7 @@ export function deleteExpense(branchId: string, date: string, expenseId: string)
 }
 
 export function overrideOpening(branchId: string, date: string, amount: number, reason: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
     await tx.dailyCashRegister.update({
@@ -167,7 +167,7 @@ export function overrideOpening(branchId: string, date: string, amount: number, 
 }
 
 export function closeDay(branchId: string, date: string, notes: string | undefined, actor: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     // Never close a day in the future — it has no transactions yet and locking it
     // corrupts the opening-balance chain (CASH-9). Compare against the IST date.
     const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
@@ -181,7 +181,7 @@ export function closeDay(branchId: string, date: string, notes: string | undefin
 }
 
 export function reopenDay(branchId: string, date: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const reg = await loadRegister(tx, branchId, date);
     if (reg) await tx.dailyCashRegister.update({ where: { id: reg.id }, data: { isClosed: false } });
     return snap(tx);
@@ -189,7 +189,7 @@ export function reopenDay(branchId: string, date: string) {
 }
 
 export function approveRecurring(templateId: string, branchId: string, date: string, amount: number, paymentMode: string, actor: string) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id: templateId } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
 
@@ -262,7 +262,7 @@ const RECURRING_EDITABLE = [
 ] as const;
 
 export function updateRecurringTemplate(id: string, updates: Record<string, any>, reqUser?: any) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
     // SEC2-1: a branch-locked user can only touch a template that belongs to
@@ -309,7 +309,7 @@ export function updateRecurringTemplate(id: string, updates: Record<string, any>
 }
 
 export function deleteRecurringTemplate(id: string, reqUser?: any) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
     assertBranchAllowed(reqUser, template.branchId); // SEC2-1

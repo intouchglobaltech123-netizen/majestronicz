@@ -1380,8 +1380,10 @@ export const InvoiceForm: React.FC<Props> = ({
     } else {
       const inv = assembleInvoiceObject();
       if (!inv) return;
-      saveInvoice(inv);
-      onSaved(inv);
+      // Preview/print the server-saved bill (authoritative number, id and
+      // reconciled payment split), not the provisional client object (SAL4-1).
+      const saved = await saveInvoice(inv);
+      onSaved(saved || inv);
     }
   };
 

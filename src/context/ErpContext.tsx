@@ -210,7 +210,7 @@ interface ErpContextType {
 
   // Sales Invoices (Core Billing)
   invoices: Invoice[];
-  saveInvoice: (invoice: Invoice) => void;
+  saveInvoice: (invoice: Invoice) => Promise<Invoice | undefined>;
   deleteInvoice: (invoiceId: string) => void;
   voidInvoice: (invoiceId: string, reason: string) => void;
   updateOnlineOrderStatus: (
@@ -2666,9 +2666,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const snap = await apiPost<any>('/api/tx/sale', newInvoice);
       applySaleSnapshot(snap);
-      toast.success(`Invoice ${newInvoice.invoiceNumber} saved & stock decremented`, {
-        description: `${newInvoice.customerName} • ₹${newInvoice.grandTotal.toLocaleString('en-IN')} [${newInvoice.paymentMode}]`,
+      // The server assigns the authoritative id, invoice number and reconciled
+      // payment split — use that saved row for the toast and the preview (SAL4-1).
+      const saved: Invoice = (snap?.savedInvoice as Invoice) || newInvoice;
+      toast.success(`Invoice ${saved.invoiceNumber} saved & stock decremented`, {
+        description: `${saved.customerName} • ₹${(saved.grandTotal || 0).toLocaleString('en-IN')} [${saved.paymentMode}]`,
       });
+      return saved;
     } catch (e: any) {
       if (String(e?.message || '').includes('DAY_CLOSED')) {
         toast.error('Cannot save invoice on a closed day', {
@@ -2677,6 +2681,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         toast.error('Failed to save invoice', { description: e?.message ?? 'Backend error' });
       }
+      return undefined;
     }
   };
 

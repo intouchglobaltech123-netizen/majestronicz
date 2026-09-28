@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
@@ -165,7 +166,15 @@ export function createSale(inv: any, reqUser?: any) {
       inv.branchId = existing.branchId;
       inv.invoiceNumber = existing.invoiceNumber;
     }
-    if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
+    if (isNewSale) {
+      inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
+      // SAL2-1/NUM-1: the browser mints the id as `inv-${Date.now()}`, so two
+      // bills saved in the same millisecond collide — the second would be seen
+      // as an edit of the first and overwrite it. Assign a collision-proof id
+      // server-side. The client rebuilds its list from the returned snapshot, so
+      // it adopts this id transparently.
+      inv.id = `inv-${randomUUID()}`;
+    }
     // SAL-9: on a NEW bill the frontend guarantees the splits sum to the total,
     // so the server can (and must) derive the authoritative paid/due/drawer split
     // here — this is where a tampered client that understates the due or the cash
@@ -304,8 +313,15 @@ export function createSale(inv: any, reqUser?: any) {
     await ledger.flush(tx);
 
     const { id, ...rest } = inv;
-    await tx.invoice.upsert({ where: { id }, create: inv, update: rest });
-    return snapshot(tx);
+    // New sales use create with the freshly-minted unique id (never overwrite an
+    // existing bill on an id collision); edits update the found row (SAL2-1).
+    if (isNewSale) await tx.invoice.create({ data: inv });
+    else await tx.invoice.update({ where: { id }, data: rest });
+    // Return the authoritative saved row alongside the snapshot so the client can
+    // preview/print the bill exactly as stored — server invoice number, server id,
+    // reconciled payment split — instead of its provisional client object (SAL4-1).
+    const savedInvoice = await tx.invoice.findUnique({ where: { id: inv.id } });
+    return { ...(await snapshot(tx)), savedInvoice };
   });
 }
 
