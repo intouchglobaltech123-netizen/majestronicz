@@ -94,13 +94,20 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     for (const inv of filtered) {
       const inter = isInterState(inv.stateOfSupply);
       const gstin = buyerGstin(inv);
+      // Net returns out of the GST liability (RPT4-2): a returned bill reduces the
+      // taxable value and tax owed. Scale each line's contribution by the share of
+      // the bill that was NOT returned — proportional netting, matching the cash /
+      // sales reports so every view of the period agrees.
+      const grand = inv.grandTotal || 0;
+      const returned = Math.min(grand, inv.totalReturnedAmount || 0);
+      const netRatio = grand > 0 ? (grand - returned) / grand : 1;
       let invTaxable = 0, invCgst = 0, invSgst = 0, invIgst = 0, invTotal = 0;
       for (const li of inv.items || []) {
         const rate = li.taxRate || 0;
-        const taxable = li.taxableAmount || 0;
-        const tax = li.totalTax || 0;
-        const cgst = inter ? 0 : li.cgstAmount || tax / 2;
-        const sgst = inter ? 0 : li.sgstAmount || tax / 2;
+        const taxable = (li.taxableAmount || 0) * netRatio;
+        const tax = (li.totalTax || 0) * netRatio;
+        const cgst = inter ? 0 : (li.cgstAmount != null ? li.cgstAmount * netRatio : tax / 2);
+        const sgst = inter ? 0 : (li.sgstAmount != null ? li.sgstAmount * netRatio : tax / 2);
         const igst = inter ? tax : 0;
         // Derive Total Tax from the components so the displayed CGST+SGST+IGST
         // always equals Total Tax (legacy lines can have a 0.01 half-split drift).

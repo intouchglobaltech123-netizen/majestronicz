@@ -194,9 +194,26 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
     }
 
     if (existing) {
+      // HRM3-4: freeze the disbursed figures at what was actually computed and
+      // shown when Pay was clicked. computePayrollRows locks a Paid row to its
+      // STORED amount, so if we only flipped the status the row would lock to a
+      // stale/zero finalPayable (e.g. a prior Draft) instead of the sum paid out.
+      const frozen = record
+        ? {
+            monthlySalary: Number(record.monthlySalary) || 0,
+            standardHoursPerMonth: Number(record.standardHoursPerMonth) || 0,
+            hourlyRate: Number(record.hourlyRate) || 0,
+            totalDaysPresent: Number(record.totalDaysPresent) || 0,
+            totalHoursWorked: Number(record.totalHoursWorked) || 0,
+            computedPay: Number(record.computedPay) || 0,
+            manualAdjustment: Number(record.manualAdjustment) || 0,
+            adjustmentReason: record.adjustmentReason ?? existing.adjustmentReason ?? null,
+            finalPayable: Number(record.finalPayable) || 0,
+          }
+        : {};
       await tx.payrollRecord.update({
         where: { id: existing.id },
-        data: { status: 'Paid', paidAt: ts, paymentMode, paymentReference: paymentReference ?? null, updatedAt: ts },
+        data: { ...frozen, status: 'Paid', paidAt: ts, paymentMode, paymentReference: paymentReference ?? null, updatedAt: ts },
       });
     } else if (record?.employeeId && record?.month) {
       // No persisted record yet — create one straight into Paid state using the
