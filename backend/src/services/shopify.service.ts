@@ -745,6 +745,29 @@ export async function updateOnlineOrderStatus(
   return { invoice, shopify };
 }
 
+const COMM_TYPES = ['photo_sent', 'tracking_sent', 'call', 'note'];
+
+/**
+ * Record a customer-contact event on an online order (WhatsApp photo/tracking
+ * sent, a call, or a note). WhatsApp itself is sent manually by staff; this is
+ * the ERP's append-only record of what was actually sent, and by whom.
+ */
+export async function addOrderCommunication(
+  invoiceId: string,
+  type: string,
+  note: string | undefined,
+  actor: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new Error('Order not found');
+  if (!COMM_TYPES.includes(type)) throw new Error(`Invalid communication type: ${type}`);
+  const log = Array.isArray((inv as any).communicationLog) ? (inv as any).communicationLog : [];
+  log.push({ type, by: actor, at: nowIso(), note: note?.trim() || undefined });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { communicationLog: log } });
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice };
+}
+
 // ---- Online Customers ----
 export interface ShopifyCustomerSummary {
   id: string;

@@ -39,6 +39,7 @@ import {
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
   updateOnlineOrderStatus,
+  addOrderCommunication,
   getShopifyCustomers,
   findSimilarErpItems,
 } from '../services/shopify.service.js';
@@ -408,6 +409,12 @@ router.post('/shopify/order-status', requireCapability('sales:write'), asyncHand
   const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor } = req.body;
   const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor: actor || 'system' });
   broadcastChange('shopify-order-status');
+  res.json(result);
+}));
+router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, type, note, actor } = req.body;
+  const result = await addOrderCommunication(invoiceId, type, note, actor || 'system');
+  broadcastChange('shopify-order-comm');
   res.json(result);
 }));
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {

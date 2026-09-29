@@ -2,15 +2,26 @@ import React, { useState } from 'react';
 import {
   Invoice,
   OnlineOrderStatus,
+  OrderCommType,
   ONLINE_ORDER_PIPELINE,
   ONLINE_NEXT_ACTION,
+  ORDER_COMM_LABEL,
   onlinePipelineIndex,
 } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   ArrowLeft, ArrowRight, Truck, CheckCircle2, Clock, Camera, MapPin,
   User, Phone, Package, Receipt, History, Link as LinkIcon, Boxes,
+  MessageSquare, Image as ImageIcon, Send,
 } from 'lucide-react';
+
+/** Build a wa.me link to the customer with a prefilled message. */
+const waLink = (phone: string | undefined, text: string): string | null => {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  const intl = digits.length === 10 ? `91${digits}` : digits.replace(/^0+/, '');
+  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
+};
 
 const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
   New: 'bg-slate-100 text-slate-700 border-slate-300',
@@ -33,6 +44,7 @@ interface Props {
   onBack: () => void;
   onAdvance: (to: OnlineOrderStatus, opts?: { trackingNumber?: string; courierName?: string; trackingUrl?: string }) => void;
   onUploadPhoto: (kind: 'tray' | 'parcel', file: File | null) => void;
+  onComm: (type: OrderCommType, note?: string) => void;
 }
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }> = ({ title, icon, children, right }) => (
@@ -46,14 +58,23 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 );
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto }) => {
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm }) => {
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
   const idx = onlinePipelineIndex(s);
   const isCancelled = s === 'Cancelled';
   const isDone = s === 'Completed' || s === 'Delivered';
   const next = idx >= 0 && idx < ONLINE_ORDER_PIPELINE.length - 1 ? ONLINE_ORDER_PIPELINE[idx + 1] : null;
   const history = Array.isArray(inv.onlineStatusHistory) ? inv.onlineStatusHistory : [];
+  const comms = Array.isArray(inv.communicationLog) ? inv.communicationLog : [];
   const [t, setT] = useState({ number: inv.trackingNumber || '', courier: inv.courierName || '', url: inv.trackingUrl || '' });
+
+  const name = inv.customerName || 'Customer';
+  const photoMsg = `Hello ${name}, your order ${inv.invoiceNumber} is getting ready for dispatch. Please check the products before we pack.`;
+  const trackMsg = `Hello ${name}, your order ${inv.invoiceNumber} has been handed over to the courier${inv.courierName ? ` (${inv.courierName})` : ''}.${inv.trackingNumber ? ` Tracking: ${inv.trackingNumber}.` : ''}${inv.trackingUrl ? ` Track here: ${inv.trackingUrl}` : ''}`;
+  const photoWa = waLink(inv.customerPhone, photoMsg);
+  const trackWa = waLink(inv.customerPhone, trackMsg);
+  const photoSent = comms.some((c) => c.type === 'photo_sent');
+  const trackingSent = comms.some((c) => c.type === 'tracking_sent');
 
   return (
     <div className="w-full space-y-4">
@@ -195,6 +216,66 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
               </div>
             </div>
           )}
+        </Section>
+
+        {/* Communication (WhatsApp / contact) */}
+        <Section title="Customer Communication (WhatsApp)" icon={<MessageSquare className="h-3.5 w-3.5" />}>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Send tray photo */}
+              <a
+                href={photoWa || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border',
+                  photoWa ? 'bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/40 hover:bg-[#25D366]/20' : 'bg-slate-50 text-slate-400 border-slate-200 pointer-events-none')}
+              >
+                <ImageIcon className="h-3.5 w-3.5" /> Open WhatsApp — send tray photo
+              </a>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onComm('photo_sent')}
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border disabled:opacity-60',
+                  photoSent ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50')}
+              >
+                {photoSent ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />} {photoSent ? 'Photo marked sent' : 'Mark photo sent'}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Send tracking */}
+              <a
+                href={trackWa || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border',
+                  trackWa ? 'bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/40 hover:bg-[#25D366]/20' : 'bg-slate-50 text-slate-400 border-slate-200 pointer-events-none')}
+              >
+                <Truck className="h-3.5 w-3.5" /> Open WhatsApp — send tracking
+              </a>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onComm('tracking_sent')}
+                className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border disabled:opacity-60',
+                  trackingSent ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50')}
+              >
+                {trackingSent ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />} {trackingSent ? 'Tracking marked sent' : 'Mark tracking sent'}
+              </button>
+            </div>
+            {!inv.customerPhone && <p className="text-[11px] text-amber-600">No customer phone on this order — WhatsApp links are disabled.</p>}
+            {/* Contact log */}
+            {comms.length > 0 && (
+              <ul className="pt-1 space-y-1 border-t border-slate-100">
+                {[...comms].reverse().map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[11px] text-slate-600">
+                    <MessageSquare className="h-3.5 w-3.5 text-[#128C7E] mt-0.5 shrink-0" />
+                    <span><span className="font-bold text-slate-800">{ORDER_COMM_LABEL[c.type]}</span>{c.note ? ` — ${c.note}` : ''} · <span className="font-medium">{c.by}</span><span className="text-slate-400"> · {new Date(c.at).toLocaleString('en-IN')}</span></span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </Section>
 
         {/* Activity history */}

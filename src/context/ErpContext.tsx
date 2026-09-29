@@ -39,6 +39,7 @@ import {
   DeliveryChallan,
   Invoice,
   OnlineOrderStatus,
+  OrderCommType,
   Enquiry,
   EnquiryStatus,
   PendingOrder,
@@ -222,6 +223,7 @@ interface ErpContextType {
       trayPhotoUrl?: string; parcelPhotoUrl?: string; note?: string;
     }
   ) => Promise<void>;
+  addOrderCommunication: (invoiceId: string, type: OrderCommType, note?: string) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
     returnLines: {
@@ -2770,6 +2772,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const addOrderCommunication = async (invoiceId: string, type: OrderCommType, note?: string) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>(
+        '/api/shopify/order-comm',
+        { invoiceId, type, note, actor: currentUser.name }
+      );
+      if (res?.invoice) {
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      }
+      toast.success('Contact recorded');
+    } catch (e: any) {
+      toast.error('Failed to record contact', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const processSaleReturn = async (
     invoiceId: string,
     returnLines: {
@@ -4230,6 +4247,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoices,
         saveInvoice,
         updateOnlineOrderStatus,
+        addOrderCommunication,
         deleteInvoice,
         voidInvoice,
         processSaleReturn,

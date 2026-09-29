@@ -317,6 +317,16 @@ export const ONLINE_NEXT_ACTION: Record<OnlineOrderStatus, string> = {
   Cancelled: 'Order cancelled',
 };
 
+/** Kinds of customer contact recorded against an online order. */
+export type OrderCommType = 'photo_sent' | 'tracking_sent' | 'call' | 'note';
+
+export const ORDER_COMM_LABEL: Record<OrderCommType, string> = {
+  photo_sent: 'Tray photo sent on WhatsApp',
+  tracking_sent: 'Tracking sent to customer',
+  call: 'Phone call',
+  note: 'Note',
+};
+
 /** Map a stored status (incl. legacy) to its position in the current pipeline. */
 export const onlinePipelineIndex = (status?: OnlineOrderStatus): number => {
   if (!status) return 0;
@@ -374,6 +384,9 @@ export interface Invoice {
   trayPhotoUrl?: string; // photo of the picked products in the tray (data URL)
   parcelPhotoUrl?: string; // photo of the packed parcel / dispatch (data URL)
   onlineStatusHistory?: { status: OnlineOrderStatus; at: string; by: string; note?: string }[];
+  // Customer contact history (WhatsApp / call). WhatsApp is sent manually, but the
+  // ERP records whether the tray photo / tracking was actually sent, and by whom.
+  communicationLog?: { type: OrderCommType; by: string; at: string; note?: string }[];
   createdById?: string;
   createdAt: string;
   updatedAt?: string;
