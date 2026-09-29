@@ -15,6 +15,7 @@ import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
 import { VendorCreditModal, vendorCreditOnPo } from './VendorCreditModal';
+import { SupplierPayablesView } from './SupplierPayablesView';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
@@ -24,6 +25,7 @@ export const PurchaseManagementView: React.FC = () => {
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [isVendorCreditOpen, setIsVendorCreditOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
+  const [showPayables, setShowPayables] = useState(false);
 
   // Synchronize actions when triggered from secondary navbar flyout.
   // The supplier directory now lives in Parties → Suppliers, so 'vendors' here
@@ -77,6 +79,11 @@ export const PurchaseManagementView: React.FC = () => {
     setIsPoFormOpen(true);
   };
 
+  // Clicking "To Pay (Suppliers)" opens the vendor-grouped payables page.
+  if (showPayables) {
+    return <SupplierPayablesView onBack={() => setShowPayables(false)} />;
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Header */}
@@ -118,8 +125,12 @@ export const PurchaseManagementView: React.FC = () => {
 
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* To Pay (payables) */}
-        <div className={`p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 ${totalPayable > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+        {/* To Pay (payables) — click to open the vendor-grouped payables page */}
+        <button
+          type="button"
+          onClick={() => setShowPayables(true)}
+          className={`text-left p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 transition-colors hover:shadow-sm ${totalPayable > 0 ? 'bg-rose-50/50 border-rose-200 hover:bg-rose-50' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+        >
           <div className="h-11 w-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200/60">
             <Wallet className="h-5 w-5" />
           </div>
@@ -128,11 +139,11 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 text-rose-700">{formatCurrency(totalPayable)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {duePos.length > 0
-                ? `Outstanding across ${duePos.length} PO${duePos.length === 1 ? '' : 's'} — see "Due Payment"`
+                ? `Outstanding across ${duePos.length} PO${duePos.length === 1 ? '' : 's'} — tap to pay by vendor`
                 : 'Outstanding supplier dues'}
             </p>
           </div>
-        </div>
+        </button>
 
         {/* Vendor Credit (money suppliers owe back from damaged advance-paid goods) */}
         <button
