@@ -362,6 +362,33 @@ export const recommendCouriers = (
     .sort((a, b) => (a.deliveryDays ?? 99) - (b.deliveryDays ?? 99));
 };
 
+/** Types of problem that can be raised on an online order (Issue Cases). */
+export type OrderIssueType =
+  | 'Delivery Delayed'
+  | 'Customer Not Received'
+  | 'Damaged'
+  | 'Wrong Product'
+  | 'Missing Product'
+  | 'Not Working'
+  | 'Other';
+
+export const ORDER_ISSUE_TYPES: OrderIssueType[] = [
+  'Delivery Delayed', 'Customer Not Received', 'Damaged', 'Wrong Product', 'Missing Product', 'Not Working', 'Other',
+];
+
+/** A logged problem / complaint on an online order. */
+export interface OrderIssue {
+  id: string;
+  type: OrderIssueType;
+  description?: string;
+  status: 'open' | 'resolved';
+  createdBy: string;
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolution?: string;
+}
+
 /** Kinds of customer contact recorded against an online order. */
 export type OrderCommType = 'photo_sent' | 'tracking_sent' | 'call' | 'note';
 
@@ -439,6 +466,8 @@ export interface Invoice {
   boxCount?: number;
   addressLabelDone?: boolean;
   invoiceIncluded?: boolean;
+  // Issue cases / complaints raised on the order (damage, wrong item, dispute…).
+  issues?: OrderIssue[];
   createdById?: string;
   createdAt: string;
   updatedAt?: string;

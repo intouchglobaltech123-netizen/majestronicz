@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { prisma } from '../db.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
-import { nowIso } from '../lib/stockLedger.js';
+import { nowIso, rid } from '../lib/stockLedger.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 /**
  * Shopify Admin API connector. ALL credentials come from environment variables
@@ -772,6 +773,58 @@ export async function saveOrderPacking(
       onlineStatusHistory: history,
     },
   });
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice };
+}
+
+const ISSUE_TYPES = ['Delivery Delayed', 'Customer Not Received', 'Damaged', 'Wrong Product', 'Missing Product', 'Not Working', 'Other'];
+
+/** Raise a new issue / complaint on an online order (append-only list). */
+export async function addOrderIssue(
+  invoiceId: string,
+  type: string,
+  description: string | undefined,
+  actor: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new Error('Order not found');
+  if (!ISSUE_TYPES.includes(type)) throw new AppError('BAD_ISSUE_TYPE', `Invalid issue type: ${type}`, 400);
+  const issues = Array.isArray((inv as any).issues) ? (inv as any).issues : [];
+  issues.push({
+    id: rid('issue'), type, description: description?.trim() || undefined,
+    status: 'open', createdBy: actor, createdAt: nowIso(),
+  });
+  // Also log to the activity trail so the order timeline shows the problem.
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus || 'New', at: nowIso(), by: actor, note: `Issue raised: ${type}` });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { issues, onlineStatusHistory: history } });
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice };
+}
+
+/** Resolve an open issue on an order, recording who and how. */
+export async function resolveOrderIssue(
+  invoiceId: string,
+  issueId: string,
+  resolution: string | undefined,
+  actor: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new Error('Order not found');
+  const issues = Array.isArray((inv as any).issues) ? (inv as any).issues : [];
+  const now = nowIso();
+  let found = false;
+  const updated = issues.map((it: any) => {
+    if (it.id === issueId && it.status !== 'resolved') {
+      found = true;
+      return { ...it, status: 'resolved', resolvedBy: actor, resolvedAt: now, resolution: resolution?.trim() || undefined };
+    }
+    return it;
+  });
+  if (!found) throw new AppError('NO_OPEN_ISSUE', 'That issue is not open', 409);
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus || 'New', at: now, by: actor, note: 'Issue resolved' });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { issues: updated, onlineStatusHistory: history } });
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   return { invoice };
 }

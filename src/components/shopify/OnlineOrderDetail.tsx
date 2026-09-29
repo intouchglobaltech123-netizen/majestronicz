@@ -3,9 +3,11 @@ import {
   Invoice,
   OnlineOrderStatus,
   OrderCommType,
+  OrderIssueType,
   ONLINE_ORDER_PIPELINE,
   ONLINE_NEXT_ACTION,
   ORDER_COMM_LABEL,
+  ORDER_ISSUE_TYPES,
   onlinePipelineIndex,
   recommendCouriers,
 } from '../../types';
@@ -15,6 +17,7 @@ import {
   ArrowLeft, ArrowRight, Truck, CheckCircle2, Clock, Camera, MapPin,
   User, Phone, Package, Receipt, History, Link as LinkIcon, Boxes,
   MessageSquare, Image as ImageIcon, Send, Scale, Save, CheckSquare, Square,
+  AlertTriangle, ShieldCheck,
 } from 'lucide-react';
 
 /** Build a wa.me link to the customer with a prefilled message. */
@@ -48,6 +51,8 @@ interface Props {
   onUploadPhoto: (kind: 'tray' | 'parcel', file: File | null) => void;
   onComm: (type: OrderCommType, note?: string) => void;
   onSavePacking: (patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }) => void;
+  onAddIssue: (type: OrderIssueType, description?: string) => void;
+  onResolveIssue: (issueId: string, resolution?: string) => void;
 }
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }> = ({ title, icon, children, right }) => (
@@ -61,7 +66,7 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 );
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSavePacking }) => {
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSavePacking, onAddIssue, onResolveIssue }) => {
   const { courierPartners } = useErp();
   const recommended = recommendCouriers(inv, courierPartners || []);
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
@@ -88,6 +93,11 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
     invoice: !!inv.invoiceIncluded,
   });
 
+  const issues = Array.isArray(inv.issues) ? inv.issues : [];
+  const openIssues = issues.filter((i) => i.status !== 'resolved');
+  const [issueType, setIssueType] = useState<OrderIssueType>(ORDER_ISSUE_TYPES[0]);
+  const [issueDesc, setIssueDesc] = useState('');
+
   return (
     <div className="w-full space-y-4">
       {/* Header */}
@@ -102,6 +112,11 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
           </div>
           <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full border', STATUS_STYLE[s])}>{s}</span>
         </div>
+        {openIssues.length > 0 && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+            <AlertTriangle className="h-4 w-4" /> {openIssues.length} open issue{openIssues.length > 1 ? 's' : ''} — {openIssues.map((i) => i.type).join(', ')}
+          </div>
+        )}
         {/* Current stage + next action */}
         {!isCancelled && !isDone && (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-600">
@@ -345,6 +360,52 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
                   <li key={i} className="flex items-start gap-2 text-[11px] text-slate-600">
                     <MessageSquare className="h-3.5 w-3.5 text-[#128C7E] mt-0.5 shrink-0" />
                     <span><span className="font-bold text-slate-800">{ORDER_COMM_LABEL[c.type]}</span>{c.note ? ` — ${c.note}` : ''} · <span className="font-medium">{c.by}</span><span className="text-slate-400"> · {new Date(c.at).toLocaleString('en-IN')}</span></span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Section>
+
+        {/* Issues / complaints */}
+        <Section
+          title="Issues & Complaints"
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          right={openIssues.length > 0 ? <span className="text-[11px] font-bold text-rose-600">{openIssues.length} open</span> : <span className="text-[11px] text-emerald-600">None open</span>}
+        >
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <select value={issueType} onChange={(e) => setIssueType(e.target.value as OrderIssueType)} className="px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:border-rose-500">
+                {ORDER_ISSUE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input value={issueDesc} onChange={(e) => setIssueDesc(e.target.value)} placeholder="Describe the problem (optional)" className="flex-1 min-w-[10rem] px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-rose-500" />
+              <button type="button" disabled={busy} onClick={() => { onAddIssue(issueType, issueDesc); setIssueDesc(''); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold border border-rose-700 disabled:opacity-60">
+                <AlertTriangle className="h-3.5 w-3.5" /> Log issue
+              </button>
+            </div>
+            {issues.length === 0 ? (
+              <p className="text-xs text-slate-400">No issues on this order.</p>
+            ) : (
+              <ul className="space-y-2">
+                {[...issues].reverse().map((it) => (
+                  <li key={it.id} className={cn('rounded-lg border p-2', it.status === 'resolved' ? 'border-emerald-200 bg-emerald-50/40' : 'border-rose-200 bg-rose-50/40')}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-800 inline-flex items-center gap-1.5">
+                        {it.status === 'resolved' ? <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> : <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
+                        {it.type}
+                        <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border', it.status === 'resolved' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200')}>{it.status}</span>
+                      </span>
+                      {it.status !== 'resolved' && (
+                        <button type="button" disabled={busy} onClick={() => { const r = prompt('Resolution / outcome (optional):') ?? undefined; onResolveIssue(it.id, r); }}
+                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</button>
+                      )}
+                    </div>
+                    {it.description && <p className="text-[11px] text-slate-600 mt-0.5">{it.description}</p>}
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      raised by {it.createdBy} · {new Date(it.createdAt).toLocaleString('en-IN')}
+                      {it.status === 'resolved' && it.resolvedAt ? ` · resolved by ${it.resolvedBy} · ${new Date(it.resolvedAt).toLocaleString('en-IN')}${it.resolution ? ` — ${it.resolution}` : ''}` : ''}
+                    </p>
                   </li>
                 ))}
               </ul>

@@ -41,6 +41,8 @@ import {
   updateOnlineOrderStatus,
   addOrderCommunication,
   saveOrderPacking,
+  addOrderIssue,
+  resolveOrderIssue,
   getShopifyCustomers,
   findSimilarErpItems,
 } from '../services/shopify.service.js';
@@ -423,6 +425,19 @@ router.post('/shopify/order-packing', requireCapability('sales:write'), asyncHan
   const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, actor } = req.body;
   const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actor || 'system');
   broadcastChange('shopify-order-packing');
+  res.json(result);
+}));
+
+router.post('/shopify/order-issue', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, type, description, actor } = req.body;
+  const result = await addOrderIssue(invoiceId, type, description, actor || 'system');
+  broadcastChange('shopify-order-issue');
+  res.json(result);
+}));
+router.post('/shopify/order-issue-resolve', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, issueId, resolution, actor } = req.body;
+  const result = await resolveOrderIssue(invoiceId, issueId, resolution, actor || 'system');
+  broadcastChange('shopify-order-issue');
   res.json(result);
 }));
 

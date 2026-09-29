@@ -46,7 +46,7 @@ const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
 const statusOf = (inv: Invoice): OnlineOrderStatus => (inv.onlineStatus as OnlineOrderStatus) || 'New';
 
 export const OnlineOrderPipeline: React.FC = () => {
-  const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, currentBranch, isAllBranches } = useErp();
+  const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, addOrderIssue, resolveOrderIssue, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'all' | OnlineOrderStatus>('active');
   // Per-order tracking inputs (shown when shipping).
@@ -133,6 +133,8 @@ export const OnlineOrderPipeline: React.FC = () => {
         onUploadPhoto={(kind, file) => uploadPhoto(selected, kind, file)}
         onComm={(type, note) => addOrderCommunication(selected.id, type, note)}
         onSavePacking={(patch) => saveOrderPacking(selected.id, patch)}
+        onAddIssue={(type, description) => addOrderIssue(selected.id, type, description)}
+        onResolveIssue={(issueId, resolution) => resolveOrderIssue(selected.id, issueId, resolution)}
       />
     );
   }
@@ -154,6 +156,7 @@ export const OnlineOrderPipeline: React.FC = () => {
     if (s === 'Delivered' || s === 'Completed' || s === 'Cancelled') return false;
     return stageAge(o)?.overdue;
   }).length;
+  const openIssuesCount = online.filter((o) => (Array.isArray(o.issues) ? o.issues : []).some((i) => i.status !== 'resolved')).length;
   const tiles: { key: 'active' | 'all' | OnlineOrderStatus; label: string; count: number }[] = [
     { key: 'active', label: 'Active', count: counts.active || 0 },
     ...ONLINE_ORDER_PIPELINE.map((s) => ({ key: s, label: s, count: counts[s] || 0 })),
@@ -181,6 +184,12 @@ export const OnlineOrderPipeline: React.FC = () => {
           <div className="px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700">
             <div className="text-lg font-extrabold font-mono leading-none flex items-center gap-1"><AlertTriangle className="h-4 w-4" />{overdueCount}</div>
             <div className="text-[10px] font-bold uppercase tracking-wide mt-1">Overdue (48h+)</div>
+          </div>
+        )}
+        {openIssuesCount > 0 && (
+          <div className="px-3 py-2 rounded-lg border border-rose-300 bg-rose-100 text-rose-800">
+            <div className="text-lg font-extrabold font-mono leading-none flex items-center gap-1"><AlertTriangle className="h-4 w-4" />{openIssuesCount}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wide mt-1">Open issues</div>
           </div>
         )}
       </div>
@@ -234,6 +243,15 @@ export const OnlineOrderPipeline: React.FC = () => {
                       <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-1',
                         age.overdue ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200')}>
                         {age.overdue && <AlertTriangle className="h-3 w-3" />}{age.label} in stage
+                      </span>
+                    );
+                  })()}
+                  {(() => {
+                    const open = (Array.isArray(inv.issues) ? inv.issues : []).filter((i) => i.status !== 'resolved').length;
+                    if (!open) return null;
+                    return (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-rose-100 text-rose-800 border-rose-300 inline-flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />{open} issue{open > 1 ? 's' : ''}
                       </span>
                     );
                   })()}

@@ -197,6 +197,7 @@ model Invoice {
   boxCount                  Int?
   addressLabelDone          Boolean?
   invoiceIncluded           Boolean?
+  issues                    Json?    // [{ id, type, description, status, createdBy, createdAt, resolvedBy?, resolvedAt?, resolution? }]
   createdById               String?
   createdAt                 String
   updatedAt                 String?

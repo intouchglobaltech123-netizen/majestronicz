@@ -40,6 +40,7 @@ import {
   Invoice,
   OnlineOrderStatus,
   OrderCommType,
+  OrderIssueType,
   Enquiry,
   EnquiryStatus,
   PendingOrder,
@@ -232,6 +233,8 @@ interface ErpContextType {
   courierPartners: CourierPartner[];
   saveCourier: (courier: Partial<CourierPartner>) => Promise<void>;
   deleteCourier: (id: string) => Promise<void>;
+  addOrderIssue: (invoiceId: string, type: OrderIssueType, description?: string) => Promise<void>;
+  resolveOrderIssue: (invoiceId: string, issueId: string, resolution?: string) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
     returnLines: {
@@ -2816,6 +2819,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const addOrderIssue = async (invoiceId: string, type: OrderIssueType, description?: string) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>('/api/shopify/order-issue', { invoiceId, type, description, actor: currentUser.name });
+      if (res?.invoice) setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      toast.success('Issue logged');
+    } catch (e: any) {
+      toast.error('Failed to log issue', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
+  const resolveOrderIssue = async (invoiceId: string, issueId: string, resolution?: string) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>('/api/shopify/order-issue-resolve', { invoiceId, issueId, resolution, actor: currentUser.name });
+      if (res?.invoice) setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      toast.success('Issue resolved');
+    } catch (e: any) {
+      toast.error('Failed to resolve issue', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const saveCourier = async (courier: Partial<CourierPartner>) => {
     try {
       const res = await apiPost<{ couriers: CourierPartner[] }>('/api/couriers', courier);
@@ -4301,6 +4324,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         courierPartners,
         saveCourier,
         deleteCourier,
+        addOrderIssue,
+        resolveOrderIssue,
         deleteInvoice,
         voidInvoice,
         processSaleReturn,
