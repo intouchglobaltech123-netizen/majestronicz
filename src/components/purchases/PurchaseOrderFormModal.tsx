@@ -138,7 +138,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
             id: `poli-pf-${idx}-${Date.now()}`,
             item: matchedItem || null,
             searchQuery: matchedItem?.itemName || '',
-            vendorCode: matchedItem?.vendorCode,
+            vendorCode: vendorCodeForItem(matchedItem, selectedVendorId),
             quantity: pf.quantity,
             purchasePrice: price,
             amount: pf.quantity * price,
@@ -159,6 +159,24 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       }
     }
   }, [isOpen, preSelectedVendor, preFilledItems, preFilledBranchId, linkedPendingOrderId]);
+
+  // The supplier's own product code for this item, resolved for the PO's chosen
+  // vendor: prefer the code the catalog holds for THAT vendor, then the item's
+  // primary vendor code, so a PO to vendor B shows B's code, not A's.
+  const vendorCodeForItem = (item: Item | null | undefined, vendorId: string): string | undefined => {
+    if (!item) return undefined;
+    const match = item.vendors?.find((v) => v.vendorId === vendorId)?.vendorCode;
+    return (match || item.vendorCode || undefined) as string | undefined;
+  };
+
+  // When the vendor changes, re-resolve every line's code for the new vendor.
+  useEffect(() => {
+    if (!isOpen) return;
+    setLines((prev) =>
+      prev.map((l) => (l.item ? { ...l, vendorCode: vendorCodeForItem(l.item, selectedVendorId) } : l))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVendorId]);
 
   if (!isOpen) return null;
 
@@ -204,8 +222,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         ...next[index],
         item,
         searchQuery: item.itemName,
-        // Auto-fetch the supplier's product code from the catalog item.
-        vendorCode: item.vendorCode,
+        // Auto-fetch the code the catalog holds for THIS PO's selected vendor.
+        vendorCode: vendorCodeForItem(item, selectedVendorId),
         purchasePrice: price,
         amount: qty * price,
       };
@@ -329,10 +347,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
           itemCode: l.item.itemCode,
           itemName: l.item.itemName,
           itemHSN: l.item.itemHSN || '',
-          // Persist the staff-entered vendor SKU, else fall back to the
-          // supplier's product code auto-fetched from the catalog item so the
-          // supplier code is stored on the PO without retyping.
-          vendorSku: (l.vendorSku || '').trim() || l.item.vendorCode || undefined,
+          // Persist the staff-entered vendor SKU, else fall back to the code the
+          // catalog holds for THIS PO's selected vendor (already resolved into
+          // l.vendorCode) so the supplier code is stored on the PO without retyping.
+          vendorSku: (l.vendorSku || '').trim() || l.vendorCode || undefined,
           unit: l.item.unit || 'PCS',
           quantityOrdered,
           purchasePrice: l.purchasePrice,

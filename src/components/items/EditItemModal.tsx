@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   Item,
+  ItemVendor,
   SalePriceTaxMode,
   DiscountType,
   BRANCHES,
   MARGIN_CATEGORIES,
   computeMarginSalePrice,
 } from '../../types';
+import { ItemVendorsEditor, normalizeItemVendors } from './ItemVendorsEditor';
 import {
   X,
   Building,
@@ -77,9 +79,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
   const [gstTaxSlab, setGstTaxSlab] = useState<number>(18);
 
-  // Preferred supplier / vendor (procurement) — for PO auto-fill
-  const [vendorId, setVendorId] = useState('');
-  const [vendorCode, setVendorCode] = useState('');
+  // Suppliers (procurement) — one or more vendors, each with its own code.
+  const [itemVendors, setItemVendors] = useState<ItemVendor[]>([]);
 
   // Low Stock Alert Threshold (per-item master)
   const [reorderThreshold, setReorderThreshold] = useState<number | ''>(10);
@@ -108,8 +109,15 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setMinWholesaleQty(item.minWholesaleQty);
       setPurchasePrice(item.purchasePrice);
       setGstTaxSlab(item.gstTaxSlab);
-      setVendorId(item.vendorId || '');
-      setVendorCode(item.vendorCode || '');
+      // Prefer the multi-vendor list; fall back to the legacy single vendor so
+      // items created before this feature still show their supplier.
+      setItemVendors(
+        item.vendors && item.vendors.length
+          ? item.vendors
+          : item.vendorId
+          ? [{ vendorId: item.vendorId, vendorCode: item.vendorCode }]
+          : []
+      );
       setReorderThreshold(item.reorderThreshold ?? 10);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,8 +236,16 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       gstTaxSlab,
       discountOnSalePrice: Number(discountOnSalePrice) || 0,
       discountType,
-      vendorId: vendorId || undefined,
-      vendorCode: vendorCode.trim() || undefined,
+      // Multi-vendor: persist the full list and mirror the primary. Use null (not
+      // undefined) so clearing every vendor actually clears it on the server.
+      ...(() => {
+        const { vendors: vlist, primaryVendorId, primaryVendorCode } = normalizeItemVendors(itemVendors);
+        return {
+          vendors: vlist.length ? vlist : null,
+          vendorId: primaryVendorId || null,
+          vendorCode: primaryVendorCode || null,
+        };
+      })(),
       reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
@@ -604,32 +620,13 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       </div>
                       )}
 
-                      {/* Vendor / Supplier — preferred supplier for procurement / PO auto-fill */}
-                      <UniversalDropdown
-                        label="Vendor / Supplier"
-                        value={vendorId}
-                        onChange={(val) => setVendorId(String(val))}
+                      {/* Vendors / Suppliers — one or more, each with its own code */}
+                      <ItemVendorsEditor
+                        value={itemVendors}
+                        onChange={setItemVendors}
+                        vendorMaster={vendors}
                         disabled={!canManageItems}
-                        options={[
-                          { value: '', label: '— None —' },
-                          ...vendors.map((v) => ({ value: v.id, label: v.vendorName })),
-                        ]}
                       />
-
-                      {/* Vendor Code — the supplier's own product code */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                          <span>Vendor Code</span>
-                          <span className="text-[11px] text-slate-400">Supplier's product code</span>
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. DVP-14SS211R"
-                          value={vendorCode}
-                          onChange={(e) => setVendorCode(e.target.value)}
-                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-mono focus:outline-none focus:border-red-600"
-                        />
-                      </div>
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">

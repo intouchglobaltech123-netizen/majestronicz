@@ -124,6 +124,13 @@ export function computeMarginSalePrice(purchasePrice: number, code?: MarginCateg
   return Math.round(purchasePrice * mult * 100) / 100;
 }
 
+/** One supplier for a catalog item, with that supplier's own product code. */
+export interface ItemVendor {
+  vendorId: string;
+  vendorName?: string; // denormalized for display; resolved from vendorId when missing
+  vendorCode?: string; // the supplier's own product/SKU code for this item
+}
+
 export interface Item {
   id: string;
   itemName: string;
@@ -141,8 +148,14 @@ export interface Item {
   minWholesaleQty: number;
   purchasePrice: number;
   gstTaxSlab: number; // e.g. 18 for 18%
-  vendorId?: string; // preferred supplier for this item (for PO auto-fill)
-  vendorCode?: string; // the supplier's own product code, shown in inventory & auto-filled onto POs
+  // Suppliers. An item can be bought from several vendors, each with their own
+  // product code. `vendors` is the full list (first entry = primary). vendorId /
+  // vendorCode mirror the primary and are kept for existing screens + the PO
+  // default; when raising a PO to a specific vendor, the PO form looks that
+  // vendor up in `vendors` to auto-fill the right code.
+  vendorId?: string; // PRIMARY supplier (mirrors vendors[0])
+  vendorCode?: string; // PRIMARY supplier's own product code (mirrors vendors[0])
+  vendors?: ItemVendor[]; // all suppliers for this item, first = primary
   discountOnSalePrice?: number;
   discountType?: DiscountType;
   reorderThreshold?: number; // Threshold for Low Stock alerts (default 10)

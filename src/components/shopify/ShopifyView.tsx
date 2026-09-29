@@ -152,6 +152,25 @@ export const ShopifyView: React.FC = () => {
     navigateToTab('invoices', 'ledger');
   };
 
+  // Clicking an order opens its details as a full-screen page inside the app
+  // (with a Back button) rather than a cramped modal.
+  if (selectedOrder) {
+    return (
+      <div className="p-4 sm:p-6 w-full">
+        <ShopifyOrderDetailModal
+          variant="page"
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onOrderUpdated={() => {
+            loadOrders();
+            loadStatus();
+          }}
+          onOpenInvoice={handleOpenLinkedInvoice}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Header - Contextual to active sub-tab (No duplicate top tab bar) */}
@@ -572,18 +591,6 @@ export const ShopifyView: React.FC = () => {
       {activeTab === 'customers' && <ShopifyCustomersTab />}
       {activeTab === 'settings' && <ShopifySettingsTab status={status} onRefresh={loadStatus} />}
 
-      {/* Detailed Order Modal */}
-      {selectedOrder && (
-        <ShopifyOrderDetailModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onOrderUpdated={() => {
-            loadOrders();
-            loadStatus();
-          }}
-          onOpenInvoice={handleOpenLinkedInvoice}
-        />
-      )}
     </div>
   );
 };

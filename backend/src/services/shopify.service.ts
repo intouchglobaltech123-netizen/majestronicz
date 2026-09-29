@@ -80,6 +80,16 @@ export async function getShopInfo(): Promise<{ configured: boolean; connected: b
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Flatten a Shopify address into a full single-line string for the ERP invoice /
+ *  customer — line 1, line 2, city, province, PIN and country, in postal order. */
+function fullShopifyAddress(a: any): string {
+  if (!a) return '';
+  return [a.address1, a.address2, a.city, a.province, a.zip, a.country]
+    .map((p: any) => (p == null ? '' : String(p).trim()))
+    .filter(Boolean)
+    .join(', ');
+}
+
 /** Which ERP branch imported online orders are booked into. */
 function shopifyBranch(): string {
   return process.env.SHOPIFY_BRANCH_ID?.trim() || 'erode-hq';
@@ -106,6 +116,7 @@ export interface ShopifyOrderPreview {
   billingAddress?: {
     name?: string;
     address1?: string;
+    address2?: string;
     city?: string;
     province?: string;
     zip?: string;
@@ -263,6 +274,7 @@ export async function previewOrders(limit = 50): Promise<{ configured: boolean; 
       billingAddress: o.billing_address ? {
         name: [o.billing_address.first_name, o.billing_address.last_name].filter(Boolean).join(' ') || o.billing_address.name,
         address1: o.billing_address.address1,
+        address2: o.billing_address.address2,
         city: o.billing_address.city,
         province: o.billing_address.province,
         zip: o.billing_address.zip,
@@ -373,9 +385,12 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
       data: {
         id: `inv-shopify-${externalOrderId}`,
         invoiceNumber, branchId, transactionType: 'Cash',
-        customerName: [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(' ') || o.email || 'Online Customer',
-        customerPhone: o.customer?.phone || o.phone || null,
-        customerAddress: [o.shipping_address?.address1, o.shipping_address?.city].filter(Boolean).join(', ') || null,
+        customerName: [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(' ')
+          || o.shipping_address?.name || o.email || 'Online Customer',
+        customerPhone: o.customer?.phone || o.phone || o.shipping_address?.phone || o.billing_address?.phone || null,
+        // Carry the FULL delivery address, not just line 1 + city — dropping
+        // address2/province/zip/country lost half the address on every import.
+        customerAddress: fullShopifyAddress(o.shipping_address || o.billing_address) || null,
         date, time: (o.created_at || ts).slice(11, 19) || '00:00:00',
         paymentTerms: 'Paid', dueDate: date, stateOfSupply: '33-Tamil Nadu', withGst: false,
         items: invLines, subtotal, totalTax: 0, totalCgst: 0, totalSgst: 0,

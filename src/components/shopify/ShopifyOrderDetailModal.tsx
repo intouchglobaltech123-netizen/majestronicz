@@ -3,6 +3,7 @@ import { ShopifyOrder, ShopifyOrderLineItem } from '../../types/shopify';
 import { formatCurrency, cleanPhoneDigits } from '../../lib/utils';
 import {
   X,
+  ArrowLeft,
   Store,
   CheckCircle2,
   AlertTriangle,
@@ -29,6 +30,8 @@ interface Props {
   onClose: () => void;
   onOrderUpdated?: () => void;
   onOpenInvoice?: (invoiceId: string) => void;
+  /** 'modal' (overlay, default) or 'page' (full-screen detail inside the view). */
+  variant?: 'modal' | 'page';
 }
 
 export const ShopifyOrderDetailModal: React.FC<Props> = ({
@@ -36,7 +39,9 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
   onClose,
   onOrderUpdated,
   onOpenInvoice,
+  variant = 'modal',
 }) => {
+  const isPage = variant === 'page';
   const [carrier, setCarrier] = useState<string>(order?.trackingCompany || 'Delhivery');
   const [trackingNumber, setTrackingNumber] = useState<string>(order?.trackingNumber || '');
   const [fulfilling, setFulfilling] = useState(false);
@@ -112,12 +117,20 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4"
-      onClick={onClose}
+      className={
+        isPage
+          ? 'w-full text-slate-900'
+          : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4'
+      }
+      onClick={isPage ? undefined : onClose}
     >
       <div
-        className="w-full max-w-5xl max-h-[92vh] bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-900"
-        onClick={(e) => e.stopPropagation()}
+        className={
+          isPage
+            ? 'w-full bg-white border border-slate-300 shadow-sm flex flex-col overflow-hidden text-slate-900'
+            : 'w-full max-w-5xl max-h-[92vh] bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-900'
+        }
+        onClick={isPage ? undefined : (e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-300 bg-slate-100 flex items-center justify-between shrink-0">
@@ -187,14 +200,25 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
               <Printer className="h-3.5 w-3.5 text-slate-600" />
               <span>{showPackingSlip ? 'Standard View' : 'Packing Slip'}</span>
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
-              aria-label="Close modal"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            {isPage ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 text-slate-600" />
+                <span>Back to Orders</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 

@@ -29,6 +29,7 @@ function useDbSync<T>(path: string, data: T, enabled: boolean) {
 }
 import {
   Item,
+  ItemVendor,
   BranchStock,
   BranchId,
   BranchScope,
@@ -338,7 +339,13 @@ interface ErpContextType {
   ) => Item;
   updateItem: (
     itemId: string,
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt'>>
+    // Vendor fields accept null so they can be explicitly cleared on the server
+    // (e.g. removing every vendor from an item); other fields keep their types.
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors'>> & {
+      vendorId?: string | null;
+      vendorCode?: string | null;
+      vendors?: ItemVendor[] | null;
+    }
   ) => void;
   deleteItem: (itemId: string) => void;
 
@@ -1420,7 +1427,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateItem = (
     itemId: string,
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt'>>
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors'>> & {
+      vendorId?: string | null;
+      vendorCode?: string | null;
+      vendors?: ItemVendor[] | null;
+    }
   ) => {
     // Reject editing an item's code to one already used by another item (INV-2).
     if (updates.itemCode != null) {
@@ -1432,8 +1443,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     const now = new Date().toISOString();
+    // For the local (optimistic) copy, treat a cleared field (null) as absent so
+    // the in-memory Item keeps its shape; the server receives the null and clears it.
+    const localPatch = Object.fromEntries(
+      Object.entries(updates).map(([k, v]) => [k, v === null ? undefined : v])
+    );
     setItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, ...updates, updatedAt: now } : item))
+      prev.map((item) => (item.id === itemId ? { ...item, ...localPatch, updatedAt: now } : item))
     );
     persist(apiPut(`/api/catalog/item/${itemId}`, { ...updates, updatedAt: now }));
     toast.success('Master catalog item updated');

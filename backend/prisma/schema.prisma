@@ -30,6 +30,7 @@ model Item {
   gstTaxSlab          Float
   vendorId            String?
   vendorCode          String?
+  vendors             Json?
   discountOnSalePrice Float?
   discountType        String?
   reorderThreshold    Float?
