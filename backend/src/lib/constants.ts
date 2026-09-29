@@ -14,6 +14,8 @@ export const BRANCHES: Branch[] = [
 
 export const branchName = (id: string) => BRANCHES.find((b) => b.id === id)?.name || id;
 export const branchLocation = (id: string) => BRANCHES.find((b) => b.id === id)?.location || id;
+/** True only for a real, known branch id — stock must never move to an unknown branch. */
+export const isValidBranch = (id: string): boolean => BRANCHES.some((b) => b.id === id);
 
 // Reference config seeded into AppConfig on reseed.
 export const STANDARD_UNITS = [

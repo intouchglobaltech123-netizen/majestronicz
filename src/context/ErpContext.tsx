@@ -30,6 +30,7 @@ function useDbSync<T>(path: string, data: T, enabled: boolean) {
 import {
   Item,
   ItemVendor,
+  MarginCategoryCode,
   BranchStock,
   BranchId,
   BranchScope,
@@ -357,10 +358,11 @@ interface ErpContextType {
     itemId: string,
     // Vendor fields accept null so they can be explicitly cleared on the server
     // (e.g. removing every vendor from an item); other fields keep their types.
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors'>> & {
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory'>> & {
       vendorId?: string | null;
       vendorCode?: string | null;
       vendors?: ItemVendor[] | null;
+      marginCategory?: MarginCategoryCode | null;
     }
   ) => void;
   deleteItem: (itemId: string) => void;
@@ -1446,10 +1448,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateItem = (
     itemId: string,
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors'>> & {
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory'>> & {
       vendorId?: string | null;
       vendorCode?: string | null;
       vendors?: ItemVendor[] | null;
+      marginCategory?: MarginCategoryCode | null;
     }
   ) => {
     // Reject editing an item's code to one already used by another item (INV-2).

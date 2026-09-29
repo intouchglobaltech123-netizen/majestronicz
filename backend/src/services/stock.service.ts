@@ -1,6 +1,6 @@
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
-import { branchName, branchLocation } from '../lib/constants.js';
+import { branchName, branchLocation, isValidBranch } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 
@@ -40,6 +40,8 @@ export function transferStockBatch(
 ) {
   if (fromBranch === toBranch) throw new AppError('SAME_BRANCH', 'Source and destination cannot be the same');
   if (!itemsToTransfer?.length) throw new AppError('NO_ITEMS', 'At least one item must be included');
+  if (!isValidBranch(fromBranch)) throw new AppError('BAD_BRANCH', `Unknown source branch: ${fromBranch}`, 400);
+  if (!isValidBranch(toBranch)) throw new AppError('BAD_BRANCH', `Unknown destination branch: ${toBranch}`, 400);
 
   // Merge duplicate lines for the same item BEFORE validating stock. Two lines of
   // the same item were each checked against the full source stock independently, so
@@ -186,6 +188,7 @@ export function adjustStock(
   notes: string | undefined,
   actor: string
 ) {
+  if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
@@ -226,6 +229,10 @@ export function transferStock(
 ) {
   if (fromBranch === toBranch) throw new AppError('SAME_BRANCH', 'Source and destination cannot be the same');
   if (quantity <= 0) throw new AppError('BAD_QTY', 'Transfer quantity must be greater than 0');
+  // Reject transfers to/from an unknown branch — otherwise the units leave the
+  // source and land nowhere real, vanishing from the books (STK-6).
+  if (!isValidBranch(fromBranch)) throw new AppError('BAD_BRANCH', `Unknown source branch: ${fromBranch}`, 400);
+  if (!isValidBranch(toBranch)) throw new AppError('BAD_BRANCH', `Unknown destination branch: ${toBranch}`, 400);
 
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
@@ -303,6 +310,7 @@ export function transferStock(
 
 /** Direct stock set (Item Master / stock modal). */
 export function updateBranchStock(itemId: string, branchId: string, quantity: number, minStockAlert?: number, location?: string) {
+  if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
   return serializableTx(async (tx: any) => {
     const ts = nowIso();
     await tx.branchStock.upsert({

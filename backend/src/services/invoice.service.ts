@@ -293,18 +293,18 @@ export function createSale(inv: any, reqUser?: any) {
     }
 
     // Authoritative stock shortage validation across standalone items and combo components
-    const demand = new Map<string, { qty: number; name: string }>();
+    const demand = new Map<string, { qty: number; name: string; code: string }>();
     for (const newItem of inv.items as any[]) {
       if (newItem.isCombo && newItem.comboComponents?.length) {
         for (const comp of newItem.comboComponents) {
           const needed = (comp.quantity || 0) * (newItem.quantity || 0);
-          const cur = demand.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component' };
-          demand.set(comp.itemId, { qty: cur.qty + needed, name: cur.name });
+          const cur = demand.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component', code: comp.itemCode || '' };
+          demand.set(comp.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
         }
       } else if (newItem.itemId) {
         const needed = newItem.quantity || 0;
-        const cur = demand.get(newItem.itemId) || { qty: 0, name: newItem.itemName || 'Item' };
-        demand.set(newItem.itemId, { qty: cur.qty + needed, name: cur.name });
+        const cur = demand.get(newItem.itemId) || { qty: 0, name: newItem.itemName || 'Item', code: newItem.itemCode || '' };
+        demand.set(newItem.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
       }
     }
 
@@ -319,10 +319,24 @@ export function createSale(inv: any, reqUser?: any) {
       }
     }
 
+    // Decrement stock AND record a stock-history entry for the sale so the item's
+    // stock movement log reflects sales (previously sales wrote no history, so the
+    // log never matched actual stock — STK-3). On an edit the old sale's stock was
+    // already restored above; this logs the net decrement for the current bill.
+    const saleLogs: any[] = [];
     for (const [itemId, req] of demand.entries()) {
-      ledger.apply(itemId, -req.qty, false);
+      if (req.qty <= 0) continue;
+      const { prevQty, newQty } = ledger.apply(itemId, -req.qty, false);
+      saleLogs.push({
+        id: rid('adj'), itemId, itemName: req.name, itemCode: req.code, branchId: inv.branchId,
+        previousQuantity: prevQty, quantityChange: -req.qty, newQuantity: newQty,
+        reason: isNewSale ? 'Sale' : 'Sale (edited)',
+        notes: `Sale #${inv.invoiceNumber}${inv.customerName ? ` · ${inv.customerName}` : ''}`,
+        adjustedBy: (reqUser?.name) || 'System', timestamp: ts,
+      });
     }
     await ledger.flush(tx);
+    if (saleLogs.length) await tx.stockAdjustmentLog.createMany({ data: saleLogs });
 
     const { id, ...rest } = inv;
     // New sales use create with the freshly-minted unique id (never overwrite an
@@ -507,9 +521,20 @@ export function processReturn(
     const refundScale = rawBatchTotal > refundCeiling && rawBatchTotal > 0 ? refundCeiling / rawBatchTotal : 1;
     const refundFor = (line: any): number => Math.round(rawRefundFor(line) * refundScale * 100) / 100;
 
+    // For a combo, restock from the SOLD line's component list (what the sale
+    // actually consumed), never the client's request — otherwise a request with
+    // inflated component quantities could restore more than was ever sold and
+    // create stock from nothing (STK-1).
+    const soldComboComponents = (line: any): any[] => {
+      const sold = (inv.items as any[]).find(
+        (it) => it.isCombo && ((line.comboId && it.comboId === line.comboId) || it.id === line.id),
+      );
+      return (sold?.comboComponents as any[]) || line.comboComponents || [];
+    };
+
     for (const line of validLines) {
-      if (line.isCombo && line.comboComponents?.length) {
-        for (const comp of line.comboComponents) {
+      if (line.isCombo && (soldComboComponents(line).length || line.comboComponents?.length)) {
+        for (const comp of soldComboComponents(line)) {
           // Damaged returns restore 0 units (write-off); others restock normally.
           const qtyToRestore = isDamaged ? 0 : comp.quantity * line.returnQty;
           const { prevQty, newQty } = ledger.apply(comp.itemId, qtyToRestore);
@@ -576,15 +601,32 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
       await assertDayOpen(tx, inv.branchId, inv.date, 'delete this bill'); // CASH-2
       const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
-      for (const item of inv.items as any[]) {
-        if (item.isCombo && item.comboComponents?.length) {
-          for (const comp of item.comboComponents)
-            ledger.apply(comp.itemId, comp.quantity * (item.quantity || 0));
-        } else if (item.itemId) {
-          ledger.apply(item.itemId, item.quantity || 0);
+      // Only restore stock that is still OUT because of this bill. A voided bill
+      // already had its stock restored on void, and a returned bill already
+      // restored the returned units — restoring the full sold quantity here
+      // double-counted them and created stock from nothing (STK-2). So: skip
+      // voided bills entirely, and for the rest restore sold − already-returned.
+      if (!inv.isVoided) {
+        const returns = (inv.returns as any[]) || [];
+        for (const item of inv.items as any[]) {
+          if (item.isCombo && item.comboComponents?.length) {
+            const alreadyReturned = returns
+              .filter((r) => r.id === item.id || (item.comboId && r.comboId === item.comboId))
+              .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
+            const comboQtyToRestore = Math.max(0, (item.quantity || 0) - alreadyReturned);
+            if (comboQtyToRestore > 0) {
+              for (const comp of item.comboComponents) ledger.apply(comp.itemId, comp.quantity * comboQtyToRestore);
+            }
+          } else if (item.itemId) {
+            const alreadyReturned = returns
+              .filter((r) => r.itemId === item.itemId)
+              .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
+            const qtyToRestore = Math.max(0, (item.quantity || 0) - alreadyReturned);
+            if (qtyToRestore > 0) ledger.apply(item.itemId, qtyToRestore);
+          }
         }
+        await ledger.flush(tx);
       }
-      await ledger.flush(tx);
       await tx.invoice.delete({ where: { id: invoiceId } });
     }
     return snapshot(tx);

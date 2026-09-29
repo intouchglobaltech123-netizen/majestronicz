@@ -223,7 +223,10 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       itemHSN: itemHSN.trim(),
       category,
       subcategory: subcategory.trim() || undefined,
-      marginCategory: marginCategory || undefined,
+      // null (not undefined) so choosing "— None —" actually CLEARS the margin
+      // band on the server — otherwise the band could never be removed and kept
+      // silently re-pricing the item on every PO receipt (STK-4).
+      marginCategory: marginCategory || null,
       itemCode: itemCode.trim(),
       unit,
       imageUrl: imageUrl.trim() || undefined,

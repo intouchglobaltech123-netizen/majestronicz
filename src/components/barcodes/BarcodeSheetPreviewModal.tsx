@@ -88,6 +88,14 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
 
   const activePageLabels = pages[currentPage - 1] || [];
 
+  // A single-label preset (thermal roll) must print on a page the SIZE of the
+  // label, not a full A4 — otherwise every sticker comes out alone on an A4
+  // page. Sheet presets keep A4 with their margins. (STK-5)
+  const isSingleLabel = preset.labelsPerPage === 1;
+  const pageRule = isSingleLabel
+    ? `@page { size: ${preset.widthMm}mm ${preset.heightMm}mm; margin: 0; }`
+    : `@page { size: A4 portrait; margin: 8mm; }`;
+
   return createPortal(
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
       <div id="barcode-print-modal" className="bg-white border border-slate-300 rounded-none w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
@@ -246,10 +254,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
         <div id="barcode-print-root" className="hidden print:block w-full text-black bg-white">
           <style>{`
             @media print {
-              @page {
-                size: A4 portrait;
-                margin: 8mm;
-              }
+              ${pageRule}
               html, body {
                 background: #fff !important;
                 print-color-adjust: exact;
@@ -291,8 +296,11 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
               .barcode-print-page {
                 page-break-after: always;
                 break-after: page;
-                height: 275mm;
-                max-height: 275mm;
+                /* A4 sheet fills the printable A4 height; a single-label (thermal
+                   roll) page is exactly one label tall so it prints on the roll,
+                   not a full A4 (STK-5). */
+                height: ${isSingleLabel ? `${preset.heightMm}mm` : '275mm'};
+                max-height: ${isSingleLabel ? `${preset.heightMm}mm` : '275mm'};
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;

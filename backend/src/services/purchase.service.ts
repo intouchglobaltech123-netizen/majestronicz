@@ -294,28 +294,42 @@ export function receivePurchaseOrderStock(
       await tx.item.update({ where: { id: rec.itemId }, data });
     }
 
-    // Increment physical stock at the PO's branch
+    // Increment physical stock at the PO's branch, and record a stock-history
+    // entry for the receipt so the item's movement log reflects PO receipts
+    // (previously receipts wrote no history, so the log never matched actual
+    // stock — STK-3).
+    const receiptLogs: any[] = [];
     for (const rec of valid) {
+      const good = Number(rec.quantityReceived) || 0;
+      if (good <= 0) continue;
       const existing = await tx.branchStock.findUnique({
         where: { itemId_branchId: { itemId: rec.itemId, branchId: po.branchId } },
       });
+      const prevQty = existing?.quantity ?? 0;
+      const line = (po.items as any[]).find((l) => l.itemId === rec.itemId);
       await tx.branchStock.upsert({
         where: { itemId_branchId: { itemId: rec.itemId, branchId: po.branchId } },
         create: {
-          itemId: rec.itemId, branchId: po.branchId, quantity: rec.quantityReceived,
+          itemId: rec.itemId, branchId: po.branchId, quantity: good,
           location: rec.location?.trim() || '', minStockAlert: 5, updatedAt: ts,
           // The rate confirmed on the supplier's bill becomes this branch's
           // rate for the item (the receiver corrected it for a reason).
           ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
         },
         update: {
-          quantity: (existing?.quantity ?? 0) + rec.quantityReceived,
+          quantity: prevQty + good,
           ...(rec.location ? { location: rec.location.trim() } : {}),
           ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
           updatedAt: ts,
         },
       });
+      receiptLogs.push({
+        id: rid('adj'), itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
+        branchId: po.branchId, previousQuantity: prevQty, quantityChange: good, newQuantity: prevQty + good,
+        reason: 'Purchase Receipt', notes: `Received on PO ${po.poNumber}`, adjustedBy: actor, timestamp: ts,
+      });
     }
+    if (receiptLogs.length) await tx.stockAdjustmentLog.createMany({ data: receiptLogs });
     return poSnapshot(tx);
   });
 }
