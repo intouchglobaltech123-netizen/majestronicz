@@ -7,7 +7,9 @@ import {
   ONLINE_NEXT_ACTION,
   ORDER_COMM_LABEL,
   onlinePipelineIndex,
+  recommendCouriers,
 } from '../../types';
+import { useErp } from '../../context/ErpContext';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   ArrowLeft, ArrowRight, Truck, CheckCircle2, Clock, Camera, MapPin,
@@ -60,6 +62,8 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
 export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSavePacking }) => {
+  const { courierPartners } = useErp();
+  const recommended = recommendCouriers(inv, courierPartners || []);
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
   const idx = onlinePipelineIndex(s);
   const isCancelled = s === 'Cancelled';
@@ -255,6 +259,29 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Recommended couriers for this order's state / payment / weight */}
+              {recommended.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Recommended couriers</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recommended.slice(0, 5).map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setT({ ...t, courier: c.name })}
+                        className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold border',
+                          t.courier === c.name ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50')}
+                        title={[c.deliveryDays ? `~${c.deliveryDays}d` : '', c.maxWeightKg ? `≤${c.maxWeightKg}kg` : ''].filter(Boolean).join(' · ')}
+                      >
+                        <Truck className="h-3 w-3" /> {c.name}{c.deliveryDays ? ` · ~${c.deliveryDays}d` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {courierPartners.length === 0 && (
+                <p className="text-[11px] text-amber-600">No couriers set up yet — add them in Shopify → Couriers to get recommendations.</p>
+              )}
               <p className="text-xs text-slate-500">Enter tracking, then use “Mark Shipped”.</p>
               <div className="flex flex-wrap gap-1.5">
                 <input value={t.number} onChange={(e) => setT({ ...t, number: e.target.value })} placeholder="Tracking / AWB no." className="w-40 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500" />

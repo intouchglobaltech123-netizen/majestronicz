@@ -44,6 +44,7 @@ import {
   getShopifyCustomers,
   findSimilarErpItems,
 } from '../services/shopify.service.js';
+import { listCouriers, saveCourier, deleteCourier } from '../services/courier.service.js';
 import { getFlipkartStatus, previewFlipkartOrders } from '../services/flipkart.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
@@ -422,6 +423,19 @@ router.post('/shopify/order-packing', requireCapability('sales:write'), asyncHan
   const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, actor } = req.body;
   const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actor || 'system');
   broadcastChange('shopify-order-packing');
+  res.json(result);
+}));
+
+// ---- Courier partners (delivery partner master + recommendation source) ----
+router.get('/couriers', requireAuth, asyncHandler(async (_req, res) => res.json(await listCouriers())));
+router.post('/couriers', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await saveCourier(req.body);
+  broadcastChange('couriers');
+  res.json(result);
+}));
+router.delete('/couriers/:id', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await deleteCourier(req.params.id);
+  broadcastChange('couriers');
   res.json(result);
 }));
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {

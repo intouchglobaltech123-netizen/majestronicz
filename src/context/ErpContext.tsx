@@ -53,6 +53,7 @@ import {
   getNextPendingOrderSequence,
   DailyCashRegister,
   Vendor,
+  CourierPartner,
   PurchaseOrder,
   PurchaseOrderStatus,
   PurchaseOrderAttachment,
@@ -228,6 +229,9 @@ interface ErpContextType {
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
   ) => Promise<void>;
+  courierPartners: CourierPartner[];
+  saveCourier: (courier: Partial<CourierPartner>) => Promise<void>;
+  deleteCourier: (id: string) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
     returnLines: {
@@ -666,6 +670,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [courierPartners, setCourierPartners] = useState<CourierPartner[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -816,6 +821,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = await apiGet<any>('/api/bootstrap');
           if (cancelled) return;
           hydrateState(data);
+          // Courier partners load on their own endpoint (available to every role).
+          void apiGet<CourierPartner[]>('/api/couriers').then((c) => { if (!cancelled) setCourierPartners(Array.isArray(c) ? c : []); }).catch(() => {});
           setBootstrapError(null);
         } else {
           setAuthToken(null);
@@ -2809,6 +2816,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const saveCourier = async (courier: Partial<CourierPartner>) => {
+    try {
+      const res = await apiPost<{ couriers: CourierPartner[] }>('/api/couriers', courier);
+      if (Array.isArray(res?.couriers)) setCourierPartners(res.couriers);
+      toast.success('Courier saved');
+    } catch (e: any) {
+      toast.error('Failed to save courier', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
+  const deleteCourier = async (id: string) => {
+    try {
+      const res = await apiDelete<{ couriers: CourierPartner[] }>(`/api/couriers/${id}`);
+      if (Array.isArray(res?.couriers)) setCourierPartners(res.couriers);
+      toast.success('Courier removed');
+    } catch (e: any) {
+      toast.error('Failed to remove courier', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const processSaleReturn = async (
     invoiceId: string,
     returnLines: {
@@ -4271,6 +4298,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOnlineOrderStatus,
         addOrderCommunication,
         saveOrderPacking,
+        courierPartners,
+        saveCourier,
+        deleteCourier,
         deleteInvoice,
         voidInvoice,
         processSaleReturn,

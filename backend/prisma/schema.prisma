@@ -529,3 +529,20 @@ model AppConfig {
   key   String @id
   value Json
 }
+
+// Courier / delivery partners used to dispatch online orders. Drives the courier
+// recommendation at the Packed → Shipped step (by state, COD/prepaid, weight).
+model CourierPartner {
+  id              String   @id
+  name            String
+  phone           String?
+  portalUrl       String?
+  states          Json?    // supported states (names/codes); empty/absent = all-India
+  supportsCod     Boolean  @default(true)
+  supportsPrepaid Boolean  @default(true)
+  maxWeightKg     Float?
+  deliveryDays    Int?
+  active          Boolean  @default(true)
+  createdAt       String
+  updatedAt       String
+}

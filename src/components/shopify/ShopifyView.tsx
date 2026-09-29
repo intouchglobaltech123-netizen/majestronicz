@@ -27,8 +27,9 @@ import { ShopifyInventorySyncTab } from './ShopifyInventorySyncTab';
 import { ShopifyProductsTab } from './ShopifyProductsTab';
 import { ShopifyCustomersTab } from './ShopifyCustomersTab';
 import { ShopifySettingsTab } from './ShopifySettingsTab';
+import { CourierMasterTab } from './CourierMasterTab';
 
-export type ShopifyTab = 'orders' | 'inventory' | 'products' | 'customers' | 'settings';
+export type ShopifyTab = 'orders' | 'inventory' | 'products' | 'customers' | 'couriers' | 'settings';
 
 export const ShopifyView: React.FC = () => {
   const { invoices, activeSubTab, navigateToTab, setCurrentView } = useErp();
@@ -50,7 +51,7 @@ export const ShopifyView: React.FC = () => {
   useEffect(() => {
     if (activeSubTab?.view === 'shopify' && activeSubTab.tab) {
       const target = activeSubTab.tab as ShopifyTab;
-      if (['orders', 'inventory', 'products', 'customers', 'settings'].includes(target)) {
+      if (['orders', 'inventory', 'products', 'customers', 'couriers', 'settings'].includes(target)) {
         setActiveTab(target);
       }
     }
@@ -186,6 +187,8 @@ export const ShopifyView: React.FC = () => {
                 <Package className="h-5 w-5" />
               ) : activeTab === 'customers' ? (
                 <Users className="h-5 w-5" />
+              ) : activeTab === 'couriers' ? (
+                <Truck className="h-5 w-5" />
               ) : (
                 <Settings className="h-5 w-5" />
               )}
@@ -199,6 +202,7 @@ export const ShopifyView: React.FC = () => {
                   {activeTab === 'inventory' && 'Stock & Inventory Sync'}
                   {activeTab === 'products' && 'Product Catalog & SKU Mapping'}
                   {activeTab === 'customers' && 'Online Customers Directory'}
+                  {activeTab === 'couriers' && 'Courier Partners'}
                   {activeTab === 'settings' && 'Connection & Settings'}
                 </h1>
               </div>
@@ -207,6 +211,7 @@ export const ShopifyView: React.FC = () => {
                 {activeTab === 'inventory' && 'Side-by-side reconciliation of ERP warehouse stocks vs Shopify online inventory'}
                 {activeTab === 'products' && 'Shopify product catalog, variant retail pricing & ERP Item code mapping'}
                 {activeTab === 'customers' && 'Registered web buyers from Shopify synchronized with ERP customer parties'}
+                {activeTab === 'couriers' && 'Delivery partner master — drives the courier recommendation at dispatch (by state, COD/prepaid, weight)'}
                 {activeTab === 'settings' && 'Store connection diagnostics, backend environment variables & order webhooks'}
               </p>
             </div>
@@ -241,6 +246,7 @@ export const ShopifyView: React.FC = () => {
           { id: 'inventory', label: 'Stock & Inventory Sync' },
           { id: 'products', label: 'Product Catalog' },
           { id: 'customers', label: 'Online Customers' },
+          { id: 'couriers', label: 'Couriers' },
           { id: 'settings', label: 'Connection & Settings' },
         ] as { id: ShopifyTab; label: string }[]).map((t) => (
           <button
@@ -589,6 +595,7 @@ export const ShopifyView: React.FC = () => {
       {activeTab === 'inventory' && <ShopifyInventorySyncTab />}
       {activeTab === 'products' && <ShopifyProductsTab />}
       {activeTab === 'customers' && <ShopifyCustomersTab />}
+      {activeTab === 'couriers' && <CourierMasterTab />}
       {activeTab === 'settings' && <ShopifySettingsTab status={status} onRefresh={loadStatus} />}
 
     </div>

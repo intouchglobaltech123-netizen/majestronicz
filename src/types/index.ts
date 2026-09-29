@@ -317,6 +317,51 @@ export const ONLINE_NEXT_ACTION: Record<OnlineOrderStatus, string> = {
   Cancelled: 'Order cancelled',
 };
 
+/** A courier / delivery partner used to dispatch online orders. */
+export interface CourierPartner {
+  id: string;
+  name: string;
+  phone?: string;
+  portalUrl?: string;
+  states?: string[]; // supported states (names/codes); empty = all-India
+  supportsCod: boolean;
+  supportsPrepaid: boolean;
+  maxWeightKg?: number;
+  deliveryDays?: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Recommend courier partners for an order, in the spec's order of preference
+ * (fastest first). Filters by: active, supports the order's payment type
+ * (COD vs prepaid), serves the order's state (empty state list = all-India),
+ * and can carry the parcel weight.
+ */
+export const recommendCouriers = (
+  order: Pick<Invoice, 'stateOfSupply' | 'customerAddress' | 'paymentMode' | 'balanceDue' | 'parcelWeightKg'>,
+  couriers: CourierPartner[],
+): CourierPartner[] => {
+  const isCod = order.paymentMode === 'COD-Credit' || (order.balanceDue || 0) > 0;
+  const stateText = `${order.stateOfSupply || ''} ${order.customerAddress || ''}`.toLowerCase();
+  const weight = order.parcelWeightKg || 0;
+  const stateNum = (order.stateOfSupply || '').split('-')[0].trim(); // e.g. "33"
+  return couriers
+    .filter((c) => c.active)
+    .filter((c) => (isCod ? c.supportsCod : c.supportsPrepaid))
+    .filter((c) => !c.maxWeightKg || weight <= 0 || weight <= c.maxWeightKg)
+    .filter((c) => {
+      const st = c.states || [];
+      if (st.length === 0) return true; // all-India
+      return st.some((s) => {
+        const v = String(s).trim().toLowerCase();
+        return v && (stateText.includes(v) || (!!stateNum && v === stateNum.toLowerCase()));
+      });
+    })
+    .sort((a, b) => (a.deliveryDays ?? 99) - (b.deliveryDays ?? 99));
+};
+
 /** Kinds of customer contact recorded against an online order. */
 export type OrderCommType = 'photo_sent' | 'tracking_sent' | 'call' | 'note';
 
