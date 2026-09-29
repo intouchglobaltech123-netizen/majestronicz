@@ -168,7 +168,13 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
         if (!po) continue;
-        const balance = Math.max(0, (po.totalAmount || 0) - (po.amountPaid || 0));
+        // Cap at the tax-INCLUSIVE payable less debit notes — the same balance
+        // used by purchaseOrderBalanceDue and recordPurchaseOrderPayment. Using
+        // the ex-tax goods value here silently dropped the GST portion of a
+        // vendor payment, so an allocated payment didn't fully apply (PUR4-1).
+        const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+        const grandOwed = (po.totalAmount || 0) + (Number(po.totalTax) || 0);
+        const balance = Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100);
         const pay = Math.min(a.amount, balance);
         await tx.purchaseOrder.update({
           where: { id: po.id },
