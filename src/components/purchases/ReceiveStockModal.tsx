@@ -461,6 +461,34 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         </div>
                       </td>
 
+                      {/* GST % — as billed by the supplier (seeded from the item's
+                          rate, editable here). This cell was missing, which shifted
+                          every following column left by one (GST% showed the rack,
+                          Rack showed the inward qty, etc.). */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-500 font-mono">{taxToAssign[line.id] ?? 0}%</span>
+                        ) : (
+                          <div className="relative inline-block">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.01"
+                              value={taxToAssign[line.id] ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value === '' ? 0 : Math.max(0, Math.min(100, Number(e.target.value)));
+                                setTaxToAssign((prev) => ({ ...prev, [line.id]: v }));
+                              }}
+                              placeholder="0"
+                              title="GST % as billed by the supplier"
+                              className="w-20 pr-5 pl-2 py-1 text-xs font-mono font-semibold text-right border rounded-lg bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            />
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">%</span>
+                          </div>
+                        )}
+                      </td>
+
                       {/* Shelve / Rack Location */}
                       <td className="py-3 px-3">
                         {isFullyReceived ? (
