@@ -28,6 +28,12 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   if (err?.code === 'P2003') {
     return res.status(409).json({ error: 'RELATION_CONFLICT', message: 'This record is referenced by other data.' });
   }
+  // Prisma: a required field was null / missing on write — a data problem, not a
+  // server crash, so surface it clearly instead of an opaque 500.
+  if (err?.code === 'P2011' || err?.code === 'P2012' || err?.code === 'P2013') {
+    console.error(err);
+    return res.status(400).json({ error: 'MISSING_FIELD', message: 'A required value was missing. Please retry with all fields filled.' });
+  }
   console.error(err);
   // Don't leak internal error detail to clients in production.
   const message = process.env.NODE_ENV === 'production' ? 'Something went wrong. Please try again.' : (err?.message ?? 'Internal error');

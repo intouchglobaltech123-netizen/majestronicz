@@ -60,8 +60,8 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
 
     await tx.attendanceRecord.create({
       data: {
-        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId, date: today,
-        checkInTime: timeStr, checkInPhoto: photoDataUrl, checkInLocation: location, status: 'Present',
+        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
+        checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: location ?? null, status: 'Present',
         createdAt: now.toISOString(), updatedAt: now.toISOString(),
       },
     });
@@ -137,8 +137,8 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
     }
     const record = await tx.attendanceRecord.create({
       data: {
-        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId, date: today,
-        checkInTime: ist.time, checkInPhoto: photoDataUrl, checkInLocation: location, status: 'Present',
+        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
+        checkInTime: ist.time, checkInPhoto: photoDataUrl || null, checkInLocation: location ?? null, status: 'Present',
         createdAt: now.toISOString(), updatedAt: now.toISOString(),
       },
     });

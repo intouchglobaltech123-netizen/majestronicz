@@ -140,9 +140,23 @@ export const BarcodeView: React.FC = () => {
       return;
     }
     setIsPreviewModalOpen(true);
-    // Give modal a microtask to mount before triggering window print
+    // Give the modal a moment to mount, then print. Crucially, add the
+    // `barcode-printing` class first — it's what hides the whole app (#root) via
+    // @media print, so the label sheet doesn't come out on a first page that is
+    // just a screenshot of the app screen. Without it, window.print() captured
+    // the BarcodeView screen on page 1 and the labels after.
+    const cleanup = () => {
+      document.body.classList.remove('barcode-printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
     setTimeout(() => {
-      window.print();
+      document.body.classList.add('barcode-printing');
+      // let the class take effect before the print snapshot
+      setTimeout(() => {
+        window.print();
+        setTimeout(cleanup, 1000); // safety net if afterprint never fires
+      }, 60);
     }, 300);
   };
 

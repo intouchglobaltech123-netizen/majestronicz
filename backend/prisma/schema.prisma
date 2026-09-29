@@ -384,8 +384,8 @@ model AttendanceRecord {
   branchId        String
   date            String
   checkInTime     String
-  checkInPhoto    String
-  checkInLocation Json
+  checkInPhoto    String?
+  checkInLocation Json?
   checkOutTime    String?
   checkOutPhoto   String?
   checkOutLocation Json?

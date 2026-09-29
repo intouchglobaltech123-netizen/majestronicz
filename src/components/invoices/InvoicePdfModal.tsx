@@ -440,7 +440,22 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
             {/* HSN/SAC-wise tax summary */}
             {invoice.withGst && hsnSummary.length > 0 && (
-              <table className="w-full border-collapse border-t border-black text-[10px]">
+              <table
+                className="w-full border-collapse border-t border-black text-[10px]"
+                // Fixed layout + explicit column widths so the PDF export
+                // (html2canvas) renders the columns aligned and full-width, the
+                // same way the items table does; keep it from splitting a page.
+                style={{ tableLayout: 'fixed', breakInside: 'avoid', WebkitColumnBreakInside: 'avoid' } as React.CSSProperties}
+              >
+                <colgroup>
+                  <col style={{ width: '19%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '18%' }} />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-black">
                     <th className="border-r border-black px-2 py-1 text-left" rowSpan={2}>HSN/SAC</th>
