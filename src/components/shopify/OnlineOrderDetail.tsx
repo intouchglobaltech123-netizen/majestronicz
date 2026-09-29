@@ -12,7 +12,7 @@ import { formatCurrency, cn } from '../../lib/utils';
 import {
   ArrowLeft, ArrowRight, Truck, CheckCircle2, Clock, Camera, MapPin,
   User, Phone, Package, Receipt, History, Link as LinkIcon, Boxes,
-  MessageSquare, Image as ImageIcon, Send,
+  MessageSquare, Image as ImageIcon, Send, Scale, Save, CheckSquare, Square,
 } from 'lucide-react';
 
 /** Build a wa.me link to the customer with a prefilled message. */
@@ -45,6 +45,7 @@ interface Props {
   onAdvance: (to: OnlineOrderStatus, opts?: { trackingNumber?: string; courierName?: string; trackingUrl?: string }) => void;
   onUploadPhoto: (kind: 'tray' | 'parcel', file: File | null) => void;
   onComm: (type: OrderCommType, note?: string) => void;
+  onSavePacking: (patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }) => void;
 }
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }> = ({ title, icon, children, right }) => (
@@ -58,7 +59,7 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 );
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm }) => {
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSavePacking }) => {
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
   const idx = onlinePipelineIndex(s);
   const isCancelled = s === 'Cancelled';
@@ -75,6 +76,13 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
   const trackWa = waLink(inv.customerPhone, trackMsg);
   const photoSent = comms.some((c) => c.type === 'photo_sent');
   const trackingSent = comms.some((c) => c.type === 'tracking_sent');
+
+  const [pack, setPack] = useState({
+    weight: inv.parcelWeightKg != null ? String(inv.parcelWeightKg) : '',
+    boxes: inv.boxCount != null ? String(inv.boxCount) : '',
+    label: !!inv.addressLabelDone,
+    invoice: !!inv.invoiceIncluded,
+  });
 
   return (
     <div className="w-full space-y-4">
@@ -173,6 +181,45 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
             ))}
             {(inv.items || []).length === 0 && <li className="py-2 text-xs text-slate-400">No line items</li>}
           </ul>
+        </Section>
+
+        {/* Packing */}
+        <Section title="Packing" icon={<Boxes className="h-3.5 w-3.5" />} right={inv.packedBy ? <span className="text-[11px] text-slate-400">by {inv.packedBy}{inv.packedAt ? ` · ${new Date(inv.packedAt).toLocaleString('en-IN')}` : ''}</span> : undefined}>
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap gap-3">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <Scale className="h-4 w-4 text-slate-400" /> Weight (kg)
+                <input type="number" min={0} step="0.1" value={pack.weight} onChange={(e) => setPack({ ...pack, weight: e.target.value })}
+                  className="w-20 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-emerald-500" />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <Boxes className="h-4 w-4 text-slate-400" /> Boxes
+                <input type="number" min={0} step="1" value={pack.boxes} onChange={(e) => setPack({ ...pack, boxes: e.target.value })}
+                  className="w-16 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-emerald-500" />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {([['label', 'Address label attached'], ['invoice', 'Invoice included']] as const).map(([k, lbl]) => (
+                <button key={k} type="button" onClick={() => setPack({ ...pack, [k]: !pack[k] })}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  {pack[k] ? <CheckSquare className="h-4 w-4 text-emerald-600" /> : <Square className="h-4 w-4 text-slate-300" />} {lbl}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onSavePacking({
+                parcelWeightKg: pack.weight === '' ? undefined : Number(pack.weight),
+                boxCount: pack.boxes === '' ? undefined : Number(pack.boxes),
+                addressLabelDone: pack.label,
+                invoiceIncluded: pack.invoice,
+              })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold disabled:opacity-60"
+            >
+              <Save className="h-3.5 w-3.5" /> Save packing
+            </button>
+          </div>
         </Section>
 
         {/* Photos */}

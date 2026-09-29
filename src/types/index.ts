@@ -387,6 +387,13 @@ export interface Invoice {
   // Customer contact history (WhatsApp / call). WhatsApp is sent manually, but the
   // ERP records whether the tray photo / tracking was actually sent, and by whom.
   communicationLog?: { type: OrderCommType; by: string; at: string; note?: string }[];
+  // Packing details captured at the Packed stage.
+  packedBy?: string;
+  packedAt?: string;
+  parcelWeightKg?: number;
+  boxCount?: number;
+  addressLabelDone?: boolean;
+  invoiceIncluded?: boolean;
   createdById?: string;
   createdAt: string;
   updatedAt?: string;

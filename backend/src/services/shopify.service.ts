@@ -745,6 +745,37 @@ export async function updateOnlineOrderStatus(
   return { invoice, shopify };
 }
 
+/**
+ * Save the Packing details for an online order (weight, boxes, address-label,
+ * invoice-included). Stamps packedBy/packedAt and logs it to the append-only
+ * activity history. Only these whitelisted fields can be changed here.
+ */
+export async function saveOrderPacking(
+  invoiceId: string,
+  patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean },
+  actor: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new Error('Order not found');
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus || 'New', at: now, by: actor, note: 'Packing details saved' });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      packedBy: actor,
+      packedAt: now,
+      parcelWeightKg: patch.parcelWeightKg != null ? Number(patch.parcelWeightKg) : undefined,
+      boxCount: patch.boxCount != null ? Math.max(0, Math.trunc(Number(patch.boxCount))) : undefined,
+      addressLabelDone: patch.addressLabelDone != null ? !!patch.addressLabelDone : undefined,
+      invoiceIncluded: patch.invoiceIncluded != null ? !!patch.invoiceIncluded : undefined,
+      onlineStatusHistory: history,
+    },
+  });
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice };
+}
+
 const COMM_TYPES = ['photo_sent', 'tracking_sent', 'call', 'note'];
 
 /**

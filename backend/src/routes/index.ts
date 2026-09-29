@@ -40,6 +40,7 @@ import {
   fulfillShopifyOrder,
   updateOnlineOrderStatus,
   addOrderCommunication,
+  saveOrderPacking,
   getShopifyCustomers,
   findSimilarErpItems,
 } from '../services/shopify.service.js';
@@ -415,6 +416,12 @@ router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandle
   const { invoiceId, type, note, actor } = req.body;
   const result = await addOrderCommunication(invoiceId, type, note, actor || 'system');
   broadcastChange('shopify-order-comm');
+  res.json(result);
+}));
+router.post('/shopify/order-packing', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, actor } = req.body;
+  const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actor || 'system');
+  broadcastChange('shopify-order-packing');
   res.json(result);
 }));
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {

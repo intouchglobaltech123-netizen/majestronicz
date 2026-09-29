@@ -224,6 +224,10 @@ interface ErpContextType {
     }
   ) => Promise<void>;
   addOrderCommunication: (invoiceId: string, type: OrderCommType, note?: string) => Promise<void>;
+  saveOrderPacking: (
+    invoiceId: string,
+    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
+  ) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
     returnLines: {
@@ -2787,6 +2791,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const saveOrderPacking = async (
+    invoiceId: string,
+    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
+  ) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>(
+        '/api/shopify/order-packing',
+        { invoiceId, ...patch, actor: currentUser.name }
+      );
+      if (res?.invoice) {
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      }
+      toast.success('Packing details saved');
+    } catch (e: any) {
+      toast.error('Failed to save packing details', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const processSaleReturn = async (
     invoiceId: string,
     returnLines: {
@@ -4248,6 +4270,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveInvoice,
         updateOnlineOrderStatus,
         addOrderCommunication,
+        saveOrderPacking,
         deleteInvoice,
         voidInvoice,
         processSaleReturn,

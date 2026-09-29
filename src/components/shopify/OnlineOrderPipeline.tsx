@@ -46,7 +46,7 @@ const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
 const statusOf = (inv: Invoice): OnlineOrderStatus => (inv.onlineStatus as OnlineOrderStatus) || 'New';
 
 export const OnlineOrderPipeline: React.FC = () => {
-  const { invoices, updateOnlineOrderStatus, addOrderCommunication, currentBranch, isAllBranches } = useErp();
+  const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'all' | OnlineOrderStatus>('active');
   // Per-order tracking inputs (shown when shipping).
@@ -132,6 +132,7 @@ export const OnlineOrderPipeline: React.FC = () => {
         onAdvance={(to, opts) => advance(selected, to, opts)}
         onUploadPhoto={(kind, file) => uploadPhoto(selected, kind, file)}
         onComm={(type, note) => addOrderCommunication(selected.id, type, note)}
+        onSavePacking={(patch) => saveOrderPacking(selected.id, patch)}
       />
     );
   }

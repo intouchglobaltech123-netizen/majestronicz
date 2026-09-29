@@ -191,6 +191,12 @@ model Invoice {
   parcelPhotoUrl            String?
   onlineStatusHistory       Json?    // [{ status, at, by, note? }]
   communicationLog          Json?    // [{ type, by, at, note? }] — WhatsApp/call contact history
+  packedBy                  String?
+  packedAt                  String?
+  parcelWeightKg            Float?
+  boxCount                  Int?
+  addressLabelDone          Boolean?
+  invoiceIncluded           Boolean?
   createdById               String?
   createdAt                 String
   updatedAt                 String?
