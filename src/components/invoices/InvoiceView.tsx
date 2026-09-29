@@ -741,15 +741,29 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectEstimateToConvert(est)}
-                              title="Convert this quotation into a Sales Invoice"
-                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                            >
-                              <ArrowRightLeft className="h-3 w-3" />
-                              <span>To Invoice</span>
-                            </button>
+                            {(() => {
+                              // A quote can become only ONE live invoice. If it's
+                              // already converted (a non-voided invoice points at
+                              // it), show that link instead of the convert button —
+                              // so the used list can't start a second conversion
+                              // (the backend also blocks it). SAL3-1.
+                              const conv = invoices.find((i) => i.sourceEstimateId === est.id && !i.isVoided);
+                              return conv ? (
+                                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 text-[11px] font-bold" title={`Already converted to ${conv.invoiceNumber}`}>
+                                  <ArrowRightLeft className="h-3 w-3" /> Converted → {conv.invoiceNumber}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectEstimateToConvert(est)}
+                                  title="Convert this quotation into a Sales Invoice"
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                                >
+                                  <ArrowRightLeft className="h-3 w-3" />
+                                  <span>To Invoice</span>
+                                </button>
+                              );
+                            })()}
                             <button
                               type="button"
                               onClick={() => setPreviewEstimate(est)}

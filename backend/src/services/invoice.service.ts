@@ -172,8 +172,12 @@ export function createSale(inv: any, reqUser?: any) {
       // reject a second conversion of the same estimate on the server. A voided
       // conversion frees the estimate to be converted again.
       if (inv.sourceEstimateId) {
+        // isVoided is optional (Boolean?) — a live bill stores NULL, not false —
+        // so `isVoided: false` matched nothing and the guard never fired. Match
+        // "not voided" instead, so any existing non-voided conversion blocks a
+        // second one (SAL3-1).
         const already = await tx.invoice.findFirst({
-          where: { sourceEstimateId: inv.sourceEstimateId, isVoided: false },
+          where: { sourceEstimateId: inv.sourceEstimateId, NOT: { isVoided: true } },
         });
         if (already) {
           throw new AppError('ALREADY_CONVERTED', `This quotation was already converted to invoice ${already.invoiceNumber}.`, 409);

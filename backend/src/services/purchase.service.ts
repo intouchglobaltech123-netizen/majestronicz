@@ -388,7 +388,10 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
 
 /** Record a payment made to the vendor against a PO (increments Paid, logs history). */
 export function recordPurchaseOrderPayment(poId: string, amount: number, mode: string, actor: string, reqUser?: any) {
-  return prisma.$transaction(async (tx: any) => {
+  // Serializable + retry so several vendor payments on the same PO at once each
+  // apply, instead of a plain transaction where concurrent reads all saw the
+  // same amountPaid and only one write survived (CASH2-2).
+  return serializableTx(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1

@@ -1345,27 +1345,16 @@ export const computeInvoiceFinance = (
   const returns = round(Math.min(gross, inv.totalReturnedAmount || 0));
   const net = round(Math.max(0, gross - returns));
 
+  // ONE due formula everywhere (SAL-9): a 'COD-Credit' split is the amount still
+  // owed; everything else on the bill counts as received. So received is simply
+  // the bill total minus the outstanding COD-Credit. getInvoicePaymentSplits
+  // synthesises the COD-Credit portion for legacy single-mode / partial / credit
+  // bills too, so this holds for every bill shape — no per-case branching (which
+  // previously left a fully-paid single-split COD bill showing its full amount
+  // due on every screen).
   const splits = getInvoicePaymentSplits(inv);
   const codCredit = round(splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
-  const nonCreditPaid = round(splits.filter((s) => s.mode !== 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
-
-  let received: number;
-  if (splits && splits.length > 0 && codCredit > 0) {
-    received = Math.max(0, gross - codCredit);
-  } else if (inv.isPartialPayment) {
-    received = inv.partialAmount != null ? Number(inv.partialAmount) : (nonCreditPaid > 0 ? nonCreditPaid : Math.max(0, gross - (inv.balanceDue || 0)));
-  } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
-    received = nonCreditPaid > 0 ? nonCreditPaid : 0;
-  } else if (inv.balanceDue != null && inv.balanceDue > 0) {
-    received = Math.max(0, gross - Number(inv.balanceDue));
-  } else if (splits && splits.length > 0 && nonCreditPaid > 0 && Math.abs(nonCreditPaid - gross) < 0.01) {
-    received = gross;
-  } else if (splits && splits.length > 0 && nonCreditPaid > 0) {
-    received = nonCreditPaid;
-  } else {
-    received = gross; // paid in full
-  }
-  received = round(Math.min(received, gross));
+  const received = round(Math.min(Math.max(0, gross - codCredit), gross));
 
   const netOwed = round(net - received);
   return {

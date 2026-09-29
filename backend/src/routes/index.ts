@@ -302,6 +302,16 @@ const PROTECTED_CONFIG_KEYS = new Set(['accessMatrix', 'accessMatrixMigrations']
 // config:write holder (SEC4-1 / SEC3-1).
 const CEO_ONLY_CONFIG_KEYS = new Set(['payrollSettings']);
 
+// Allow-LIST of the real, writable settings (SEC4-1). Previously the route only
+// blocked three keys, so any other key — including junk — could be written into
+// the config table. Only these known setting rows may be set through the generic
+// route; accessMatrix has its own admin-guarded endpoint and stays out.
+const WRITABLE_CONFIG_KEYS = new Set([
+  'categories', 'categoryPrefixMap', 'subcategoriesByCategory', 'subcategoryPrefixMap',
+  'unitsList', 'gstSlabsList', 'paymentTermsOptions', 'inventorySettings',
+  'loyaltySettings', 'payrollSettings', 'companyProfile',
+]);
+
 router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => {
   const key = req.params.key;
   if (PROTECTED_CONFIG_KEYS.has(key)) {
@@ -310,6 +320,9 @@ router.put('/config/:key', requireCapability('config:write'), asyncHandler(async
       'The access matrix cannot be changed here — use PUT /api/access-matrix, which requires admin.',
       403,
     );
+  }
+  if (!WRITABLE_CONFIG_KEYS.has(key)) {
+    throw new AppError('BAD_REQUEST', `Unknown setting "${key}".`, 400);
   }
   if (CEO_ONLY_CONFIG_KEYS.has(key) && !roleCan((req as any).user?.role, 'payroll:admin')) {
     throw new AppError('FORBIDDEN', 'Only the CEO can change payroll settings.', 403);

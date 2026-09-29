@@ -213,7 +213,10 @@ export async function createUser(input: CreateUserInput) {
         branchId,
         monthlySalary: Number(input.monthlySalary) || 0,
         pin: input.pin,
-        status: 'active',
+        // Employee status is 'Active'/'Inactive' (capitalized). Saving lowercase
+        // 'active' meant attendance's `status !== 'Active'` check rejected every
+        // new staff login with "attendance profile is inactive" (HRM3-6).
+        status: 'Active',
         phone: input.phone?.trim() || null,
         joinedDate: ts.slice(0, 10),
         createdAt: ts,
