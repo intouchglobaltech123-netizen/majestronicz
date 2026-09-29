@@ -160,8 +160,8 @@ export const PurchaseManagementView: React.FC = () => {
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 text-emerald-700">{formatCurrency(totalVendorCredit)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {creditPos.length > 0
-                ? `Owed back across ${creditPos.length} PO${creditPos.length === 1 ? '' : 's'} — tap for detail`
-                : 'From damaged goods on advance-paid POs'}
+                ? `Damaged / missing billed back across ${creditPos.length} PO${creditPos.length === 1 ? '' : 's'} — tap for detail`
+                : 'Value of damaged / missing goods billed back to vendors'}
             </p>
           </div>
         </button>

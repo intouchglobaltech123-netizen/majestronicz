@@ -14,12 +14,13 @@ const debitTotal = (po: PurchaseOrder): number =>
   (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
 
 /**
- * Vendor credit on a PO = money the shop has ALREADY paid beyond the value of the
- * goods it actually kept. It arises when the shop advance-pays and some units
- * arrive damaged (billed back as a debit note): credit = paid − (total − debit).
+ * Vendor credit on a PO = the value of the goods billed back to the vendor for
+ * being damaged or missing (short-shipped) on receipt — i.e. the debit-note
+ * total. This is shown as a claim on the vendor the moment the damaged/missing
+ * units are received, whether or not the PO has been paid yet.
  */
 export const vendorCreditOnPo = (po: PurchaseOrder): number =>
-  Math.max(0, (po.amountPaid || 0) + debitTotal(po) - (po.totalAmount || 0));
+  Math.max(0, debitTotal(po));
 
 export const VendorCreditModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { purchaseOrders } = useErp();
@@ -53,7 +54,7 @@ export const VendorCreditModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Vendor Credit</h2>
-              <p className="text-xs text-slate-500">Money suppliers owe back (advance paid on units that arrived damaged)</p>
+              <p className="text-xs text-slate-500">Value of goods billed back to suppliers — damaged or missing (short) on receipt</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
