@@ -207,6 +207,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const receiptTaxable = Math.round(receiptTotals.taxable * 100) / 100;
   const receiptTax = Math.round(receiptTotals.tax * 100) / 100;
   const receiptPayable = Math.round((receiptTaxable + receiptTax) * 100) / 100;
+  // What the vendor is owed on this PO INCLUDING GST: goods value + tax confirmed
+  // on earlier receipts + the tax being billed on THIS receipt (which is not in
+  // the stored totalTax until stock-in is confirmed), less debit notes. Using the
+  // ex-tax value previously showed "Fully Paid" while the GST was still owed.
+  const poDebitTotal = (purchaseOrder.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+  const poPayableInclTax = Math.max(
+    0,
+    Math.round(((purchaseOrder.totalAmount || 0) + (purchaseOrder.totalTax || 0) + receiptTax - poDebitTotal) * 100) / 100,
+  );
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
   const totalMissingNow = Object.values(missingToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
@@ -254,10 +263,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
 
     // Vendor payment validation: confirm whether money was paid before stock-in.
+    // Uses the tax-inclusive payable so GST owed isn't treated as "fully paid".
     const payNow = Math.max(0, Number(payNowInput) || 0);
-    const total = purchaseOrder.totalAmount || 0;
     const alreadyPaid = purchaseOrder.amountPaid || 0;
-    const outstandingAfter = Math.max(0, total - alreadyPaid - payNow);
+    const outstandingAfter = Math.max(0, poPayableInclTax - alreadyPaid - payNow);
     if (payNow <= 0 && outstandingAfter > 0) {
       const ok = window.confirm(
         `No payment is being recorded now and ₹${outstandingAfter.toLocaleString('en-IN')} is still outstanding to the vendor.\n\nConfirm stock-in without recording a payment?`
@@ -570,12 +579,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
         {/* Vendor payables tracking — is the vendor paid, and how much is due */}
         {(() => {
-          const total = purchaseOrder.totalAmount || 0;
+          const total = poPayableInclTax;
           const paid = purchaseOrder.amountPaid || 0;
           const outstanding = Math.max(0, total - paid);
           return (
             <div className="px-6 py-2.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs shrink-0">
-              <span className="text-slate-500">PO Value: <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
+              <span className="text-slate-500">Payable (incl GST): <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
               <span className="text-slate-500">Paid to Vendor: <span className="font-bold text-emerald-700 font-mono">{formatCurrency(paid)}</span></span>
               <span className="text-slate-500">Outstanding: <span className={`font-bold font-mono ${outstanding > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatCurrency(outstanding)}</span></span>
               {/* Record a vendor payment now (validated before stock-in) */}

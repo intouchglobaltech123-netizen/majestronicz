@@ -14,7 +14,7 @@ import {
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
-import { UniversalDropdown } from '../common/UniversalDropdown';
+import { VendorSearchSelect } from './VendorSearchSelect';
 import { VendorMasterModal } from './VendorMasterModal';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -139,6 +139,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
             item: matchedItem || null,
             searchQuery: matchedItem?.itemName || '',
             vendorCode: vendorCodeForItem(matchedItem, selectedVendorId),
+            vendorSku: vendorCodeForItem(matchedItem, selectedVendorId) || '',
             quantity: pf.quantity,
             purchasePrice: price,
             amount: pf.quantity * price,
@@ -169,11 +170,18 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     return (match || item.vendorCode || undefined) as string | undefined;
   };
 
-  // When the vendor changes, re-resolve every line's code for the new vendor.
+  // When the vendor changes, re-resolve every line's code for the new vendor and
+  // refresh the Vendor SKU field to that vendor's code (unless staff typed a
+  // custom one that differs from the old auto-filled code).
   useEffect(() => {
     if (!isOpen) return;
     setLines((prev) =>
-      prev.map((l) => (l.item ? { ...l, vendorCode: vendorCodeForItem(l.item, selectedVendorId) } : l))
+      prev.map((l) => {
+        if (!l.item) return l;
+        const newCode = vendorCodeForItem(l.item, selectedVendorId);
+        const wasAuto = !l.vendorSku || l.vendorSku === l.vendorCode;
+        return { ...l, vendorCode: newCode, vendorSku: wasAuto ? (newCode || '') : l.vendorSku };
+      })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVendorId]);
@@ -222,8 +230,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         ...next[index],
         item,
         searchQuery: item.itemName,
-        // Auto-fetch the code the catalog holds for THIS PO's selected vendor.
+        // Auto-fetch the code the catalog holds for THIS PO's selected vendor and
+        // pre-fill it into the editable Vendor SKU field (staff can still edit).
         vendorCode: vendorCodeForItem(item, selectedVendorId),
+        vendorSku: vendorCodeForItem(item, selectedVendorId) || '',
         purchasePrice: price,
         amount: qty * price,
       };
@@ -437,28 +447,19 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                   Supplier / Vendor <span className="text-rose-500">*</span>
                 </label>
-                {/* Stray "+ New" button removed — the dropdown's own "Add New Supplier" is enough. */}
-                <UniversalDropdown
-                  options={vendors.map((v) => ({
-                    value: v.id,
-                    label: v.vendorName,
-                    sublabel: v.gstin ? `GST: ${v.gstin}` : v.contactNo || undefined,
-                  }))}
+                {/* Searchable supplier picker — type to find a vendor (not a
+                    long scroll-only dropdown). */}
+                <VendorSearchSelect
+                  vendors={vendors}
                   value={selectedVendorId}
                   onChange={(val) => {
                     setSelectedVendorId(val);
                     if (formErrors.vendor) setFormErrors((prev) => ({ ...prev, vendor: '' }));
                   }}
-                  placeholder="Select Supplier..."
-                  addNewLabel="+ Add New Supplier"
+                  placeholder="Search supplier by name / GST / phone…"
                   onAddNew={(name) => {
-                    const newV = saveVendor({
-                      vendorName: name,
-                      contactNo: '',
-                      address: '',
-                    });
+                    const newV = saveVendor({ vendorName: name, contactNo: '', address: '' });
                     setSelectedVendorId(newV.id);
-                    // Return the new vendor's id so the dropdown selects it (PUR-3).
                     return newV.id;
                   }}
                 />
@@ -629,12 +630,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveLine(idx)}
-                            disabled={lines.length === 1}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              lines.length === 1
-                                ? 'text-slate-200 cursor-not-allowed'
-                                : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                            }`}
+                            title="Remove this item"
+                            className="p-1.5 rounded-lg transition-colors text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
