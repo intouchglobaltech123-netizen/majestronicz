@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES } from '../../types';
 import { cn } from '../../lib/utils';
@@ -82,7 +83,19 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const companyState = gstStateInfo(COMPANY_PROFILE.gstin);
 
   const handlePrint = () => {
-    window.print();
+    // Hide the whole app (#root) during print via @media print, so a long
+    // invoice flows across pages instead of being clipped to one page by the
+    // fixed, scrollable modal overlay (SAL4-7). Mirrors the barcode print scope.
+    document.body.classList.add('invoice-printing');
+    const cleanup = () => {
+      document.body.classList.remove('invoice-printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1000);
+    }, 50);
   };
 
   const handleSavePdf = async () => {
@@ -186,8 +199,8 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+  return createPortal(
+    <div id="invoice-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Metadata Header (Clean document metadata, No action buttons) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
@@ -605,6 +618,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

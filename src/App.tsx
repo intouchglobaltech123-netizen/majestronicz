@@ -166,7 +166,7 @@ const AppContent: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+    <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50 text-slate-900 font-sans print:block print:h-auto print:overflow-visible">
       {/* Left Navigation Shell */}
       <Sidebar
         isOpen={!isSidebarCollapsed}
@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 print:overflow-visible print:h-auto">
         {/* Fullscreen top safety bar with live temporal clock & exit action */}
         {isFullscreen && (
           <div className="bg-slate-900 text-slate-200 px-3.5 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50 shadow-sm">
@@ -219,7 +219,7 @@ const AppContent: React.FC = () => {
         />
 
         {/* Scrollable Content Body */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/50 print:overflow-visible print:h-auto">
           {/* Billing (Sales / Quotations) stays MOUNTED even when you switch to
               another section, so any open bill tabs and their in-progress work are
               still there when you come back. It is just hidden while off-screen. */}
