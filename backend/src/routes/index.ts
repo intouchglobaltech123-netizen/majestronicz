@@ -405,8 +405,8 @@ router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asy
   res.json(result);
 }));
 router.post('/shopify/order-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, status, trackingNumber, courierName, note, actor } = req.body;
-  const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, note, actor: actor || 'system' });
+  const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor } = req.body;
+  const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor: actor || 'system' });
   broadcastChange('shopify-order-status');
   res.json(result);
 }));

@@ -274,21 +274,55 @@ export interface SaleReturnLineItem {
  */
 export type OnlineOrderStatus =
   | 'New'
+  | 'Picking'
+  | 'Tray Photo'
   | 'Confirmed'
+  | 'Billed'
   | 'Packed'
   | 'Shipped'
-  | 'Out for Delivery'
+  | 'In Transit'
+  | 'Out for Delivery' // legacy — mapped into the flow at the 'In Transit' position
   | 'Delivered'
+  | 'Completed'
   | 'Cancelled';
 
+// The ERP fulfillment workflow, in order (from the client's workflow spec).
+// Stage-gated: an order only ever advances one step at a time — no free jumps.
 export const ONLINE_ORDER_PIPELINE: OnlineOrderStatus[] = [
   'New',
+  'Picking',
+  'Tray Photo',
   'Confirmed',
+  'Billed',
   'Packed',
   'Shipped',
-  'Out for Delivery',
+  'In Transit',
   'Delivered',
+  'Completed',
 ];
+
+/** What the staff should DO next at each stage (shown as "NEXT ACTION"). */
+export const ONLINE_NEXT_ACTION: Record<OnlineOrderStatus, string> = {
+  New: 'Start picking — collect the ordered products into one tray',
+  Picking: 'Upload the tray photo and send it to the customer on WhatsApp',
+  'Tray Photo': 'Get the customer to confirm the products before packing',
+  Confirmed: 'Generate the final bill',
+  Billed: 'Pack the order (attach address label + invoice)',
+  Packed: 'Select courier and enter the tracking / AWB number',
+  Shipped: 'Send tracking to the customer and track the shipment',
+  'In Transit': 'Confirm delivery once the parcel reaches the customer',
+  'Out for Delivery': 'Confirm delivery once the parcel reaches the customer',
+  Delivered: 'Close the order as Completed',
+  Completed: 'Order complete',
+  Cancelled: 'Order cancelled',
+};
+
+/** Map a stored status (incl. legacy) to its position in the current pipeline. */
+export const onlinePipelineIndex = (status?: OnlineOrderStatus): number => {
+  if (!status) return 0;
+  if (status === 'Out for Delivery') return ONLINE_ORDER_PIPELINE.indexOf('In Transit');
+  return ONLINE_ORDER_PIPELINE.indexOf(status);
+};
 
 export interface Invoice {
   id: string;
@@ -336,6 +370,9 @@ export interface Invoice {
   onlineStatusUpdatedAt?: string;
   trackingNumber?: string;
   courierName?: string;
+  trackingUrl?: string; // courier tracking link sent to the customer
+  trayPhotoUrl?: string; // photo of the picked products in the tray (data URL)
+  parcelPhotoUrl?: string; // photo of the packed parcel / dispatch (data URL)
   onlineStatusHistory?: { status: OnlineOrderStatus; at: string; by: string; note?: string }[];
   createdById?: string;
   createdAt: string;

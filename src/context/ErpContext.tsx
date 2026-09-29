@@ -217,7 +217,10 @@ interface ErpContextType {
   updateOnlineOrderStatus: (
     invoiceId: string,
     status: OnlineOrderStatus,
-    opts?: { trackingNumber?: string; courierName?: string; note?: string }
+    opts?: {
+      trackingNumber?: string; courierName?: string; trackingUrl?: string;
+      trayPhotoUrl?: string; parcelPhotoUrl?: string; note?: string;
+    }
   ) => Promise<void>;
   processSaleReturn: (
     invoiceId: string,
@@ -2745,7 +2748,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateOnlineOrderStatus = async (
     invoiceId: string,
     status: OnlineOrderStatus,
-    opts?: { trackingNumber?: string; courierName?: string; note?: string }
+    opts?: {
+      trackingNumber?: string; courierName?: string; trackingUrl?: string;
+      trayPhotoUrl?: string; parcelPhotoUrl?: string; note?: string;
+    }
   ) => {
     try {
       const res = await apiPost<{ invoice: Invoice; shopify?: { success: boolean; error?: string } }>(

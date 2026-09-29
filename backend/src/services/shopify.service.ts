@@ -694,7 +694,9 @@ export async function fulfillShopifyOrder(
 }
 
 // ---- Online-order fulfillment pipeline (ERP-side status tracking) ----
-const ONLINE_PIPELINE = ['New', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
+// ERP fulfillment workflow stages (client's workflow spec). 'Out for Delivery'
+// is kept accepted for legacy imported rows.
+const ONLINE_PIPELINE = ['New', 'Picking', 'Tray Photo', 'Confirmed', 'Billed', 'Packed', 'Shipped', 'In Transit', 'Out for Delivery', 'Delivered', 'Completed'];
 
 /**
  * Advance/set an online (Shopify) order's fulfillment status in the ERP. Records
@@ -705,13 +707,17 @@ const ONLINE_PIPELINE = ['New', 'Confirmed', 'Packed', 'Shipped', 'Out for Deliv
 export async function updateOnlineOrderStatus(
   invoiceId: string,
   status: string,
-  opts: { trackingNumber?: string; courierName?: string; note?: string; actor: string }
+  opts: {
+    trackingNumber?: string; courierName?: string; trackingUrl?: string;
+    trayPhotoUrl?: string; parcelPhotoUrl?: string; note?: string; actor: string;
+  }
 ): Promise<{ invoice: any; shopify?: { success: boolean; error?: string } }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   if (!inv) throw new Error('Order not found');
   if (![...ONLINE_PIPELINE, 'Cancelled'].includes(status)) throw new Error(`Invalid status: ${status}`);
 
   const now = nowIso();
+  // Append-only activity trail: who + what + when. Never rewritten or deleted.
   const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
   history.push({ status, at: now, by: opts.actor, note: opts.note || undefined });
 
@@ -722,6 +728,9 @@ export async function updateOnlineOrderStatus(
       onlineStatusUpdatedAt: now,
       ...(opts.trackingNumber !== undefined ? { trackingNumber: opts.trackingNumber } : {}),
       ...(opts.courierName !== undefined ? { courierName: opts.courierName } : {}),
+      ...(opts.trackingUrl !== undefined ? { trackingUrl: opts.trackingUrl } : {}),
+      ...(opts.trayPhotoUrl !== undefined ? { trayPhotoUrl: opts.trayPhotoUrl } : {}),
+      ...(opts.parcelPhotoUrl !== undefined ? { parcelPhotoUrl: opts.parcelPhotoUrl } : {}),
       onlineStatusHistory: history,
     },
   });

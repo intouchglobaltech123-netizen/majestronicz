@@ -1,17 +1,33 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, OnlineOrderStatus, ONLINE_ORDER_PIPELINE } from '../../types';
+import {
+  Invoice,
+  OnlineOrderStatus,
+  ONLINE_ORDER_PIPELINE,
+  ONLINE_NEXT_ACTION,
+  onlinePipelineIndex,
+} from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
-import { Package, Truck, CheckCircle2, XCircle, Clock, Search, MapPin } from 'lucide-react';
+import { resizeAndCompressImage } from '../../lib/imageUtils';
+import { toast } from 'sonner';
+import {
+  Package, Truck, CheckCircle2, XCircle, Clock, Search, MapPin,
+  Camera, ArrowRight, History, ChevronDown, ChevronUp, Link as LinkIcon,
+} from 'lucide-react';
 
 /** Colour per pipeline stage. */
 const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
   New: 'bg-slate-100 text-slate-700 border-slate-300',
+  Picking: 'bg-sky-50 text-sky-700 border-sky-200',
+  'Tray Photo': 'bg-cyan-50 text-cyan-700 border-cyan-200',
   Confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
+  Billed: 'bg-teal-50 text-teal-700 border-teal-200',
   Packed: 'bg-amber-50 text-amber-700 border-amber-200',
   Shipped: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'In Transit': 'bg-violet-50 text-violet-700 border-violet-200',
   'Out for Delivery': 'bg-violet-50 text-violet-700 border-violet-200',
   Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Completed: 'bg-emerald-600 text-white border-emerald-700',
   Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
@@ -22,22 +38,22 @@ export const OnlineOrderPipeline: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'all' | OnlineOrderStatus>('active');
   // Per-order tracking inputs (shown when shipping).
-  const [tracking, setTracking] = useState<Record<string, { number: string; courier: string }>>({});
+  const [tracking, setTracking] = useState<Record<string, { number: string; courier: string; url: string }>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
 
   const online = useMemo(() => {
-    const list = invoices
+    return invoices
       .filter((i) => i.sourceChannel === 'shopify' && !i.isVoided)
       .filter((i) => isAllBranches || i.branchId === currentBranch)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    return list;
   }, [invoices, currentBranch, isAllBranches]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return online.filter((o) => {
       const s = statusOf(o);
-      if (filter === 'active' && (s === 'Delivered' || s === 'Cancelled')) return false;
+      if (filter === 'active' && (s === 'Delivered' || s === 'Completed' || s === 'Cancelled')) return false;
       if (filter !== 'active' && filter !== 'all' && s !== filter) return false;
       if (!q) return true;
       return (
@@ -54,7 +70,7 @@ export const OnlineOrderPipeline: React.FC = () => {
     for (const o of online) {
       const s = statusOf(o);
       c[s] = (c[s] || 0) + 1;
-      if (s !== 'Delivered' && s !== 'Cancelled') c.active += 1;
+      if (s !== 'Delivered' && s !== 'Completed' && s !== 'Cancelled') c.active += 1;
     }
     return c;
   }, [online]);
@@ -62,8 +78,30 @@ export const OnlineOrderPipeline: React.FC = () => {
   const advance = async (inv: Invoice, to: OnlineOrderStatus) => {
     setBusy(inv.id);
     const t = tracking[inv.id];
-    await updateOnlineOrderStatus(inv.id, to, to === 'Shipped' ? { trackingNumber: t?.number || undefined, courierName: t?.courier || undefined } : undefined);
+    // Tracking details are captured when the order is dispatched (Packed → Shipped).
+    const opts = to === 'Shipped'
+      ? { trackingNumber: t?.number || undefined, courierName: t?.courier || undefined, trackingUrl: t?.url || undefined }
+      : undefined;
+    await updateOnlineOrderStatus(inv.id, to, opts);
     setBusy(null);
+  };
+
+  // Upload a stage photo (tray / parcel) and save it against the order, logging it.
+  const uploadPhoto = async (inv: Invoice, kind: 'tray' | 'parcel', file: File | null) => {
+    if (!file) return;
+    setBusy(inv.id);
+    try {
+      const { dataUrl } = await resizeAndCompressImage(file, 900);
+      const field = kind === 'tray' ? 'trayPhotoUrl' : 'parcelPhotoUrl';
+      await updateOnlineOrderStatus(inv.id, statusOf(inv), {
+        [field]: dataUrl,
+        note: kind === 'tray' ? 'Tray photo uploaded' : 'Parcel photo uploaded',
+      });
+    } catch {
+      toast.error('Could not process that image');
+    } finally {
+      setBusy(null);
+    }
   };
 
   if (online.length === 0) {
@@ -118,12 +156,15 @@ export const OnlineOrderPipeline: React.FC = () => {
       ) : (
         filtered.map((inv) => {
           const s = statusOf(inv);
-          const idx = ONLINE_ORDER_PIPELINE.indexOf(s);
+          const idx = onlinePipelineIndex(s);
           const isCancelled = s === 'Cancelled';
-          const isDone = s === 'Delivered';
+          const isDone = s === 'Completed' || s === 'Delivered';
           const next = idx >= 0 && idx < ONLINE_ORDER_PIPELINE.length - 1 ? ONLINE_ORDER_PIPELINE[idx + 1] : null;
           const shipping = next === 'Shipped';
-          const t = tracking[inv.id] || { number: inv.trackingNumber || '', courier: inv.courierName || '' };
+          const t = tracking[inv.id] || { number: inv.trackingNumber || '', courier: inv.courierName || '', url: inv.trackingUrl || '' };
+          const setT = (patch: Partial<typeof t>) => setTracking((p) => ({ ...p, [inv.id]: { ...t, ...patch } }));
+          const history = Array.isArray(inv.onlineStatusHistory) ? inv.onlineStatusHistory : [];
+          const showHistory = !!historyOpen[inv.id];
 
           return (
             <div key={inv.id} className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
@@ -140,16 +181,30 @@ export const OnlineOrderPipeline: React.FC = () => {
                 </div>
               </div>
 
-              {/* Stepper */}
+              {/* Current stage + NEXT ACTION */}
               {!isCancelled && (
-                <div className="px-4 py-3">
-                  <div className="flex items-center">
+                <div className="px-4 pt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Current stage:</span>
+                  <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border', STATUS_STYLE[s])}>{s}</span>
+                  {!isDone && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+                      <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="font-bold text-slate-700">NEXT:</span> {ONLINE_NEXT_ACTION[s]}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Stepper (scrolls horizontally — the flow has many stages) */}
+              {!isCancelled && (
+                <div className="px-4 py-3 overflow-x-auto">
+                  <div className="flex items-center min-w-max">
                     {ONLINE_ORDER_PIPELINE.map((stage, i) => {
                       const done = i < idx;
                       const active = i === idx;
                       return (
                         <React.Fragment key={stage}>
-                          <div className="flex flex-col items-center shrink-0" style={{ width: 82 }}>
+                          <div className="flex flex-col items-center shrink-0" style={{ width: 74 }}>
                             <div className={cn(
                               'h-6 w-6 rounded-full flex items-center justify-center border text-[11px] font-bold',
                               done ? 'bg-emerald-600 text-white border-emerald-700'
@@ -161,12 +216,44 @@ export const OnlineOrderPipeline: React.FC = () => {
                             <span className={cn('mt-1 text-[9px] font-bold uppercase tracking-wide text-center leading-tight', active ? 'text-blue-700' : done ? 'text-emerald-700' : 'text-slate-400')}>{stage}</span>
                           </div>
                           {i < ONLINE_ORDER_PIPELINE.length - 1 && (
-                            <div className={cn('h-0.5 flex-1', i < idx ? 'bg-emerald-500' : 'bg-slate-200')} />
+                            <div className={cn('h-0.5 w-6 shrink-0', i < idx ? 'bg-emerald-500' : 'bg-slate-200')} />
                           )}
                         </React.Fragment>
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Photos: tray (picking proof) + parcel (dispatch proof) */}
+              {!isCancelled && (
+                <div className="px-4 pb-2 flex flex-wrap gap-4">
+                  {(['tray', 'parcel'] as const).map((kind) => {
+                    const url = kind === 'tray' ? inv.trayPhotoUrl : inv.parcelPhotoUrl;
+                    const label = kind === 'tray' ? 'Tray photo' : 'Parcel photo';
+                    return (
+                      <div key={kind} className="flex items-center gap-2">
+                        {url ? (
+                          <img src={url} alt={label} className="h-12 w-12 object-cover rounded border border-slate-200" />
+                        ) : (
+                          <div className="h-12 w-12 rounded border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-slate-300">
+                            <Camera className="h-5 w-5" />
+                          </div>
+                        )}
+                        <label className="text-[11px] font-bold text-slate-600 cursor-pointer hover:text-emerald-700">
+                          <span className="block">{label}</span>
+                          <span className="text-[10px] font-normal text-emerald-700 underline">{url ? 'Replace' : 'Upload'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={busy === inv.id}
+                            onChange={(e) => uploadPhoto(inv, kind, e.target.files?.[0] || null)}
+                          />
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -176,28 +263,47 @@ export const OnlineOrderPipeline: React.FC = () => {
                   <span className="text-[11px] text-slate-600 flex items-center gap-1">
                     {isCancelled ? <XCircle className="h-3.5 w-3.5 text-rose-500" /> : <Truck className="h-3.5 w-3.5 text-indigo-500" />}
                     {isCancelled ? 'Order cancelled' : <>Tracking: <span className="font-mono font-bold">{inv.trackingNumber}</span>{inv.courierName ? ` · ${inv.courierName}` : ''}</>}
+                    {!isCancelled && inv.trackingUrl && (
+                      <a href={inv.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800"><LinkIcon className="h-3 w-3" />track</a>
+                    )}
                   </span>
                 )}
 
                 {shipping && !isCancelled && !isDone && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <input
                       value={t.number}
-                      onChange={(e) => setTracking((p) => ({ ...p, [inv.id]: { ...t, number: e.target.value } }))}
-                      placeholder="Tracking no."
-                      className="w-32 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => setT({ number: e.target.value })}
+                      placeholder="Tracking / AWB no."
+                      className="w-36 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500"
                     />
                     <input
                       value={t.courier}
-                      onChange={(e) => setTracking((p) => ({ ...p, [inv.id]: { ...t, courier: e.target.value } }))}
+                      onChange={(e) => setT({ courier: e.target.value })}
                       placeholder="Courier"
                       className="w-28 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                    <input
+                      value={t.url}
+                      onChange={(e) => setT({ url: e.target.value })}
+                      placeholder="Tracking link (URL)"
+                      className="w-44 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 )}
 
                 <div className="ml-auto flex items-center gap-2">
-                  {!isCancelled && !isDone && next && (
+                  {history.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setHistoryOpen((p) => ({ ...p, [inv.id]: !showHistory }))}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-bold border border-slate-200"
+                    >
+                      <History className="h-3.5 w-3.5" /> History
+                      {showHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </button>
+                  )}
+                  {!isCancelled && next && s !== 'Delivered' && (
                     <button
                       type="button"
                       disabled={busy === inv.id}
@@ -208,8 +314,18 @@ export const OnlineOrderPipeline: React.FC = () => {
                       <span>Mark {next}</span>
                     </button>
                   )}
-                  {isDone && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Delivered</span>
+                  {s === 'Delivered' && (
+                    <button
+                      type="button"
+                      disabled={busy === inv.id}
+                      onClick={() => advance(inv, 'Completed')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors disabled:opacity-60"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" /> <span>Mark Completed</span>
+                    </button>
+                  )}
+                  {s === 'Completed' && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Completed</span>
                   )}
                   {!isCancelled && !isDone && (
                     <button
@@ -223,6 +339,24 @@ export const OnlineOrderPipeline: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Activity history (append-only: who did what, when) */}
+              {showHistory && history.length > 0 && (
+                <div className="px-4 py-2 border-t border-slate-100 bg-white">
+                  <ul className="space-y-1">
+                    {[...history].reverse().map((h, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[11px] text-slate-600">
+                        <span className={cn('mt-0.5 inline-block h-2 w-2 rounded-full shrink-0', 'bg-emerald-400')} />
+                        <span>
+                          <span className="font-bold text-slate-800">{h.status}</span>
+                          {h.note ? ` — ${h.note}` : ''} · <span className="font-medium">{h.by}</span>
+                          <span className="text-slate-400"> · {new Date(h.at).toLocaleString('en-IN')}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Delivery address (if present) */}
               {inv.customerAddress && (
