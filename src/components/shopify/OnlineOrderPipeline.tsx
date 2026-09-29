@@ -10,10 +10,22 @@ import {
 import { formatCurrency, cn } from '../../lib/utils';
 import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { toast } from 'sonner';
+import { OnlineOrderDetail } from './OnlineOrderDetail';
 import {
   Package, Truck, CheckCircle2, XCircle, Clock, Search, MapPin,
-  Camera, ArrowRight, History, ChevronDown, ChevronUp, Link as LinkIcon,
+  Camera, ArrowRight, History, ChevronDown, ChevronUp, Link as LinkIcon, AlertTriangle,
 } from 'lucide-react';
+
+/** How long an order has sat in its current stage, and whether it's overdue. */
+const stageAge = (inv: Invoice): { label: string; overdue: boolean } | null => {
+  const since = inv.onlineStatusUpdatedAt || inv.createdAt;
+  if (!since) return null;
+  const ms = Date.now() - new Date(since).getTime();
+  if (ms < 0 || Number.isNaN(ms)) return null;
+  const h = Math.floor(ms / 3_600_000);
+  const d = Math.floor(h / 24);
+  return { label: d > 0 ? `${d}d ${h % 24}h` : `${h}h`, overdue: h >= 48 };
+};
 
 /** Colour per pipeline stage. */
 const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
@@ -41,6 +53,7 @@ export const OnlineOrderPipeline: React.FC = () => {
   const [tracking, setTracking] = useState<Record<string, { number: string; courier: string; url: string }>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const online = useMemo(() => {
     return invoices
@@ -75,13 +88,17 @@ export const OnlineOrderPipeline: React.FC = () => {
     return c;
   }, [online]);
 
-  const advance = async (inv: Invoice, to: OnlineOrderStatus) => {
+  const advance = async (
+    inv: Invoice,
+    to: OnlineOrderStatus,
+    optsOverride?: { trackingNumber?: string; courierName?: string; trackingUrl?: string },
+  ) => {
     setBusy(inv.id);
     const t = tracking[inv.id];
     // Tracking details are captured when the order is dispatched (Packed → Shipped).
-    const opts = to === 'Shipped'
+    const opts = optsOverride ?? (to === 'Shipped'
       ? { trackingNumber: t?.number || undefined, courierName: t?.courier || undefined, trackingUrl: t?.url || undefined }
-      : undefined;
+      : undefined);
     await updateOnlineOrderStatus(inv.id, to, opts);
     setBusy(null);
   };
@@ -104,6 +121,20 @@ export const OnlineOrderPipeline: React.FC = () => {
     }
   };
 
+  // Full-page detail for a selected order (opens in place, with a Back button).
+  const selected = selectedId ? online.find((o) => o.id === selectedId) : null;
+  if (selected) {
+    return (
+      <OnlineOrderDetail
+        inv={selected}
+        busy={busy === selected.id}
+        onBack={() => setSelectedId(null)}
+        onAdvance={(to, opts) => advance(selected, to, opts)}
+        onUploadPhoto={(kind, file) => uploadPhoto(selected, kind, file)}
+      />
+    );
+  }
+
   if (online.length === 0) {
     return (
       <div className="py-12 text-center text-slate-500 bg-white border border-slate-200 rounded-xl">
@@ -114,15 +145,44 @@ export const OnlineOrderPipeline: React.FC = () => {
     );
   }
 
-  const chips: { key: 'active' | 'all' | OnlineOrderStatus; label: string }[] = [
-    { key: 'active', label: `Active (${counts.active || 0})` },
-    ...ONLINE_ORDER_PIPELINE.map((s) => ({ key: s, label: `${s} (${counts[s] || 0})` })),
-    { key: 'Cancelled', label: `Cancelled (${counts.Cancelled || 0})` },
-    { key: 'all', label: `All (${online.length})` },
+  // Stage dashboard tiles (click to filter). Overdue = active orders sitting
+  // 48h+ in their current stage.
+  const overdueCount = online.filter((o) => {
+    const s = statusOf(o);
+    if (s === 'Delivered' || s === 'Completed' || s === 'Cancelled') return false;
+    return stageAge(o)?.overdue;
+  }).length;
+  const tiles: { key: 'active' | 'all' | OnlineOrderStatus; label: string; count: number }[] = [
+    { key: 'active', label: 'Active', count: counts.active || 0 },
+    ...ONLINE_ORDER_PIPELINE.map((s) => ({ key: s, label: s, count: counts[s] || 0 })),
+    { key: 'Cancelled', label: 'Cancelled', count: counts.Cancelled || 0 },
   ];
 
   return (
     <div className="space-y-3">
+      {/* Stage dashboard */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        {tiles.map((tile) => (
+          <button
+            key={tile.key}
+            onClick={() => setFilter(tile.key)}
+            className={cn(
+              'text-left px-3 py-2 rounded-lg border transition-colors',
+              filter === tile.key ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            )}
+          >
+            <div className="text-lg font-extrabold font-mono leading-none">{tile.count}</div>
+            <div className={cn('text-[10px] font-bold uppercase tracking-wide mt-1', filter === tile.key ? 'text-emerald-50' : 'text-slate-500')}>{tile.label}</div>
+          </button>
+        ))}
+        {overdueCount > 0 && (
+          <div className="px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700">
+            <div className="text-lg font-extrabold font-mono leading-none flex items-center gap-1"><AlertTriangle className="h-4 w-4" />{overdueCount}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wide mt-1">Overdue (48h+)</div>
+          </div>
+        )}
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="relative w-full lg:max-w-xs">
@@ -134,20 +194,7 @@ export const OnlineOrderPipeline: React.FC = () => {
             className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-600"
           />
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          {chips.map((c) => (
-            <button
-              key={c.key}
-              onClick={() => setFilter(c.key)}
-              className={cn(
-                'px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-colors shrink-0',
-                filter === c.key ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <div className="text-[11px] text-slate-400 lg:ml-auto">Tap a stage above to filter · click an order to open its full detail page</div>
       </div>
 
       {/* Order cards */}
@@ -168,18 +215,32 @@ export const OnlineOrderPipeline: React.FC = () => {
 
           return (
             <div key={inv.id} className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
-              {/* Header */}
-              <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100">
+              {/* Header (click to open full detail) */}
+              <button
+                type="button"
+                onClick={() => setSelectedId(inv.id)}
+                className="w-full text-left px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 hover:bg-slate-50 transition-colors"
+              >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{inv.invoiceNumber}</span>
                   <span className="text-sm font-bold text-slate-900 truncate">{inv.customerName || 'Online customer'}</span>
                   {inv.customerPhone && <span className="text-xs text-slate-500 font-mono">· {inv.customerPhone}</span>}
+                  {(() => {
+                    const age = stageAge(inv);
+                    if (!age || isCancelled || isDone) return null;
+                    return (
+                      <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-1',
+                        age.overdue ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200')}>
+                        {age.overdue && <AlertTriangle className="h-3 w-3" />}{age.label} in stage
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold font-mono text-slate-900">{formatCurrency(inv.grandTotal || 0)}</span>
                   <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border', STATUS_STYLE[s])}>{s}</span>
                 </div>
-              </div>
+              </button>
 
               {/* Current stage + NEXT ACTION */}
               {!isCancelled && (
