@@ -131,12 +131,11 @@ export const DailyCashRegisterView: React.FC = () => {
     const raw = dayInvoices.reduce(
       (acc, inv) => {
         const splits = getInvoicePaymentSplits(inv);
-        const returned = Math.min(inv.grandTotal || 0, inv.totalReturnedAmount || 0);
-        const netTotal = Math.max(0, (inv.grandTotal || 0) - returned);
-        const ratio = inv.grandTotal > 0 ? netTotal / inv.grandTotal : 1;
-
+        // Returns are NOT netted into the billing day any more — a refund is a
+        // separate cash-out on the RETURN day — so this per-mode breakdown must
+        // match the un-netted day closing (SAL4-12).
         splits.forEach((split) => {
-          const amt = Math.round(split.amount * ratio * 100) / 100;
+          const amt = Math.round(split.amount * 100) / 100;
           if (split.mode === 'HDFC') acc.hdfc += amt;
           else if (split.mode === 'Cash') acc.cash += amt;
           else if (split.mode === 'GPay') acc.gpay += amt;

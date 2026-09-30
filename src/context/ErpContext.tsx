@@ -2183,8 +2183,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getPreviousDayClosingBalance = (branchId: BranchId, date: string): number => {
+    // Carry forward from the most recent PRIOR day that has a register, closed or
+    // not (CASH-1) — mirrors the backend. Filtering to closed days only meant an
+    // unclosed yesterday didn't carry into today, so today opened at the default.
     const pastClosed = cashRegisters
-      .filter((r) => r.branchId === branchId && r.date < date && r.isClosed)
+      .filter((r) => r.branchId === branchId && r.date < date)
       .sort((a, b) => b.date.localeCompare(a.date));
 
     if (pastClosed.length > 0) {

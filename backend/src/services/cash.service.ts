@@ -28,8 +28,12 @@ function invoiceCashCollected(i: any): number {
 
 /** Carry-forward opening balance from the most recent closed day (else branch default). */
 async function previousDayClosingBalance(tx: any, branchId: string, date: string): Promise<number> {
+  // Carry forward from the most recent PRIOR day that has a register — whether or
+  // not it was formally closed (CASH-1). Before, only closed days carried
+  // forward, so if yesterday wasn't closed, today opened at the branch default
+  // and yesterday's balance was lost.
   const pastClosed = await tx.dailyCashRegister.findMany({
-    where: { branchId, isClosed: true, date: { lt: date } },
+    where: { branchId, date: { lt: date } },
     orderBy: { date: 'desc' },
     take: 1,
   });
