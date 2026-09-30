@@ -23,7 +23,16 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     // These are set only by the receive / pay / cancel flows and the server — never
     // accepted from a save, or a PO could be created/edited as Received with a
     // fake paid amount and number (PUR2-6).
-    const SERVER_MANAGED = ['status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments', 'createdAt', 'updatedAt'];
+    // These are owned by dedicated flows (receive / pay / cancel / record-bill /
+    // attachments) and the server — never taken from a general PO save. PUR5-4:
+    // the supplier-bill and attachment fields are here too, so an "Edit Prices"
+    // save built from a stale snapshot can't blank out the supplier's tax invoice
+    // or another user's uploaded attachments (PUR2-6).
+    const SERVER_MANAGED = [
+      'status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments',
+      'supplierBillNumber', 'supplierBillDate', 'supplierBillTaxable', 'supplierBillGst', 'attachments',
+      'createdAt', 'updatedAt',
+    ];
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
     if (existingPo) {
       // SEC5-2: the guard at the top ran against the request's poData.branchId.
