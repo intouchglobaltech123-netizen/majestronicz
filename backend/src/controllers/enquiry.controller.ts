@@ -7,8 +7,10 @@ const actorFrom = (req: Request) => (req as any).user;
 export const save = async (req: Request, res: Response) => {
   const { enquiry: e, initialExpectedRestockDate, actor } = req.body;
   // A branch-locked user can only log enquiries for their own branch (SEC2-1/CRM-14).
+  // On a NEW enquiry this checks the request branch; saveEnquiry re-checks the
+  // STORED branch on an edit (SEC5-2).
   assertBranchAllowed((req as any).user, e?.branchId);
-  res.json(await enquiry.saveEnquiry(e, initialExpectedRestockDate, actor));
+  res.json(await enquiry.saveEnquiry(e, initialExpectedRestockDate, actor, (req as any).user));
 };
 export const linkItem = async (req: Request, res: Response) => {
   const { enquiryId, item, actor } = req.body;

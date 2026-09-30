@@ -11,11 +11,39 @@ const snap = async (tx: any) => ({
  * Verify a kiosk PIN on the SERVER (SEC2-2). The PIN is never sent to the
  * browser any more, so the attendance kiosk asks the server to check it instead
  * of comparing client-side against a PIN in the bootstrap payload.
+ *
+ * SEC6-2: this endpoint returns a plain match/no-match, so without a limit a
+ * Manager (the whole /hrm router is behind hrm:write) could brute-force any
+ * staff member's 4-digit PIN. Lock a given employee's PIN check after a few
+ * wrong tries, mirroring the login lockout.
  */
+const KIOSK_MAX_FAILS = 5;
+const KIOSK_LOCK_MS = 60_000;
+const kioskPinAttempts = new Map<string, { fails: number; lockUntil: number }>();
+
 export async function verifyKioskPin(employeeId: string, pin: string): Promise<{ ok: boolean }> {
+  const key = String(employeeId || '');
+  const now = Date.now();
+  const rec = kioskPinAttempts.get(key) ?? { fails: 0, lockUntil: 0 };
+  if (rec.lockUntil > now) {
+    const secs = Math.ceil((rec.lockUntil - now) / 1000);
+    throw new AppError('LOCKED', `Too many PIN attempts. Try again in ${secs}s.`, 429);
+  }
+
   const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
-  if (!emp) return { ok: false };
-  return { ok: String(emp.pin || '') === String(pin || '').trim() };
+  const ok = !!emp && String(emp.pin || '') === String(pin || '').trim();
+
+  if (ok) {
+    kioskPinAttempts.delete(key);
+  } else {
+    rec.fails += 1;
+    if (rec.fails >= KIOSK_MAX_FAILS) {
+      rec.lockUntil = now + KIOSK_LOCK_MS;
+      rec.fails = 0;
+    }
+    kioskPinAttempts.set(key, rec);
+  }
+  return { ok };
 }
 
 // Attendance date/time are recorded in India Standard Time (Asia/Kolkata), not
@@ -194,6 +222,14 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
     }
 
     if (existing) {
+      // HRM6-2: a disbursed payroll row is final. Without this, re-posting "Mark
+      // Paid" (a duplicated/stale client row, or a direct API call — the UI only
+      // hides the button) overwrote finalPayable with a new client figure and
+      // reset paidAt, i.e. paid the same row again for a different amount. Same
+      // lock as updatePayrollAdjustment.
+      if (existing.status === 'Paid') {
+        throw new AppError('PAYROLL_PAID_LOCKED', 'This payroll is already disbursed (Paid) and cannot be paid again.', 409);
+      }
       // HRM3-4: freeze the disbursed figures at what was actually computed and
       // shown when Pay was clicked. computePayrollRows locks a Paid row to its
       // STORED amount, so if we only flipped the status the row would lock to a

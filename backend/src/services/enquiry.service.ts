@@ -16,9 +16,19 @@ const tl = (type: string, title: string, description: string, actor: string) => 
 });
 
 /** Save/edit an enquiry; auto-create a pending order on stock shortage; optional reminder. */
-export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | undefined, actor: string) {
+export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | undefined, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const e = { ...enquiry };
+    // SEC5-2: on edit, authorize against the STORED enquiry's branch (not the
+    // client-supplied one) and keep the branch immutable, so a branch-locked user
+    // can't edit or reassign another branch's enquiry via the request body.
+    const existingEnq = e.id ? await tx.enquiry.findUnique({ where: { id: e.id } }) : null;
+    if (existingEnq) {
+      assertBranchAllowed(reqUser, existingEnq.branchId);
+      e.branchId = existingEnq.branchId;
+    } else {
+      assertBranchAllowed(reqUser, e.branchId);
+    }
     if (!e.timeline || e.timeline.length === 0) {
       e.timeline = [tl('created', e.isNewItemRequest ? 'New Item Enquiry Created' : 'Customer Enquiry Created',
         `Requirement logged for ${e.quantity} ${e.unit || 'Units'} of ${e.itemName} at ${e.branchId}.`, actor)];

@@ -15,7 +15,18 @@ import { AppError } from './middleware/errorHandler.js';
  *   PUT    /:id         update
  *   DELETE /:id         delete
  */
-export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability, readCap?: Capability): Router {
+// A branch-locked user (a non-CEO account tied to one branch) must not read
+// other branches' rows through a generic list/fetch (SEC2-3 / CASH6-1). We
+// filter by the row's own branchId in JS — rows with no branchId (cross-branch
+// masters like items/vendors/customers) are always kept, so this is safe to
+// apply generically and needs no per-model schema knowledge.
+const branchLock = (user: any): string | null =>
+  user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+
+const inBranch = (row: any, branch: string | null): boolean =>
+  !branch || row == null || row.branchId == null || String(row.branchId) === branch;
+
+export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability, readCap?: Capability, branchScoped?: boolean): Router {
   const router = Router();
 
   // Enforce RBAC on both read and mutating requests
@@ -58,7 +69,12 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
 
   router.get(
     '/',
-    wrap(async () => delegate.findMany())
+    wrap(async (req) => {
+      const rows = await delegate.findMany();
+      if (!branchScoped) return rows;
+      const branch = branchLock((req as any).user);
+      return branch ? (rows as any[]).filter((r) => inBranch(r, branch)) : rows;
+    })
   );
 
   // NOTE: the generic bulk-replace (PUT /bulk), blind full-row update (PUT /:id)
@@ -74,6 +90,8 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
     wrap(async (req) => {
       const row = await delegate.findUnique({ where: { id: req.params.id } });
       if (!row) return { error: 'Not found' };
+      // Don't leak another branch's record by direct id either (SEC2-3).
+      if (branchScoped && !inBranch(row, branchLock((req as any).user))) return { error: 'Not found' };
       return row;
     })
   );

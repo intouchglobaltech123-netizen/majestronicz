@@ -188,6 +188,13 @@ export function createSale(inv: any, reqUser?: any) {
       // sequence (SAL2-6).
       inv.branchId = existing.branchId;
       inv.invoiceNumber = existing.invoiceNumber;
+      // SEC5-2: the guard at the top of this function ran against the client's
+      // inv.branchId. On an edit, authorize against the STORED bill's branch too,
+      // so a branch-locked user can't edit another branch's bill by putting their
+      // own branch in the request body.
+      if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && existing.branchId !== reqUser.assignedBranchId) {
+        throw new AppError('FORBIDDEN', `You are only authorized to edit bills for branch ${reqUser.assignedBranchId}`, 403);
+      }
     }
     if (isNewSale) {
       // SAL3-1: a quotation can only become ONE live invoice. The client hides

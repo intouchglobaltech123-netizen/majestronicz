@@ -11,6 +11,13 @@ export async function attachUser(req: Request & { user?: SessionUser | null }, _
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
   const session = verifyToken(token);
+  // SEC3-3: every token issued by /auth/login carries a userId. A validly-signed
+  // token WITHOUT one can only be forged or legacy, and it would slip past the
+  // live disabled-account / role-change revocation check below. Reject it.
+  if (session && !session.userId) {
+    req.user = null;
+    return next();
+  }
   if (session?.userId) {
     try {
       const account = await prisma.user.findUnique({

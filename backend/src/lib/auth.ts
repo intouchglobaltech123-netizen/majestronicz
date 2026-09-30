@@ -136,15 +136,44 @@ export const roleFlags = (role: Role): string[] => {
 // secret written in the repo would let anyone forge a CEO token (SEC2-4), so we
 // refuse to start rather than run with the public default. The dev fallback is
 // kept only for local development (NODE_ENV !== 'production').
+// The in-repo development fallback. It is public (anyone can read it here), so a
+// production server that ran with it could have CEO tokens forged (SEC6-3). It
+// is only ever used when NODE_ENV !== 'production'.
+const DEV_DEFAULT_SECRET = 'majestronicz-dev-secret-change-in-prod';
+
+// Length alone is not strength: "aaaaaaaaaaaaaaaa" and the public dev default
+// both clear 16 chars but are trivially guessable/known. Refuse these in
+// production so a real, random secret is forced (SEC3-3 / SEC6-3).
+const KNOWN_WEAK_SECRETS = new Set([
+  DEV_DEFAULT_SECRET,
+  'change-in-prod', 'changeme', 'change-me', 'secret', 'dev-secret',
+  'majestronicz', 'majestronicz-secret',
+]);
+const isWeakSecret = (s: string): boolean => {
+  const v = s.trim().toLowerCase();
+  if (KNOWN_WEAK_SECRETS.has(v)) return true;
+  // Almost no entropy — a handful of distinct characters (e.g. all one letter).
+  if (new Set(v).size <= 4) return true;
+  return false;
+};
+
 const SECRET = (() => {
   const fromEnv = process.env.AUTH_SECRET;
-  if (fromEnv && fromEnv.length >= 16) return fromEnv;
-  if (process.env.NODE_ENV === 'production') {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (fromEnv && fromEnv.length >= 16) {
+    if (isProd && isWeakSecret(fromEnv)) {
+      throw new Error(
+        'AUTH_SECRET is a known or weak default value. Set a strong, random AUTH_SECRET (not the dev default) before starting the server in production.'
+      );
+    }
+    return fromEnv;
+  }
+  if (isProd) {
     throw new Error(
       'AUTH_SECRET is missing or too short. Set a strong AUTH_SECRET (>= 16 chars) in the environment before starting the server.'
     );
   }
-  return 'majestronicz-dev-secret-change-in-prod';
+  return DEV_DEFAULT_SECRET;
 })();
 
 // Optional PREVIOUS secret, used only during a rotation grace period. When you
@@ -161,8 +190,16 @@ const SECRET = (() => {
 const SECRET_PREV = (() => {
   const prev = process.env.AUTH_SECRET_PREV;
   if (!prev) return '';
-  if (prev.length >= 16) return prev;
-  if (process.env.NODE_ENV === 'production') {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (prev.length >= 16) {
+    // A weak/known PREV widens the set of accepted signatures with a guessable
+    // key, re-opening token forgery during the rotation window (SEC3-3).
+    if (isProd && isWeakSecret(prev)) {
+      throw new Error('AUTH_SECRET_PREV is a known or weak default value. Use the real previous secret, or unset it.');
+    }
+    return prev;
+  }
+  if (isProd) {
     throw new Error('AUTH_SECRET_PREV is set but too short (< 16 chars). Use the real previous secret, or unset it.');
   }
   return prev;

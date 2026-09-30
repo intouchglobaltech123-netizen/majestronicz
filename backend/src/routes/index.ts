@@ -4,6 +4,7 @@ import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireCapability, requireAuth } from '../middleware/rbac.js';
 import { issueToken, Capability } from '../lib/auth.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
 import { nowIso } from '../lib/stockLedger.js';
@@ -92,10 +93,30 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   });
 }));
 
+// Rate-limit change-pin per account so it can't be used as a PIN oracle. The
+// handler answers "that PIN is already in use" on a collision (a real staff need
+// — they must pick a free PIN), but that same 409 lets a logged-in user probe
+// 0000–9999 and learn other people's PINs (SEC6-1). A tight per-user budget
+// makes brute-forcing the space infeasible without hurting a genuine reset.
+const CHANGE_PIN_MAX = 8;
+const CHANGE_PIN_WINDOW_MS = 15 * 60_000;
+const changePinAttempts = new Map<string, { count: number; resetAt: number }>();
+
 // Logged-in user sets a new PIN (mandatory on first login for new staff).
 router.post('/auth/change-pin', asyncHandler(async (req, res) => {
   const actor = (req as any).user;
   if (!actor?.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  const now = Date.now();
+  const rl = changePinAttempts.get(actor.userId);
+  if (!rl || rl.resetAt <= now) {
+    changePinAttempts.set(actor.userId, { count: 1, resetAt: now + CHANGE_PIN_WINDOW_MS });
+  } else {
+    rl.count += 1;
+    if (rl.count > CHANGE_PIN_MAX) {
+      const secs = Math.ceil((rl.resetAt - now) / 1000);
+      throw new AppError('RATE_LIMITED', `Too many PIN changes. Try again in ${secs}s.`, 429);
+    }
+  }
   await changeOwnPin(actor.userId, String(req.body?.newPin || ''));
   await recordAudit({ actor: actorOf(req), action: 'auth.change-pin', entity: 'user', entityId: actor.userId, summary: 'Staff set their own new PIN' });
   broadcastChange('POST /api/auth/change-pin');
@@ -156,13 +177,22 @@ router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, r
 // Employee reads must never leak the login/kiosk PIN (SEC2-2). These dedicated
 // GETs strip `pin` and are declared BEFORE the generic crudRouter mount below so
 // they take precedence over its all-columns response.
-router.get('/employees', requireCapability('hrm:write'), asyncHandler(async (_req, res) => {
+router.get('/employees', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
   const emps = await prisma.employee.findMany();
-  res.json(emps.map((e: any) => { const { pin, ...rest } = e; return rest; }));
+  res.json(
+    emps
+      .filter((e: any) => !branch || e.branchId == null || String(e.branchId) === branch) // SEC2-3
+      .map((e: any) => { const { pin, ...rest } = e; return rest; })
+  );
 }));
 router.get('/employees/:id', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
   const e: any = await prisma.employee.findUnique({ where: { id: req.params.id } });
   if (!e) return res.json({ error: 'Not found' });
+  const user = (req as any).user;
+  const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+  if (branch && e.branchId != null && String(e.branchId) !== branch) return res.json({ error: 'Not found' }); // SEC2-3
   const { pin, ...rest } = e;
   res.json(rest);
 }));
@@ -196,12 +226,17 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   if (b.monthlySalary != null && Number(b.monthlySalary) < 0) throw new AppError('BAD_SALARY', 'Salary cannot be negative', 400);
   const setPin = b.pin != null && String(b.pin) !== '';
   if (setPin && !/^\d{4}$/.test(String(b.pin))) throw new AppError('BAD_PIN', 'PIN must be exactly 4 digits', 400);
+  // SEC5-1: a branch-locked user must not create or reassign an employee into
+  // another branch. Authorize on the requested branch, and on edit also on the
+  // stored branch so another branch's employee can't be touched.
+  assertBranchAllowed((req as any).user, b.branchId);
   const id = String(b.id || `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const allowed = pick(b, ['name', 'designation', 'branchId', 'monthlySalary', 'incentivePercent', 'status', 'phone', 'email', 'joinedDate']);
   const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: String(b.pin) } : {}) };
   const existing = await prisma.employee.findUnique({ where: { id } });
   let employee;
   if (existing) {
+    assertBranchAllowed((req as any).user, existing.branchId);
     employee = await prisma.employee.update({ where: { id }, data: base }); // blank PIN keeps the existing one
   } else {
     if (!setPin) throw new AppError('PIN_REQUIRED', 'A 4-digit PIN is required for a new employee', 400);
@@ -218,7 +253,12 @@ router.post('/recurring-expenses', requireCapability('cash:write'), asyncHandler
   if (Number(b.defaultAmount) <= 0) throw new AppError('BAD_AMOUNT', 'Amount must be greater than zero', 400);
   const due = Number(b.dueDay);
   if (!Number.isInteger(due) || due < 1 || due > 31) throw new AppError('BAD_DUE', 'Due day must be 1–31', 400);
+  // SEC5-1: recurring-expense templates are branch-scoped — a branch-locked user
+  // must not create one for another branch.
+  assertBranchAllowed((req as any).user, b.branchId);
   const id = String(b.id || `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const existingTpl = await prisma.recurringExpenseTemplate.findUnique({ where: { id } });
+  if (existingTpl) assertBranchAllowed((req as any).user, existingTpl.branchId);
   // The approval ledger (lastApprovedMonth / approvalHistory) is NEVER accepted
   // from the client — that's how a forged "rent posted twice" got in.
   const data = pick(b, ['name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode']);
@@ -228,28 +268,32 @@ router.post('/recurring-expenses', requireCapability('cash:write'), asyncHandler
 }));
 
 // ---- Generic id-keyed CRUD resources (RBAC per resource on writes & sensitive reads) ----
-const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability }> = {
+// `scoped` marks a branch-owned resource whose generic GET must be filtered to
+// the caller's own branch when they are branch-locked (SEC2-3 / CASH6-1). The
+// cross-branch masters (items, combos, vendors, customers) stay unscoped, as do
+// the inter-branch stock movement logs, which are meant to be seen from both ends.
+const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability; scoped?: boolean }> = {
   items: { delegate: prisma.item, cap: 'items:write' },
   combos: { delegate: prisma.comboItem, cap: 'items:write' },
   'stock-adjustments': { delegate: prisma.stockAdjustmentLog, cap: 'stock:write', readCap: 'stock:write' },
-  estimates: { delegate: prisma.estimate, cap: 'estimate:write', readCap: 'estimate:write' },
-  challans: { delegate: prisma.deliveryChallan, cap: 'challan:write', readCap: 'challan:write' },
-  invoices: { delegate: prisma.invoice, cap: 'sales:write', readCap: 'sales:write' },
-  enquiries: { delegate: prisma.enquiry, cap: 'enquiry:write', readCap: 'enquiry:write' },
-  'pending-orders': { delegate: prisma.pendingOrder, cap: 'enquiry:write', readCap: 'enquiry:write' },
-  reminders: { delegate: prisma.followUpReminder, cap: 'enquiry:write', readCap: 'enquiry:write' },
-  'cash-registers': { delegate: prisma.dailyCashRegister, cap: 'cash:write', readCap: 'cash:write' },
-  'recurring-expenses': { delegate: prisma.recurringExpenseTemplate, cap: 'cash:write', readCap: 'cash:write' },
+  estimates: { delegate: prisma.estimate, cap: 'estimate:write', readCap: 'estimate:write', scoped: true },
+  challans: { delegate: prisma.deliveryChallan, cap: 'challan:write', readCap: 'challan:write', scoped: true },
+  invoices: { delegate: prisma.invoice, cap: 'sales:write', readCap: 'sales:write', scoped: true },
+  enquiries: { delegate: prisma.enquiry, cap: 'enquiry:write', readCap: 'enquiry:write', scoped: true },
+  'pending-orders': { delegate: prisma.pendingOrder, cap: 'enquiry:write', readCap: 'enquiry:write', scoped: true },
+  reminders: { delegate: prisma.followUpReminder, cap: 'enquiry:write', readCap: 'enquiry:write', scoped: true },
+  'cash-registers': { delegate: prisma.dailyCashRegister, cap: 'cash:write', readCap: 'cash:write', scoped: true },
+  'recurring-expenses': { delegate: prisma.recurringExpenseTemplate, cap: 'cash:write', readCap: 'cash:write', scoped: true },
   vendors: { delegate: prisma.vendor, cap: 'purchase:write', readCap: 'purchase:write' },
-  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write', readCap: 'purchase:write' },
-  employees: { delegate: prisma.employee, cap: 'hrm:write', readCap: 'hrm:write' },
-  'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write', readCap: 'hrm:write' },
-  'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin', readCap: 'payroll:admin' },
+  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write', readCap: 'purchase:write', scoped: true },
+  employees: { delegate: prisma.employee, cap: 'hrm:write', readCap: 'hrm:write', scoped: true },
+  'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write', readCap: 'hrm:write', scoped: true },
+  'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin', readCap: 'payroll:admin', scoped: true },
   customers: { delegate: prisma.customer, cap: 'customer:write', readCap: 'customer:write' },
   'stock-transfers': { delegate: prisma.stockTransfer, cap: 'stock:write', readCap: 'stock:write' },
 };
-for (const [path, { delegate, cap, readCap }] of Object.entries(resources)) {
-  router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap));
+for (const [path, { delegate, cap, readCap, scoped }] of Object.entries(resources)) {
+  router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap, scoped));
 }
 
 // Dedicated delete routes for vendors & employees (the generic DELETE /:id was
@@ -359,7 +403,11 @@ router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req
 // ---- Payments / party ledger (receipts from customers, payments to vendors) ----
 router.get('/payments', requireAuth, asyncHandler(async (req, res) => {
   const { partyType, partyId, type } = req.query as Record<string, string | undefined>;
-  res.json(await listPayments({ partyType, partyId, type }));
+  // SEC2-3: a branch-locked user must not read another branch's payment ledger.
+  const user = (req as any).user;
+  const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+  const rows: any[] = await listPayments({ partyType, partyId, type });
+  res.json(branch ? rows.filter((p) => p.branchId == null || String(p.branchId) === branch) : rows);
 }));
 router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const user = (req as any).user;

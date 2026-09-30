@@ -26,8 +26,14 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     const SERVER_MANAGED = ['status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments', 'createdAt', 'updatedAt'];
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
     if (existingPo) {
+      // SEC5-2: the guard at the top ran against the request's poData.branchId.
+      // On an edit, authorize against the STORED PO's branch and keep the branch
+      // immutable, so a branch-locked user can't edit or move another branch's PO
+      // by sending a different branchId.
+      assertBranchAllowed(reqUser, existingPo.branchId);
       const { id, ...rest } = poData;
       for (const k of SERVER_MANAGED) delete (rest as any)[k];
+      delete (rest as any).branchId;
       // E2E-5: an Edit-Prices payload is built from a snapshot of the PO the user
       // opened, which may predate a receipt. Take price / ordered-qty / tax from
       // the client, but keep the server's per-line received / damaged / missing

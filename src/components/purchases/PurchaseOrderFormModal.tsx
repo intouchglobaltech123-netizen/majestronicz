@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ShoppingBag,
@@ -103,9 +103,22 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   // Validation
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Sync default branch or pre-selected vendor when opening
+  // Sync default branch or pre-selected vendor when opening.
+  // PUR-4: seed the form ONLY on the closed→open edge. The app runs a 1-second
+  // status-bar clock whose tick re-renders this whole subtree, and the parents
+  // pass preFilledItems / preSelectedVendor as fresh array/object literals on
+  // every render. With those in the dep array, this effect re-ran every second
+  // and reset the lines/date/notes, wiping whatever the user had typed. Guarding
+  // on an open-transition ref makes re-render ticks no-ops.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return; // already open — this is a re-render tick, not a fresh open
+    wasOpenRef.current = true;
+    {
       const initialBranch: BranchId =
         preFilledBranchId ||
         (currentUser.role === 'Manager'

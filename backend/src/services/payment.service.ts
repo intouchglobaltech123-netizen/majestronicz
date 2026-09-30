@@ -144,6 +144,13 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       const firstInv = await tx.invoice.findUnique({ where: { id: allocations[0].refId } });
       if (firstInv?.branchId) branchId = firstInv.branchId;
     }
+    // A vendor payment (type 'out') settles POs; book it to the PO's own branch
+    // and, below, authorize every settled PO against the user's branch — otherwise
+    // a branch-locked user could pay down another branch's payable (PUR6-1).
+    if (input.type === 'out' && allocations.length) {
+      const firstPo = await tx.purchaseOrder.findUnique({ where: { id: allocations[0].refId } });
+      if (firstPo?.branchId) branchId = firstPo.branchId;
+    }
     assertBranchAllowed(reqUser, branchId); // a branch-locked user can't bank a receipt to another branch
     // A receipt/payment dated to a day whose drawer is already closed would
     // change that reconciled day's cash total after the fact (CASH-2).
@@ -177,6 +184,7 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
         if (!po) continue;
+        assertBranchAllowed(reqUser, po.branchId); // PUR6-1: can't settle another branch's PO
         // Cap at the tax-INCLUSIVE payable less debit notes — the same balance
         // used by purchaseOrderBalanceDue and recordPurchaseOrderPayment. Using
         // the ex-tax goods value here silently dropped the GST portion of a
