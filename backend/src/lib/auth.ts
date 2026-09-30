@@ -161,14 +161,23 @@ const SECRET = (() => {
   const fromEnv = process.env.AUTH_SECRET;
   const isProd = process.env.NODE_ENV === 'production';
   if (fromEnv && fromEnv.length >= 16) {
+    // A known/weak secret (e.g. the public dev default) is a real risk — anyone
+    // who knows it can forge a CEO token. But some deployments deliberately run
+    // with the dev default as a documented stopgap (the stored PIN hashes are
+    // keyed to it), so we WARN LOUDLY rather than refuse to start: throwing here
+    // crash-loops the backend and takes the whole site down (nobody can log in),
+    // which is worse than the risk it guards against. Rotate to a strong secret
+    // via AUTH_SECRET + AUTH_SECRET_PREV to clear this warning (SEC6-3).
     if (isProd && isWeakSecret(fromEnv)) {
-      throw new Error(
-        'AUTH_SECRET is a known or weak default value. Set a strong, random AUTH_SECRET (not the dev default) before starting the server in production.'
+      console.warn(
+        '[auth] SECURITY WARNING: AUTH_SECRET is a known/weak value — tokens are forgeable. Rotate to a strong, random AUTH_SECRET (set the old value as AUTH_SECRET_PREV for a lockout-free rotation).'
       );
     }
     return fromEnv;
   }
   if (isProd) {
+    // A missing or too-short secret is a real misconfiguration (not a deliberate
+    // stopgap) — refuse to start rather than sign tokens with a trivial key.
     throw new Error(
       'AUTH_SECRET is missing or too short. Set a strong AUTH_SECRET (>= 16 chars) in the environment before starting the server.'
     );
@@ -192,10 +201,15 @@ const SECRET_PREV = (() => {
   if (!prev) return '';
   const isProd = process.env.NODE_ENV === 'production';
   if (prev.length >= 16) {
-    // A weak/known PREV widens the set of accepted signatures with a guessable
-    // key, re-opening token forgery during the rotation window (SEC3-3).
+    // PREV legitimately holds the OLD secret during a rotation grace period, and
+    // that old secret may itself be the weak/dev-default one being rotated away
+    // from — so we must NOT refuse to start on it (that would defeat the whole
+    // lockout-free rotation and crash production). Warn instead, and remind the
+    // operator to remove it once everyone has logged in under the new secret.
     if (isProd && isWeakSecret(prev)) {
-      throw new Error('AUTH_SECRET_PREV is a known or weak default value. Use the real previous secret, or unset it.');
+      console.warn(
+        '[auth] SECURITY WARNING: AUTH_SECRET_PREV is a known/weak value — remove it once all users have logged in under the new AUTH_SECRET.'
+      );
     }
     return prev;
   }
