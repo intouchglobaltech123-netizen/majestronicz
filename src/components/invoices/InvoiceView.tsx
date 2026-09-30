@@ -1212,7 +1212,12 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       <ConvertEstimateModal
         isOpen={isConvertModalOpen}
         onClose={() => setIsConvertModalOpen(false)}
-        estimates={estimates}
+        // SAL3-1: a quote already turned into a (non-voided) invoice must not be
+        // offered for a second conversion — the server rejects it, but the picker
+        // should not tempt the user into it either.
+        estimates={estimates.filter(
+          (est) => !invoices.some((i) => i.sourceEstimateId === est.id && !i.isVoided)
+        )}
         onSelectEstimate={handleSelectEstimateToConvert}
       />
 

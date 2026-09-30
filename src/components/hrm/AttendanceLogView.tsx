@@ -255,30 +255,43 @@ export const AttendanceLogView: React.FC = () => {
                       {/* Check-In Details */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          {/* Thumbnail with click to open lightbox */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openLightbox(
-                                rec.checkInPhoto,
-                                `${rec.employeeName} (Check-In)`,
-                                rec.checkInTime,
-                                rec.date,
-                                rec.checkInLocation
-                              )
-                            }
-                            className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
-                            title="Click to view full photo"
-                          >
-                            <img
-                              src={rec.checkInPhoto}
-                              alt="Check-in selfie"
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
-                            />
-                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors flex items-center justify-center">
-                              <LogIn className="h-3 w-3 text-white drop-shadow-sm" />
+                          {/* Thumbnail with click to open lightbox. HRM6-1: a self
+                              check-in may carry no selfie and no GPS (both are now
+                              optional), so guard every field — dereferencing a null
+                              checkInLocation/checkInPhoto here crashed the whole
+                              Attendance screen and blocked payroll. */}
+                          {rec.checkInPhoto ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openLightbox(
+                                  rec.checkInPhoto!,
+                                  `${rec.employeeName} (Check-In)`,
+                                  rec.checkInTime,
+                                  rec.date,
+                                  rec.checkInLocation || undefined
+                                )
+                              }
+                              className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
+                              title="Click to view full photo"
+                            >
+                              <img
+                                src={rec.checkInPhoto}
+                                alt="Check-in selfie"
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors flex items-center justify-center">
+                                <LogIn className="h-3 w-3 text-white drop-shadow-sm" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div
+                              className="h-11 w-11 rounded-none border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 shrink-0"
+                              title="No selfie captured"
+                            >
+                              <LogIn className="h-4 w-4" />
                             </div>
-                          </button>
+                          )}
 
                           {/* Time & Map Link */}
                           <div className="space-y-0.5 text-xs">
@@ -286,16 +299,23 @@ export const AttendanceLogView: React.FC = () => {
                               <Clock className="h-3 w-3 text-red-700" />
                               <span>{rec.checkInTime}</span>
                             </div>
-                            <a
-                              href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[11px] text-red-700 hover:text-red-900 font-medium flex items-center gap-1 truncate max-w-[170px]"
-                              title={`${rec.checkInLocation.addressHint} (${rec.checkInLocation.latitude.toFixed(4)}, ${rec.checkInLocation.longitude.toFixed(4)})`}
-                            >
-                              <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
-                              <span className="truncate">{rec.checkInLocation.addressHint || 'Map GPS'}</span>
-                            </a>
+                            {rec.checkInLocation ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-red-700 hover:text-red-900 font-medium flex items-center gap-1 truncate max-w-[170px]"
+                                title={`${rec.checkInLocation.addressHint} (${rec.checkInLocation.latitude.toFixed(4)}, ${rec.checkInLocation.longitude.toFixed(4)})`}
+                              >
+                                <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                                <span className="truncate">{rec.checkInLocation.addressHint || 'Map GPS'}</span>
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1" title="No GPS captured">
+                                <MapPin className="h-3 w-3 text-slate-300 shrink-0" />
+                                <span>No GPS</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>

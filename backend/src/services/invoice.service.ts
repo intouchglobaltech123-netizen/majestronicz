@@ -169,6 +169,20 @@ export function createSale(inv: any, reqUser?: any) {
       // A voided bill is final — it must not be edited back into a live sale that
       // adds phantom stock (SAL2-7).
       if (existing.isVoided) throw new AppError('VOIDED', 'A voided bill cannot be edited.', 400);
+      // SAL3-2: a bill that already has returns must not be edited. The edit path
+      // below restores the FULL sold quantity of the old bill before applying the
+      // new lines, but the returned units were already put back into stock when
+      // the return was recorded — so editing double-restores them and fabricates
+      // stock (and the returned amount can exceed the new bill). Reverse/delete the
+      // return first.
+      const existingReturns = ((existing.returns as any[]) || []);
+      if (existingReturns.some((r: any) => (r.returnedQuantity || 0) > 0)) {
+        throw new AppError(
+          'HAS_RETURNS',
+          'This bill has returns recorded against it and cannot be edited. Reverse the return first.',
+          409
+        );
+      }
       // Branch and invoice number are immutable on edit: changing the branch
       // orphans the original branch's stock, and changing the number breaks the
       // sequence (SAL2-6).
@@ -181,12 +195,16 @@ export function createSale(inv: any, reqUser?: any) {
       // reject a second conversion of the same estimate on the server. A voided
       // conversion frees the estimate to be converted again.
       if (inv.sourceEstimateId) {
-        // isVoided is optional (Boolean?) — a live bill stores NULL, not false —
-        // so `isVoided: false` matched nothing and the guard never fired. Match
-        // "not voided" instead, so any existing non-voided conversion blocks a
-        // second one (SAL3-1).
+        // isVoided is optional (Boolean?) — a live bill stores NULL, not false.
+        // `NOT: { isVoided: true }` looks right but in SQL `NOT(NULL = true)` is
+        // NULL, so it excludes every NULL row too and the guard matched nothing.
+        // Match "voided is null OR false" explicitly so any existing non-voided
+        // conversion blocks a second one (SAL3-1).
         const already = await tx.invoice.findFirst({
-          where: { sourceEstimateId: inv.sourceEstimateId, NOT: { isVoided: true } },
+          where: {
+            sourceEstimateId: inv.sourceEstimateId,
+            OR: [{ isVoided: null }, { isVoided: false }],
+          },
         });
         if (already) {
           throw new AppError('ALREADY_CONVERTED', `This quotation was already converted to invoice ${already.invoiceNumber}.`, 409);
