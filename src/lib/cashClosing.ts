@@ -39,17 +39,18 @@ export function computeDayCashClosing(
   payments: Payment[],
   expenses: DailyCashRegister['expenses'],
 ): DayCashClosing {
+  // Cash collected on bills of this day. Returns are NOT netted here — a refund
+  // is booked as a Cash 'out' payment on the RETURN day (below), so netting it
+  // here as well would double-count it and would retroactively change a closed
+  // billing day (SAL4-12). Must mirror the backend invoiceCashCollected.
   const cashSales = (invoices || [])
     .filter((inv) => inv.branchId === branchId && inv.date === date && !inv.isVoided)
     .reduce((sum, inv) => {
       const splits = getInvoicePaymentSplits(inv);
-      const grand = Number(inv.grandTotal) || 0;
-      const returned = Math.min(grand, Number(inv.totalReturnedAmount) || 0);
-      const ratio = grand > 0 ? (grand - returned) / grand : 1;
       const cash = splits
         .filter((s) => s.mode === 'Cash')
         .reduce((c, s) => c + (Number(s.amount) || 0), 0);
-      return sum + cash * ratio;
+      return sum + cash;
     }, 0);
 
   let cashReceipts = 0;

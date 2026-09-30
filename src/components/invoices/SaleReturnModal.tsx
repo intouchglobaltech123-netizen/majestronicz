@@ -35,6 +35,8 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const [reason, setReason] = useState(COMMON_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
   const [notes, setNotes] = useState('');
+  // How the refund was paid back — a Cash refund leaves the cash drawer today; GPay/Card does not.
+  const [refundMode, setRefundMode] = useState('Cash');
 
   // Reset state when invoice changes
   useEffect(() => {
@@ -161,7 +163,8 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         comboComponents: l.comboComponents,
       }));
 
-    processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes);
+    // A damaged write-off refunds nothing to the customer, so no refund mode needed.
+    processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode);
     onClose();
   };
 
@@ -390,6 +393,25 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 className="w-full px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-600"
               />
             </div>
+
+            {/* How the refund was paid back — recorded on the ledger; a Cash
+                refund leaves the drawer today (SAL6-1). Not shown for a damaged
+                write-off (nothing is refunded). */}
+            {!/damag/i.test(reason) && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Refund paid by</label>
+                <select
+                  value={refundMode}
+                  onChange={(e) => setRefundMode(e.target.value)}
+                  className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600"
+                >
+                  <option value="Cash">Cash (leaves the drawer)</option>
+                  <option value="GPay">GPay</option>
+                  <option value="HDFC">Bank / HDFC</option>
+                  <option value="Adjust">Adjusted to credit note</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Refund Total Summary Callout */}

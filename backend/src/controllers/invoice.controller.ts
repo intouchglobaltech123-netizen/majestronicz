@@ -23,8 +23,8 @@ export const voidInvoice = async (req: Request, res: Response) => {
 };
 
 export const processReturn = async (req: Request, res: Response) => {
-  const { invoiceId, returnLines, reason, notes, actor } = req.body;
-  const result = await invoiceService.processReturn(invoiceId, returnLines, reason, notes, actor, (req as any).user);
+  const { invoiceId, returnLines, reason, notes, actor, refundMode } = req.body;
+  const result = await invoiceService.processReturn(invoiceId, returnLines, reason, notes, actor, (req as any).user, refundMode);
   const qty = Array.isArray(returnLines) ? returnLines.reduce((s: number, l: any) => s + (l.returnQty || 0), 0) : 0;
   await recordAudit({ actor: actorOf(req), action: 'sale.return', entity: 'invoice', entityId: invoiceId, summary: `Return ${qty} unit(s) — ${reason || 'no reason'}${notes ? ` (${notes})` : ''}` });
   res.json(result);

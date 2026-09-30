@@ -8,15 +8,14 @@ const snap = async (tx: any) => ({
   recurringExpenses: await tx.recurringExpenseTemplate.findMany(),
 });
 
-// Cash actually collected on an invoice — sum of Cash-mode payment splits when
-// present, otherwise the legacy single-mode logic — reduced by returns
-// PROPORTIONALLY (per split), matching the frontend's shared closing formula so
-// every view of a day's closing agrees (CASH2-3).
+// Cash actually collected on an invoice on its billing day — the sum of its
+// Cash-mode payment splits (or the legacy single-mode logic). Returns are NOT
+// netted here any more: a refund is booked as a Payment 'out' row on the RETURN
+// day (see processReturn), so netting it here too would double-count it and
+// would retroactively change a possibly-closed billing day (SAL4-12).
 function invoiceCashCollected(i: any): number {
   if (i.isVoided) return 0;
   const grand = Number(i.grandTotal) || 0;
-  const returned = Math.min(grand, Number(i.totalReturnedAmount) || 0);
-  const ratio = grand > 0 ? (grand - returned) / grand : 1;
   let cash = 0;
   const splits = Array.isArray(i.paymentSplits) ? i.paymentSplits : null;
   if (splits && splits.length > 0) {
@@ -24,7 +23,7 @@ function invoiceCashCollected(i: any): number {
   } else if (i.paymentMode === 'Cash') {
     cash = i.isPartialPayment && i.partialAmount ? i.partialAmount : grand;
   }
-  return Math.max(0, cash * ratio);
+  return Math.max(0, cash);
 }
 
 /** Carry-forward opening balance from the most recent closed day (else branch default). */

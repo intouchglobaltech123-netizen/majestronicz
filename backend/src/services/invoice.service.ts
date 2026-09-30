@@ -451,14 +451,17 @@ export function processReturn(
   reason: string,
   notes: string | undefined,
   actor: string,
-  reqUser?: any
+  reqUser?: any,
+  refundMode?: string,
 ) {
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
-    await assertDayOpen(tx, inv.branchId, inv.date, 'process this return'); // CASH-2
+    // SAL4-12: a return is ALLOWED even after the bill's day is closed — the
+    // refund is booked on the RETURN day (see the Payment 'out' row below), so a
+    // closed, reconciled day is never changed after the fact. (No assertDayOpen.)
     const validLines = (returnLines || []).filter((l: any) => l.returnQty > 0);
     if (!validLines.length) throw new AppError('NO_LINES', 'No return quantity specified', 400);
 
@@ -602,6 +605,33 @@ export function processReturn(
         updatedAt: ts,
       },
     });
+
+    // Record the refund as a Payment-ledger 'out' row dated on the RETURN day, so
+    // the money leaves the drawer today (in the mode it was actually refunded)
+    // rather than silently netting off the original — possibly closed — bill's
+    // day. A Cash refund reduces the cash drawer; GPay/Card does not (SAL6-1 /
+    // SAL4-12). Only booked when something was actually refunded.
+    if (totalRefund > 0.001) {
+      const mode = refundMode || 'Cash';
+      const today = nowIso().slice(0, 10);
+      const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
+      const rows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
+      let maxNo = 0;
+      for (const r of rows) {
+        const n = parseInt(String(r.receiptNumber).slice(like.length), 10);
+        if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n);
+      }
+      await tx.payment.create({
+        data: {
+          id: rid('pay'), receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+          type: 'out', partyType: 'customer', partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer',
+          branchId: inv.branchId, date: today, amount: Math.round(totalRefund * 100) / 100, paymentMode: mode,
+          reference: inv.invoiceNumber ?? null, notes: `Refund on sale #${inv.invoiceNumber}${reason ? ` — ${reason}` : ''}`,
+          allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: Math.round(totalRefund * 100) / 100 }] as any,
+          createdById: null, createdByName: actor, createdAt: ts,
+        },
+      });
+    }
     return snapshot(tx);
   });
 }

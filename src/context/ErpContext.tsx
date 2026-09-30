@@ -251,7 +251,8 @@ interface ErpContextType {
       comboComponents?: ComboComponent[];
     }[],
     reason: string,
-    notes?: string
+    notes?: string,
+    refundMode?: string
   ) => void;
   getNextInvoiceNumber: (branchId: BranchId, date?: string) => string;
   estimateToConvert: Estimate | null;
@@ -2877,7 +2878,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       comboComponents?: ComboComponent[];
     }[],
     reason: string,
-    notes?: string
+    notes?: string,
+    refundMode?: string
   ) => {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) {
@@ -2900,6 +2902,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnLines: validLines,
         reason,
         notes,
+        refundMode: refundMode || 'Cash',
         actor: currentUser.name,
       });
       applySaleSnapshot(snap);
