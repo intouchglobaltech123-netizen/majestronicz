@@ -31,6 +31,16 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
   const rows = useMemo(() => {
     const out: PayRow[] = [];
 
+    // Invoices that already have a real refund Payment 'out' row (processReturn
+    // now books the refund to the ledger on the return day, in its actual mode).
+    // For those we must NOT also emit a synthetic refund from totalReturnedAmount,
+    // or the same refund is counted twice (CRM6-9).
+    const refundedInvoiceIds = new Set<string>();
+    payments.forEach((p: any) => {
+      if (p.type !== 'out' || p.partyType !== 'customer') return;
+      (p.allocations || []).forEach((a: any) => a?.refId && refundedInvoiceIds.add(a.refId));
+    });
+
     // Sales receipts (money IN) — actual amounts received per mode (skip COD-Credit dues).
     invoices.forEach((inv: any) => {
       if (inv.isVoided) return;
@@ -41,9 +51,11 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
           mode: s.mode, amount: Number(s.amount) || 0, ref: inv.invoiceNumber, branchId: inv.branchId,
         });
       });
-      // Sale refunds / returns (money OUT) — cash refunded to the customer.
+      // Sale refund (money OUT). Only synthesise it for LEGACY returns with no
+      // real refund Payment row — otherwise the ledger row below is the source of
+      // truth (correct date + mode) and this would double-count it.
       const refunded = Number(inv.totalReturnedAmount) || 0;
-      if (refunded > 0) {
+      if (refunded > 0 && !refundedInvoiceIds.has(inv.id)) {
         out.push({
           date: inv.date, direction: 'OUT', type: 'Sale refund', party: inv.customerName,
           mode: '—', amount: refunded, ref: inv.invoiceNumber, branchId: inv.branchId,
@@ -51,14 +63,17 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
       }
     });
 
-    // Party-ledger payments — customer receipts (type 'in') & vendor payments (type 'out').
-    payments.forEach((p) => {
+    // Party-ledger payments — customer receipts / refunds (type 'in'/'out' on a
+    // customer) & vendor payments (type 'out' on a vendor).
+    payments.forEach((p: any) => {
       const amount = Number(p.amount) || 0;
       if (!amount) return;
+      const type =
+        p.type === 'in' ? 'Customer receipt' : p.partyType === 'customer' ? 'Sale refund' : 'Vendor payment';
       out.push({
         date: (p.date || p.createdAt || '').slice(0, 10),
         direction: p.type === 'in' ? 'IN' : 'OUT',
-        type: p.type === 'in' ? 'Customer receipt' : 'Vendor payment',
+        type,
         party: p.partyName,
         mode: p.paymentMode || 'Cash',
         amount,

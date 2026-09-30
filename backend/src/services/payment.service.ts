@@ -63,60 +63,74 @@ function splitsOf(inv: any): { mode: string; amount: number }[] {
   return [{ mode: inv.paymentMode || 'Cash', amount: grand }];
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * Current outstanding on an invoice — ONE formula, shared with the frontend
- * computeInvoiceFinance (SAL-9): a COD-Credit split is what's still owed, so
- * due = outstanding COD-Credit − returns. Works for a single-split COD bill too
- * (the old code only counted the COD-Credit split when there was MORE than one,
- * so a paid single-split COD bill kept showing its full amount due).
+ * The credit a customer owed AT BILLING, reconstructed from the immutable split:
+ * grand total minus everything collected when the bill was made (every
+ * non-COD-Credit split). A receipt never changes the non-credit splits, so this
+ * is stable for the life of the bill — and correct for legacy already-settled
+ * bills too, because the old settlement only ever reduced the COD-Credit split
+ * (never a Cash/GPay one).
  */
-function invoiceDue(inv: any): number {
-  const codCredit = splitsOf(inv).filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0);
-  const due = codCredit - (Number(inv.totalReturnedAmount) || 0);
-  return Math.max(0, Math.round(due * 100) / 100);
+function originalCredit(inv: any): number {
+  const grand = Number(inv.grandTotal) || 0;
+  const collectedAtBilling = splitsOf(inv)
+    .filter((s) => s.mode !== 'COD-Credit')
+    .reduce((t, s) => t + (Number(s.amount) || 0), 0);
+  return Math.max(0, round2(grand - collectedAtBilling));
+}
+
+/** Sum of customer receipts (Payment 'in' rows) allocated to this invoice. */
+async function invoiceReceiptsTotal(tx: any, invoiceId: string): Promise<number> {
+  const rows = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+  let total = 0;
+  for (const p of rows) {
+    if (!Array.isArray(p.allocations)) continue;
+    for (const a of p.allocations as any[]) {
+      if (a?.refId === invoiceId) total += Number(a?.amount) || 0;
+    }
+  }
+  return round2(total);
 }
 
 /**
- * Reduce an invoice's outstanding by `amount`. The receipt lowers the COD-Credit
- * (unpaid) portion — regardless of how many splits the bill has, so a normal
- * single-split COD bill actually settles (SAL-9). A COD-Credit split is kept in
- * the array even at ₹0 so the due calc reads 0 and never reverts to the bill's
- * original full amount. The collected cash is a SEPARATE Payment row (it reaches
- * the drawer through that row), so no Cash split is added here — that would
- * double-count it.
+ * An invoice's current outstanding — the ONE money formula (CRM6-1 / SAL4-4):
+ *   due = originalCredit − receipts − returns
+ * Receipts come from the Payment ledger, NOT from mutating the bill, so the
+ * bill's original split (and the cash banked on its — possibly closed — day) is
+ * never rewritten. Mirrors the frontend computeInvoiceFinance.
  */
-function settleInvoiceFields(inv: any, amount: number) {
-  const billed = inv.grandTotal || 0;
-  const currentDue = invoiceDue(inv);
-  const pay = Math.min(amount, currentDue);
-  const newDue = Math.max(0, Math.round((currentDue - pay) * 100) / 100);
+async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
+  const receipts = await invoiceReceiptsTotal(tx, inv.id);
+  const returns = Number(inv.totalReturnedAmount) || 0;
+  return Math.max(0, round2(originalCredit(inv) - receipts - returns));
+}
 
-  // Start from the (possibly synthesised) splits so a legacy single-mode COD bill
-  // has a real COD-Credit split to reduce.
-  let splits: any[] = splitsOf(inv).map((s) => ({ ...s }));
-  const hasCodCredit = splits.some((s) => s?.mode === 'COD-Credit');
-  if (hasCodCredit) {
-    let remaining = pay;
-    splits = splits.map((s) => {
-      if (s.mode === 'COD-Credit' && remaining > 0) {
-        const take = Math.min(remaining, s.amount || 0);
-        remaining = Math.round((remaining - take) * 100) / 100;
-        return { ...s, amount: Math.round(((s.amount || 0) - take) * 100) / 100 };
-      }
-      return s;
-    });
-    // Drop zero non-credit splits but ALWAYS keep the COD-Credit split (even at 0)
-    // so the due calc sees codCredit=0 rather than falling back to the full bill.
-    splits = splits.filter((s) => s.mode === 'COD-Credit' || (s.amount || 0) > 0.001);
-  }
-
-  return {
-    balanceDue: newDue,
-    isPartialPayment: newDue > 0,
-    partialAmount: Math.round((billed - newDue - (inv.totalReturnedAmount || 0)) * 100) / 100,
-    paymentSplits: splits,
-    applied: pay,
-  };
+/**
+ * Recompute and persist an invoice's balanceDue + partial flags from its
+ * immutable split, its receipts and its returns. paymentSplits are NEVER touched
+ * here — that is the whole point of the one-source-of-truth model: a receipt
+ * lives only as a Payment row, so settling a bill can't retroactively change a
+ * closed billing day or resurrect debt on an edit. balanceDue / partialAmount /
+ * isPartialPayment stay as convenience caches that the screens already read.
+ */
+export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promise<void> {
+  const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) return;
+  const grand = Number(inv.grandTotal) || 0;
+  const returns = Number(inv.totalReturnedAmount) || 0;
+  const due = await computeInvoiceDue(tx, inv);
+  const collected = Math.max(0, round2(grand - returns - due)); // net − due
+  await tx.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      balanceDue: due,
+      isPartialPayment: due > 0 && collected > 0,
+      partialAmount: due > 0 && collected > 0 ? collected : null,
+      updatedAt: nowIso(),
+    },
+  });
 }
 
 export async function recordPayment(input: RecordPaymentInput, actor?: { name?: string; id?: string }, reqUser?: any) {
@@ -162,22 +176,23 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
     // Settle allocated documents.
     const appliedAllocations: Allocation[] = [];
     if (input.type === 'in' && allocations.length) {
-      // Payment received from a customer → settle sales invoices.
+      // Payment received from a customer → allocate to sales invoices. Cap each
+      // allocation at the bill's CURRENT outstanding (never apply more than owed).
+      // The invoice is NOT mutated here — the receipt lives only as the Payment
+      // row created below, and each bill's balanceDue is recomputed from the
+      // ledger AFTER that row exists (so it reflects this receipt). This is the
+      // one-source-of-truth model: the bill's original split is left untouched.
       for (const a of allocations) {
         const inv = await tx.invoice.findUnique({ where: { id: a.refId } });
         if (!inv) continue;
-        const upd = settleInvoiceFields(inv, a.amount);
-        await tx.invoice.update({
-          where: { id: inv.id },
-          data: {
-            balanceDue: upd.balanceDue,
-            isPartialPayment: upd.isPartialPayment,
-            partialAmount: upd.partialAmount,
-            paymentSplits: upd.paymentSplits as any,
-            updatedAt: nowIso(),
-          },
-        });
-        appliedAllocations.push({ refId: inv.id, refNumber: inv.invoiceNumber, amount: upd.applied });
+        const due = await computeInvoiceDue(tx, inv);
+        const apply = Math.min(a.amount, due);
+        if (apply > 0.001) appliedAllocations.push({ refId: inv.id, refNumber: inv.invoiceNumber, amount: round2(apply) });
+      }
+      // SAL6-7: a receipt whose allocations can't be applied to anything (every
+      // selected bill is already settled) is refused, not silently banked.
+      if (!appliedAllocations.length) {
+        throw new AppError('NOTHING_TO_APPLY', 'This receipt could not be applied — the selected bill(s) have no outstanding balance.', 400);
       }
     } else if (input.type === 'out' && allocations.length) {
       // Payment made to a vendor → settle purchase orders (payables).
@@ -223,6 +238,11 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
         createdAt: nowIso(),
       },
     });
+    // Now that the receipt row exists, refresh each settled bill's cached
+    // balanceDue / partial flags from the ledger (paymentSplits untouched).
+    if (input.type === 'in') {
+      for (const a of appliedAllocations) await recomputeInvoiceBalance(tx, a.refId);
+    }
     return payment;
   });
 }
@@ -245,32 +265,15 @@ export async function deletePayment(id: string, reqUser?: any) {
     const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: payment.branchId, date: payment.date, isClosed: true } });
     if (closed) throw new AppError('DAY_CLOSED', `The cash day ${payment.date} is closed. Reopen it before deleting this payment.`, 409);
     const allocations: Allocation[] = Array.isArray(payment.allocations) ? (payment.allocations as any) : [];
+    // Delete the receipt row FIRST, then recompute each bill's due from the
+    // remaining ledger — the debt comes back automatically because the receipt is
+    // gone, and paymentSplits are never touched (one-source-of-truth model).
+    await tx.payment.delete({ where: { id } });
     if (payment.type === 'in') {
       for (const a of allocations) {
-        const inv = await tx.invoice.findUnique({ where: { id: a.refId } });
-        if (!inv) continue;
-        // Put the debt back by RE-ADDING to the COD-Credit split — due is read
-        // from that split now, so only bumping balanceDue would leave the bill
-        // still showing as paid (CRM4-4).
-        const billed = inv.grandTotal || 0;
-        const cur = splitsOf(inv).map((s) => ({ ...s }));
-        const nonCredit = cur.filter((s) => s.mode !== 'COD-Credit');
-        const curCod = cur.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0);
-        const nonCreditTotal = nonCredit.reduce((t, s) => t + (Number(s.amount) || 0), 0);
-        const newCod = Math.max(0, Math.min(billed - nonCreditTotal, Math.round((curCod + a.amount) * 100) / 100));
-        const splits = [...nonCredit, { mode: 'COD-Credit', amount: newCod }];
-        const restoredDue = Math.max(0, Math.round((newCod - (inv.totalReturnedAmount || 0)) * 100) / 100);
-        await tx.invoice.update({
-          where: { id: inv.id },
-          data: {
-            paymentSplits: splits as any,
-            balanceDue: restoredDue,
-            isPartialPayment: restoredDue > 0 && restoredDue < billed,
-            partialAmount: Math.round((billed - restoredDue - (inv.totalReturnedAmount || 0)) * 100) / 100,
-            updatedAt: nowIso(),
-          },
-        });
+        await recomputeInvoiceBalance(tx, a.refId);
       }
+      return { ok: true };
     } else if (payment.type === 'out') {
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
@@ -281,7 +284,6 @@ export async function deletePayment(id: string, reqUser?: any) {
         });
       }
     }
-    await tx.payment.delete({ where: { id } });
     return { ok: true };
   }, { isolationLevel: 'Serializable' });
 }

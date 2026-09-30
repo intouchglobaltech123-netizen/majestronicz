@@ -1345,25 +1345,36 @@ export const computeInvoiceFinance = (
   const returns = round(Math.min(gross, inv.totalReturnedAmount || 0));
   const net = round(Math.max(0, gross - returns));
 
-  // ONE due formula everywhere (SAL-9): a 'COD-Credit' split is the amount still
-  // owed; everything else on the bill counts as received. So received is simply
-  // the bill total minus the outstanding COD-Credit. getInvoicePaymentSplits
-  // synthesises the COD-Credit portion for legacy single-mode / partial / credit
-  // bills too, so this holds for every bill shape — no per-case branching (which
-  // previously left a fully-paid single-split COD bill showing its full amount
-  // due on every screen).
-  const splits = getInvoicePaymentSplits(inv);
-  const codCredit = round(splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
-  const received = round(Math.min(Math.max(0, gross - codCredit), gross));
+  // ONE due, ONE source of truth (CRM6-1 / SAL4-4). `due` is the server-maintained
+  // `balanceDue` = original credit − receipts − returns. Receipts are recorded as
+  // separate Payment rows and NEVER mutate the bill, so we read the cached due
+  // rather than shrinking the bill's COD-Credit split (which used to retroactively
+  // rewrite a closed billing day and resurrect debt on an edit).
+  // Fallback for older/partial records without a stored balanceDue: derive the
+  // outstanding from the (synthesised) COD-Credit split, exactly as before.
+  let due: number;
+  if (inv.balanceDue != null) {
+    due = Math.max(0, round(inv.balanceDue));
+  } else {
+    const splits = getInvoicePaymentSplits(inv);
+    const codCredit = round(splits.filter((s) => s.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
+    due = Math.max(0, round(codCredit - returns));
+  }
+  // received = everything collected & kept on this sale = net − due. On a paid
+  // bill that's the full net; on a credit bill it's what was taken at billing plus
+  // any later receipts (which live in the Payment ledger on their own dates).
+  const received = round(Math.max(0, net - due));
 
-  const netOwed = round(net - received);
   return {
     gross,
     returns,
     net,
     received,
-    due: Math.max(0, netOwed),
-    customerCredit: Math.max(0, round(-netOwed)),
+    due,
+    // Over-collection is prevented server-side (billing splits are scaled to the
+    // total and receipts beyond the due are refused), so there is no residual
+    // customer credit to surface here.
+    customerCredit: 0,
   };
 };
 

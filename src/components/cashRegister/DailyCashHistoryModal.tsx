@@ -106,10 +106,12 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                     (i) => i.branchId === reg.branchId && i.date === reg.date && !i.isVoided
                   );
                   const totalSale = dayInvoices.reduce(
-                    (sum, i) => {
-                      const amount = i.isPartialPayment && i.partialAmount ? i.partialAmount : i.grandTotal;
-                      return sum + Math.max(0, amount - (i.totalReturnedAmount || 0));
-                    },
+                    // "Total sales" for a (closed) day is the bill VALUE net of
+                    // returns — the grand total, never the collected/partial amount.
+                    // Reading partialAmount here made the figure move when a later
+                    // receipt settled one of the day's bills, retroactively changing
+                    // a closed day (CRM6-1); the grand total is immutable.
+                    (sum, i) => sum + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)),
                     0
                   );
 

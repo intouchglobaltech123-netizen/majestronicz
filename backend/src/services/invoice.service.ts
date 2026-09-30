@@ -6,6 +6,7 @@ import { nextInvoiceNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { recomputeInvoiceBalance } from './payment.service.js';
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
@@ -412,6 +413,12 @@ export function createSale(inv: any, reqUser?: any) {
     // existing bill on an id collision); edits update the found row (SAL2-1).
     if (isNewSale) await tx.invoice.create({ data: inv });
     else await tx.invoice.update({ where: { id }, data: rest });
+    // Recompute the cached due from the (immutable) split, any receipts and any
+    // returns — the single source of truth. On a new bill this equals the credit
+    // just billed; on an edit it re-derives the due from the new total while
+    // keeping receipts applied, so an edit can neither resurrect settled debt nor
+    // miss a total change (CRM6-1 / SAL6-2).
+    await recomputeInvoiceBalance(tx, inv.id);
     // Return the authoritative saved row alongside the snapshot so the client can
     // preview/print the bill exactly as stored — server invoice number, server id,
     // reconciled payment split — instead of its provisional client object (SAL4-1).
@@ -664,6 +671,9 @@ export function processReturn(
         updatedAt: ts,
       },
     });
+    // A return reduces what the customer still owes — refresh the cached due from
+    // the immutable split, receipts and the new returns total (one source of truth).
+    await recomputeInvoiceBalance(tx, invoiceId);
 
     // Record the refund as a Payment-ledger 'out' row dated on the RETURN day, so
     // the money leaves the drawer today (in the mode it was actually refunded)
