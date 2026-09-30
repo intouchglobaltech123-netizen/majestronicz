@@ -57,6 +57,15 @@ function reconcileInvoicePayment(inv: any) {
         .filter((s: any) => s.mode)
     : [];
 
+  // A Credit bill is money NOT collected yet. If it arrives as a single fully-
+  // collected non-credit split (the old default booked a Credit bill as Cash, so
+  // the drawer counted cash that was never received), treat the whole bill as
+  // COD-Credit. A Credit bill with a real partial payment (multiple splits) is
+  // left as sent.
+  if (inv.transactionType === 'Credit' && splits.length <= 1 && !splits.some((s) => s.mode === 'COD-Credit')) {
+    splits = [{ mode: 'COD-Credit', amount: grand }];
+  }
+
   if (splits.length <= 1) {
     // Single-mode (or nothing) → one split covering the whole bill in that mode.
     const mode = splits[0]?.mode || inv.paymentMode || 'Cash';

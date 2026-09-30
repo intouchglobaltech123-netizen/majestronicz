@@ -1537,7 +1537,19 @@ export const InvoiceForm: React.FC<Props> = ({
                   { value: 'Credit', label: 'Credit Bill' },
                 ]}
                 value={transactionType}
-                onChange={(val) => setTransactionType(val as TransactionType)}
+                onChange={(val) => {
+                  const t = val as TransactionType;
+                  setTransactionType(t);
+                  // A Credit Bill is money NOT collected yet, so default its
+                  // single payment split to COD-Credit — otherwise it stayed
+                  // 'Cash' and the drawer counted cash that was never received.
+                  // Switching back to Cash Sale defaults it to Cash.
+                  setPaymentSplits((prev) =>
+                    prev.length <= 1
+                      ? [{ mode: t === 'Credit' ? 'COD-Credit' : 'Cash', amount: totals.grandTotal }]
+                      : prev
+                  );
+                }}
               />
             </div>
           )}

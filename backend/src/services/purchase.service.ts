@@ -420,6 +420,27 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
         updatedAt: ts,
       },
     });
+    // Also record a Payment-ledger 'out' row so this vendor payment reaches the
+    // cash drawer / Payments Log (CASH3-5). The PO page and To Pay previously only
+    // wrote the PO-embedded entry, which the drawer never sees, so vendor cash
+    // paid there never left the drawer. Booked against the PO's branch.
+    const like = `PAY-${ts.slice(0, 7).replace('-', '')}-`;
+    const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
+    let maxNo = 0;
+    for (const r of existingRows) {
+      const n = parseInt(String(r.receiptNumber).slice(like.length), 10);
+      if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n);
+    }
+    await tx.payment.create({
+      data: {
+        id: rid('pay'), receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+        type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
+        branchId: po.branchId, date: ts.split('T')[0], amount: pay, paymentMode: mode || 'Cash',
+        reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber}`,
+        allocations: [{ refId: po.id, refNumber: po.poNumber, amount: pay }] as any,
+        createdById: null, createdByName: actor, createdAt: ts,
+      },
+    });
     return poSnapshot(tx);
   });
 }

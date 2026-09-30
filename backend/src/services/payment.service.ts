@@ -136,9 +136,18 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
   // Serializable + retry so simultaneous receipts don't collide on the number
   // or lose one another (CRM2-7 / CASH2-2 Parties receipts).
   return serializableTx(async (tx) => {
+    // A customer receipt must hit the drawer of the BILL's branch, not whatever
+    // branch the UI was on (CRM4-3). Resolve the branch from the first allocated
+    // invoice; fall back to the branch the client sent.
+    let branchId = input.branchId;
+    if (input.type === 'in' && allocations.length) {
+      const firstInv = await tx.invoice.findUnique({ where: { id: allocations[0].refId } });
+      if (firstInv?.branchId) branchId = firstInv.branchId;
+    }
+    assertBranchAllowed(reqUser, branchId); // a branch-locked user can't bank a receipt to another branch
     // A receipt/payment dated to a day whose drawer is already closed would
     // change that reconciled day's cash total after the fact (CASH-2).
-    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: input.branchId, date, isClosed: true } });
+    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId, date, isClosed: true } });
     if (closed) throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before recording this payment.`, 409);
 
     const receiptNumber = await nextReceiptNumber(tx, input.type, date);
@@ -194,7 +203,7 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
         partyType: input.partyType,
         partyId: input.partyId ?? null,
         partyName: input.partyName.trim(),
-        branchId: input.branchId,
+        branchId,
         date,
         amount,
         paymentMode: input.paymentMode || 'Cash',
