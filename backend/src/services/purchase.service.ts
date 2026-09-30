@@ -72,6 +72,30 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       const poNumber = await nextPoNumber(tx, poData.branchId); // authoritative, collision-free
       const clean = { ...poData };
       for (const k of SERVER_MANAGED) delete (clean as any)[k];
+      // PUR5-2: never trust the client's totals. Recompute each line's amount/tax
+      // from price × ordered-qty and the tax %, then the PO totals from the lines,
+      // exactly as the edit path does — a tampered or buggy client can't persist
+      // an inflated payable (₹1,98,480 shown vs ₹89,048 actually owed).
+      if (Array.isArray(clean.items)) {
+        clean.items = clean.items.map((l: any) => {
+          const price = Number(l.purchasePrice) || 0;
+          const qty = Number(l.quantityOrdered) || 0;
+          const taxPercent = isValidTaxPercent(l.taxPercent) ? Number(l.taxPercent) : 0;
+          const amount = Math.round(price * qty * 100) / 100;
+          const taxAmount = taxAmountFor(amount, taxPercent);
+          return {
+            ...l,
+            quantityOrdered: qty,
+            purchasePrice: price,
+            taxPercent,
+            amount,
+            taxAmount,
+            lineTotal: Math.round((amount + taxAmount) * 100) / 100,
+          };
+        });
+        clean.totalAmount = Math.round(clean.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
+        clean.totalTax = Math.round(clean.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      }
       saved = await tx.purchaseOrder.create({
         data: { ...clean, id, poNumber, status: 'Ordered', amountPaid: 0, createdAt: ts, updatedAt: ts },
       });
@@ -108,6 +132,12 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (po) assertBranchAllowed(reqUser, po.branchId); // SEC2-1
+    // PUR3-6: a PO with vendor money already paid against it must not be silently
+    // cancelled — that would strand the payment against a cancelled order. Reverse
+    // the vendor payment first.
+    if (po && (po.amountPaid || 0) > 0) {
+      throw new AppError('PO_HAS_PAYMENTS', 'Cannot cancel a purchase order that has payments recorded against it. Reverse the vendor payment first.', 409);
+    }
     const ts = nowIso();
     await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: ts } });
     // PUR-5: unlink any pending order that pointed at this PO so it is no longer
