@@ -130,6 +130,22 @@ async function snapshot(tx: any) {
   return { invoices, customers, branchStocks, stockAdjustmentLogs };
 }
 
+/**
+ * True when at least one customer receipt (a Payment 'in' row) is allocated to
+ * this invoice. Voiding or deleting such a bill would strand the receipt against
+ * a bill that no longer exists and silently change the customer's ledger and the
+ * cash already banked (CRM6-4), so those actions are refused while a receipt
+ * exists — the receipt must be deleted/reversed first, or a return issued.
+ */
+async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> {
+  const receipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+  return receipts.some(
+    (p: any) =>
+      Array.isArray(p.allocations) &&
+      p.allocations.some((a: any) => a?.refId === invoiceId && (Number(a?.amount) || 0) > 0)
+  );
+}
+
 /** Create or edit an invoice: customer link/update + stock decrement, atomic.
  * New sales get a server-authoritative, collision-free invoice number. */
 export function createSale(inv: any, reqUser?: any) {
@@ -232,8 +248,23 @@ export function createSale(inv: any, reqUser?: any) {
     // from the splits: a payment recorded via /api/payments reduces the stored
     // COD-Credit split without touching the collected split, so the stored splits
     // no longer sum to the total, and recomputing would resurrect already-settled
-    // debt. Edits keep their reconciled-on-the-client payment fields.
-    if (isNewSale) reconcileInvoicePayment(inv);
+    // debt.
+    if (isNewSale) {
+      reconcileInvoicePayment(inv);
+    } else {
+      // CRM6-1 / SAL6-2: payment state is server-owned. Receipts recorded through
+      // /api/payments reduce the stored COD-Credit split, but the client's copy of
+      // the bill often still carries the ORIGINAL (unsettled) splits — so accepting
+      // the client's payment fields on an edit wrote the debt back ("editing a paid
+      // bill brings the debt back"). Ignore the client's payment fields entirely on
+      // edit and keep exactly what the server has settled so far; receipts remain
+      // the only way to change a bill's due.
+      inv.paymentSplits = existing!.paymentSplits ?? inv.paymentSplits;
+      inv.balanceDue = existing!.balanceDue ?? 0;
+      inv.isPartialPayment = existing!.isPartialPayment ?? false;
+      inv.partialAmount = existing!.partialAmount ?? null;
+      inv.paymentMode = existing!.paymentMode ?? inv.paymentMode;
+    }
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
 
@@ -396,6 +427,9 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('ALREADY_VOIDED', 'Sale already voided', 409);
+    if (await invoiceHasReceipts(tx, invoiceId)) {
+      throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first, or issue a return instead of voiding.', 409); // CRM6-4
+    }
     await assertDayOpen(tx, inv.branchId, inv.date, 'void this bill'); // CASH-2
 
     const ts = nowIso();
@@ -667,6 +701,9 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (inv) {
       assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
+      if (await invoiceHasReceipts(tx, invoiceId)) {
+        throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first.', 409); // CRM6-4
+      }
       await assertDayOpen(tx, inv.branchId, inv.date, 'delete this bill'); // CASH-2
       const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
       // Only restore stock that is still OUT because of this bill. A voided bill
