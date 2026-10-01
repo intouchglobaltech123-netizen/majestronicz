@@ -19,10 +19,52 @@ interface Props {
   branchScope: BranchScope;
 }
 
+// Trailing window used to classify how fast stock moves.
+const VELOCITY_WINDOW_DAYS = 90;
+const VELOCITY_MONTHS = VELOCITY_WINDOW_DAYS / 30;
+type Movement = 'fast' | 'average' | 'slow' | 'no-sale';
+const classifyMovement = (unitsSold: number): Movement => {
+  if (unitsSold <= 0) return 'no-sale';
+  const perMonth = unitsSold / VELOCITY_MONTHS;
+  if (perMonth >= 10) return 'fast';
+  if (perMonth >= 2) return 'average';
+  return 'slow';
+};
+const MOVEMENT_META: Record<Movement, { label: string; cls: string }> = {
+  fast: { label: 'Fast moving', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  average: { label: 'Average', cls: 'bg-blue-100 text-blue-800 border-blue-200' },
+  slow: { label: 'Slow moving', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  'no-sale': { label: 'No sales', cls: 'bg-rose-100 text-rose-800 border-rose-200' },
+};
+
 export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
-  const { items, branchStocks } = useErp();
+  const { items, branchStocks, invoices } = useErp();
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
+  const [movementFilter, setMovementFilter] = useState<'all' | Movement>('all');
+
+  // Units sold per item over the trailing window, scoped to the active branch,
+  // with combos expanded to their components (a combo sale depletes components).
+  const salesVelocity = useMemo(() => {
+    const cutoff = getTodayDateString(new Date(Date.now() - VELOCITY_WINDOW_DAYS * 864e5));
+    const sold = new Map<string, number>();
+    const add = (id: string | undefined, q: number) => {
+      if (id) sold.set(id, (sold.get(id) || 0) + q);
+    };
+    for (const inv of invoices) {
+      if (inv.isVoided) continue;
+      if ((inv.date || '') < cutoff) continue;
+      if (branchScope !== 'all' && inv.branchId !== branchScope) continue;
+      for (const li of ((inv.items || []) as any[])) {
+        if (li.isCombo && Array.isArray(li.comboComponents) && li.comboComponents.length) {
+          for (const c of li.comboComponents) add(c.itemId, (Number(c.quantity) || 0) * (Number(li.quantity) || 0));
+        } else {
+          add(li.itemId, Number(li.quantity) || 0);
+        }
+      }
+    }
+    return sold;
+  }, [invoices, branchScope]);
 
   // Compute Valuation Metrics
   const valuationData = useMemo(() => {
@@ -93,6 +135,10 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       const totalCost = qty * unitCost;
       const totalRetail = qty * unitSale;
 
+      const unitsSold = salesVelocity.get(item.id) || 0;
+      const monthlyRate = Math.round((unitsSold / VELOCITY_MONTHS) * 10) / 10;
+      const movement = classifyMovement(unitsSold);
+
       return {
         item,
         quantity: qty,
@@ -103,6 +149,9 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
         totalCost,
         totalRetail,
         potentialProfit: totalRetail - totalCost,
+        unitsSold,
+        monthlyRate,
+        movement,
       };
     });
 
@@ -147,13 +196,20 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       activeLowStock,
       activeOutOfStock,
       activeInStock,
+      movementCounts: {
+        fast: itemRows.filter((r) => r.movement === 'fast').length,
+        average: itemRows.filter((r) => r.movement === 'average').length,
+        slow: itemRows.filter((r) => r.movement === 'slow').length,
+        'no-sale': itemRows.filter((r) => r.movement === 'no-sale').length,
+      },
     };
-  }, [items, branchStocks, branchScope]);
+  }, [items, branchStocks, branchScope, salesVelocity]);
 
   // Filtered rows for display
   const filteredRows = useMemo(() => {
     return valuationData.itemRows.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+      if (movementFilter !== 'all' && r.movement !== movementFilter) return false;
       if (searchFilter.trim()) {
         const q = searchFilter.toLowerCase();
         const matchName = r.item.itemName.toLowerCase().includes(q);
@@ -163,7 +219,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       }
       return true;
     });
-  }, [valuationData.itemRows, searchFilter, statusFilter]);
+  }, [valuationData.itemRows, searchFilter, statusFilter, movementFilter]);
 
   const handleExport = (format: ExportFormat = 'csv') => {
     const branchLabel = branchScope === 'all' ? 'All_Branches' : branchScope;
@@ -182,6 +238,9 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       'Total Cost Valuation (₹)',
       'Total Retail Valuation (₹)',
       'Potential Gross Margin (₹)',
+      `Units Sold (last ${VELOCITY_WINDOW_DAYS}d)`,
+      'Units / month',
+      'Movement',
     ];
 
     const rows = valuationData.itemRows.map((r) => [
@@ -197,6 +256,9 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       r.totalCost.toFixed(2),
       r.totalRetail.toFixed(2),
       r.potentialProfit.toFixed(2),
+      r.unitsSold,
+      r.monthlyRate.toFixed(1),
+      MOVEMENT_META[r.movement].label,
     ]);
 
     // Summary block
@@ -208,6 +270,10 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     rows.push(['Potential Margin (₹)', valuationData.activeMargin.toFixed(2)]);
     rows.push(['Low Stock Items Count', valuationData.activeLowStock]);
     rows.push(['Out of Stock Items Count', valuationData.activeOutOfStock]);
+    rows.push([`Fast moving (>=10/mo, last ${VELOCITY_WINDOW_DAYS}d)`, valuationData.movementCounts.fast]);
+    rows.push(['Average moving (2-10/mo)', valuationData.movementCounts.average]);
+    rows.push(['Slow moving (<2/mo)', valuationData.movementCounts.slow]);
+    rows.push(['No sales in window', valuationData.movementCounts['no-sale']]);
 
     if (format === 'excel') exportToExcel(filename, headers, rows);
 
@@ -402,6 +468,36 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           </div>
         </div>
 
+        {/* Movement (velocity) filter — fast / average / slow / no-sales over the
+            trailing window. Lets the client find dead stock and best-sellers. */}
+        <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            Movement (last {VELOCITY_WINDOW_DAYS}d):
+          </span>
+          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setMovementFilter('all')}
+              className={cn('px-2.5 py-1 rounded-lg transition-all', movementFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900')}
+            >
+              All
+            </button>
+            {(['fast', 'average', 'slow', 'no-sale'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMovementFilter(m)}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg transition-all',
+                  movementFilter === m ? `${MOVEMENT_META[m].cls} shadow-2xs` : 'text-slate-600 hover:text-slate-900'
+                )}
+              >
+                {MOVEMENT_META[m].label} ({valuationData.movementCounts[m]})
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -413,13 +509,14 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                 <th className="py-3 px-3 text-right">Unit Sale (₹)</th>
                 <th className="py-3 px-4 text-right">Total Cost Value (₹)</th>
                 <th className="py-3 px-4 text-right">Total Retail Value (₹)</th>
+                <th className="py-3 px-3 text-center">Movement</th>
                 <th className="py-3 px-3 text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     No items match the active search or filter criteria.
                   </td>
                 </tr>
@@ -445,6 +542,14 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                     </td>
                     <td className="py-3 px-4 text-right font-extrabold text-slate-900">
                       ₹{r.totalRetail.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border', MOVEMENT_META[r.movement].cls)}>
+                        {MOVEMENT_META[r.movement].label}
+                      </span>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {r.unitsSold} sold · {r.monthlyRate}/mo
+                      </div>
                     </td>
                     <td className="py-3 px-3 text-center">
                       {r.status === 'out-of-stock' ? (
