@@ -8,31 +8,36 @@ interface Props {
   onBack: () => void;
 }
 
-/** Allocate `amount` across POs oldest-first (FIFO): fill each PO's balance in
- *  turn, the last one partially. Returns the per-PO allocation. */
+/** Spread `amount` across POs oldest-first (FIFO): fill each PO's balance in
+ *  turn, the last one partially. Used only to PRE-FILL the per-PO inputs — the
+ *  user can then adjust any PO's amount before paying. */
 const fifoAllocate = (pos: { po: PurchaseOrder; balance: number }[], amount: number) => {
   let left = Math.round(Math.max(0, amount) * 100) / 100;
-  const out: { po: PurchaseOrder; pay: number; balance: number; full: boolean }[] = [];
+  const out: Record<string, number> = {};
   for (const { po, balance } of pos) {
     if (left <= 0.001 || balance <= 0.001) continue;
     const pay = Math.round(Math.min(left, balance) * 100) / 100;
     if (pay <= 0) continue;
-    out.push({ po, pay, balance, full: pay >= balance - 0.01 });
+    out[po.id] = pay;
     left = Math.round((left - pay) * 100) / 100;
   }
-  return { allocations: out, leftover: Math.max(0, left) };
+  return { perPo: out, leftover: Math.max(0, left) };
 };
 
 /**
- * "To Pay (Suppliers)" page — every outstanding PO grouped by vendor. Pay a
- * lump sum to a vendor and it is split across that vendor's unpaid POs
- * oldest-first: earlier POs are settled in full, the last one partially.
+ * "To Pay (Suppliers)" page — every outstanding PO grouped by vendor. Enter how
+ * much to pay EACH PO (the "This payment" column is editable), or type a lump sum
+ * and auto-fill it across the vendor's POs oldest-first, then adjust before
+ * paying. A payment is recorded against each PO the amounts cover.
  */
 export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
   const { purchaseOrders, recordPurchaseOrderPayment, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [payAmt, setPayAmt] = useState<Record<string, string>>({});
+  // Per-PO payment amount (keyed by po.id) — this is what gets paid.
+  const [poPay, setPoPay] = useState<Record<string, string>>({});
+  // Per-vendor lump-sum helper (keyed by vendor) used only to pre-fill poPay.
+  const [lump, setLump] = useState<Record<string, string>>({});
   const [payMode, setPayMode] = useState<Record<string, string>>({});
 
   // Group outstanding POs by vendor (branch-scoped, non-cancelled, balance > 0).
@@ -60,15 +65,53 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
 
   const grandTotal = groups.reduce((s, g) => s + g.total, 0);
 
+  // Clamp a typed per-PO amount to that PO's outstanding balance.
+  const setPoAmount = (poId: string, raw: string, balance: number) => {
+    if (raw === '') { setPoPay((p) => ({ ...p, [poId]: '' })); return; }
+    const n = Math.max(0, Math.min(balance, Number(raw) || 0));
+    setPoPay((p) => ({ ...p, [poId]: String(Math.round(n * 100) / 100) }));
+  };
+
+  // Pre-fill the per-PO inputs from a lump sum, oldest-first.
+  const distribute = (key: string, pos: { po: PurchaseOrder; balance: number }[]) => {
+    const { perPo } = fifoAllocate(pos, Number(lump[key]) || 0);
+    setPoPay((p) => {
+      const next = { ...p };
+      for (const { po } of pos) next[po.id] = perPo[po.id] ? String(perPo[po.id]) : '';
+      return next;
+    });
+  };
+
+  // Fill every PO's input with its full balance.
+  const fillAll = (pos: { po: PurchaseOrder; balance: number }[]) => {
+    setPoPay((p) => {
+      const next = { ...p };
+      for (const { po, balance } of pos) next[po.id] = String(balance);
+      return next;
+    });
+  };
+
+  // Total being paid to this vendor right now (sum of the per-PO inputs).
+  const vendorPayTotal = (pos: { po: PurchaseOrder; balance: number }[]) =>
+    Math.round(pos.reduce((s, { po }) => s + (Number(poPay[po.id]) || 0), 0) * 100) / 100;
+
   const pay = (key: string, pos: { po: PurchaseOrder; balance: number }[]) => {
-    const amt = Number(payAmt[key]) || 0;
-    if (amt <= 0) return;
-    const { allocations } = fifoAllocate(pos, amt);
-    if (allocations.length === 0) return;
     const mode = payMode[key] || 'Cash';
-    // Record a payment against each PO the lump sum covers (oldest first).
-    allocations.forEach((a) => recordPurchaseOrderPayment(a.po.id, a.pay, mode));
-    setPayAmt((p) => ({ ...p, [key]: '' }));
+    let paidAny = false;
+    for (const { po, balance } of pos) {
+      const amt = Math.min(balance, Number(poPay[po.id]) || 0);
+      if (amt <= 0.001) continue;
+      recordPurchaseOrderPayment(po.id, Math.round(amt * 100) / 100, mode);
+      paidAny = true;
+    }
+    if (!paidAny) return;
+    // Clear this vendor's inputs.
+    setPoPay((p) => {
+      const next = { ...p };
+      for (const { po } of pos) delete next[po.id];
+      return next;
+    });
+    setLump((p) => ({ ...p, [key]: '' }));
   };
 
   return (
@@ -82,7 +125,7 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
           <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/60"><Wallet className="h-5 w-5" /></div>
           <div>
             <h2 className="text-base font-extrabold text-slate-900">To Pay — Suppliers</h2>
-            <p className="text-[11px] text-slate-500">Outstanding purchase orders grouped by vendor. A lump-sum payment settles a vendor's oldest POs first.</p>
+            <p className="text-[11px] text-slate-500">Outstanding purchase orders grouped by vendor. Enter an amount per PO, or auto-fill a lump sum oldest-first and adjust.</p>
           </div>
         </div>
         <div className="text-right">
@@ -107,8 +150,7 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
       ) : (
         groups.map((g) => {
           const isOpen = open[g.vendorId] !== false; // default expanded
-          const amt = Number(payAmt[g.vendorId]) || 0;
-          const preview = amt > 0 ? fifoAllocate(g.pos, amt) : null;
+          const payTotal = vendorPayTotal(g.pos);
           return (
             <div key={g.vendorId} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
               {/* Vendor header */}
@@ -125,7 +167,7 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
 
               {isOpen && (
                 <div className="p-4 space-y-3">
-                  {/* PO list (oldest first) with live allocation preview */}
+                  {/* PO list (oldest first) with an editable per-PO payment amount */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
@@ -139,20 +181,35 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                       </thead>
                       <tbody>
                         {g.pos.map(({ po, balance }) => {
-                          const alloc = preview?.allocations.find((a) => a.po.id === po.id);
-                          const total = (po.totalAmount || 0) + (po.totalTax || 0);
+                          const total = (po.totalAmount || 0) + (po.totalTax || 0) + (po.otherCharges || 0);
+                          const val = poPay[po.id] ?? '';
+                          const n = Number(val) || 0;
                           return (
                             <tr key={po.id} className="border-b border-slate-50">
                               <td className="py-1.5 pr-3 font-mono font-bold text-blue-700">{po.poNumber}</td>
                               <td className="py-1.5 pr-3 text-slate-500">{po.date}</td>
                               <td className="py-1.5 pr-3 text-right font-mono text-slate-600">{formatCurrency(po.amountPaid || 0)} / {formatCurrency(total)}</td>
                               <td className="py-1.5 pr-3 text-right font-mono font-bold text-rose-700">{formatCurrency(balance)}</td>
-                              <td className="py-1.5 text-right font-mono">
-                                {alloc ? (
-                                  <span className={cn('font-bold', alloc.full ? 'text-emerald-700' : 'text-amber-700')}>
-                                    {formatCurrency(alloc.pay)} {alloc.full ? '· full' : '· partial'}
-                                  </span>
-                                ) : <span className="text-slate-300">—</span>}
+                              <td className="py-1.5 text-right">
+                                <div className="inline-flex items-center gap-1 justify-end">
+                                  <div className="relative">
+                                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">₹</span>
+                                    <input
+                                      type="number" min={0} max={balance} value={val}
+                                      onChange={(e) => setPoAmount(po.id, e.target.value, balance)}
+                                      placeholder="0"
+                                      className="w-24 pl-4 pr-1.5 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold font-mono text-right focus:outline-none focus:border-emerald-600"
+                                    />
+                                  </div>
+                                  <button type="button" onClick={() => setPoAmount(po.id, String(balance), balance)}
+                                    title="Pay this PO's full balance"
+                                    className="text-[10px] font-bold text-slate-400 hover:text-emerald-700 underline">full</button>
+                                  {n > 0 && (
+                                    <span className={cn('text-[10px] font-bold', n >= balance - 0.01 ? 'text-emerald-600' : 'text-amber-600')}>
+                                      {n >= balance - 0.01 ? '✓' : 'part'}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -161,28 +218,29 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                     </table>
                   </div>
 
-                  {/* Pay a lump sum */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-xs font-bold text-slate-600">Pay lump sum:</span>
+                  {/* Lump-sum helper (auto-fills the per-PO inputs) + pay action */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-600">Auto-fill lump sum:</span>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
-                      <input type="number" min={0} value={payAmt[g.vendorId] || ''} onChange={(e) => setPayAmt((p) => ({ ...p, [g.vendorId]: e.target.value }))}
-                        placeholder="0" className="w-32 pl-5 pr-2 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold font-mono focus:outline-none focus:border-emerald-600" />
+                      <input type="number" min={0} value={lump[g.vendorId] || ''} onChange={(e) => setLump((p) => ({ ...p, [g.vendorId]: e.target.value }))}
+                        placeholder="0" className="w-28 pl-5 pr-2 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold font-mono focus:outline-none focus:border-emerald-600" />
                     </div>
-                    <button type="button" onClick={() => setPayAmt((p) => ({ ...p, [g.vendorId]: String(g.total) }))}
+                    <button type="button" onClick={() => distribute(g.vendorId, g.pos)}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-800 underline">Spread oldest-first</button>
+                    <button type="button" onClick={() => fillAll(g.pos)}
                       className="text-[11px] font-bold text-slate-500 hover:text-slate-800 underline">Pay all ({formatCurrency(g.total)})</button>
+
+                    <span className="ml-auto text-xs text-slate-500">Paying now: <span className="font-bold font-mono text-slate-900">{formatCurrency(payTotal)}</span></span>
                     <select value={payMode[g.vendorId] || 'Cash'} onChange={(e) => setPayMode((p) => ({ ...p, [g.vendorId]: e.target.value }))}
                       className="px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600">
                       <option>Cash</option><option>GPay</option><option>HDFC</option><option>Bank Transfer</option><option>Cheque</option>
                     </select>
-                    <button type="button" disabled={amt <= 0}
+                    <button type="button" disabled={payTotal <= 0}
                       onClick={() => pay(g.vendorId, g.pos)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 disabled:opacity-50">
                       <Wallet className="h-3.5 w-3.5" /> Allocate &amp; pay
                     </button>
-                    {preview && preview.leftover > 0.5 && (
-                      <span className="text-[11px] font-bold text-amber-600">{formatCurrency(preview.leftover)} more than owed — will pay only {formatCurrency(g.total)}.</span>
-                    )}
                   </div>
                 </div>
               )}
