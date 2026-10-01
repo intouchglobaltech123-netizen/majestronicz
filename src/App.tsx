@@ -25,6 +25,9 @@ import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShort
 import { Toaster } from 'sonner';
 import { Minimize2 } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
+import { readScoped, writeScoped } from './lib/userPrefs';
+
+const SIDEBAR_COLLAPSED_KEY = 'majestronicz_sidebar_collapsed';
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
@@ -33,15 +36,8 @@ const AppContent: React.FC = () => {
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Desktop sidebar collapsed state (persisted in localStorage)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('majestronicz_sidebar_collapsed');
-      return saved === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Desktop sidebar collapsed state (persisted per-user — see userPrefs)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => readScoped(SIDEBAR_COLLAPSED_KEY) === 'true');
 
   const handleToggleNav = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -49,9 +45,7 @@ const AppContent: React.FC = () => {
     } else {
       setIsSidebarCollapsed((prev) => {
         const next = !prev;
-        try {
-          localStorage.setItem('majestronicz_sidebar_collapsed', String(next));
-        } catch {}
+        writeScoped(SIDEBAR_COLLAPSED_KEY, String(next));
         return next;
       });
     }
@@ -62,9 +56,7 @@ const AppContent: React.FC = () => {
       setMobileNavOpen(false);
     } else {
       setIsSidebarCollapsed(true);
-      try {
-        localStorage.setItem('majestronicz_sidebar_collapsed', 'true');
-      } catch {}
+      writeScoped(SIDEBAR_COLLAPSED_KEY, 'true');
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
+import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString } from '../lib/utils';
 import { computeDayCashClosing } from '../lib/cashClosing';
 
@@ -567,7 +568,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentView, setCurrentViewRaw] = useState<ActiveNavView>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = readScoped(STORAGE_KEY); // per-user (see userPrefs)
       if (saved) {
         const parsed: StorageState = JSON.parse(saved);
         if (parsed.currentView) {
@@ -587,7 +588,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeSubTab, setActiveSubTab] = useState<ActiveSubTabState | null>(() => {
     try {
-      const saved = localStorage.getItem(SUBTAB_STORAGE_KEY);
+      const saved = readScoped(SUBTAB_STORAGE_KEY); // per-user (see userPrefs)
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.view && parsed.tab) {
@@ -603,9 +604,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setCurrentView = useCallback((view: ActiveNavView) => {
     const target = view === 'customers' ? 'parties' : view;
     setCurrentViewRaw(target);
-    try {
-      localStorage.removeItem(SUBTAB_STORAGE_KEY);
-    } catch {}
+    removeScoped(SUBTAB_STORAGE_KEY);
     setActiveSubTab(null);
     try {
       if (window.history.state?.view !== target) {
@@ -620,9 +619,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = view === 'customers' ? 'parties' : view;
     const subState = { view: target, tab, nonce: Date.now() };
     setActiveSubTab(subState);
-    try {
-      localStorage.setItem(SUBTAB_STORAGE_KEY, JSON.stringify({ view: target, tab }));
-    } catch {}
+    writeScoped(SUBTAB_STORAGE_KEY, JSON.stringify({ view: target, tab }));
     setCurrentViewRaw(target);
     try {
       if (window.history.state?.view !== target) {
@@ -742,7 +739,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const locked = lockedBranchFor(currentUser);
     if (locked) return locked; // branch-locked roles ignore any saved scope
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = readScoped(STORAGE_KEY); // per-user (see userPrefs)
       if (saved) {
         const parsed: StorageState = JSON.parse(saved);
         if (parsed.currentBranch) return parsed.currentBranch;
@@ -919,14 +916,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // branch, current view). User identity & credentials live in signed tokens & Postgres.
   useEffect(() => {
     if (isBootstrapping) return;
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ currentBranch, currentView })
-      );
-    } catch (e) {
-      console.error('Failed to persist UI state to localStorage:', e);
-    }
+    // Scoped to the logged-in user so one person's last branch/view does not
+    // become the default for whoever logs in next on a shared computer.
+    writeScoped(STORAGE_KEY, JSON.stringify({ currentBranch, currentView }));
   }, [isBootstrapping, currentBranch, currentView]);
 
   // Built-in fallback (used before the backend matrix loads / if absent).

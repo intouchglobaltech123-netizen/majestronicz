@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useErp } from './ErpContext';
+import { prefUserKey, readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 
 export type ErpTheme = 'red' | 'slate' | 'navy' | 'emerald' | 'dark';
 export type ErpFontSize = 'compact' | 'standard' | 'large' | 'xlarge';
@@ -166,56 +168,57 @@ const ThemeSettingsContext = createContext<ThemeSettingsContextType | undefined>
 const THEME_STORAGE_KEY = 'majestronicz_theme_settings';
 const SHORTCUTS_STORAGE_KEY = 'majestronicz_custom_shortcuts';
 
+// Read this user's saved theme bundle ({ theme, fontSize, fontFamily }).
+const readThemeBundle = (): { theme?: ErpTheme; fontSize?: ErpFontSize; fontFamily?: ErpFontFamily } => {
+  try {
+    const saved = readScoped(THEME_STORAGE_KEY);
+    if (saved) return JSON.parse(saved) || {};
+  } catch {}
+  return {};
+};
+
+// Read this user's saved shortcut overrides, merged onto the defaults.
+const readShortcuts = (): ShortcutConfig[] => {
+  try {
+    const saved = readScoped(SHORTCUTS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge with defaults in case new shortcuts were introduced.
+        return DEFAULT_SHORTCUTS.map((def) => {
+          const match = parsed.find((p: any) => p.id === def.id);
+          return match ? { ...def, ...match } : def;
+        });
+      }
+    }
+  } catch {}
+  return DEFAULT_SHORTCUTS;
+};
+
 export const ThemeSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ErpTheme>(() => {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.theme) return parsed.theme;
-      }
-    } catch {}
-    return 'red';
-  });
+  // Preferences belong to the logged-in user, not the browser (see userPrefs).
+  const { currentUser } = useErp();
+  const userKey = prefUserKey({ userId: currentUser.userId, name: currentUser.name });
 
-  const [fontSize, setFontSizeState] = useState<ErpFontSize>(() => {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.fontSize) return parsed.fontSize;
-      }
-    } catch {}
-    return 'standard';
-  });
+  const [theme, setThemeState] = useState<ErpTheme>(() => readThemeBundle().theme || 'red');
+  const [fontSize, setFontSizeState] = useState<ErpFontSize>(() => readThemeBundle().fontSize || 'standard');
+  const [fontFamily, setFontFamilyState] = useState<ErpFontFamily>(() => readThemeBundle().fontFamily || 'plus-jakarta');
+  const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>(() => readShortcuts());
 
-  const [fontFamily, setFontFamilyState] = useState<ErpFontFamily>(() => {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.fontFamily) return parsed.fontFamily;
-      }
-    } catch {}
-    return 'plus-jakarta';
-  });
-
-  const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>(() => {
-    try {
-      const saved = localStorage.getItem(SHORTCUTS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge with defaults in case new shortcuts were introduced
-          return DEFAULT_SHORTCUTS.map((def) => {
-            const match = parsed.find((p: any) => p.id === def.id);
-            return match ? { ...def, ...match } : def;
-          });
-        }
-      }
-    } catch {}
-    return DEFAULT_SHORTCUTS;
-  });
+  // When the logged-in user changes (login / logout / switch on a shared device),
+  // swap in THAT user's saved theme, fonts and shortcuts — or the defaults if they
+  // have none — so nothing carries over from the previous person. Skips the first
+  // run because the initial state above already loaded the current user's prefs.
+  const lastUserKeyRef = useRef(userKey);
+  useEffect(() => {
+    if (lastUserKeyRef.current === userKey) return;
+    lastUserKeyRef.current = userKey;
+    const bundle = readThemeBundle();
+    setThemeState(bundle.theme || 'red');
+    setFontSizeState(bundle.fontSize || 'standard');
+    setFontFamilyState(bundle.fontFamily || 'plus-jakarta');
+    setShortcuts(readShortcuts());
+  }, [userKey]);
 
   // Apply theme, font size, and font family to DOM
   useEffect(() => {
@@ -249,13 +252,8 @@ export const ThemeSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     body.style.fontFamily = chosenFont;
     body.style.fontSize = chosenSize;
 
-    // Save preferences
-    try {
-      localStorage.setItem(
-        THEME_STORAGE_KEY,
-        JSON.stringify({ theme, fontSize, fontFamily })
-      );
-    } catch {}
+    // Save this user's preferences (scoped to the logged-in user).
+    writeScoped(THEME_STORAGE_KEY, JSON.stringify({ theme, fontSize, fontFamily }));
   }, [theme, fontSize, fontFamily]);
 
   const setTheme = useCallback((t: ErpTheme) => {
@@ -274,9 +272,7 @@ export const ThemeSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     (id: string, updates: Partial<Pick<ShortcutConfig, 'key' | 'ctrl' | 'alt' | 'shift'>>) => {
       setShortcuts((prev) => {
         const next = prev.map((s) => (s.id === id ? { ...s, ...updates } : s));
-        try {
-          localStorage.setItem(SHORTCUTS_STORAGE_KEY, JSON.stringify(next));
-        } catch {}
+        writeScoped(SHORTCUTS_STORAGE_KEY, JSON.stringify(next));
         return next;
       });
     },
@@ -285,9 +281,7 @@ export const ThemeSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const resetShortcuts = useCallback(() => {
     setShortcuts(DEFAULT_SHORTCUTS);
-    try {
-      localStorage.removeItem(SHORTCUTS_STORAGE_KEY);
-    } catch {}
+    removeScoped(SHORTCUTS_STORAGE_KEY);
   }, []);
 
   const formatShortcut = useCallback((s: ShortcutConfig): string => {

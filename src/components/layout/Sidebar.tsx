@@ -10,6 +10,9 @@ import {
   Lock,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
+import { readScoped, writeScoped } from '../../lib/userPrefs';
+
+const SIDEBAR_EXPANDED_KEY = 'majestronicz_sidebar_expanded';
 import { cn } from '../../lib/utils';
 import { NAV_MODULES, isModuleActive, NavModule, NavSub } from './navConfig';
 
@@ -67,10 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const modules = NAV_MODULES.filter((m) => m.items.some((it) => canAccessView(it.cap)));
   const activeModuleId = modules.find((m) => isModuleActive(m, currentView))?.id ?? null;
 
-  // Accordion expanded state persisted across refresh
+  // Accordion expanded state persisted across refresh (per-user — see userPrefs)
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('majestronicz_sidebar_expanded');
+      const saved = readScoped(SIDEBAR_EXPANDED_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) return parsed;
@@ -85,9 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setExpandedModules((prev) => {
         if (prev[activeModuleId]) return prev;
         const next = { ...prev, [activeModuleId]: true };
-        try {
-          localStorage.setItem('majestronicz_sidebar_expanded', JSON.stringify(next));
-        } catch {}
+        writeScoped(SIDEBAR_EXPANDED_KEY, JSON.stringify(next));
         return next;
       });
     }
@@ -96,9 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const toggleModule = (moduleId: string) => {
     setExpandedModules((prev) => {
       const next = { ...prev, [moduleId]: !prev[moduleId] };
-      try {
-        localStorage.setItem('majestronicz_sidebar_expanded', JSON.stringify(next));
-      } catch {}
+      writeScoped(SIDEBAR_EXPANDED_KEY, JSON.stringify(next));
       return next;
     });
   };
