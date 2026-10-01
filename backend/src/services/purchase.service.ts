@@ -215,9 +215,7 @@ export function receivePurchaseOrderStock(
     const ts = nowIso();
     const lines = po.items as any[];
 
-    // Per-line receiving limits (PUR2-2): the item must be on the PO, quantities
-    // can't be negative, and good + damaged this receipt can't exceed what's still
-    // outstanding on the line — otherwise stock is created from nothing.
+    // Validate each item's receipt (exists on PO, non-negative, valid tax).
     for (const rec of valid) {
       const line = lines.find((l) => l.itemId === rec.itemId);
       if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
@@ -228,34 +226,48 @@ export function receivePurchaseOrderStock(
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
         throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);
       }
-      // Remaining now nets prior good + damaged + missing, since all three settle
-      // the ordered quantity (damaged & missing won't arrive as sellable stock).
-      const settled = (line.receivedQuantity || 0) + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
-      const remaining = (line.quantityOrdered || 0) - settled;
-      if (good + dmg + missing > remaining) {
-        throw new AppError('OVER_RECEIPT', `Cannot settle ${good + dmg + missing} of "${line.itemName || rec.itemId}" — only ${remaining} remaining on the PO.`, 400);
+    }
+
+    // DISTRIBUTE each item's receipt across ITS lines (PO order), filling each
+    // line's remaining capacity. Previously the full receipt was added to EVERY
+    // line sharing the item, so the same item on two lines doubled the received
+    // quantity (and, now, the received-value payable). Reject anything that can't
+    // fit across the item's combined remaining (over-receipt).
+    const lineAlloc = new Map<string, { good: number; dmg: number; missing: number }>();
+    for (const rec of valid) {
+      const itemLines = lines.filter((l) => l.itemId === rec.itemId);
+      let g = Number(rec.quantityReceived) || 0;
+      let d = Number(rec.damagedQuantity) || 0;
+      let m = Number(rec.missingQuantity) || 0;
+      for (const line of itemLines) {
+        const settled = (line.receivedQuantity || 0) + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
+        let cap = Math.max(0, (line.quantityOrdered || 0) - settled);
+        const ag = Math.min(g, cap); cap -= ag; g -= ag;
+        const ad = Math.min(d, cap); cap -= ad; d -= ad;
+        const am = Math.min(m, cap); cap -= am; m -= am;
+        lineAlloc.set(line.id, { good: ag, dmg: ad, missing: am });
+      }
+      if (g + d + m > 0.0001) {
+        const first = itemLines[0];
+        throw new AppError('OVER_RECEIPT', `Cannot settle more of "${first?.itemName || rec.itemId}" than remains on the PO.`, 400);
       }
     }
 
+    const recByItem = new Map(valid.map((r) => [r.itemId, r]));
     const updatedLines = lines.map((line) => {
-      const rec = valid.find((r) => r.itemId === line.itemId);
-      if (!rec) return line;
-      // Confirm/override the purchase price entered while receiving, and refresh the
-      // line amount (price × ordered qty) so the PO total reflects the real cost.
+      const alloc = lineAlloc.get(line.id);
+      if (!alloc || (alloc.good <= 0 && alloc.dmg <= 0 && alloc.missing <= 0)) return line;
+      const rec = recByItem.get(line.itemId)!;
       const nextPrice =
         rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
-      // Tax rate confirmed at receipt wins; otherwise keep whatever the line
-      // already carried, falling back to 0 rather than guessing a slab.
       const nextTaxPercent =
         rec.taxPercent != null ? Number(rec.taxPercent) : (line.taxPercent ?? 0);
       const lineAmount = Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100;
       return {
         ...line,
-        receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
-        // Cumulative damaged & missing (short-shipped) on the line, so the line
-        // can close out and both are billed back to the vendor.
-        damagedQuantity: (line.damagedQuantity || 0) + (Number(rec.damagedQuantity) || 0),
-        missingQuantity: (line.missingQuantity || 0) + (Number(rec.missingQuantity) || 0),
+        receivedQuantity: (line.receivedQuantity || 0) + alloc.good,
+        damagedQuantity: (line.damagedQuantity || 0) + alloc.dmg,
+        missingQuantity: (line.missingQuantity || 0) + alloc.missing,
         purchasePrice: nextPrice,
         amount: lineAmount,
         taxPercent: nextTaxPercent,

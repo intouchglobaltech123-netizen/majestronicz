@@ -3767,6 +3767,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Purchase order not found');
       return;
     }
+    // Snapshot of the pre-receipt state so we can roll back if the server refuses
+    // the receipt — otherwise the PO wrongly stayed "Received" and stock stayed up
+    // even though nothing was saved (E2E-5 / SAL2-5).
+    const prevPOs = purchaseOrders;
+    const prevStocks = branchStocks;
+    const prevItems = items;
 
     const validReceipts = receipts.filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
     if (validReceipts.length === 0) {
@@ -3934,12 +3940,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextStocks;
     });
 
-    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name, otherCharges: extraCharge }));
-
     const totalQty = validReceipts.reduce((sum, r) => sum + r.quantityReceived, 0);
-    toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {
-      description: `Physical stock updated. PO status is now ${newStatus}.`,
-    });
+    apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name, otherCharges: extraCharge })
+      .then((snap) => {
+        applySnapshot(snap);
+        // Only confirm AFTER the server accepts — the success toast no longer fires
+        // on a refused receipt.
+        toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {
+          description: 'Physical stock updated.',
+        });
+      })
+      .catch((e: any) => {
+        // Server refused (e.g. over-receipt, closed day): undo the optimistic update.
+        setPurchaseOrders(prevPOs);
+        setBranchStocks(prevStocks);
+        setItems(prevItems);
+        setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? prevPOs.find((p) => p.id === poId) || cur : cur));
+        toast.error('Could not receive stock', { description: e?.message ?? 'The server refused this receipt.' });
+      });
   };
 
   const recordPurchaseBill = (

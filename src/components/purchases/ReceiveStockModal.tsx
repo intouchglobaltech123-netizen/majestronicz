@@ -71,7 +71,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       // Key every input by the PO LINE id (not itemId) so two lines of the same
       // product stay independent — editing one row never changes the other.
       purchaseOrder.items.forEach((item) => {
-        const remaining = Math.max(0, item.quantityOrdered - (item.receivedQuantity || 0));
+        // Remaining nets received + damaged + missing (all settle the ordered qty),
+        // matching the server — otherwise the pre-filled/validated qty is too high.
+        const settled = (item.receivedQuantity || 0) + (item.damagedQuantity || 0) + (item.missingQuantity || 0);
+        const remaining = Math.max(0, item.quantityOrdered - settled);
         initial[item.id] = remaining;
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
         initialLocs[item.id] = currentLoc;
@@ -176,7 +179,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
-      const remaining = Math.max(0, item.quantityOrdered - (item.receivedQuantity || 0));
+      const settled = (item.receivedQuantity || 0) + (item.damagedQuantity || 0) + (item.missingQuantity || 0);
+      const remaining = Math.max(0, item.quantityOrdered - settled);
       full[item.id] = remaining;
     });
     setQuantitiesToReceive(full);
@@ -380,7 +384,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                 {purchaseOrder.items.map((line) => {
                   const ordered = line.quantityOrdered;
                   const received = line.receivedQuantity || 0;
-                  const remaining = Math.max(0, ordered - received);
+                  // Received + damaged + missing all settle the ordered qty.
+                  const settled = received + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
+                  const remaining = Math.max(0, ordered - settled);
                   const currentInput = quantitiesToReceive[line.id] ?? 0;
                   const isFullyReceived = remaining === 0;
 
