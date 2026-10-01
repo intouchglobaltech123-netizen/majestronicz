@@ -205,6 +205,7 @@ interface ErpContextType {
   estimates: Estimate[];
   saveEstimate: (estimate: Estimate) => Promise<Estimate>;
   deleteEstimate: (estimateId: string) => void;
+  cancelEstimate: (estimateId: string, reason: string) => Promise<void>;
   getNextEstimateNumber: (branchId: BranchId, date?: string) => string;
 
   // Delivery Challans (Low-usage goods movement note)
@@ -2113,6 +2114,27 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEstimates((prev) => prev.filter((e) => e.id !== estimateId));
     persist(apiDelete(`/api/catalog/estimate/${estimateId}`));
     toast.success('Estimate removed');
+  };
+
+  // Cancel a quotation with a reason (the delete action is retired — a quote is
+  // Open, then Converted to a sale or Cancelled with a reason). Server is
+  // authoritative; it refuses to cancel a converted quote.
+  const cancelEstimate = async (estimateId: string, reason: string) => {
+    const now = new Date().toISOString();
+    setEstimates((prev) =>
+      prev.map((e) =>
+        e.id === estimateId
+          ? { ...e, status: 'Cancelled' as const, cancelReason: reason, cancelledAt: now, cancelledBy: currentUser?.name }
+          : e,
+      ),
+    );
+    try {
+      const snap = await apiPost<any>(`/api/catalog/estimate/${estimateId}/cancel`, { reason });
+      if (snap && Array.isArray(snap.estimates)) setEstimates(snap.estimates);
+      toast.success('Quotation cancelled');
+    } catch (e: any) {
+      toast.error('Could not cancel quotation', { description: e?.message ?? 'Backend error' });
+    }
   };
 
   const getNextChallanNumber = (): string => {
@@ -4320,6 +4342,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         estimates,
         saveEstimate,
         deleteEstimate,
+        cancelEstimate,
         getNextEstimateNumber,
         challans,
         saveChallan,

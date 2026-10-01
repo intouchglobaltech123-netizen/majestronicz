@@ -11,6 +11,7 @@ router.put('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.upda
 router.delete('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.deleteItem));
 // Estimates / Quotes
 router.post('/estimate', requireCapability('estimate:write'), asyncHandler(ctrl.saveEstimate));
+router.post('/estimate/:id/cancel', requireCapability('estimate:write'), asyncHandler(ctrl.cancelEstimate));
 router.delete('/estimate/:id', requireCapability('estimate:write'), asyncHandler(ctrl.deleteEstimate));
 // Challans
 router.post('/challan', requireCapability('challan:write'), asyncHandler(ctrl.saveChallan));

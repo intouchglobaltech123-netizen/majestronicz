@@ -35,25 +35,73 @@ function recomputeEstimateMoney(est: any) {
   return est;
 }
 
+/** A non-voided invoice converted from this estimate marks it "Converted". */
+async function estimateIsConverted(tx: any, estimateId: string): Promise<boolean> {
+  const inv = await tx.invoice.findFirst({
+    where: { sourceEstimateId: estimateId, OR: [{ isVoided: null }, { isVoided: false }] },
+  });
+  return !!inv;
+}
+
+/** Fields that describe the quotation lifecycle — server-managed, never taken
+ *  from a save payload (a quote is cancelled only through cancelEstimate). */
+const ESTIMATE_LIFECYCLE_FIELDS = ['status', 'cancelReason', 'cancelledAt', 'cancelledBy'];
+
 /** Create/edit estimate — new records get a server-assigned collision-free number. */
 export function saveEstimate(data: any) {
   recomputeEstimateMoney(data); // server-authoritative totals
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const existing = data.id ? await tx.estimate.findUnique({ where: { id: data.id } }) : null;
     if (existing) {
+      // A quote's lifecycle is server-owned. A Cancelled quote is final, and a
+      // Converted one has already become a bill — neither may be edited (the
+      // client only offers Edit on Open quotes, but enforce it here too).
+      if (existing.status === 'Cancelled') {
+        throw new AppError('QUOTE_CANCELLED', 'This quotation was cancelled and can no longer be edited.', 409);
+      }
+      if (await estimateIsConverted(tx, existing.id)) {
+        throw new AppError('QUOTE_CONVERTED', 'This quotation was already converted to a sale and can no longer be edited.', 409);
+      }
       const { id, ...rest } = data;
+      for (const k of ESTIMATE_LIFECYCLE_FIELDS) delete (rest as any)[k];
       await tx.estimate.update({ where: { id }, data: rest });
     } else {
       const id = data.id || `est-${Date.now()}`;
       const estimateNumber = await nextEstimateNumber(tx, data.branchId, data.date);
-      await tx.estimate.create({ data: { ...data, id, estimateNumber, createdAt: data.createdAt || nowIso() } });
+      const clean = { ...data };
+      for (const k of ESTIMATE_LIFECYCLE_FIELDS) delete (clean as any)[k];
+      await tx.estimate.create({ data: { ...clean, id, estimateNumber, status: 'Open', createdAt: data.createdAt || nowIso() } });
     }
     return { estimates: await tx.estimate.findMany() };
   }));
 }
 
-export function deleteEstimate(id: string) {
+/** Cancel a quotation with a reason — the delete action is gone; an Open quote is
+ *  either Converted (to a sale) or Cancelled (with a reason). */
+export function cancelEstimate(id: string, reason: string, actor?: string) {
   return prisma.$transaction(async (tx: any) => {
+    const est = await tx.estimate.findUnique({ where: { id } });
+    if (!est) throw new AppError('NOT_FOUND', 'Quotation not found', 404);
+    if (est.status === 'Cancelled') throw new AppError('ALREADY_CANCELLED', 'This quotation is already cancelled.', 409);
+    if (await estimateIsConverted(tx, id)) {
+      throw new AppError('QUOTE_CONVERTED', 'This quotation was converted to a sale and cannot be cancelled.', 409);
+    }
+    await tx.estimate.update({
+      where: { id },
+      data: { status: 'Cancelled', cancelReason: (reason || '').trim() || 'No reason given', cancelledAt: nowIso(), cancelledBy: actor || null },
+    });
+    return { estimates: await tx.estimate.findMany() };
+  });
+}
+
+export function deleteEstimate(id: string) {
+  // Kept for data cleanup only — the UI no longer exposes delete (quotes are
+  // Cancelled with a reason instead). Refuse to delete a converted quote so the
+  // bill's source link is never orphaned.
+  return prisma.$transaction(async (tx: any) => {
+    if (await estimateIsConverted(tx, id)) {
+      throw new AppError('QUOTE_CONVERTED', 'This quotation was converted to a sale and cannot be deleted. Void the bill first.', 409);
+    }
     await tx.estimate.deleteMany({ where: { id } });
     return { estimates: await tx.estimate.findMany() };
   });

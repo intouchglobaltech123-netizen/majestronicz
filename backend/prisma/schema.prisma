@@ -122,6 +122,12 @@ model Estimate {
   sourceEnquiryId     String?
   sourceEnquiryNumber String?
   createdAt           String
+  // Quotation lifecycle: 'Open' (default) → 'Converted' (a sale was billed from
+  // it; derived from the invoice too) or 'Cancelled' (with a reason). No delete.
+  status              String?
+  cancelReason        String?
+  cancelledAt         String?
+  cancelledBy         String?
 }
 
 model DeliveryChallan {
@@ -138,6 +144,10 @@ model DeliveryChallan {
   receivedBy         Json?
   deliveredBy        Json?
   createdAt          String
+  // Delivery lifecycle: 'pending' (default, goods sent, not acknowledged) →
+  // 'received' (recipient acknowledged), with the time it was marked received.
+  status             String?
+  receivedAt         String?
 }
 
 model Invoice {

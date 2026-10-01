@@ -635,7 +635,16 @@ export interface Estimate {
   sourceEnquiryId?: string; // If converted from an Enquiry
   sourceEnquiryNumber?: string;
   createdAt: string;
+  // Quotation lifecycle. 'Open' by default; a bill converted from it also marks
+  // it Converted (derived from invoice.sourceEstimateId); Cancelled carries a
+  // reason. There is no delete — a quote is cancelled with a reason instead.
+  status?: 'Open' | 'Converted' | 'Cancelled';
+  cancelReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
 }
+
+export type EstimateLifecycle = 'Open' | 'Converted' | 'Cancelled';
 
 /**
  * Calculate Indian Financial Year from date (e.g., 2026-09-07 -> "26-27", 2027-04-01 -> "27-28")
@@ -769,6 +778,10 @@ export interface DeliveryChallan {
   receivedBy?: ChallanPartyBlock;
   deliveredBy?: ChallanPartyBlock;
   createdAt: string;
+  // Delivery lifecycle: 'pending' (default) until the recipient acknowledges,
+  // then 'received' with the timestamp.
+  status?: 'pending' | 'received';
+  receivedAt?: string;
 }
 
 /**

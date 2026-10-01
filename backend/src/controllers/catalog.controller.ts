@@ -17,6 +17,10 @@ export const deleteItem = async (req: Request, res: Response) => {
 
 // Estimates / Challans / Combos / Customers
 export const saveEstimate = async (req: Request, res: Response) => res.json(await catalog.saveEstimate(req.body));
+export const cancelEstimate = async (req: Request, res: Response) => {
+  const actor = (req as any).user ? `${(req as any).user.name} [${(req as any).user.role}]` : (req.body?.actor || undefined);
+  res.json(await catalog.cancelEstimate(req.params.id, String(req.body?.reason || ''), actor));
+};
 export const deleteEstimate = async (req: Request, res: Response) => res.json(await catalog.deleteEstimate(req.params.id));
 export const saveChallan = async (req: Request, res: Response) => res.json(await catalog.saveChallan(req.body));
 export const deleteChallan = async (req: Request, res: Response) => res.json(await catalog.deleteChallan(req.params.id));

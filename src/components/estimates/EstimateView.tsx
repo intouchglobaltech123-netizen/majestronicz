@@ -9,25 +9,31 @@ import {
   Plus,
   Search,
   Printer,
-  Trash2,
   Edit2,
   Building,
   ReceiptText,
   ArrowRightLeft,
   Copy,
+  Ban,
 } from 'lucide-react';
+
+type QuoteLifecycle = 'Open' | 'Converted' | 'Cancelled';
 
 export const EstimateView: React.FC = () => {
   const {
     estimates,
     invoices,
-    deleteEstimate,
+    cancelEstimate,
     currentBranch,
     isAllBranches,
     currentBranchData,
     setCurrentView,
     setEstimateToConvert,
   } = useErp();
+
+  const [statusFilter, setStatusFilter] = useState<'all' | QuoteLifecycle>('all');
+  const [cancelTarget, setCancelTarget] = useState<Estimate | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   // A quote is "already converted" once a non-voided invoice records it as its
   // source. Used to block converting the same quote into a second invoice (SAL-18).
@@ -38,6 +44,12 @@ export const EstimateView: React.FC = () => {
     }
     return map;
   }, [invoices]);
+
+  // A quote's lifecycle: Converted (a non-voided bill came from it) wins, then a
+  // stored Cancelled status, else Open. Converted is derived so it's always right
+  // even if the stored status lags.
+  const lifecycleOf = (est: Estimate): QuoteLifecycle =>
+    convertedEstimateMap.has(est.id) ? 'Converted' : est.status === 'Cancelled' ? 'Cancelled' : 'Open';
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null);
@@ -53,10 +65,29 @@ export const EstimateView: React.FC = () => {
         est.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         est.estimateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (est.customerContact && est.customerContact.includes(searchQuery));
+      const matchesStatus = statusFilter === 'all' || lifecycleOf(est) === statusFilter;
 
-      return matchesBranch && matchesSearch;
+      return matchesBranch && matchesSearch && matchesStatus;
     });
-  }, [estimates, isAllBranches, currentBranch, searchQuery]);
+  }, [estimates, isAllBranches, currentBranch, searchQuery, statusFilter, convertedEstimateMap]);
+
+  // Lifecycle counts for the filter tabs.
+  const lifecycleCounts = useMemo(() => {
+    const scoped = estimates.filter((e) => isAllBranches || e.branchId === currentBranch);
+    return {
+      all: scoped.length,
+      Open: scoped.filter((e) => lifecycleOf(e) === 'Open').length,
+      Converted: scoped.filter((e) => lifecycleOf(e) === 'Converted').length,
+      Cancelled: scoped.filter((e) => lifecycleOf(e) === 'Cancelled').length,
+    };
+  }, [estimates, isAllBranches, currentBranch, convertedEstimateMap]);
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    await cancelEstimate(cancelTarget.id, cancelReason.trim());
+    setCancelTarget(null);
+    setCancelReason('');
+  };
 
   // Scoped quote metrics.
   const quoteStats = useMemo(() => {
@@ -211,6 +242,28 @@ export const EstimateView: React.FC = () => {
               />
             </div>
 
+            {/* Lifecycle filter: Open / Converted / Cancelled */}
+            <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-none text-xs font-bold">
+              {([
+                ['all', `All (${lifecycleCounts.all})`],
+                ['Open', `Open (${lifecycleCounts.Open})`],
+                ['Converted', `Converted (${lifecycleCounts.Converted})`],
+                ['Cancelled', `Cancelled (${lifecycleCounts.Cancelled})`],
+              ] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setStatusFilter(val)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-none transition-all cursor-pointer',
+                    statusFilter === val ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-900',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex items-center gap-2 text-xs text-slate-600">
               <Building className="h-4 w-4 text-slate-500" />
               <span>
@@ -298,62 +351,77 @@ export const EstimateView: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {convertedEstimateMap.has(est.id) ? (
-                              <span
-                                title={`Already converted to invoice ${convertedEstimateMap.get(est.id)}`}
-                                className="px-2 py-1 rounded-none bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 text-[11px] font-bold"
-                              >
-                                <ArrowRightLeft className="h-3 w-3" />
-                                <span>Converted → {convertedEstimateMap.get(est.id)}</span>
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setEstimateToConvert(est);
-                                  setCurrentView('invoices');
-                                }}
-                                title="Convert this estimate into a Sales Invoice"
-                                className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                              >
-                                <ArrowRightLeft className="h-3 w-3" />
-                                <span>To Invoice</span>
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setPreviewEstimate(est)}
-                              title="Print / Save PDF"
-                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
-                            >
-                              <Printer className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleEdit(est)}
-                              title="Edit Estimate"
-                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDuplicate(est)}
-                              title="Duplicate Quote (New quote with same items)"
-                              className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Delete estimate ${est.estimateNumber}?`)) {
-                                  deleteEstimate(est.id);
-                                }
-                              }}
-                              title="Delete Estimate"
-                              className="p-1.5 rounded-none bg-white hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          {(() => {
+                            const lc = lifecycleOf(est);
+                            return (
+                              <div className="flex items-center justify-end gap-1.5">
+                                {lc === 'Converted' ? (
+                                  <span
+                                    title={`Converted to invoice ${convertedEstimateMap.get(est.id)}`}
+                                    className="px-2 py-1 rounded-none bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 text-[11px] font-bold"
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3" />
+                                    <span>Converted → {convertedEstimateMap.get(est.id)}</span>
+                                  </span>
+                                ) : lc === 'Cancelled' ? (
+                                  <span
+                                    title={est.cancelReason ? `Cancelled: ${est.cancelReason}` : 'Cancelled'}
+                                    className="px-2 py-1 rounded-none bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 text-[11px] font-bold"
+                                  >
+                                    <Ban className="h-3 w-3" />
+                                    <span>Cancelled</span>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setEstimateToConvert(est);
+                                      setCurrentView('invoices');
+                                    }}
+                                    title="Convert this estimate into a Sales Invoice"
+                                    className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3" />
+                                    <span>To Invoice</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setPreviewEstimate(est)}
+                                  title="Print / Save PDF"
+                                  className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Edit only while Open — a Converted or Cancelled quote is locked. */}
+                                {lc === 'Open' && (
+                                  <button
+                                    onClick={() => handleEdit(est)}
+                                    title="Edit Quotation"
+                                    className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicate(est)}
+                                  title="Duplicate Quote (New quote with same items)"
+                                  className="p-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Cancel-with-reason replaces delete; only for an Open quote. */}
+                                {lc === 'Open' && (
+                                  <button
+                                    onClick={() => { setCancelTarget(est); setCancelReason(''); }}
+                                    title="Cancel this quotation (with a reason)"
+                                    className="p-1.5 rounded-none bg-white hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -371,6 +439,47 @@ export const EstimateView: React.FC = () => {
         isOpen={!!previewEstimate}
         onClose={() => setPreviewEstimate(null)}
       />
+
+      {/* Cancel-with-reason modal (replaces delete) */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white border border-slate-300 rounded-none w-full max-w-md shadow-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 bg-rose-50 flex items-center gap-2.5">
+              <Ban className="h-5 w-5 text-rose-700" />
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Cancel quotation {cancelTarget.estimateNumber}</h2>
+                <p className="text-xs text-slate-500">A cancelled quote is kept for the record (not deleted) and can't be edited.</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">Reason for cancellation</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder="e.g. Customer chose another supplier / price not accepted"
+                className="w-full px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:outline-none focus:border-rose-600"
+              />
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => { setCancelTarget(null); setCancelReason(''); }}
+                className="px-4 py-2 rounded-none text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
+              >
+                Keep quotation
+              </button>
+              <button
+                onClick={confirmCancel}
+                disabled={!cancelReason.trim()}
+                className="px-4 py-2 rounded-none text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Cancel quotation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
