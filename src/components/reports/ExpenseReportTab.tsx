@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES } from '../../types';
+import { BranchScope, BRANCHES, expenseIsEffective, BANK_DEPOSIT_CATEGORY } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
@@ -27,6 +27,11 @@ export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchSc
       if (endDate && reg.date > endDate) return;
       if (branchScope !== 'all' && reg.branchId !== branchScope) return;
       (reg.expenses || []).forEach((e: any) => {
+        // Only real, APPROVED expenses belong in the expense report — skip
+        // pending/rejected entries, and skip bank deposits (a deposit is a cash
+        // transfer to the bank, not a business expense). Matches the P&L (RPT2-4).
+        if (!expenseIsEffective(e)) return;
+        if (e.category === BANK_DEPOSIT_CATEGORY) return;
         const cash = e.cashAmount || 0;
         const gpay = e.gpayAmount || 0;
         out.push({

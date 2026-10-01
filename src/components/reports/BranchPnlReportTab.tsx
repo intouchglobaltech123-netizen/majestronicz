@@ -99,7 +99,10 @@ export const BranchPnlReportTab: React.FC<Props> = ({
     let consolidatedExpenseCount = 0;
     const consolidatedCategories: Record<string, number> = {};
 
-    BRANCHES.forEach((b) => {
+    // The summary cards must reflect the branch chosen in the top selector — sum
+    // only the in-scope branch(es), not always all three (the cards used to ignore
+    // the selected branch while the per-branch table respected it).
+    BRANCHES.filter((b) => branchScope === 'all' || b.id === branchScope).forEach((b) => {
       const bStat = branchStats[b.id];
       consolidatedRevenue += bStat.revenue;
       consolidatedCogs += bStat.cogs;
@@ -129,7 +132,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
         categoryExpenses: consolidatedCategories,
       },
     };
-  }, [invoices, cashRegisters, items, startDate, endDate]);
+  }, [invoices, cashRegisters, items, startDate, endDate, branchScope]);
 
   const displayedBranches = useMemo(() => {
     if (branchScope === 'all') return BRANCHES;
