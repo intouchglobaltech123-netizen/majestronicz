@@ -6,7 +6,7 @@ import { nextInvoiceNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance } from './payment.service.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal } from './payment.service.js';
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
@@ -525,6 +525,10 @@ export function processReturn(
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
+    // Anchor the owed-at-billing credit from the PRE-return state so the cash
+    // refund below (over-paid portion only) and the due are computed correctly.
+    await ensureCreditOriginal(tx, invoiceId);
+    inv.creditOriginal = (await tx.invoice.findUnique({ where: { id: invoiceId }, select: { creditOriginal: true } }))?.creditOriginal ?? inv.creditOriginal;
     // SAL4-12: a return is ALLOWED even after the bill's day is closed — the
     // refund is booked on the RETURN day (see the Payment 'out' row below), so a
     // closed, reconciled day is never changed after the fact. (No assertDayOpen.)
@@ -671,16 +675,30 @@ export function processReturn(
         updatedAt: ts,
       },
     });
-    // A return reduces what the customer still owes — refresh the cached due from
-    // the immutable split, receipts and the new returns total (one source of truth).
+    // A return reduces what the customer still owes — refresh the cached due.
     await recomputeInvoiceBalance(tx, invoiceId);
 
-    // Record the refund as a Payment-ledger 'out' row dated on the RETURN day, so
-    // the money leaves the drawer today (in the mode it was actually refunded)
-    // rather than silently netting off the original — possibly closed — bill's
-    // day. A Cash refund reduces the cash drawer; GPay/Card does not (SAL6-1 /
-    // SAL4-12). Only booked when something was actually refunded.
-    if (totalRefund > 0.001) {
+    // How much CASH to actually pay back. A return credits the customer the
+    // goods value, which FIRST reduces what they still owe; only the portion by
+    // which their payments now EXCEED the (reduced) net bill is refunded. So a
+    // return on an unpaid credit bill refunds ₹0 (it just cuts the debt), while a
+    // return on a fully-paid bill refunds the full value. Caps the refund at what
+    // was actually paid — the drawer never pays out money the customer never gave.
+    const grandR = Number(inv.grandTotal) || 0;
+    const creditOrig = Math.max(0, Number(inv.creditOriginal) || 0);
+    const receipts = await invoiceReceiptsTotal(tx, invoiceId);
+    const paid = Math.max(0, Math.round(((grandR - creditOrig) + receipts) * 100) / 100); // collected-at-billing + receipts
+    const returnsBefore = Number(inv.totalReturnedAmount) || 0;
+    const returnsAfter = returnsBefore + totalRefund;
+    const overBefore = Math.max(0, Math.round((paid - (grandR - returnsBefore)) * 100) / 100);
+    const overAfter = Math.max(0, Math.round((paid - (grandR - returnsAfter)) * 100) / 100);
+    const cashRefund = Math.max(0, Math.round((overAfter - overBefore) * 100) / 100);
+
+    // 'Adjust to credit note' means: don't pay cash now — the due reduction above
+    // is the adjustment. (A standalone store-credit balance isn't tracked yet, so
+    // any over-paid amount on a credit-note return isn't bankable later.)
+    const isCreditNote = /credit|adjust/i.test(String(refundMode || ''));
+    if (cashRefund > 0.001 && !isCreditNote) {
       const mode = refundMode || 'Cash';
       const today = nowIso().slice(0, 10);
       const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
@@ -694,9 +712,9 @@ export function processReturn(
         data: {
           id: rid('pay'), receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
           type: 'out', partyType: 'customer', partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer',
-          branchId: inv.branchId, date: today, amount: Math.round(totalRefund * 100) / 100, paymentMode: mode,
+          branchId: inv.branchId, date: today, amount: cashRefund, paymentMode: mode,
           reference: inv.invoiceNumber ?? null, notes: `Refund on sale #${inv.invoiceNumber}${reason ? ` — ${reason}` : ''}`,
-          allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: Math.round(totalRefund * 100) / 100 }] as any,
+          allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: cashRefund }] as any,
           createdById: null, createdByName: actor, createdAt: ts,
         },
       });

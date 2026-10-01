@@ -186,6 +186,9 @@ model Invoice {
   isPartialPayment          Boolean?
   partialAmount             Float?
   balanceDue                Float?
+  // The credit owed AT BILLING, anchored once (never reconstructed from the split,
+  // which double-counted receipts on legacy data). due = creditOriginal − receipts − returns.
+  creditOriginal            Float?
   sourceEstimateId          String?
   sourceEstimateNumber      String?
   sourceEnquiryId           String?

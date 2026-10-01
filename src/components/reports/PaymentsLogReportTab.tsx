@@ -36,9 +36,18 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
     // For those we must NOT also emit a synthetic refund from totalReturnedAmount,
     // or the same refund is counted twice (CRM6-9).
     const refundedInvoiceIds = new Set<string>();
+    // POs that already have a real vendor Payment 'out' row — their payments must
+    // NOT also be emitted from po.payments, or each vendor payment is counted
+    // twice (recordPurchaseOrderPayment writes BOTH a Payment row and a po.payments
+    // entry). CRM6-9 / "Payments Log lists each vendor payment twice".
+    const vendorPaidPoIds = new Set<string>();
     payments.forEach((p: any) => {
-      if (p.type !== 'out' || p.partyType !== 'customer') return;
-      (p.allocations || []).forEach((a: any) => a?.refId && refundedInvoiceIds.add(a.refId));
+      if (p.type !== 'out') return;
+      if (p.partyType === 'customer') {
+        (p.allocations || []).forEach((a: any) => a?.refId && refundedInvoiceIds.add(a.refId));
+      } else {
+        (p.allocations || []).forEach((a: any) => a?.refId && vendorPaidPoIds.add(a.refId));
+      }
     });
 
     // Sales receipts (money IN) — actual amounts received per mode (skip COD-Credit dues).
@@ -92,8 +101,11 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
       });
     });
 
-    // Vendor payments (money OUT)
+    // Vendor payments (money OUT) — only for POs WITHOUT a real Payment 'out' row
+    // (legacy payments recorded before the ledger existed); the rest come from the
+    // Payment rows above, so emitting both would double-count them.
     purchaseOrders.forEach((po: any) => {
+      if (vendorPaidPoIds.has(po.id)) return;
       (po.payments || []).forEach((p: any) => {
         out.push({
           date: p.date, direction: 'OUT', type: 'Vendor payment', party: po.vendorName,
