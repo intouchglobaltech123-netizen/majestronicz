@@ -83,6 +83,10 @@ async function ensureRegister(tx: any, branchId: string, date: string) {
 }
 
 export function addExpense(branchId: string, date: string, expense: any, actor: string) {
+  // An expense can't be dated in the future (VAL-1 / CASH6-2).
+  if (date && date > nowIso().slice(0, 10)) {
+    throw new AppError('BAD_DATE', 'An expense cannot be dated in the future.', 400);
+  }
   return serializableTx(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);

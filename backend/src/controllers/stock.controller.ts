@@ -26,8 +26,11 @@ export const receiveTransfer = async (req: Request, res: Response) => {
   res.json(await stock.receiveStockTransfer(transferId, actor, (req as any).user));
 };
 
-// updateStock (POST /stock/update) was removed — it overwrote stock to any value
-// with no history. Use /adjust (validated + logged) instead.
+export const updateStock = async (req: Request, res: Response) => {
+  const { itemId, branchId, quantity, minStockAlert, location } = req.body;
+  assertBranchAllowed((req as any).user, branchId);
+  res.json(await stock.updateBranchStock(itemId, branchId, quantity, minStockAlert, location));
+};
 
 export const updateLocation = async (req: Request, res: Response) => {
   const { itemId, branchId, location } = req.body;

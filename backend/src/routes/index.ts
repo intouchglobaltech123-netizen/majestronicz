@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { requireCapability, requireAuth } from '../middleware/rbac.js';
-import { issueToken, verifyToken, Capability } from '../lib/auth.js';
+import { requireCapability, requireAuth, requireManagerOrCEO } from '../middleware/rbac.js';
+import { issueToken, verifyToken, hashPin, Capability } from '../lib/auth.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
@@ -238,7 +238,8 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   assertBranchAllowed((req as any).user, b.branchId);
   const id = String(b.id || `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const allowed = pick(b, ['name', 'designation', 'branchId', 'monthlySalary', 'incentivePercent', 'status', 'phone', 'email', 'joinedDate']);
-  const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: String(b.pin) } : {}) };
+  // The kiosk PIN is stored HASHED, never in plain text (SEC6-2).
+  const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: hashPin(String(b.pin)) } : {}) };
   const existing = await prisma.employee.findUnique({ where: { id } });
   let employee;
   if (existing) {
@@ -253,7 +254,7 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   res.json({ ok: true, employee: safe });
 }));
 
-router.post('/recurring-expenses', requireCapability('cash:write'), asyncHandler(async (req, res) => {
+router.post('/recurring-expenses', requireManagerOrCEO, asyncHandler(async (req, res) => {
   const b = req.body || {};
   if (!String(b.name || '').trim()) throw new AppError('NAME_REQUIRED', 'Expense name is required', 400);
   if (Number(b.defaultAmount) <= 0) throw new AppError('BAD_AMOUNT', 'Amount must be greater than zero', 400);
@@ -415,7 +416,7 @@ router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req
 }));
 
 // ---- Payments / party ledger (receipts from customers, payments to vendors) ----
-router.get('/payments', requireAuth, asyncHandler(async (req, res) => {
+router.get('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const { partyType, partyId, type } = req.query as Record<string, string | undefined>;
   // SEC2-3: a branch-locked user must not read another branch's payment ledger.
   const user = (req as any).user;

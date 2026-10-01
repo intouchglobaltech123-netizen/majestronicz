@@ -2,6 +2,8 @@ import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { serializableTx } from '../lib/tx.js';
+import { hashPin } from '../lib/auth.js';
 
 const snap = async (tx: any) => ({
   attendanceRecords: await tx.attendanceRecord.findMany(),
@@ -35,7 +37,10 @@ export async function verifyKioskPin(employeeId: string, pin: string, reqUser?: 
   // SEC6-2: a branch-locked Manager must not be able to test staff PINs in other
   // branches — only verify staff of a branch the caller is allowed to operate in.
   if (emp) assertBranchAllowed(reqUser, emp.branchId);
-  const ok = !!emp && String(emp.pin || '') === String(pin || '').trim();
+  // Stored PIN is hashed (SEC6-2); match the hash, or a legacy plaintext value.
+  const entered = String(pin || '').trim();
+  const stored = String(emp?.pin || '');
+  const ok = !!emp && (stored === hashPin(entered) || stored === entered);
 
   if (ok) {
     kioskPinAttempts.delete(key);
@@ -74,8 +79,8 @@ function shiftHours(inDate: string, inTime: string, outDate: string, outTime: st
   return Math.max(0, parseFloat(((dayDiff * 1440 + outMinutes - inMinutes) / 60).toFixed(2)));
 }
 
-/** A manual clock time must be HH:mm (24-hour) — reject "banana", "25:99", etc. */
-const isValidClockTime = (t?: string): boolean => !t || /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t).trim());
+/** A manual clock time must be HH:mm or HH:mm:ss (24-hour) — reject "banana" etc. */
+const isValidClockTime = (t?: string): boolean => !t || /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(t).trim());
 
 export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
@@ -225,7 +230,10 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
 }
 
 export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any) {
-  return prisma.$transaction(async (tx: any) => {
+  // Serializable + retry so two people pressing "Mark Paid" at the same moment
+  // can't both pay the row — the second serialises after the first and sees it as
+  // already Paid (HRM6-3).
+  return serializableTx(async (tx: any) => {
     const ts = nowIso();
     // Match an existing persisted record: first by id, else by employee+month
     // (computed rows carry a synthetic "calc-…" id with no DB row yet).

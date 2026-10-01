@@ -5,7 +5,7 @@ import * as catalog from '../services/catalog.service.js';
 // Items
 export const addItem = async (req: Request, res: Response) => {
   const { item: itemData, initialStocks, initialLocations } = req.body;
-  res.json(await item.addItem(itemData, initialStocks, initialLocations));
+  res.json(await item.addItem(itemData, initialStocks, initialLocations, (req as any).user));
 };
 export const updateItem = async (req: Request, res: Response) => {
   const updates = req.body?.item ?? req.body;

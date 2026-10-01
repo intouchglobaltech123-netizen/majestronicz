@@ -1,10 +1,15 @@
 import { prisma } from '../db.js';
-import { nowIso } from '../lib/stockLedger.js';
+import { nowIso, rid } from '../lib/stockLedger.js';
 import { BRANCHES } from '../lib/constants.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 /** Create a catalog item + initialize per-branch stock rows (atomic). */
-export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}) {
+export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}, reqUser?: any) {
+  // A branch-locked user can only set opening stock for their own branch (INV4-5).
+  for (const b of BRANCHES) {
+    if ((initialStocks[b.id] ?? 0) > 0) assertBranchAllowed(reqUser, b.id);
+  }
   return prisma.$transaction(async (tx: any) => {
     const ts = nowIso();
     const id = itemData.id || `item-${Date.now()}`;
@@ -39,6 +44,17 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
         location: (initialLocations[b.id] || '').trim(), minStockAlert: 5, updatedAt: ts,
       })),
     });
+    // Opening stock must appear in the movement ledger, or the stock history can
+    // never reconcile to actual stock (INV2-4 / STK-3).
+    const openingLogs = BRANCHES
+      .filter((b) => (initialStocks[b.id] ?? 0) > 0)
+      .map((b) => ({
+        id: rid('adj'), itemId: id, itemName: name, itemCode: code, branchId: b.id,
+        previousQuantity: 0, quantityChange: initialStocks[b.id], newQuantity: initialStocks[b.id],
+        reason: 'Opening Stock', notes: 'Opening balance on item creation',
+        adjustedBy: (reqUser?.name) || 'System', timestamp: ts,
+      }));
+    if (openingLogs.length) await tx.stockAdjustmentLog.createMany({ data: openingLogs });
     return { item, items: await tx.item.findMany(), branchStocks: await tx.branchStock.findMany() };
   });
 }
@@ -90,17 +106,25 @@ export function deleteItem(itemId: string) {
     // Block deleting an item that is still in use — deleting one with stock, in a
     // combo, or on a purchase order/invoice erased its history and created ghost
     // stock when its PO was later received (INV-5). Archive instead of delete.
-    const [stocks, combos, pos, invoices] = await Promise.all([
+    const [stocks, combos, pos, invoices, transfers] = await Promise.all([
       tx.branchStock.findMany({ where: { itemId } }),
       tx.comboItem.findMany(),
       tx.purchaseOrder.findMany(),
       tx.invoice.findMany(),
+      tx.stockTransfer.findMany(),
     ]);
     const hasStock = stocks.some((s: any) => (s.quantity || 0) > 0);
     const inCombo = combos.some((c: any) => Array.isArray(c.components) && c.components.some((comp: any) => comp.itemId === itemId));
     const inPo = pos.some((p: any) => p.status !== 'Cancelled' && Array.isArray(p.items) && p.items.some((li: any) => li.itemId === itemId));
     const inInvoice = invoices.some((inv: any) => Array.isArray(inv.items) && inv.items.some((li: any) => li.itemId === itemId));
-    if (hasStock || inCombo || inPo || inInvoice) {
+    // Units dispatched on a transfer but not yet received are "in transit" (the
+    // item is inside the transfer's `items` JSON) — must not be deleted (INV-5).
+    const inTransit = transfers.some(
+      (t: any) =>
+        String(t.status || '').toLowerCase() !== 'received' &&
+        Array.isArray(t.items) && t.items.some((li: any) => li.itemId === itemId),
+    );
+    if (hasStock || inCombo || inPo || inInvoice || inTransit) {
       throw new AppError('ITEM_IN_USE', 'Cannot delete: this item has stock or is used in a combo, purchase order, or sale. Archive it instead.', 409);
     }
     await tx.branchStock.deleteMany({ where: { itemId } });

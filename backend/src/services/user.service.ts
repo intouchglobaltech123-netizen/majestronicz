@@ -307,9 +307,16 @@ export async function changeOwnPin(userId: string, newPin: string) {
   if (!isValidPin(newPin)) throw new AppError('BAD_REQUEST', 'PIN must be exactly 4 digits', 400);
   const existing = await prisma.user.findUnique({ where: { id: userId } });
   if (!existing) throw new AppError('NOT_FOUND', 'Account not found', 404);
-  const clash = await prisma.user.findFirst({ where: { pin: hashPin(newPin), NOT: { id: userId } } });
-  if (clash) throw new AppError('CONFLICT', 'That PIN is already in use. Choose a different one.', 409);
-  await prisma.user.update({ where: { id: userId }, data: { pin: hashPin(newPin), mustResetPin: false, updatedAt: nowIso() } });
+  // SEC6-1: do NOT tell the caller that another account already uses this PIN —
+  // that let anyone probe 0000-9999 and learn other people's login PINs. Attempt
+  // the change and, if the unique constraint rejects it, return a NEUTRAL message
+  // that doesn't confirm it belongs to someone else.
+  try {
+    await prisma.user.update({ where: { id: userId }, data: { pin: hashPin(newPin), mustResetPin: false, updatedAt: nowIso() } });
+  } catch (e: any) {
+    if (e?.code === 'P2002') throw new AppError('BAD_REQUEST', 'That PIN is not available. Please choose a different one.', 400);
+    throw e;
+  }
   await syncEmployeePin(existing.employeeId, newPin);
   return { ok: true };
 }

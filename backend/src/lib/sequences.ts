@@ -33,13 +33,28 @@ const maxSeq = (numbers: string[], prefix: string, floor = 0) => {
   return max;
 };
 
+/**
+ * A persistent high-water mark so a number is NEVER reissued after the row that
+ * held it is deleted (SAL4-9). Takes the greater of the max among existing rows
+ * and the stored counter, bumps it, and persists the new value. Scoped per prefix
+ * in appConfig so each branch/FY sequence advances on its own.
+ */
+async function nextPersistent(tx: any, key: string, fromRowsMax: number): Promise<number> {
+  const row = await tx.appConfig.findUnique({ where: { key } });
+  const stored = row && typeof (row.value as any)?.n === 'number' ? (row.value as any).n : 0;
+  const next = Math.max(fromRowsMax, stored) + 1;
+  await tx.appConfig.upsert({ where: { key }, create: { key, value: { n: next } as any }, update: { value: { n: next } as any } });
+  return next;
+}
+
 export async function nextInvoiceNumber(tx: any, branchId: string, date?: string): Promise<string> {
   const prefix = `MZ${invBranchCode(branchId)}${financialYear(date)}/`;
   const rows = await tx.invoice.findMany({
     where: { invoiceNumber: { startsWith: prefix } },
     select: { invoiceNumber: true },
   });
-  const next = rows.length ? maxSeq(rows.map((r: any) => r.invoiceNumber), prefix, 7306) + 1 : 7307;
+  const fromRows = maxSeq(rows.map((r: any) => r.invoiceNumber), prefix, 7306);
+  const next = await nextPersistent(tx, `seq:inv:${prefix}`, fromRows);
   return `${prefix}${next}`;
 }
 

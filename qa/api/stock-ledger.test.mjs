@@ -8,11 +8,12 @@ import {
 
 const sumChanges = (rows) => rows.reduce((t, r) => t + (Number(r.quantityChange) || 0), 0);
 
-/** Ledger must explain every unit: opening + sum(changes) === stock now. */
+/** Ledger must explain every unit: sum(changes) === stock now. Opening stock is
+ *  itself a ledger row, so a complete history starts from 0 and adds up to now. */
 async function assertReconciles(item, branchId, opening, what) {
   const now = await stockOf(item.id, branchId);
   const rows = await ledgerOf(item.id, branchId);
-  assert.equal(opening + sumChanges(rows), now, `${what}: stock ${now} but opening ${opening} + ledger ${sumChanges(rows)} = ${opening + sumChanges(rows)}`);
+  assert.equal(sumChanges(rows), now, `${what}: stock ${now} but ledger sums to ${sumChanges(rows)}`);
 }
 
 describe('stock & ledger', () => {

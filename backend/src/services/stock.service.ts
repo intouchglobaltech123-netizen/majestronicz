@@ -199,6 +199,10 @@ export function adjustStock(
     });
     const prevQty = existing?.quantity ?? 0;
     const newQty = Math.max(0, prevQty + quantityChange);
+    // Stock clamps at 0, so the change that REALLY happened is newQty − prevQty
+    // (e.g. a −1000 request on 45 units actually moves −45). Log the real change,
+    // not the requested one, or the ledger can't reconcile to actual stock (INV2-4).
+    const appliedChange = Math.round((newQty - prevQty) * 100) / 100;
 
     await tx.branchStock.upsert({
       where: { itemId_branchId: { itemId, branchId } },
@@ -209,7 +213,7 @@ export function adjustStock(
     await tx.stockAdjustmentLog.create({
       data: {
         id: rid('adj'), itemId, itemName: item.itemName, itemCode: item.itemCode, branchId,
-        previousQuantity: prevQty, quantityChange, newQuantity: newQty, reason,
+        previousQuantity: prevQty, quantityChange: appliedChange, newQuantity: newQty, reason,
         notes: notes?.trim() || null, adjustedBy: actor, timestamp: ts,
       },
     });
@@ -309,11 +313,47 @@ export function transferStock(
 }
 
 // updateBranchStock() was REMOVED: it set a branch's stock to any value with no
-// history row or quantity validation (−5, 2.5, …), and no screen used it. Stock
-// quantity changes must go through adjustStock() (validated + logged). Only the
-// rack-location updater below remains.
+// history row or quantity validation (−5, 2.5, …). It now validates the branch and
+// quantity AND writes a stock-history row, so the ledger still reconciles (INV2-4).
+
+/** Set a branch's stock to an exact quantity (Item Master / stock modal), with
+ *  validation and a history row for the delta. */
+export function updateBranchStock(itemId: string, branchId: string, quantity: number, minStockAlert?: number, location?: string) {
+  if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty < 0) throw new AppError('BAD_QTY', 'Stock quantity must be zero or more.', 400);
+  return serializableTx(async (tx: any) => {
+    const item = await tx.item.findUnique({ where: { id: itemId } });
+    if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    const ts = nowIso();
+    const existing = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId, branchId } } });
+    const prevQty = existing?.quantity ?? 0;
+    await tx.branchStock.upsert({
+      where: { itemId_branchId: { itemId, branchId } },
+      create: { itemId, branchId, quantity: qty, minStockAlert: minStockAlert ?? 5, location: location?.trim() ?? '', updatedAt: ts },
+      update: {
+        quantity: qty,
+        ...(minStockAlert !== undefined ? { minStockAlert } : {}),
+        ...(location !== undefined ? { location: location.trim() } : {}),
+        updatedAt: ts,
+      },
+    });
+    const change = Math.round((qty - prevQty) * 100) / 100;
+    if (change !== 0) {
+      await tx.stockAdjustmentLog.create({
+        data: {
+          id: rid('adj'), itemId, itemName: item.itemName, itemCode: item.itemCode, branchId,
+          previousQuantity: prevQty, quantityChange: change, newQuantity: qty,
+          reason: 'Stock Set', notes: 'Direct stock set', adjustedBy: 'System', timestamp: ts,
+        },
+      });
+    }
+    return { branchStocks: await tx.branchStock.findMany() };
+  });
+}
 
 export function updateBranchStockLocation(itemId: string, branchId: string, location?: string) {
+  if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
   return serializableTx(async (tx: any) => {
     const ts = nowIso();
     const trimmed = location?.trim() || null;

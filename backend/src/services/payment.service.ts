@@ -4,6 +4,7 @@ import { nowIso } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { isValidBranch } from '../lib/constants.js';
+import { roleCan } from '../lib/auth.js';
 
 /**
  * Party ledger / payments service.
@@ -163,6 +164,11 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
   if (!amount || amount <= 0) throw new AppError('BAD_REQUEST', 'Payment amount must be greater than zero', 400);
   if (!input.partyName?.trim()) throw new AppError('BAD_REQUEST', 'Party name is required', 400);
   if (input.type !== 'in' && input.type !== 'out') throw new AppError('BAD_REQUEST', 'Invalid payment type', 400);
+  // Paying a vendor (type 'out') is a purchase action — it must not be done by a
+  // role without purchase rights (e.g. Billing) through the Parties screen (PUR6-1).
+  if (input.type === 'out' && reqUser && !roleCan(reqUser.role, 'purchase:write')) {
+    throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to pay vendors.`, 403);
+  }
   assertBranchAllowed(reqUser, input.branchId); // SEC2-1: a receipt is booked against a branch's ledger/drawer
 
   const date = input.date || nowIso().slice(0, 10);
@@ -245,6 +251,9 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
         if (!po) continue;
         assertBranchAllowed(reqUser, po.branchId); // PUR6-1: can't settle another branch's PO
+        if (po.status === 'Cancelled') {
+          throw new AppError('PO_CANCELLED', 'Cannot pay a cancelled purchase order.', 400);
+        }
         // Cap at the tax-INCLUSIVE payable less debit notes — the same balance
         // used by purchaseOrderBalanceDue and recordPurchaseOrderPayment. Using
         // the ex-tax goods value here silently dropped the GST portion of a
@@ -263,6 +272,12 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       appliedAllocations.push(...allocations);
     }
 
+    // For an ALLOCATED receipt, bank only what was actually applied to bills — an
+    // over-payment beyond the due is not stored as untracked cash (CRM4-4). A
+    // store-credit ledger for genuine advances is a separate feature.
+    const appliedTotal = Math.round(appliedAllocations.reduce((t, a) => t + (Number(a.amount) || 0), 0) * 100) / 100;
+    const recordedAmount = allocations.length ? appliedTotal : amount;
+
     const payment = await tx.payment.create({
       data: {
         id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -273,7 +288,7 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
         partyName: input.partyName.trim(),
         branchId,
         date,
-        amount,
+        amount: recordedAmount,
         paymentMode: input.paymentMode || 'Cash',
         reference: input.reference ?? null,
         notes: input.notes ?? null,

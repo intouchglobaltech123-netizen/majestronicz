@@ -7,14 +7,33 @@ import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal } from './payment.service.js';
+import { GST_RATES } from '../lib/constants.js';
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
  * whatever the client sent. Makes stored money values server-authoritative so a
  * tampered or buggy client can never persist incorrect amounts.
  */
+const VALID_GST_RATES = new Set(GST_RATES.map((g: any) => Number(g.rate)));
+const HOME_STATE_CODE = '33'; // Tamil Nadu — a supply to any other state is inter-state (IGST).
+
 function recomputeInvoiceMoney(inv: any) {
   const withGst = !!inv.withGst;
+  // Validate line inputs server-side (SAL-17 / SAL4-5).
+  for (const li of (inv.items || []) as any[]) {
+    if (Number(li.unitPrice) < 0) throw new AppError('BAD_PRICE', 'A unit price cannot be negative.', 400);
+    const rate = Number(li.taxRate ?? li.gstRate ?? 0);
+    if (withGst && !VALID_GST_RATES.has(rate)) {
+      throw new AppError('BAD_GST', 'GST rate must be a valid slab (0, 5, 12, 18 or 28%).', 400);
+    }
+    if ((li.discountType || '%') === '%' && Number(li.discountValue || 0) > 100) {
+      throw new AppError('BAD_DISCOUNT', 'A line discount cannot exceed 100%.', 400);
+    }
+  }
+  if ((inv.overallDiscountType || '%') === '%' && Number(inv.overallDiscountValue || 0) > 100) {
+    throw new AppError('BAD_DISCOUNT', 'The overall discount cannot exceed 100%.', 400);
+  }
+
   inv.items = (inv.items || []).map((li: any) => {
     const calc = calculateLineTax(li.quantity, li.unitPrice, li.taxRate, withGst, li.discountType || '%', li.discountValue || 0);
     return { ...li, ...calc };
@@ -27,6 +46,14 @@ function recomputeInvoiceMoney(inv: any) {
   inv.totalTax = totals.totalTax;
   inv.totalCgst = totals.totalCgst;
   inv.totalSgst = totals.totalSgst;
+  // Inter-state supply is taxed as IGST, not CGST + SGST (RPT4-3). The total tax is
+  // unchanged; it just isn't split into the two state halves.
+  const supplyCode = String(inv.stateOfSupply || '').split('-')[0].trim();
+  if (supplyCode && supplyCode !== HOME_STATE_CODE) {
+    inv.totalCgst = 0;
+    inv.totalSgst = 0;
+    inv.items = inv.items.map((li: any) => ({ ...li, cgstAmount: 0, sgstAmount: 0, igstAmount: li.totalTax }));
+  }
   inv.overallDiscountAmount = totals.overallDiscountAmount;
   inv.shippingCharges = totals.shippingCharges;
   inv.roundOff = totals.roundOff;
@@ -147,6 +174,44 @@ async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> 
   );
 }
 
+/** Per-item units a bill SOLD, combos expanded to their components. Used by void
+ *  and delete so the restore is aggregated per item, not per line (SAL5-3). */
+function expandSoldUnits(items: any[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const it of items || []) {
+    const q = Number(it.quantity) || 0;
+    if (q <= 0) continue;
+    if (it.isCombo && Array.isArray(it.comboComponents)) {
+      for (const c of it.comboComponents) {
+        const u = (Number(c.quantity) || 0) * q;
+        if (u > 0) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
+      }
+    } else if (it.itemId) {
+      m.set(it.itemId, (m.get(it.itemId) || 0) + q);
+    }
+  }
+  return m;
+}
+
+/** Per-item units RETURNED, combos expanded (damaged returns included — they
+ *  aren't restocked, so they correctly reduce what a void/delete puts back). */
+function expandReturnedUnits(returns: any[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const r of returns || []) {
+    const q = Number(r.returnedQuantity) || 0;
+    if (q <= 0) continue;
+    if (r.isCombo && Array.isArray(r.comboComponents)) {
+      for (const c of r.comboComponents) {
+        const u = (Number(c.quantity) || 0) * q;
+        if (u > 0) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
+      }
+    } else if (r.itemId) {
+      m.set(r.itemId, (m.get(r.itemId) || 0) + q);
+    }
+  }
+  return m;
+}
+
 /** Create or edit an invoice: customer link/update + stock decrement, atomic.
  * New sales get a server-authoritative, collision-free invoice number. */
 export function createSale(inv: any, reqUser?: any) {
@@ -253,18 +318,29 @@ export function createSale(inv: any, reqUser?: any) {
     if (isNewSale) {
       reconcileInvoicePayment(inv);
     } else {
-      // CRM6-1 / SAL6-2: payment state is server-owned. Receipts recorded through
-      // /api/payments reduce the stored COD-Credit split, but the client's copy of
-      // the bill often still carries the ORIGINAL (unsettled) splits — so accepting
-      // the client's payment fields on an edit wrote the debt back ("editing a paid
-      // bill brings the debt back"). Ignore the client's payment fields entirely on
-      // edit and keep exactly what the server has settled so far; receipts remain
-      // the only way to change a bill's due.
-      inv.paymentSplits = existing!.paymentSplits ?? inv.paymentSplits;
-      inv.balanceDue = existing!.balanceDue ?? 0;
-      inv.isPartialPayment = existing!.isPartialPayment ?? false;
-      inv.partialAmount = existing!.partialAmount ?? null;
-      inv.paymentMode = existing!.paymentMode ?? inv.paymentMode;
+      // On an EDIT, does the bill have receipts recorded through /api/payments?
+      const existingReceipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+      const hasReceipts = existingReceipts.some((p: any) =>
+        Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === existing!.id && (Number(a?.amount) || 0) > 0),
+      );
+      if (hasReceipts) {
+        // CRM6-1 / SAL6-2: a bill that has receipts keeps its server-settled payment
+        // state — accepting the client's (often stale) splits would resurrect the
+        // settled debt. Receipts remain the only way to change its due.
+        inv.paymentSplits = existing!.paymentSplits ?? inv.paymentSplits;
+        inv.balanceDue = existing!.balanceDue ?? 0;
+        inv.isPartialPayment = existing!.isPartialPayment ?? false;
+        inv.partialAmount = existing!.partialAmount ?? null;
+        inv.paymentMode = existing!.paymentMode ?? inv.paymentMode;
+        inv.creditOriginal = existing!.creditOriginal ?? undefined;
+      } else {
+        // No receipts yet: the payment is entirely at-billing, so re-reconcile the
+        // client's new splits to the new total (QA8-1 — editing a paid cash bill to
+        // a higher total records the new payment, not a hidden due). Re-anchor the
+        // credit from the fresh split.
+        reconcileInvoicePayment(inv);
+        inv.creditOriginal = null;
+      }
     }
     const phoneClean = cleanPhone(inv.customerPhone);
     const ts = nowIso();
@@ -348,35 +424,49 @@ export function createSale(inv: any, reqUser?: any) {
       }
     }
 
-    // Branch stock: restore old invoice qty (edit), then validate and decrement new items
-    const allStocks = await tx.branchStock.findMany();
-    const ledger = new StockLedger(allStocks, inv.branchId);
-    if (oldInvoice) {
-      for (const oldItem of oldInvoice.items as any[]) {
-        if (oldItem.isCombo && oldItem.comboComponents?.length) {
-          for (const comp of oldItem.comboComponents)
-            ledger.apply(comp.itemId, comp.quantity * (oldItem.quantity || 0));
-        } else if (oldItem.itemId) {
-          ledger.apply(oldItem.itemId, oldItem.quantity || 0);
-        }
-      }
+    // A combo's components come from the STORED combo master, never the browser —
+    // a tampered request (claiming the kit uses 0 of item A) must not change what
+    // stock is taken (INV3-3). Normalise each combo line's stored components too,
+    // so later void/return restock from the real parts.
+    const comboMasters = await tx.comboItem.findMany();
+    const comboById = new Map(comboMasters.map((c: any) => [c.id, c]));
+    const componentsOf = (line: any): any[] => {
+      const master: any = line.comboId ? comboById.get(line.comboId) : null;
+      const comps = (master?.components as any[]) || (line.comboComponents as any[]) || [];
+      // Never trust a negative component quantity.
+      return comps.map((c: any) => ({ ...c, quantity: Math.max(0, Number(c.quantity) || 0) }));
+    };
+    for (const li of inv.items as any[]) {
+      if (li.isCombo) li.comboComponents = componentsOf(li);
     }
 
-    // Authoritative stock shortage validation across standalone items and combo components
-    const demand = new Map<string, { qty: number; name: string; code: string }>();
-    for (const newItem of inv.items as any[]) {
-      if (newItem.isCombo && newItem.comboComponents?.length) {
-        for (const comp of newItem.comboComponents) {
-          const needed = (comp.quantity || 0) * (newItem.quantity || 0);
-          const cur = demand.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component', code: comp.itemCode || '' };
-          demand.set(comp.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
+    // Build demand maps (combo-expanded via the stored master) for the NEW bill and
+    // the OLD bill (edit). Stock change per item = restored(old) − sold(new).
+    const expand = (items: any[], into: Map<string, { qty: number; name: string; code: string }>) => {
+      for (const it of items || []) {
+        if (it.isCombo) {
+          for (const comp of componentsOf(it)) {
+            const needed = (Number(comp.quantity) || 0) * (Number(it.quantity) || 0);
+            const cur = into.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component', code: comp.itemCode || '' };
+            into.set(comp.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
+          }
+        } else if (it.itemId) {
+          const needed = Number(it.quantity) || 0;
+          const cur = into.get(it.itemId) || { qty: 0, name: it.itemName || 'Item', code: it.itemCode || '' };
+          into.set(it.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
         }
-      } else if (newItem.itemId) {
-        const needed = newItem.quantity || 0;
-        const cur = demand.get(newItem.itemId) || { qty: 0, name: newItem.itemName || 'Item', code: newItem.itemCode || '' };
-        demand.set(newItem.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
       }
-    }
+    };
+    const demand = new Map<string, { qty: number; name: string; code: string }>();
+    const oldDemand = new Map<string, { qty: number; name: string; code: string }>();
+    expand(inv.items as any[], demand);
+    if (oldInvoice) expand(oldInvoice.items as any[], oldDemand);
+
+    const allStocks = await tx.branchStock.findMany();
+    const ledger = new StockLedger(allStocks, inv.branchId);
+    // Restore the old bill's units first (edit), so the shortage check sees stock
+    // as if this bill never happened.
+    for (const [itemId, req] of oldDemand.entries()) ledger.apply(itemId, req.qty);
 
     for (const [itemId, req] of demand.entries()) {
       const available = ledger.qty(itemId);
@@ -389,17 +479,24 @@ export function createSale(inv: any, reqUser?: any) {
       }
     }
 
-    // Decrement stock AND record a stock-history entry for the sale so the item's
-    // stock movement log reflects sales (previously sales wrote no history, so the
-    // log never matched actual stock — STK-3). On an edit the old sale's stock was
-    // already restored above; this logs the net decrement for the current bill.
-    const saleLogs: any[] = [];
+    // Decrement the new demand.
     for (const [itemId, req] of demand.entries()) {
-      if (req.qty <= 0) continue;
-      const { prevQty, newQty } = ledger.apply(itemId, -req.qty, false);
+      if (req.qty > 0) ledger.apply(itemId, -req.qty, false);
+    }
+    // Record ONE stock-history row per item for the NET change (restored − sold),
+    // so an edit's history reconciles to actual stock, not just the raw new qty.
+    const saleLogs: any[] = [];
+    const allItemIds = new Set<string>([...oldDemand.keys(), ...demand.keys()]);
+    for (const itemId of allItemIds) {
+      const sold = demand.get(itemId)?.qty || 0;
+      const restored = oldDemand.get(itemId)?.qty || 0;
+      const net = Math.round((restored - sold) * 100) / 100; // stock change
+      if (net === 0) continue;
+      const meta = demand.get(itemId) || oldDemand.get(itemId)!;
+      const newQty = ledger.qty(itemId);
       saleLogs.push({
-        id: rid('adj'), itemId, itemName: req.name, itemCode: req.code, branchId: inv.branchId,
-        previousQuantity: prevQty, quantityChange: -req.qty, newQuantity: newQty,
+        id: rid('adj'), itemId, itemName: meta.name, itemCode: meta.code, branchId: inv.branchId,
+        previousQuantity: Math.round((newQty - net) * 100) / 100, quantityChange: net, newQuantity: newQty,
         reason: isNewSale ? 'Sale' : 'Sale (edited)',
         notes: `Sale #${inv.invoiceNumber}${inv.customerName ? ` · ${inv.customerName}` : ''}`,
         adjustedBy: (reqUser?.name) || 'System', timestamp: ts,
@@ -444,43 +541,23 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     const itemById = new Map(items.map((i: any) => [i.id, i]));
     const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
     const newLogs: any[] = [];
-    const returns = (inv.returns as any[]) || [];
 
-    for (const item of inv.items as any[]) {
-      if (item.isCombo && item.comboComponents?.length) {
-        const alreadyReturned = returns
-          .filter((r) => r.id === item.id || (item.comboId && r.comboId === item.comboId))
-          .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
-        const comboQtyToRestore = Math.max(0, item.quantity - alreadyReturned);
-        if (comboQtyToRestore <= 0) continue;
-        for (const comp of item.comboComponents) {
-          const qtyToRestore = comp.quantity * comboQtyToRestore;
-          if (qtyToRestore <= 0) continue;
-          const { prevQty, newQty } = ledger.apply(comp.itemId, qtyToRestore);
-          const ci: any = itemById.get(comp.itemId);
-          newLogs.push({
-            id: rid('adj'), itemId: comp.itemId, itemName: ci?.itemName || 'Component Item',
-            itemCode: ci?.itemCode || '', branchId: inv.branchId, previousQuantity: prevQty,
-            quantityChange: qtyToRestore, newQuantity: newQty, reason: 'Voided Sale',
-            notes: `Voided Sale #${inv.invoiceNumber} (Component of Combo: ${item.itemName}) - Reason: ${reason || 'Cancellation'}`,
-            adjustedBy: actor, timestamp: ts,
-          });
-        }
-      } else if (item.itemId) {
-        const alreadyReturned = returns
-          .filter((r) => r.itemId === item.itemId)
-          .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
-        const qtyToRestore = Math.max(0, item.quantity - alreadyReturned);
-        if (qtyToRestore <= 0) continue;
-        const { prevQty, newQty } = ledger.apply(item.itemId, qtyToRestore);
-        newLogs.push({
-          id: rid('adj'), itemId: item.itemId, itemName: item.itemName, itemCode: item.itemCode || '',
-          branchId: inv.branchId, previousQuantity: prevQty, quantityChange: qtyToRestore,
-          newQuantity: newQty, reason: 'Voided Sale',
-          notes: `Voided Sale #${inv.invoiceNumber} - Reason: ${reason || 'Cancellation'}`,
-          adjustedBy: actor, timestamp: ts,
-        });
-      }
+    // Restore (sold − already-returned) PER ITEM, aggregated across all lines and
+    // combos — restoring per line double-counted the returns when the same item
+    // appeared on two lines and left stock behind on a void (SAL5-3).
+    const sold = expandSoldUnits(inv.items as any[]);
+    const returned = expandReturnedUnits((inv.returns as any[]) || []);
+    for (const [itemId, soldQty] of sold.entries()) {
+      const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
+      if (restore <= 0) continue;
+      const { prevQty, newQty } = ledger.apply(itemId, restore);
+      const ci: any = itemById.get(itemId);
+      newLogs.push({
+        id: rid('adj'), itemId, itemName: ci?.itemName || 'Item', itemCode: ci?.itemCode || '',
+        branchId: inv.branchId, previousQuantity: prevQty, quantityChange: restore, newQuantity: newQty,
+        reason: 'Voided Sale', notes: `Voided Sale #${inv.invoiceNumber} - Reason: ${reason || 'Cancellation'}`,
+        adjustedBy: actor, timestamp: ts,
+      });
     }
     await ledger.flush(tx);
     if (newLogs.length) await tx.stockAdjustmentLog.createMany({ data: newLogs });
@@ -737,28 +814,30 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       // Only restore stock that is still OUT because of this bill. A voided bill
       // already had its stock restored on void, and a returned bill already
       // restored the returned units — restoring the full sold quantity here
-      // double-counted them and created stock from nothing (STK-2). So: skip
-      // voided bills entirely, and for the rest restore sold − already-returned.
+      // double-counts them (STK-2). Skip voided bills; for the rest restore
+      // sold − already-returned, AGGREGATED per item (not per line — SAL5-3), and
+      // write a history row so the ledger reconciles (INV2-4).
       if (!inv.isVoided) {
-        const returns = (inv.returns as any[]) || [];
-        for (const item of inv.items as any[]) {
-          if (item.isCombo && item.comboComponents?.length) {
-            const alreadyReturned = returns
-              .filter((r) => r.id === item.id || (item.comboId && r.comboId === item.comboId))
-              .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
-            const comboQtyToRestore = Math.max(0, (item.quantity || 0) - alreadyReturned);
-            if (comboQtyToRestore > 0) {
-              for (const comp of item.comboComponents) ledger.apply(comp.itemId, comp.quantity * comboQtyToRestore);
-            }
-          } else if (item.itemId) {
-            const alreadyReturned = returns
-              .filter((r) => r.itemId === item.itemId)
-              .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
-            const qtyToRestore = Math.max(0, (item.quantity || 0) - alreadyReturned);
-            if (qtyToRestore > 0) ledger.apply(item.itemId, qtyToRestore);
-          }
+        const items = await tx.item.findMany();
+        const itemById = new Map(items.map((i: any) => [i.id, i]));
+        const sold = expandSoldUnits(inv.items as any[]);
+        const returned = expandReturnedUnits((inv.returns as any[]) || []);
+        const ts = nowIso();
+        const delLogs: any[] = [];
+        for (const [itemId, soldQty] of sold.entries()) {
+          const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
+          if (restore <= 0) continue;
+          const { prevQty, newQty } = ledger.apply(itemId, restore);
+          const ci: any = itemById.get(itemId);
+          delLogs.push({
+            id: rid('adj'), itemId, itemName: ci?.itemName || 'Item', itemCode: ci?.itemCode || '',
+            branchId: inv.branchId, previousQuantity: prevQty, quantityChange: restore, newQuantity: newQty,
+            reason: 'Deleted Sale', notes: `Deleted Sale #${inv.invoiceNumber}`,
+            adjustedBy: (reqUser?.name) || 'System', timestamp: ts,
+          });
         }
         await ledger.flush(tx);
+        if (delLogs.length) await tx.stockAdjustmentLog.createMany({ data: delLogs });
       }
       await tx.invoice.delete({ where: { id: invoiceId } });
     }

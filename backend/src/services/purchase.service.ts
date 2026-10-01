@@ -174,6 +174,11 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
     if (po && (po.amountPaid || 0) > 0) {
       throw new AppError('PO_HAS_PAYMENTS', 'Cannot cancel a purchase order that has payments recorded against it. Reverse the vendor payment first.', 409);
     }
+    // A PO that has received stock can't be cancelled either — the receipts and
+    // their stock already happened (PUR3-6). Reverse/return the stock first.
+    if (po && (po.status === 'Received' || po.status === 'Partially Received' || ((po.receivingHistory as any[]) || []).length > 0)) {
+      throw new AppError('PO_HAS_RECEIPTS', 'Cannot cancel a purchase order that has received stock.', 409);
+    }
     const ts = nowIso();
     await tx.purchaseOrder.updateMany({ where: { id: poId }, data: { status: 'Cancelled', updatedAt: ts } });
     // PUR-5: unlink any pending order that pointed at this PO so it is no longer
@@ -209,8 +214,22 @@ export function receivePurchaseOrderStock(
     if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot receive stock against a cancelled purchase order.', 400);
     if (po.status === 'Received') throw new AppError('PO_COMPLETE', 'This purchase order is already fully received.', 400);
 
-    const valid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
-    if (!valid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
+    const rawValid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
+    if (!rawValid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
+    // Aggregate multiple receipt entries for the SAME item into one, so sending the
+    // item twice in one receipt can't double the stock (PUR3-1).
+    const aggByItem = new Map<string, any>();
+    for (const r of rawValid) {
+      const cur = aggByItem.get(r.itemId) || { itemId: r.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0 };
+      cur.quantityReceived += Number(r.quantityReceived) || 0;
+      cur.damagedQuantity += Number(r.damagedQuantity) || 0;
+      cur.missingQuantity += Number(r.missingQuantity) || 0;
+      if (r.location) cur.location = r.location;
+      if (r.purchasePrice != null) cur.purchasePrice = r.purchasePrice;
+      if (r.taxPercent != null) cur.taxPercent = r.taxPercent;
+      aggByItem.set(r.itemId, cur);
+    }
+    const valid = [...aggByItem.values()];
 
     const ts = nowIso();
     const lines = po.items as any[];
@@ -259,7 +278,7 @@ export function receivePurchaseOrderStock(
       if (!alloc || (alloc.good <= 0 && alloc.dmg <= 0 && alloc.missing <= 0)) return line;
       const rec = recByItem.get(line.itemId)!;
       const nextPrice =
-        rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
+        rec.purchasePrice != null && rec.purchasePrice > 0 ? rec.purchasePrice : line.purchasePrice || 0;
       const nextTaxPercent =
         rec.taxPercent != null ? Number(rec.taxPercent) : (line.taxPercent ?? 0);
       const lineAmount = Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100;
@@ -339,21 +358,27 @@ export function receivePurchaseOrderStock(
     const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0 || (l.damagedQuantity || 0) > 0 || (l.missingQuantity || 0) > 0);
     const status = allFull ? 'Received' : anyReceived ? 'Partially Received' : po.status;
 
-    // Optional vendor payment recorded at the moment of receiving.
-    const payNow = Math.max(0, Number(payment?.amount) || 0);
-    const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
-    const payments = (po.payments as any[]) || [];
-    if (payNow > 0) {
-      payments.unshift({
-        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        date: ts.split('T')[0], amount: payNow, mode: payment?.mode || 'Cash', by: actor,
-      });
-    }
-
     // PUR: extra charges the vendor billed (packing/freight) entered on this
     // receipt. Accumulate onto the PO so the payable includes them.
     const extraCharge = Math.max(0, Number(otherCharges) || 0);
     const newOtherCharges = Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100;
+
+    // Optional vendor payment recorded at the moment of receiving — CAPPED at what
+    // is still owed so "pay now" can't exceed the PO's value (PUR2-9).
+    const today = ts.split('T')[0];
+    const debitTotalNow = (debitNotes as any[]).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+    const owedCap = Math.max(0, Math.round(((newTotalAmount + newTotalTax + newOtherCharges) - debitTotalNow - (po.amountPaid || 0)) * 100) / 100);
+    const payNow = Math.min(Math.max(0, Number(payment?.amount) || 0), owedCap);
+    const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
+    const payments = (po.payments as any[]) || [];
+    let ledgerId: string | null = null;
+    if (payNow > 0) {
+      // A vendor payment at receiving hits the drawer today — refuse it on a closed day (CASH-2).
+      const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: po.branchId, date: today, isClosed: true } });
+      if (closed) throw new AppError('DAY_CLOSED', `The cash day ${today} is closed. Reopen it before paying this vendor.`, 409);
+      ledgerId = rid('pay');
+      payments.unshift({ id: rid('pay'), date: today, amount: payNow, mode: payment?.mode || 'Cash', by: actor, ledgerPaymentId: ledgerId });
+    }
 
     await tx.purchaseOrder.update({
       where: { id: poId },
@@ -366,6 +391,25 @@ export function receivePurchaseOrderStock(
         updatedAt: ts,
       },
     });
+
+    // A vendor payment made while receiving must also hit the cash drawer / Payments
+    // Log via a Payment 'out' ledger row (CASH3-5) — not only the PO-embedded entry.
+    if (payNow > 0 && ledgerId) {
+      const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
+      const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
+      let maxNo = 0;
+      for (const r of existingRows) { const n = parseInt(String(r.receiptNumber).slice(like.length), 10); if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n); }
+      await tx.payment.create({
+        data: {
+          id: ledgerId, receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+          type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
+          branchId: po.branchId, date: today, amount: payNow, paymentMode: payment?.mode || 'Cash',
+          reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber} (at receiving)`,
+          allocations: [{ refId: po.id, refNumber: po.poNumber, amount: payNow }] as any,
+          createdById: null, createdByName: actor, createdAt: ts,
+        },
+      });
+    }
 
     // Reflect the confirmed per-unit purchase price back onto the item master, and
     // re-price its sale price from the margin band (A +35% / B +25% / C +15%).

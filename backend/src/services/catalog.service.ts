@@ -220,12 +220,15 @@ export function saveCustomer(data: any) {
       await tx.customer.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = data.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      // Purchase aggregates are server-maintained from bills — never accept them
+      // from the client on create (a forged totalSpent/purchaseCount) (CRM5-6).
+      const { purchaseCount: _pc, totalSpent: _ts, lastRewardRedeemedPurchaseCount: _lr, ...clean } = data;
       await tx.customer.create({
         data: {
-          ...data, id,
+          ...clean, id,
           firstPurchaseDate: data.firstPurchaseDate || ts.split('T')[0],
-          purchaseCount: data.purchaseCount ?? 0,
-          totalSpent: data.totalSpent ?? 0,
+          purchaseCount: 0,
+          totalSpent: 0,
           createdAt: ts, updatedAt: ts,
         },
       });
