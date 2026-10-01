@@ -14,6 +14,20 @@ export interface Customer {
   createdAt: string;
   updatedAt: string;
   lastRewardRedeemedPurchaseCount?: number; // tracks when milestone reward was last applied
+  creditBalance?: number; // store credit the customer can spend on future bills
+  creditHistory?: CustomerCreditEntry[]; // append-only audit of credit movements
+}
+
+export interface CustomerCreditEntry {
+  id: string;
+  date: string;
+  type: 'issued' | 'applied' | 'adjust';
+  amount: number; // + added credit, − spent
+  balanceAfter: number;
+  reason?: string | null;
+  refId?: string | null;
+  refNumber?: string | null;
+  by?: string;
 }
 
 export interface LoyaltySettings {

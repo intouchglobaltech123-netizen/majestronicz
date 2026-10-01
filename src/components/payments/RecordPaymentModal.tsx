@@ -37,8 +37,19 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   branchId,
   outstanding = [],
 }) => {
-  const { recordPayment } = useErp();
+  const { recordPayment, customers } = useErp();
   const totalDue = useMemo(() => outstanding.reduce((t, o) => t + o.balanceDue, 0), [outstanding]);
+
+  // Store credit the customer holds — only offered as a receipt mode for a
+  // customer who actually has a balance.
+  const creditAvailable = useMemo(() => {
+    if (type !== 'in' || partyType !== 'customer' || !partyId) return 0;
+    return customers.find((c) => c.id === partyId)?.creditBalance || 0;
+  }, [type, partyType, partyId, customers]);
+  const paymentModes = useMemo(
+    () => (creditAvailable > 0 ? [...PAYMENT_MODES, 'Store Credit'] : PAYMENT_MODES),
+    [creditAvailable]
+  );
 
   // Prefill the EXACT outstanding (not rounded) so it doesn't invent a
   // fractional advance/short-payment.
@@ -91,8 +102,10 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const allocatedTotal = allocations.reduce((t, a) => t + a.amount, 0);
   const unallocated = Math.round((amountNum - allocatedTotal) * 100) / 100;
 
+  const overCredit = mode === 'Store Credit' && amountNum > creditAvailable + 0.01;
+
   const submit = async () => {
-    if (amountNum <= 0 || saving) return;
+    if (amountNum <= 0 || saving || overCredit) return;
     setSaving(true);
     const res = await recordPayment({
       type, partyType, partyId, partyName, branchId,
@@ -156,9 +169,17 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <UniversalDropdown
                 value={mode}
                 onChange={setMode}
-                options={PAYMENT_MODES.map((m) => ({ value: m, label: m }))}
+                options={paymentModes.map((m) => ({ value: m, label: m }))}
                 buttonClassName="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-900"
               />
+              {creditAvailable > 0 && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Store credit available: <span className="font-bold text-emerald-700 font-mono">{formatCurrency(creditAvailable)}</span>
+                </p>
+              )}
+              {overCredit && (
+                <p className="mt-1 text-[11px] font-bold text-rose-600">Amount exceeds the available store credit.</p>
+              )}
             </div>
           </div>
 
@@ -255,7 +276,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </button>
             <button
               onClick={submit}
-              disabled={amountNum <= 0 || unallocated < 0 || saving}
+              disabled={amountNum <= 0 || unallocated < 0 || saving || overCredit}
               className={cn('px-4 py-1.5 rounded-none text-white text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer uppercase', isIn ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800')}
             >
               {saving ? <Wallet className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />}

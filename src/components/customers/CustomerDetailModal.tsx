@@ -295,6 +295,19 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </span>
             </div>
 
+            {/* Store Credit KPI Card — shown when the customer holds credit */}
+            {(currentCustomer.creditBalance || 0) > 0 && (
+              <div className="p-4 rounded-xl border bg-emerald-50/80 border-emerald-200 shadow-2xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider block text-emerald-900">Store Credit</span>
+                <div className="text-xl font-bold mt-1 font-mono text-emerald-700">
+                  {formatCurrency(currentCustomer.creditBalance || 0)}
+                </div>
+                <span className="text-[11px] mt-0.5 block font-medium text-emerald-700/80">
+                  Usable on future bills (choose "Store Credit" at the receipt desk)
+                </span>
+              </div>
+            )}
+
             {/* Loyalty Milestone Status or Organization Info */}
             {(currentCustomer.customerType || 'Retail') === 'Organization' ? (
               <div className="p-3.5 rounded-none bg-slate-50 border border-slate-200 flex flex-col justify-between">
