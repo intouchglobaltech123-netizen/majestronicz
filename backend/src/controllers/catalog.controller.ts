@@ -23,6 +23,8 @@ export const cancelEstimate = async (req: Request, res: Response) => {
 };
 export const deleteEstimate = async (req: Request, res: Response) => res.json(await catalog.deleteEstimate(req.params.id));
 export const saveChallan = async (req: Request, res: Response) => res.json(await catalog.saveChallan(req.body));
+export const markChallanReceived = async (req: Request, res: Response) =>
+  res.json(await catalog.markChallanReceived(req.params.id, req.body?.receiverName ? String(req.body.receiverName) : undefined));
 export const deleteChallan = async (req: Request, res: Response) => res.json(await catalog.deleteChallan(req.params.id));
 export const saveCombo = async (req: Request, res: Response) => res.json(await catalog.saveCombo(req.body));
 export const deleteCombo = async (req: Request, res: Response) => res.json(await catalog.deleteCombo(req.params.id));

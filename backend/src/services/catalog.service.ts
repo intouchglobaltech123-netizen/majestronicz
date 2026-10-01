@@ -111,15 +111,38 @@ export function saveChallan(data: any) {
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const existing = data.id ? await tx.deliveryChallan.findUnique({ where: { id: data.id } }) : null;
     if (existing) {
-      const { id, ...rest } = data;
+      // The received-status fields are server-managed (set via markChallanReceived),
+      // never taken from a plain save/edit.
+      const { id, status, receivedAt, ...rest } = data;
       await tx.deliveryChallan.update({ where: { id }, data: rest });
     } else {
       const id = data.id || `dc-${Date.now()}`;
       const challanNumber = await nextChallanNumber(tx);
-      await tx.deliveryChallan.create({ data: { ...data, id, challanNumber, createdAt: data.createdAt || nowIso() } });
+      const { status, receivedAt, ...rest } = data;
+      // A new challan starts 'pending' until the recipient acknowledges it.
+      await tx.deliveryChallan.create({ data: { ...rest, id, challanNumber, status: 'pending', createdAt: data.createdAt || nowIso() } });
     }
     return { challans: await tx.deliveryChallan.findMany() };
   }));
+}
+
+/** Mark a delivery challan received (pending → received) with the time. */
+export function markChallanReceived(id: string, receiverName?: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const ch = await tx.deliveryChallan.findUnique({ where: { id } });
+    if (!ch) throw new AppError('NOT_FOUND', 'Delivery challan not found', 404);
+    const ts = nowIso();
+    const prevReceivedBy = (ch.receivedBy as any) || {};
+    await tx.deliveryChallan.update({
+      where: { id },
+      data: {
+        status: 'received',
+        receivedAt: ts,
+        receivedBy: { ...prevReceivedBy, name: receiverName || prevReceivedBy.name || ch.recipientName, date: ts.slice(0, 10) },
+      },
+    });
+    return { challans: await tx.deliveryChallan.findMany() };
+  });
 }
 
 export function deleteChallan(id: string) {

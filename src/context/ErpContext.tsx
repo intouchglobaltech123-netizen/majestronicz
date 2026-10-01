@@ -212,6 +212,7 @@ interface ErpContextType {
   challans: DeliveryChallan[];
   saveChallan: (challan: DeliveryChallan) => void;
   deleteChallan: (challanId: string) => void;
+  markChallanReceived: (challanId: string, receiverName?: string) => Promise<void>;
   getNextChallanNumber: () => string;
 
   // Sales Invoices (Core Billing)
@@ -2177,6 +2178,25 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setChallans((prev) => prev.filter((c) => c.id !== challanId));
     persist(apiDelete(`/api/catalog/challan/${challanId}`));
     toast.success('Delivery Challan removed');
+  };
+
+  // Mark a delivery as received by the recipient (pending → received).
+  const markChallanReceived = async (challanId: string, receiverName?: string) => {
+    const now = new Date().toISOString();
+    setChallans((prev) =>
+      prev.map((c) =>
+        c.id === challanId
+          ? { ...c, status: 'received' as const, receivedAt: now, receivedBy: { ...(c.receivedBy || {}), name: receiverName || c.receivedBy?.name, date: now.slice(0, 10) } }
+          : c,
+      ),
+    );
+    try {
+      const snap = await apiPost<any>(`/api/catalog/challan/${challanId}/received`, { receiverName });
+      if (snap && Array.isArray(snap.challans)) setChallans(snap.challans);
+      toast.success('Delivery marked as received');
+    } catch (e: any) {
+      toast.error('Could not update challan', { description: e?.message ?? 'Backend error' });
+    }
   };
 
   const getNextInvoiceNumber = (branchId: BranchId, date?: string): string => {
@@ -4347,6 +4367,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         challans,
         saveChallan,
         deleteChallan,
+        markChallanReceived,
         getNextChallanNumber,
         invoices,
         saveInvoice,

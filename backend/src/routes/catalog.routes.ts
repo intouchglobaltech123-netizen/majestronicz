@@ -15,6 +15,7 @@ router.post('/estimate/:id/cancel', requireCapability('estimate:write'), asyncHa
 router.delete('/estimate/:id', requireCapability('estimate:write'), asyncHandler(ctrl.deleteEstimate));
 // Challans
 router.post('/challan', requireCapability('challan:write'), asyncHandler(ctrl.saveChallan));
+router.post('/challan/:id/received', requireCapability('challan:write'), asyncHandler(ctrl.markChallanReceived));
 router.delete('/challan/:id', requireCapability('challan:write'), asyncHandler(ctrl.deleteChallan));
 // Combos (part of catalog)
 router.post('/combo', requireCapability('items:write'), asyncHandler(ctrl.saveCombo));

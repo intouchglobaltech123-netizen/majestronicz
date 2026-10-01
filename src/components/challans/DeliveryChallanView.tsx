@@ -12,8 +12,13 @@ import {
   Edit2,
   Calendar,
   Building,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn, getTodayDateString } from '../../lib/utils';
+
+const challanStatusOf = (c: DeliveryChallan): 'pending' | 'received' =>
+  c.status === 'received' ? 'received' : 'pending';
 
 interface DeliveryChallanViewProps {
   /** Which tab to open first when embedded (e.g. inside the Sales screen). */
@@ -21,10 +26,11 @@ interface DeliveryChallanViewProps {
 }
 
 export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initialTab = 'new' }) => {
-  const { challans, deleteChallan, activeSubTab } = useErp();
+  const { challans, deleteChallan, markChallanReceived, activeSubTab } = useErp();
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>(initialTab);
   const [editingChallan, setEditingChallan] = useState<DeliveryChallan | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'received'>('all');
 
   // Synchronize view tab when triggered from secondary navbar flyout
   useEffect(() => {
@@ -45,14 +51,15 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
   const filteredChallans = useMemo(() => {
     return challans.filter((c) => {
       const q = searchQuery.toLowerCase();
-      return (
+      const matchesSearch =
         c.recipientName.toLowerCase().includes(q) ||
         c.challanNumber.toLowerCase().includes(q) ||
         (c.location && c.location.toLowerCase().includes(q)) ||
-        (c.contactNo && c.contactNo.includes(q))
-      );
+        (c.contactNo && c.contactNo.includes(q));
+      const matchesStatus = statusFilter === 'all' || challanStatusOf(c) === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [challans, searchQuery]);
+  }, [challans, searchQuery, statusFilter]);
 
   // Dispatch metrics.
   const challanStats = useMemo(() => {
@@ -64,6 +71,8 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
       monthCount: monthList.length,
       totalUnits,
       recipients: new Set(challans.map((c) => c.recipientName)).size,
+      pending: challans.filter((c) => challanStatusOf(c) === 'pending').length,
+      received: challans.filter((c) => challanStatusOf(c) === 'received').length,
     };
   }, [challans]);
 
@@ -184,10 +193,27 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
               />
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span>
-                Showing <strong>{filteredChallans.length}</strong> of {challans.length} challans
-              </span>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              {/* Pending vs received filter */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-none font-bold">
+                {([
+                  ['all', `All (${challans.length})`],
+                  ['pending', `Pending (${challanStats.pending})`],
+                  ['received', `Received (${challanStats.received})`],
+                ] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setStatusFilter(val)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-none transition-all cursor-pointer',
+                      statusFilter === val ? 'bg-red-600 text-white' : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={handleStartNew}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-colors shadow-none cursor-pointer"
@@ -210,13 +236,14 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
                     <th className="py-3 px-4 text-center">Items</th>
                     <th className="py-3 px-4 text-right">Total Qty</th>
                     <th className="py-3 px-4">Delivered By</th>
+                    <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredChallans.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         <Truck className="h-8 w-8 mx-auto mb-2 opacity-40 text-red-600" />
                         <p className="font-semibold text-slate-600 text-sm">No delivery challans found</p>
                         <p className="text-xs text-slate-400 mt-1">
@@ -285,7 +312,31 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
                         </td>
 
                         <td className="py-3 px-4 text-center">
+                          {challanStatusOf(ch) === 'received' ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
+                              title={ch.receivedAt ? `Received ${ch.receivedAt.slice(0, 10)}${ch.receivedBy?.name ? ` by ${ch.receivedBy.name}` : ''}` : 'Received'}
+                            >
+                              <CheckCircle2 className="h-3 w-3" /> Received
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold" title="Awaiting recipient acknowledgement">
+                              <Clock className="h-3 w-3" /> Pending
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            {challanStatusOf(ch) === 'pending' && (
+                              <button
+                                onClick={() => markChallanReceived(ch.id)}
+                                className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                                title="Mark this delivery as received by the recipient"
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> Mark Received
+                              </button>
+                            )}
                             <button
                               onClick={() => setPreviewChallan(ch)}
                               className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
