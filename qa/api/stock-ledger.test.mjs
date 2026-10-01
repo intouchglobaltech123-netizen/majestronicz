@@ -77,6 +77,14 @@ describe('stock & ledger', () => {
     assert.ok(row.adjustedBy && row.adjustedBy !== 'System', 'stamped with the authenticated user');
   });
 
+  test('INV8-4 a stock adjustment sent as a string number does not create phantom stock', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 20 } });
+    // The request body is untyped JSON — the client can send "5" (a string).
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: '5', reason: 'QA', actor: 'QA' }));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 25, 'string "5" adds 5, not 205');
+    expectStatus(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: 'abc', reason: 'QA', actor: 'QA' }), 400, 'a non-numeric adjustment is refused');
+  });
+
   test('INV2-2 a batch transfer with the same item on two lines cannot move more than the stock', async () => {
     const item = await createItem({ stock: { 'erode-hq': 20 } });
     const res = await post('/api/stock/transfer-batch', { items: [{ itemId: item.id, quantity: 15 }, { itemId: item.id, quantity: 15 }], fromBranch: 'erode-hq', toBranch: 'chennai', actor: 'QA' });

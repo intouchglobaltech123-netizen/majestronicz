@@ -189,6 +189,11 @@ export function adjustStock(
   actor: string
 ) {
   if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
+  // The request body is untyped JSON, so quantityChange can arrive as the string
+  // "5" — then `prevQty + "5"` concatenated (20 → "205") and quietly became 205
+  // units of phantom stock. Coerce to a real number and reject anything else (INV8-4).
+  const change = Number(quantityChange);
+  if (!Number.isFinite(change)) throw new AppError('BAD_QTY', 'Adjustment quantity must be a number.', 400);
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
@@ -198,7 +203,7 @@ export function adjustStock(
       where: { itemId_branchId: { itemId, branchId } },
     });
     const prevQty = existing?.quantity ?? 0;
-    const newQty = Math.max(0, prevQty + quantityChange);
+    const newQty = Math.max(0, prevQty + change);
     // Stock clamps at 0, so the change that REALLY happened is newQty − prevQty
     // (e.g. a −1000 request on 45 units actually moves −45). Log the real change,
     // not the requested one, or the ledger can't reconcile to actual stock (INV2-4).

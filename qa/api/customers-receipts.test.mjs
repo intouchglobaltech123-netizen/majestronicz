@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  post, get, del, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, receive,
+  post, get, del, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, receive, resave,
   freshDay, together, randomPhone, paymentsFor, serviceLine,
 } from './lib.mjs';
 
@@ -175,6 +175,19 @@ describe('customers & receipts', () => {
     const inv2 = await creditBill();
     const p2 = ok(await receive(inv2, 100, { date: inv1.date }), 'receipt 2 (same month)');
     assert.notEqual(p2.receiptNumber, p1.receiptNumber, 'the deleted number must not be reissued');
+  });
+
+  test('SAL8-1 editing a billed-and-received bill updates what is owed', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
+    ok(await receive(inv, 500), 'part receipt');
+    near((await getInvoice(inv.id)).balanceDue, 680, 'due = 1180 − 500');
+    // Edit the bill up to 2 units (new total 2,360). The receipt stays applied and
+    // the owed must follow the NEW total, not freeze at the old one.
+    const stored = await getInvoice(inv.id);
+    ok(await resave(stored, { items: [line(item, 2)] }), 'edit to 2 units');
+    near((await getInvoice(inv.id)).balanceDue, 1860, 'due = new 2,360 − 500 receipt');
   });
 
   test('CRM-3 "Adjust to credit note" banks store credit instead of paying cash', async () => {

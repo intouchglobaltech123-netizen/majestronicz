@@ -182,11 +182,21 @@ async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> 
  * Payment 'out' row points at a bill that no longer exists (money-model cleanup).
  */
 async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
-  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, allocations: true } });
-  const ids = outRows
-    .filter((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId))
-    .map((p: any) => p.id);
-  if (ids.length) await tx.payment.deleteMany({ where: { id: { in: ids } } });
+  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, branchId: true, date: true, allocations: true } });
+  const targets = outRows.filter(
+    (p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId),
+  );
+  if (!targets.length) return;
+  // A refund was a cash payout on its own day. If that day's drawer is already
+  // closed, deleting the refund would silently change a reconciled day — block the
+  // void/delete and tell the user to reopen that day first (SAL8-6).
+  for (const p of targets) {
+    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: p.branchId, date: p.date, isClosed: true } });
+    if (closed) {
+      throw new AppError('DAY_CLOSED', `A refund on this bill was paid on ${p.date}, a closed cash day. Reopen that day before voiding/deleting the bill.`, 409);
+    }
+  }
+  await tx.payment.deleteMany({ where: { id: { in: targets.map((p: any) => p.id) } } });
 }
 
 /** Per-item units a bill SOLD, combos expanded to their components. Used by void
@@ -351,14 +361,24 @@ export function createSale(inv: any, reqUser?: any) {
       );
       if (hasReceipts) {
         // CRM6-1 / SAL6-2: a bill that has receipts keeps its server-settled payment
-        // state — accepting the client's (often stale) splits would resurrect the
-        // settled debt. Receipts remain the only way to change its due.
+        // SPLIT — accepting the client's (often stale) splits would resurrect the
+        // settled debt. Receipts remain the only way to pay it down.
         inv.paymentSplits = existing!.paymentSplits ?? inv.paymentSplits;
-        inv.balanceDue = existing!.balanceDue ?? 0;
         inv.isPartialPayment = existing!.isPartialPayment ?? false;
         inv.partialAmount = existing!.partialAmount ?? null;
         inv.paymentMode = existing!.paymentMode ?? inv.paymentMode;
-        inv.creditOriginal = existing!.creditOriginal ?? undefined;
+        // SAL8-1: but DO re-anchor the owed-at-billing credit to the (possibly new)
+        // total. Keep what was collected at billing from the immutable original
+        // split; the credit is newTotal − that. recomputeInvoiceBalance (end of this
+        // fn) then derives the due from this anchor, the receipts and the returns —
+        // so changing a billed-and-received bill's total updates what's owed instead
+        // of freezing the old amount.
+        const origSplits = Array.isArray(existing!.paymentSplits) ? (existing!.paymentSplits as any[]) : [];
+        const collectedAtBilling = origSplits
+          .filter((s) => s.mode !== 'COD-Credit')
+          .reduce((t, s) => t + (Number(s.amount) || 0), 0);
+        inv.creditOriginal = Math.max(0, Math.round(((inv.grandTotal || 0) - collectedAtBilling) * 100) / 100);
+        inv.balanceDue = inv.creditOriginal; // provisional — refreshed from the ledger after save
       } else {
         // No receipts yet: the payment is entirely at-billing, so re-reconcile the
         // client's new splits to the new total (QA8-1 — editing a paid cash bill to
