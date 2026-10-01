@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Employee, PayrollRecord, BRANCHES, BranchScope } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, getTodayDateString } from '../../lib/utils';
 import { PayslipModal } from './PayslipModal';
 import { PayrollSettingsModal } from './PayrollSettingsModal';
 import { computePayrollRows } from '../../lib/payroll';
@@ -33,7 +33,7 @@ export const PayrollSummaryView: React.FC = () => {
     canAdjustPayroll,
   } = useErp();
 
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [selectedMonth, setSelectedMonth] = useState(getTodayDateString().slice(0, 7)); // current month (PLT-5)
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
 
   // Modals

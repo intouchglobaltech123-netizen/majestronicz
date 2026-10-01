@@ -26,7 +26,7 @@ export const AttendanceLogView: React.FC = () => {
   } = useErp();
 
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [selectedMonth, setSelectedMonth] = useState(getTodayDateString().slice(0, 7)); // current month (PLT-5)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
 

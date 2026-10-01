@@ -68,9 +68,15 @@ export const ReportsView: React.FC = () => {
     }
   }, [activeSubTab]);
 
-  // Universal Date Range state (Default to Current Month September 2026)
-  const [startDate, setStartDate] = useState<string>('2026-09-01');
-  const [endDate, setEndDate] = useState<string>('2026-09-30');
+  // Universal Date Range state — defaults to the CURRENT month, computed from
+  // today (never hard-coded, or a freshly added sale/expense falls outside the
+  // window and the reports look "empty"/broken — PLT-5).
+  const [startDate, setStartDate] = useState<string>(() => `${getTodayDateString().slice(0, 7)}-01`);
+  const [endDate, setEndDate] = useState<string>(() => {
+    const ym = getTodayDateString().slice(0, 7);
+    const last = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+    return `${ym}-${String(last).padStart(2, '0')}`;
+  });
   const [activePreset, setActivePreset] = useState<'month' | 'today' | '30days' | 'all'>('month');
 
   // Branch scope filter inside reports (inherits global branch by default)
@@ -102,8 +108,10 @@ export const ReportsView: React.FC = () => {
       setStartDate(getTodayDateString(prior));
       setEndDate(today);
     } else if (preset === 'all') {
-      setStartDate('2026-01-01');
-      setEndDate('2026-12-31');
+      // Everything: from well before go-live to a few years out (covers any
+      // future-dated bill) — not a hard-coded single year.
+      setStartDate('2000-01-01');
+      setEndDate(`${now.getFullYear() + 5}-12-31`);
     }
   };
 

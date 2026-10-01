@@ -50,7 +50,7 @@ export const HrmView: React.FC = () => {
   }, [activeSubTab]);
 
   const todayStr = getTodayDateString();
-  const currentMonthStr = '2026-09';
+  const currentMonthStr = todayStr.slice(0, 7); // current month, not hard-coded (PLT-5)
 
   // KPI Calculations
   const activeStaff = employees.filter((e) => e.status === 'Active');
