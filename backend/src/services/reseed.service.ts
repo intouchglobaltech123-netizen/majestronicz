@@ -32,7 +32,44 @@ export async function reseedDatabase() {
   await prisma.item.createMany({ data: INITIAL_ITEMS as any });
   await prisma.branchStock.createMany({ data: INITIAL_BRANCH_STOCKS as any });
   await prisma.comboItem.createMany({ data: INITIAL_COMBOS as any });
+
+  // STK-3: every seeded opening balance needs a matching 'Opening Stock' history
+  // row, so the stock-movement ledger reconciles to actual stock from day one
+  // (sales and PO receipts already write history). The opening quantity is the
+  // current seeded stock MINUS the net of the other seeded movements for that
+  // item/branch — so replaying (opening + movements) lands back on the seeded
+  // quantity instead of double-counting those demo events.
+  const itemMetaById = new Map((INITIAL_ITEMS as any[]).map((i) => [i.id, i]));
+  const netSeedMovement = new Map<string, number>();
+  for (const log of INITIAL_STOCK_ADJUSTMENT_LOGS as any[]) {
+    const k = `${log.itemId}|${log.branchId}`;
+    netSeedMovement.set(k, (netSeedMovement.get(k) || 0) + (Number(log.quantityChange) || 0));
+  }
+  const openingLogs = (INITIAL_BRANCH_STOCKS as any[])
+    .map((s) => {
+      const openingQty = Math.round(((Number(s.quantity) || 0) - (netSeedMovement.get(`${s.itemId}|${s.branchId}`) || 0)) * 100) / 100;
+      const meta = itemMetaById.get(s.itemId);
+      return { s, openingQty, meta };
+    })
+    .filter((x) => x.openingQty !== 0)
+    .map(({ s, openingQty, meta }) => ({
+      id: `adj-open-${s.branchId}-${s.itemId}`,
+      itemId: s.itemId,
+      itemName: meta?.itemName || 'Item',
+      itemCode: meta?.itemCode || '',
+      branchId: s.branchId,
+      previousQuantity: 0,
+      quantityChange: openingQty,
+      newQuantity: openingQty,
+      reason: 'Opening Stock',
+      notes: 'Opening balance at go-live',
+      adjustedBy: 'System (Opening Balance)',
+      // Dated before the demo movement events so a chronological replay starts here.
+      timestamp: '2025-04-01T00:00:00.000Z',
+    }));
+
   await prisma.stockAdjustmentLog.createMany({ data: INITIAL_STOCK_ADJUSTMENT_LOGS as any });
+  if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
   await prisma.estimate.createMany({ data: INITIAL_ESTIMATES as any });
   await prisma.deliveryChallan.createMany({ data: INITIAL_CHALLANS as any });
   await prisma.invoice.createMany({ data: INITIAL_INVOICES as any });
