@@ -39,7 +39,7 @@ const maxSeq = (numbers: string[], prefix: string, floor = 0) => {
  * and the stored counter, bumps it, and persists the new value. Scoped per prefix
  * in appConfig so each branch/FY sequence advances on its own.
  */
-async function nextPersistent(tx: any, key: string, fromRowsMax: number): Promise<number> {
+export async function nextPersistent(tx: any, key: string, fromRowsMax: number): Promise<number> {
   const row = await tx.appConfig.findUnique({ where: { key } });
   const stored = row && typeof (row.value as any)?.n === 'number' ? (row.value as any).n : 0;
   const next = Math.max(fromRowsMax, stored) + 1;

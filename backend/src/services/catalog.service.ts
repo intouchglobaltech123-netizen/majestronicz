@@ -249,7 +249,27 @@ export function deleteCustomer(id: string) {
     if (receiptCount > 0) {
       throw new AppError('CUSTOMER_IN_USE', 'This customer has payments on record and cannot be deleted.', 409);
     }
+    // Legacy bills were linked only by phone number (no customerId). Deleting the
+    // customer would orphan those too, so match the customer's phone against bills
+    // that carry no customerId, comparing in normalized form (handles +91 / 0 / spaces).
+    const cust = await tx.customer.findUnique({ where: { id } });
+    const phone = normalizePhoneDigits(cust?.phone);
+    if (phone) {
+      const loose = await tx.invoice.findMany({ where: { customerId: null }, select: { customerPhone: true } });
+      if (loose.some((i: any) => normalizePhoneDigits(i.customerPhone) === phone)) {
+        throw new AppError('CUSTOMER_IN_USE', 'This customer has older bills linked by phone number and cannot be deleted.', 409);
+      }
+    }
     await tx.customer.deleteMany({ where: { id } });
     return { customers: await tx.customer.findMany() };
   });
+}
+
+/** Strip a phone to comparable digits: drop non-digits, a leading 91 country
+ *  code and a leading trunk 0 so "09842…", "+91 9842…" and "9842…" all match. */
+function normalizePhoneDigits(raw?: string | null): string {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length > 10 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return d;
 }

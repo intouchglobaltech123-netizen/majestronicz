@@ -79,7 +79,7 @@ describe('reports arithmetic', () => {
     }
   });
 
-  test('CRM6-1 every bill\'s stored due equals credit at billing - receipts - returns', async () => {
+  test('CRM6-1 every bill\'s stored due equals credit at billing - receipts - returns + refunds', async () => {
     const date = await freshDay('erode-hq');
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
@@ -87,14 +87,19 @@ describe('reports arithmetic', () => {
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Adjust' }));
     const payments = ok(await get('/api/payments'));
     const receipts = new Map();
-    for (const p of payments.filter((x) => x.type === 'in')) {
-      for (const a of p.allocations || []) receipts.set(a.refId, (receipts.get(a.refId) || 0) + a.amount);
+    const refunds = new Map(); // cash refunded to the customer against a bill ('out' rows)
+    for (const p of payments) {
+      for (const a of p.allocations || []) {
+        if (p.type === 'in') receipts.set(a.refId, (receipts.get(a.refId) || 0) + a.amount);
+        else if (p.type === 'out' && p.partyType === 'customer') refunds.set(a.refId, (refunds.get(a.refId) || 0) + a.amount);
+      }
     }
     const bills = ok(await get('/api/invoices')).filter((i) => !i.isVoided && Array.isArray(i.paymentSplits) && i.paymentSplits.length);
     for (const b of bills) {
       // Credit at billing = total minus everything collected when the bill was made.
       const credit = b.grandTotal - sum(b.paymentSplits.filter((s) => s.mode !== 'COD-Credit'), (s) => s.amount);
-      const due = Math.max(0, r2(credit - (receipts.get(b.id) || 0) - (b.totalReturnedAmount || 0)));
+      // Cash refunded to the customer raises what they owe (money left the drawer).
+      const due = Math.max(0, r2(credit - (receipts.get(b.id) || 0) - (b.totalReturnedAmount || 0) + (refunds.get(b.id) || 0)));
       near(b.balanceDue ?? 0, due, `${b.invoiceNumber} due`);
     }
     near((await getInvoice(inv.id)).balanceDue, 480, 'test bill: 2360 - 700 - 1180');

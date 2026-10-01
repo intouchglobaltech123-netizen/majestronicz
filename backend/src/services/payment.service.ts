@@ -5,6 +5,7 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { isValidBranch } from '../lib/constants.js';
 import { roleCan } from '../lib/auth.js';
+import { nextPersistent } from '../lib/sequences.js';
 
 /**
  * Party ledger / payments service.
@@ -48,7 +49,11 @@ async function nextReceiptNumber(tx: any, type: 'in' | 'out', date: string): Pro
     const n = parseInt(String(r.receiptNumber).slice(like.length), 10);
     if (!Number.isNaN(n)) max = Math.max(max, n);
   }
-  return `${like}${String(max + 1).padStart(4, '0')}`;
+  // Persist a high-water mark so a receipt number is NEVER reissued after the row
+  // that held it is deleted (CRM2-7): take the greater of the surviving max and
+  // the stored counter, then bump and persist it.
+  const next = await nextPersistent(tx, `seq:${prefix.toLowerCase()}:${like}`, max);
+  return `${like}${String(next).padStart(4, '0')}`;
 }
 
 /** The payment splits for an invoice, synthesised for legacy single-mode / partial
@@ -81,6 +86,25 @@ export async function invoiceReceiptsTotal(tx: any, invoiceId: string): Promise<
 }
 
 /**
+ * Cash REFUNDED to the customer against this bill (return refunds are Payment
+ * 'out' rows allocated to the invoice). This is money that LEFT the drawer to the
+ * customer, so it raises what they owe: a refund given against a receipt that is
+ * later deleted must still count, or the restored debt is understated (the bug
+ * where deleting a receipt after a refund brought back the wrong debt).
+ */
+export async function invoiceRefundsTotal(tx: any, invoiceId: string): Promise<number> {
+  const rows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { allocations: true } });
+  let total = 0;
+  for (const p of rows) {
+    if (!Array.isArray(p.allocations)) continue;
+    for (const a of p.allocations as any[]) {
+      if (a?.refId === invoiceId) total += Number(a?.amount) || 0;
+    }
+  }
+  return round2(total);
+}
+
+/**
  * The credit a customer owed AT BILLING, as an EXPLICIT stored anchor
  * (`inv.creditOriginal`). Earlier this was reconstructed from the split
  * (grand − non-credit splits), but on legacy data a receipt that lived BOTH as a
@@ -95,9 +119,10 @@ export async function ensureCreditOriginal(tx: any, invoiceId: string): Promise<
   if (!inv || inv.creditOriginal != null) return;
   const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
   const receipts = await invoiceReceiptsTotal(tx, invoiceId);
+  const refunds = await invoiceRefundsTotal(tx, invoiceId);
   const returns = Number(inv.totalReturnedAmount) || 0;
-  // Anchor so that CURRENT due (= stored balanceDue) == creditOriginal − receipts − returns.
-  const creditOriginal = Math.max(0, round2(storedDue + receipts + returns));
+  // Anchor so CURRENT due (= stored balanceDue) == creditOriginal − receipts − returns + refunds.
+  const creditOriginal = Math.max(0, round2(storedDue + receipts + returns - refunds));
   await tx.invoice.update({ where: { id: invoiceId }, data: { creditOriginal } });
 }
 
@@ -112,11 +137,12 @@ function creditOriginalOf(inv: any): number {
   return Math.max(0, round2(grand - collectedAtBilling));
 }
 
-/** An invoice's current outstanding: creditOriginal − receipts − returns. */
+/** An invoice's current outstanding: creditOriginal − receipts − returns + refunds. */
 async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
   const receipts = await invoiceReceiptsTotal(tx, inv.id);
+  const refunds = await invoiceRefundsTotal(tx, inv.id);
   const returns = Number(inv.totalReturnedAmount) || 0;
-  return Math.max(0, round2(creditOriginalOf(inv) - receipts - returns));
+  return Math.max(0, round2(creditOriginalOf(inv) - receipts - returns + refunds));
 }
 
 /**
@@ -131,13 +157,15 @@ export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promi
   if (creditOriginal == null) {
     const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
     const receipts0 = await invoiceReceiptsTotal(tx, invoiceId);
+    const refunds0 = await invoiceRefundsTotal(tx, invoiceId);
     const returns0 = Number(inv.totalReturnedAmount) || 0;
-    creditOriginal = Math.max(0, round2(storedDue + receipts0 + returns0));
+    creditOriginal = Math.max(0, round2(storedDue + receipts0 + returns0 - refunds0));
   }
   const grand = Number(inv.grandTotal) || 0;
   const returns = Number(inv.totalReturnedAmount) || 0;
   const receipts = await invoiceReceiptsTotal(tx, invoiceId);
-  const due = Math.max(0, round2(Number(creditOriginal) - receipts - returns));
+  const refunds = await invoiceRefundsTotal(tx, invoiceId);
+  const due = Math.max(0, round2(Number(creditOriginal) - receipts - returns + refunds));
   const collected = Math.max(0, round2(grand - returns - due)); // net − due
   await tx.invoice.update({
     where: { id: invoiceId },
@@ -169,10 +197,21 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
   if (input.type === 'out' && reqUser && !roleCan(reqUser.role, 'purchase:write')) {
     throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to pay vendors.`, 403);
   }
+  // Recording a customer receipt (type 'in') is a cash-desk action. The Purchase
+  // role carries payment:write only to PAY vendors — it must not take or hold
+  // customer money. Gate customer receipts on cash:write (Billing/Manager/CEO).
+  if (input.type === 'in' && reqUser && !roleCan(reqUser.role, 'cash:write')) {
+    throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to record customer receipts.`, 403);
+  }
   assertBranchAllowed(reqUser, input.branchId); // SEC2-1: a receipt is booked against a branch's ledger/drawer
 
   const date = input.date || nowIso().slice(0, 10);
   if (!isValidYmd(date)) throw new AppError('BAD_DATE', 'Payment date must be a real date in YYYY-MM-DD format', 400);
+  // Reject impossible dates: nothing in the future, and nothing absurdly old
+  // (a mistyped 2099 or 1990 would otherwise land a receipt on a nonexistent day).
+  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); // IST calendar day
+  if (date > istToday) throw new AppError('BAD_DATE', 'A payment cannot be dated in the future.', 400);
+  if (date < '2010-01-01') throw new AppError('BAD_DATE', 'That payment date is too far in the past.', 400);
   const allocations = (input.allocations || []).filter((a) => a?.refId && a.amount > 0);
   const allocTotal = allocations.reduce((t, a) => t + a.amount, 0);
   if (allocTotal - amount > 0.01) {
@@ -321,6 +360,14 @@ export async function deletePayment(id: string, reqUser?: any) {
     const payment = await tx.payment.findUnique({ where: { id } });
     if (!payment) throw new AppError('NOT_FOUND', 'Payment not found', 404);
     assertBranchAllowed(reqUser, payment.branchId); // SEC2-1
+    // Same gate as recording: a customer receipt is cash-desk only (not Purchase),
+    // a vendor payment is purchase only.
+    if (payment.type === 'in' && reqUser && !roleCan(reqUser.role, 'cash:write')) {
+      throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to delete customer receipts.`, 403);
+    }
+    if (payment.type === 'out' && reqUser && !roleCan(reqUser.role, 'purchase:write')) {
+      throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to delete vendor payments.`, 403);
+    }
     // Deleting a payment dated to a closed day would change that day's cash (CASH-2).
     const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: payment.branchId, date: payment.date, isClosed: true } });
     if (closed) throw new AppError('DAY_CLOSED', `The cash day ${payment.date} is closed. Reopen it before deleting this payment.`, 409);

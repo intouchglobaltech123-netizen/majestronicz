@@ -340,6 +340,16 @@ describe('sales & quotes', () => {
     expectStatus(await del(`/api/tx/invoice/${inv.id}`, 'Billing'), 403, 'Billing delete');
   });
 
+  test('CASH-2 a bill cannot be re-dated off a closed cash day', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    ok(await post('/api/cash/close', { branchId: 'erode-hq', date, actor: 'QA' }), 'close the bill day');
+    const other = await freshDay('erode-hq');
+    const stored = await getInvoice(inv.id);
+    expectStatus(await resave(stored, { date: other }), 409, 'moving the bill off a closed day');
+  });
+
   test('SAL4-9 deleting the newest bill does not let its number be reused', async () => {
     const date = await freshDay('chennai');
     const item = await createItem({ stock: { chennai: 10 } });

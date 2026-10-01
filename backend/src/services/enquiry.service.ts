@@ -104,7 +104,24 @@ export function updatePendingOrder(orderId: string, updates: any, reqUser?: any)
     const order = await tx.pendingOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new AppError('NOT_FOUND', 'Pending order not found', 404);
     assertBranchAllowed(reqUser, order.branchId); // SEC2-1
-    await tx.pendingOrder.updateMany({ where: { id: orderId }, data: { ...updates, updatedAt: nowIso() } });
+    // Strip server-managed / immutable fields from the client payload: the branch
+    // can't move (it would orphan the backlog), and conversion/fulfilment state is
+    // set only by the dedicated flows — not editable here (Billing was able to
+    // change the branch, mark it Fulfilled, or set a negative advance).
+    const {
+      branchId: _b, orderNumber: _n, enquiryId: _e, createdAt: _c,
+      convertedTo: _cv, fulfilledAt: _f, ...rest
+    } = updates || {};
+    if (rest.advanceAmount != null) {
+      const adv = Number(rest.advanceAmount);
+      if (!Number.isFinite(adv) || adv < 0) throw new AppError('BAD_ADVANCE', 'Advance amount cannot be negative.', 400);
+    }
+    if (rest.status != null && !['Waiting', 'Stock Arrived'].includes(rest.status)) {
+      // 'Fulfilled' happens by billing/converting the order; 'Cancelled' has its
+      // own endpoint — neither may be set through this generic update.
+      throw new AppError('BAD_STATUS', "A pending order can only be moved between 'Waiting' and 'Stock Arrived' here. Use Convert to fulfil it, or Cancel.", 400);
+    }
+    await tx.pendingOrder.updateMany({ where: { id: orderId }, data: { ...rest, updatedAt: nowIso() } });
     return snap(tx);
   });
 }

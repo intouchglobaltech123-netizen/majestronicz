@@ -284,6 +284,17 @@ export function createSale(inv: any, reqUser?: any) {
       // sequence (SAL2-6).
       inv.branchId = existing.branchId;
       inv.invoiceNumber = existing.invoiceNumber;
+      // Moving a bill off a date whose drawer is already closed would change that
+      // reconciled day's totals after the fact (the new date's closed-day check
+      // above already blocks moving it ONTO a closed day) — CASH-2.
+      if (existing.date !== inv.date) {
+        const oldClosed = await tx.dailyCashRegister.findFirst({
+          where: { branchId: existing.branchId, date: existing.date, isClosed: true },
+        });
+        if (oldClosed) {
+          throw new AppError('DAY_CLOSED', `This bill is dated ${existing.date}, a closed cash day. Reopen that day before changing the bill's date.`, 409);
+        }
+      }
       // SEC5-2: the guard at the top of this function ran against the client's
       // inv.branchId. On an edit, authorize against the STORED bill's branch too,
       // so a branch-locked user can't edit another branch's bill by putting their
@@ -815,6 +826,15 @@ export function processReturn(
     if (cashRefund > 0.001 && !isCreditNote) {
       const mode = refundMode || 'Cash';
       const today = nowIso().slice(0, 10);
+      // The refund is a cash payout dated TODAY. If today's drawer is already
+      // closed, paying it out would change a reconciled day — block it (the caller
+      // can reopen today or choose 'Adjust to credit note'). CASH-2 / SAL4-12.
+      const closedToday = await tx.dailyCashRegister.findFirst({
+        where: { branchId: inv.branchId, date: today, isClosed: true },
+      });
+      if (closedToday) {
+        throw new AppError('DAY_CLOSED', `Today's cash day (${today}) is closed, so a cash refund can't be paid out. Reopen today's register, or use 'Adjust to credit note'.`, 409);
+      }
       const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
       const rows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
       let maxNo = 0;

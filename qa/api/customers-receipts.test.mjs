@@ -139,6 +139,44 @@ describe('customers & receipts', () => {
     assert.equal(cust.purchaseCount, 0, 'purchaseCount comes from bills only');
   });
 
+  test('CRM5-1 deleting a receipt AFTER a cash refund restores the full debt, not the wrong one', async () => {
+    const inv = await creditBill(); // credit bill of 1,180
+    const pay = ok(await receive(inv, 1180), 'pay in full');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'paid');
+    // Return the goods for a cash refund (the over-paid 1,180 comes back).
+    const li = inv.items[0];
+    const rl = { itemId: li.itemId, itemCode: li.itemCode, itemName: li.itemName, returnQty: 1, unitPrice: li.unitPrice, taxRate: li.taxRate };
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rl], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return + refund');
+    assert.ok((await paymentsFor(inv.id)).some((p) => p.type === 'out'), 'a cash refund was paid');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'settled: paid, returned, refunded');
+    // Deleting the receipt means "they never paid" — but they DID take 1,180 cash
+    // back, so they now owe the full 1,180 again (the old model wrongly showed 0).
+    ok(await del(`/api/payments/${pay.id}`), 'delete the receipt');
+    near((await getInvoice(inv.id)).balanceDue, 1180, 'full debt restored, accounting for the refund taken');
+  });
+
+  test('SEC: the Purchase role cannot record or delete a customer receipt', async () => {
+    const inv = await creditBill();
+    expectStatus(await receive(inv, 100, { as: 'Purchase' }), 403, 'Purchase records a receipt');
+    const pay = ok(await receive(inv, 100), 'CEO records a receipt');
+    expectStatus(await del(`/api/payments/${pay.id}`, 'Purchase'), 403, 'Purchase deletes a receipt');
+  });
+
+  test('CRM6-5 a receipt dated in the future or absurdly in the past is refused', async () => {
+    const inv = await creditBill();
+    expectStatus(await receive(inv, 100, { date: '2099-01-01' }), 400, 'future date');
+    expectStatus(await receive(inv, 100, { date: '1990-01-01' }), 400, 'too-old date');
+  });
+
+  test('CRM2-7 a receipt number is not reissued after the receipt is deleted', async () => {
+    const inv1 = await creditBill();
+    const p1 = ok(await receive(inv1, 100, { date: inv1.date }), 'receipt 1');
+    ok(await del(`/api/payments/${p1.id}`), 'delete receipt 1');
+    const inv2 = await creditBill();
+    const p2 = ok(await receive(inv2, 100, { date: inv1.date }), 'receipt 2 (same month)');
+    assert.notEqual(p2.receiptNumber, p1.receiptNumber, 'the deleted number must not be reissued');
+  });
+
   test('CRM-21 a customer with invoices cannot be deleted', async () => {
     const inv = await creditBill();
     assert.ok(inv.customerId, 'bill linked to a customer');
