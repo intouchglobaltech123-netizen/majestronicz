@@ -101,6 +101,14 @@ describe('purchases', () => {
     assert.ok((await getPO(po.id)).id, 'PO still exists');
   });
 
+  test('NUM-1 deleting the newest PO does not let its number be reused', async () => {
+    const item = await createItem();
+    const a = await createPO([{ item, qty: 1, price: 100 }]);
+    ok(await del(`/api/purchase/${a.id}`), 'delete newest PO');
+    const b = await createPO([{ item, qty: 1, price: 100 }]);
+    assert.notEqual(b.poNumber, a.poNumber, 'PO numbers must never be reissued');
+  });
+
   test('PUR3-6 a received PO cannot be cancelled (and then deleted)', async () => {
     const item = await createItem();
     const po = await createPO([{ item, qty: 3, price: 100 }]);

@@ -64,7 +64,8 @@ export async function nextEstimateNumber(tx: any, branchId: string, date?: strin
     where: { estimateNumber: { startsWith: prefix } },
     select: { estimateNumber: true },
   });
-  const next = maxSeq(rows.map((r: any) => r.estimateNumber), prefix) + 1;
+  const fromRows = maxSeq(rows.map((r: any) => r.estimateNumber), prefix);
+  const next = await nextPersistent(tx, `seq:est:${prefix}`, fromRows);
   return `${prefix}${String(next).padStart(3, '0')}`;
 }
 
@@ -74,7 +75,8 @@ export async function nextChallanNumber(tx: any): Promise<string> {
     where: { challanNumber: { startsWith: prefix } },
     select: { challanNumber: true },
   });
-  const next = maxSeq(rows.map((r: any) => r.challanNumber), prefix) + 1;
+  const fromRows = maxSeq(rows.map((r: any) => r.challanNumber), prefix);
+  const next = await nextPersistent(tx, `seq:dc:${prefix}`, fromRows);
   return `${prefix}${String(next).padStart(3, '0')}`;
 }
 
@@ -85,7 +87,8 @@ export async function nextComboCode(tx: any): Promise<string> {
     const m = r.comboCode.match(/^CB-(\d{4})$/);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return `CB-${String(max + 1).padStart(4, '0')}`;
+  const next = await nextPersistent(tx, 'seq:combo:CB-', max);
+  return `CB-${String(next).padStart(4, '0')}`;
 }
 
 export async function nextPoNumber(tx: any, branchId: string): Promise<string> {
@@ -94,7 +97,8 @@ export async function nextPoNumber(tx: any, branchId: string): Promise<string> {
     where: { poNumber: { startsWith: prefix } },
     select: { poNumber: true },
   });
-  const next = maxSeq(rows.map((r: any) => r.poNumber), prefix) + 1;
+  const fromRows = maxSeq(rows.map((r: any) => r.poNumber), prefix);
+  const next = await nextPersistent(tx, `seq:po:${prefix}`, fromRows);
   return `${prefix}${String(next).padStart(3, '0')}`;
 }
 
@@ -104,7 +108,8 @@ export async function nextEnquiryNumber(tx: any, branchId: string): Promise<stri
     where: { enquiryNumber: { startsWith: prefix } },
     select: { enquiryNumber: true },
   });
-  const next = maxSeq(rows.map((r: any) => r.enquiryNumber), prefix) + 1;
+  const fromRows = maxSeq(rows.map((r: any) => r.enquiryNumber), prefix);
+  const next = await nextPersistent(tx, `seq:enq:${prefix}`, fromRows);
   return `${prefix}${String(next).padStart(3, '0')}`;
 }
 
@@ -114,6 +119,7 @@ export async function nextPendingOrderNumber(tx: any): Promise<string> {
     where: { orderNumber: { startsWith: prefix } },
     select: { orderNumber: true },
   });
-  const next = maxSeq(rows.map((r: any) => r.orderNumber), prefix) + 1;
+  const fromRows = maxSeq(rows.map((r: any) => r.orderNumber), prefix);
+  const next = await nextPersistent(tx, `seq:pwait:${prefix}`, fromRows);
   return `${prefix}${String(next).padStart(3, '0')}`;
 }
