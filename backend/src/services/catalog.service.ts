@@ -215,14 +215,14 @@ export function saveCustomer(data: any) {
       // here. Strip the calculated fields so the DB keeps its own values (CRM2-10).
       const {
         id, purchaseCount, totalSpent, firstPurchaseDate,
-        lastRewardRedeemedPurchaseCount, ...rest
+        lastRewardRedeemedPurchaseCount, creditBalance, creditHistory, ...rest
       } = data;
       await tx.customer.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = data.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       // Purchase aggregates are server-maintained from bills — never accept them
       // from the client on create (a forged totalSpent/purchaseCount) (CRM5-6).
-      const { purchaseCount: _pc, totalSpent: _ts, lastRewardRedeemedPurchaseCount: _lr, ...clean } = data;
+      const { purchaseCount: _pc, totalSpent: _ts, lastRewardRedeemedPurchaseCount: _lr, creditBalance: _cb, creditHistory: _ch, ...clean } = data;
       await tx.customer.create({
         data: {
           ...clean, id,

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as item from '../services/item.service.js';
 import * as catalog from '../services/catalog.service.js';
+import { adjustCustomerCredit as adjustCustomerCreditSvc } from '../services/customerCredit.service.js';
 
 // Items
 export const addItem = async (req: Request, res: Response) => {
@@ -30,3 +31,7 @@ export const saveCombo = async (req: Request, res: Response) => res.json(await c
 export const deleteCombo = async (req: Request, res: Response) => res.json(await catalog.deleteCombo(req.params.id));
 export const saveCustomer = async (req: Request, res: Response) => res.json(await catalog.saveCustomer(req.body));
 export const deleteCustomer = async (req: Request, res: Response) => res.json(await catalog.deleteCustomer(req.params.id));
+export const adjustCustomerCredit = async (req: Request, res: Response) => {
+  const u = (req as any).user;
+  res.json(await adjustCustomerCreditSvc(req.params.id, Number(req.body?.amount), String(req.body?.reason || ''), u?.name));
+};

@@ -454,6 +454,11 @@ model Customer {
   createdAt                     String
   updatedAt                     String
   lastRewardRedeemedPurchaseCount Int?
+  // Store credit the customer can spend on future bills (e.g. a credit-note
+  // return or an over-payment). creditHistory is an append-only audit of the
+  // movements that make up the balance.
+  creditBalance                 Float?
+  creditHistory                 Json?
 }
 
 // Multi-item inter-branch stock transfer record (batch).

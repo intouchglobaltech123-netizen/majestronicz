@@ -177,6 +177,46 @@ describe('customers & receipts', () => {
     assert.notEqual(p2.receiptNumber, p1.receiptNumber, 'the deleted number must not be reissued');
   });
 
+  test('CRM-3 "Adjust to credit note" banks store credit instead of paying cash', async () => {
+    const inv = await creditBill();
+    ok(await receive(inv, 1180), 'pay in full');
+    const li = inv.items[0];
+    const rl = { itemId: li.itemId, itemCode: li.itemCode, itemName: li.itemName, returnQty: 1, unitPrice: li.unitPrice, taxRate: li.taxRate };
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rl], reason: 'QA', actor: 'QA', refundMode: 'Adjust to credit note' }), 'credit-note return');
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 0, 'no cash refund on a credit note');
+    const cust = ok(await get('/api/customers')).find((c) => c.id === inv.customerId);
+    near(cust.creditBalance || 0, 1180, 'the over-paid portion is banked as store credit');
+  });
+
+  test('CRM-3 store credit can settle a future bill and the balance goes down', async () => {
+    const inv = await creditBill(); // due 1,180
+    ok(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 2000, reason: 'QA grant' }), 'grant credit');
+    ok(await post('/api/payments', {
+      type: 'in', partyType: 'customer', partyId: inv.customerId, partyName: inv.customerName,
+      branchId: inv.branchId, date: inv.date, amount: 1180, paymentMode: 'Store Credit',
+      allocations: [{ refId: inv.id, amount: 1180 }],
+    }), 'pay with store credit');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'bill settled by store credit');
+    const cust = ok(await get('/api/customers')).find((c) => c.id === inv.customerId);
+    near(cust.creditBalance || 0, 820, '2,000 granted − 1,180 applied');
+  });
+
+  test('CRM-3 store credit cannot be overdrawn', async () => {
+    const inv = await creditBill();
+    ok(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 100, reason: 'QA' }), 'grant 100');
+    const res = await post('/api/payments', {
+      type: 'in', partyType: 'customer', partyId: inv.customerId, partyName: inv.customerName,
+      branchId: inv.branchId, date: inv.date, amount: 500, paymentMode: 'Store Credit',
+      allocations: [{ refId: inv.id, amount: 500 }],
+    });
+    expectStatus(res, 400, 'applying more credit than the balance');
+  });
+
+  test('CRM-3 only a Manager or CEO can adjust store credit', async () => {
+    const inv = await creditBill();
+    expectStatus(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 100, reason: 'x' }, 'Billing'), 403, 'Billing adjusts credit');
+  });
+
   test('CRM-21 a customer with invoices cannot be deleted', async () => {
     const inv = await creditBill();
     assert.ok(inv.customerId, 'bill linked to a customer');

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { requireCapability } from '../middleware/rbac.js';
+import { requireCapability, requireManagerOrCEO } from '../middleware/rbac.js';
 import * as ctrl from '../controllers/catalog.controller.js';
 
 const router = Router();
@@ -23,4 +23,6 @@ router.delete('/combo/:id', requireCapability('items:write'), asyncHandler(ctrl.
 // Customers
 router.post('/customer', requireCapability('customer:write'), asyncHandler(ctrl.saveCustomer));
 router.delete('/customer/:id', requireCapability('customer:write'), asyncHandler(ctrl.deleteCustomer));
+// Manually grant / correct a customer's store credit — CEO/Manager only.
+router.post('/customer/:id/credit', requireManagerOrCEO, asyncHandler(ctrl.adjustCustomerCredit));
 export default router;

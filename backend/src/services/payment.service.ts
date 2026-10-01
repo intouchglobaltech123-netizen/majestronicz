@@ -6,6 +6,7 @@ import { serializableTx } from '../lib/tx.js';
 import { isValidBranch } from '../lib/constants.js';
 import { roleCan } from '../lib/auth.js';
 import { nextPersistent } from '../lib/sequences.js';
+import { creditBalanceOf, applyCreditDelta } from './customerCredit.service.js';
 
 /**
  * Party ledger / payments service.
@@ -317,6 +318,18 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
     const appliedTotal = Math.round(appliedAllocations.reduce((t, a) => t + (Number(a.amount) || 0), 0) * 100) / 100;
     const recordedAmount = allocations.length ? appliedTotal : amount;
 
+    // A 'Store Credit' receipt is funded by the customer's credit balance, not the
+    // cash drawer — the bill is settled by spending credit they already hold. It
+    // must name the customer and can't draw more than their balance.
+    const isStoreCredit = input.type === 'in' && /store\s*credit/i.test(input.paymentMode || '');
+    if (isStoreCredit) {
+      if (!input.partyId) throw new AppError('BAD_REQUEST', 'Choose the customer whose store credit is being applied.', 400);
+      const balance = await creditBalanceOf(tx, input.partyId);
+      if (recordedAmount > balance + 0.01) {
+        throw new AppError('INSUFFICIENT_CREDIT', `Not enough store credit: balance is ₹${balance.toFixed(2)}, tried to apply ₹${recordedAmount.toFixed(2)}.`, 400);
+      }
+    }
+
     const payment = await tx.payment.create({
       data: {
         id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -341,6 +354,14 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
     // balanceDue / partial flags from the ledger (paymentSplits untouched).
     if (input.type === 'in') {
       for (const a of appliedAllocations) await recomputeInvoiceBalance(tx, a.refId);
+    }
+    // Spend the store credit that funded this receipt (after the bills are settled).
+    if (isStoreCredit && input.partyId && recordedAmount > 0.001) {
+      await applyCreditDelta(tx, input.partyId, -recordedAmount, {
+        type: 'applied',
+        reason: `Applied to ${appliedAllocations.map((a) => a.refNumber).filter(Boolean).join(', ') || 'bill'}`,
+        by: actor?.name,
+      });
     }
     return payment;
   });

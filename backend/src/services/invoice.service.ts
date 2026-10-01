@@ -7,6 +7,7 @@ import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal } from './payment.service.js';
+import { addCustomerCredit } from './customerCredit.service.js';
 import { GST_RATES } from '../lib/constants.js';
 
 /**
@@ -819,10 +820,19 @@ export function processReturn(
     const overAfter = Math.max(0, Math.round((paid - (grandR - returnsAfter)) * 100) / 100);
     const cashRefund = Math.max(0, Math.round((overAfter - overBefore) * 100) / 100);
 
-    // 'Adjust to credit note' means: don't pay cash now — the due reduction above
-    // is the adjustment. (A standalone store-credit balance isn't tracked yet, so
-    // any over-paid amount on a credit-note return isn't bankable later.)
+    // 'Adjust to credit note' means: don't pay cash now. The goods value already
+    // reduced the due above; the over-paid portion (what would otherwise be cash
+    // back) is banked as STORE CREDIT the customer can spend on a future bill.
     const isCreditNote = /credit|adjust/i.test(String(refundMode || ''));
+    if (cashRefund > 0.001 && isCreditNote && inv.customerId) {
+      await addCustomerCredit(tx, inv.customerId, cashRefund, {
+        type: 'issued',
+        reason: `Credit note on return #${inv.invoiceNumber}${reason ? ` — ${reason}` : ''}`,
+        refId: inv.id,
+        refNumber: inv.invoiceNumber ?? undefined,
+        by: actor,
+      });
+    }
     if (cashRefund > 0.001 && !isCreditNote) {
       const mode = refundMode || 'Cash';
       const today = nowIso().slice(0, 10);
