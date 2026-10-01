@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { PurchaseOrder, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
-import { ArrowLeft, Wallet, Truck, ChevronDown, ChevronRight, CheckCircle2, Search } from 'lucide-react';
+import { ArrowLeft, Wallet, Truck, ChevronDown, ChevronRight, CheckCircle2, Search, FileText } from 'lucide-react';
+import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal';
 
 interface Props {
   onBack: () => void;
@@ -31,7 +32,8 @@ const fifoAllocate = (pos: { po: PurchaseOrder; balance: number }[], amount: num
  * paying. A payment is recorded against each PO the amounts cover.
  */
 export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
-  const { purchaseOrders, recordPurchaseOrderPayment, currentBranch, isAllBranches } = useErp();
+  const { purchaseOrders, recordPurchaseOrderPayment, currentBranch, isAllBranches,
+    selectedPurchaseOrderForDetail, setSelectedPurchaseOrderForDetail } = useErp();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   // Per-PO payment amount (keyed by po.id) — this is what gets paid.
@@ -186,7 +188,13 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                           const n = Number(val) || 0;
                           return (
                             <tr key={po.id} className="border-b border-slate-50">
-                              <td className="py-1.5 pr-3 font-mono font-bold text-blue-700">{po.poNumber}</td>
+                              <td className="py-1.5 pr-3">
+                                <button type="button" onClick={() => setSelectedPurchaseOrderForDetail(po)}
+                                  title="Open PO — attach supplier bill, see payment history"
+                                  className="inline-flex items-center gap-1 font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline">
+                                  <FileText className="h-3 w-3 text-slate-400" /> {po.poNumber}
+                                </button>
+                              </td>
                               <td className="py-1.5 pr-3 text-slate-500">{po.date}</td>
                               <td className="py-1.5 pr-3 text-right font-mono text-slate-600">{formatCurrency(po.amountPaid || 0)} / {formatCurrency(total)}</td>
                               <td className="py-1.5 pr-3 text-right font-mono font-bold text-rose-700">{formatCurrency(balance)}</td>
@@ -248,6 +256,13 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
           );
         })
       )}
+
+      {/* PO detail — supplier bill attach + payment history, opened from a PO row. */}
+      <PurchaseOrderDetailModal
+        isOpen={Boolean(selectedPurchaseOrderForDetail)}
+        onClose={() => setSelectedPurchaseOrderForDetail(null)}
+        purchaseOrder={selectedPurchaseOrderForDetail}
+      />
     </div>
   );
 };
