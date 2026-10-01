@@ -27,6 +27,21 @@ describe('reports arithmetic', () => {
     near(inv.grandTotal, 11210);
   });
 
+  test('RPT4-3 the GST report base nets the overall bill discount, not just line discounts', async () => {
+    const date = await freshDay('erode-hq');
+    const inv = await mustSell(saleBody({ date, lines: [serviceLine(2, 5000, 18)], overallDiscountValue: 5 }));
+    // The stored per-line taxable reflects only the LINE discount (sums to 10,000),
+    // while the real GST base is after the 5% overall discount (9,500). The GST
+    // report scales each line by (subtotal - overallDiscount) / subtotal — verify
+    // that scaling reproduces the invoice's own discounted taxable value and tax.
+    const lineTaxable = inv.items.reduce((s, l) => s + (l.taxableAmount || 0), 0);
+    const lineTax = inv.items.reduce((s, l) => s + (l.totalTax || 0), 0);
+    near(lineTaxable, 10000, 'stored line taxable is pre-overall-discount');
+    const discRatio = (inv.subtotal - inv.overallDiscountAmount) / inv.subtotal;
+    near(lineTaxable * discRatio, 9500, 'report taxable nets the overall discount');
+    near(lineTax * discRatio, inv.totalTax, 'report tax matches the bill tax (1,710)');
+  });
+
   test('SAL-11 grand total = subtotal - discount + GST + shipping + round-off', async () => {
     const date = await freshDay('erode-hq');
     const inv = await mustSell(saleBody({

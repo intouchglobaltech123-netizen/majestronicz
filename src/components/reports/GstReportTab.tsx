@@ -101,13 +101,23 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       const grand = inv.grandTotal || 0;
       const returned = Math.min(grand, inv.totalReturnedAmount || 0);
       const netRatio = grand > 0 ? (grand - returned) / grand : 1;
+      // A bill-level (overall) discount reduces the GST base, but the stored
+      // per-line taxableAmount/CGST/SGST only reflect the LINE discount — the
+      // overall discount is applied to the invoice totals, not back to each line.
+      // Scale every line by the discount ratio too, or the report overstates the
+      // taxable value and tax whenever a bill carries an overall discount (RPT4-3).
+      const lineSubtotal = (inv.items || []).reduce((s, l) => s + (l.taxableAmount || 0), 0);
+      const subtotal = inv.subtotal || lineSubtotal;
+      const overallDisc = inv.overallDiscountAmount || 0;
+      const discRatio = subtotal > 0 ? Math.max(0, (subtotal - overallDisc) / subtotal) : 1;
+      const scale = discRatio * netRatio;
       let invTaxable = 0, invCgst = 0, invSgst = 0, invIgst = 0, invTotal = 0;
       for (const li of inv.items || []) {
         const rate = li.taxRate || 0;
-        const taxable = (li.taxableAmount || 0) * netRatio;
-        const tax = (li.totalTax || 0) * netRatio;
-        const cgst = inter ? 0 : (li.cgstAmount != null ? li.cgstAmount * netRatio : tax / 2);
-        const sgst = inter ? 0 : (li.sgstAmount != null ? li.sgstAmount * netRatio : tax / 2);
+        const taxable = (li.taxableAmount || 0) * scale;
+        const tax = (li.totalTax || 0) * scale;
+        const cgst = inter ? 0 : (li.cgstAmount != null ? li.cgstAmount * scale : tax / 2);
+        const sgst = inter ? 0 : (li.sgstAmount != null ? li.sgstAmount * scale : tax / 2);
         const igst = inter ? tax : 0;
         // Derive Total Tax from the components so the displayed CGST+SGST+IGST
         // always equals Total Tax (legacy lines can have a 0.01 half-split drift).
