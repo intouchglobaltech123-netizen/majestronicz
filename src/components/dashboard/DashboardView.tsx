@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, purchaseOrderBalanceDue } from '../../types';
+import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, computeInvoiceCogs, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { computeDayCashClosing } from '../../lib/cashClosing';
 import {
@@ -71,11 +71,6 @@ export const DashboardView: React.FC = () => {
     return () => clearTimeout(t1);
   }, []);
 
-  // Item lookups for cost-of-goods / profit.
-  const itemById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
-  const itemByCode = useMemo(() => new Map(items.map((it) => [it.itemCode, it])), [items]);
-  const itemByName = useMemo(() => new Map(items.map((it) => [(it.itemName || '').toLowerCase(), it])), [items]);
-
   const today = getTodayDateString();
   const yesterday = getTodayDateString(new Date(Date.now() - 864e5));
   const thisMonth = today.slice(0, 7);
@@ -144,13 +139,13 @@ export const DashboardView: React.FC = () => {
       const ratio = grand > 0 ? fin.net / grand : 1; // fraction remaining after returns
       const exGstRevenue = fin.net - (Number(i.totalTax) || 0) * ratio;
       revenue += exGstRevenue;
-      for (const li of (i.items || []) as any[]) {
-        const it = itemById.get(li.itemId) || itemByCode.get(li.itemCode) || itemByName.get((li.itemName || '').toLowerCase());
-        cost += (li.quantity || 0) * (it?.purchasePrice || 0) * ratio;
-      }
+      // COGS via the shared helper, which expands combos to their component costs
+      // (a combo line has no own itemId, so the old inline loop counted it at ₹0
+      // and inflated profit — E2E-8) and pro-rates for returns.
+      cost += computeInvoiceCogs(i, items);
     }
     return { value: revenue - cost, margin: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0 };
-  }, [scopedSales, thisMonth, itemById, itemByCode, itemByName]);
+  }, [scopedSales, thisMonth, items]);
 
   // ---- Inventory health ----
   const inv = useMemo(() => {
