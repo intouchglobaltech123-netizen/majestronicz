@@ -3,7 +3,7 @@ import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireCapability, requireAuth } from '../middleware/rbac.js';
-import { issueToken, Capability } from '../lib/auth.js';
+import { issueToken, verifyToken, Capability } from '../lib/auth.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
@@ -65,32 +65,38 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   const now = Date.now();
   const rec = loginAttempts.get(ip) ?? { fails: 0, lockUntil: 0 };
 
-  if (rec.lockUntil > now) {
-    const secs = Math.ceil((rec.lockUntil - now) / 1000);
-    throw new AppError('LOCKED', `Too many attempts. Try again in ${secs}s.`, 429);
-  }
-
   const { pin, branchId } = req.body;
   const auth = await authenticateUser(String(pin || ''), branchId);
-  if (!auth) {
-    rec.fails += 1;
-    const remaining = Math.max(0, MAX_FAILS - rec.fails);
-    if (rec.fails >= MAX_FAILS) {
-      rec.lockUntil = now + LOCK_MS;
-      rec.fails = 0;
-    }
-    loginAttempts.set(ip, rec);
-    throw new AppError('INVALID_PIN', `Incorrect PIN.${remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before a 1-minute lock.` : ' Account locked for 1 minute.'}`, 401);
+
+  // SEC3-5: a CORRECT PIN always logs in (and clears the counter). The whole shop
+  // shares one public IP, so a per-IP lock used to lock out EVERY user — including
+  // the CEO with the right PIN — after 5 wrong guesses by anyone. Check the PIN
+  // first so a legitimate login is never blocked; the lock only throttles WRONG
+  // attempts.
+  if (auth) {
+    loginAttempts.delete(ip);
+    const { user, mustResetPin } = auth;
+    const token = issueToken(user);
+    return res.json({
+      token,
+      mustResetPin,
+      user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId, userId: user.userId, employeeId: user.employeeId },
+    });
   }
 
-  loginAttempts.delete(ip); // reset on success
-  const { user, mustResetPin } = auth;
-  const token = issueToken(user);
-  res.json({
-    token,
-    mustResetPin,
-    user: { role: user.role, name: user.name, assignedBranchId: user.assignedBranchId, userId: user.userId, employeeId: user.employeeId },
-  });
+  // Wrong PIN. If we're already throttling this IP, reject without revealing more.
+  if (rec.lockUntil > now) {
+    const secs = Math.ceil((rec.lockUntil - now) / 1000);
+    throw new AppError('LOCKED', `Too many wrong attempts. Try again in ${secs}s.`, 429);
+  }
+  rec.fails += 1;
+  const remaining = Math.max(0, MAX_FAILS - rec.fails);
+  if (rec.fails >= MAX_FAILS) {
+    rec.lockUntil = now + LOCK_MS;
+    rec.fails = 0;
+  }
+  loginAttempts.set(ip, rec);
+  throw new AppError('INVALID_PIN', `Incorrect PIN.${remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before a 1-minute lock.` : ' Locked for 1 minute.'}`, 401);
 }));
 
 // Rate-limit change-pin per account so it can't be used as a PIN oracle. The
@@ -387,7 +393,15 @@ router.get('/gstin/:gstin', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // ---- Live updates (Server-Sent Events) ----
-router.get('/events', sseHandler);
+// The live-updates stream requires login (SEC2-3). EventSource can't send an
+// Authorization header, so the token arrives as a query param; verify it (and
+// require a userId, like every other request) before opening the stream.
+router.get('/events', (req, res, next) => {
+  const token = typeof req.query.token === 'string' ? req.query.token : undefined;
+  const session = verifyToken(token);
+  if (!session || !session.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  next();
+}, sseHandler);
 
 // ---- Access control matrix (view/edit; edit is CEO/admin only) ----
 router.get('/access-matrix', requireAuth, asyncHandler(async (_req, res) =>

@@ -3,7 +3,7 @@ import * as hrm from '../services/hrm.service.js';
 
 export const verifyPin = async (req: Request, res: Response) => {
   const { employeeId, pin } = req.body;
-  res.json(await hrm.verifyKioskPin(String(employeeId || ''), String(pin || '')));
+  res.json(await hrm.verifyKioskPin(String(employeeId || ''), String(pin || ''), (req as any).user));
 };
 
 export const clockIn = async (req: Request, res: Response) => {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
+import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { getTodayDateString } from '../lib/utils';
 import { computeDayCashClosing } from '../lib/cashClosing';
 
@@ -859,7 +859,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // during the logged-out/login-transition window (which 401'd and bounced
     // the just-submitted login back to the PIN screen — R03-02).
     if (isBootstrapping || !isAuthenticated) return;
-    const es = new EventSource(`${API_BASE}/api/events`);
+    // The live-updates stream requires login; EventSource can't send an auth
+    // header, so pass the token as a query param (the server verifies it).
+    const tok = getAuthToken();
+    const es = new EventSource(`${API_BASE}/api/events${tok ? `?token=${encodeURIComponent(tok)}` : ''}`);
     let timer: ReturnType<typeof setTimeout> | null = null;
     let refreshing = false;
     let closed = false;

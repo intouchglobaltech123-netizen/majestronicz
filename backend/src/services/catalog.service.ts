@@ -5,6 +5,7 @@ import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/seq
 import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { GSTIN_RE } from './gstin.service.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 /**
  * Server-authoritative recompute of estimate line taxes + totals.
@@ -48,11 +49,15 @@ async function estimateIsConverted(tx: any, estimateId: string): Promise<boolean
 const ESTIMATE_LIFECYCLE_FIELDS = ['status', 'cancelReason', 'cancelledAt', 'cancelledBy'];
 
 /** Create/edit estimate — new records get a server-assigned collision-free number. */
-export function saveEstimate(data: any) {
+export function saveEstimate(data: any, reqUser?: any) {
   recomputeEstimateMoney(data); // server-authoritative totals
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const existing = data.id ? await tx.estimate.findUnique({ where: { id: data.id } }) : null;
     if (existing) {
+      // SEC5-2: authorize against the STORED quote's branch, and keep the branch
+      // AND the quote number immutable — a branch-locked Manager must not edit,
+      // renumber or move another branch's quote.
+      assertBranchAllowed(reqUser, existing.branchId);
       // A quote's lifecycle is server-owned. A Cancelled quote is final, and a
       // Converted one has already become a bill — neither may be edited (the
       // client only offers Edit on Open quotes, but enforce it here too).
@@ -64,8 +69,12 @@ export function saveEstimate(data: any) {
       }
       const { id, ...rest } = data;
       for (const k of ESTIMATE_LIFECYCLE_FIELDS) delete (rest as any)[k];
+      rest.branchId = existing.branchId;          // immutable — can't move branch
+      rest.estimateNumber = existing.estimateNumber; // immutable — can't renumber
       await tx.estimate.update({ where: { id }, data: rest });
     } else {
+      // A branch-locked user can only create a quote for their own branch.
+      assertBranchAllowed(reqUser, data.branchId);
       const id = data.id || `est-${Date.now()}`;
       const estimateNumber = await nextEstimateNumber(tx, data.branchId, data.date);
       const clean = { ...data };
@@ -78,10 +87,11 @@ export function saveEstimate(data: any) {
 
 /** Cancel a quotation with a reason — the delete action is gone; an Open quote is
  *  either Converted (to a sale) or Cancelled (with a reason). */
-export function cancelEstimate(id: string, reason: string, actor?: string) {
+export function cancelEstimate(id: string, reason: string, actor?: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const est = await tx.estimate.findUnique({ where: { id } });
     if (!est) throw new AppError('NOT_FOUND', 'Quotation not found', 404);
+    assertBranchAllowed(reqUser, est.branchId); // SEC5-2: can't cancel another branch's quote
     if (est.status === 'Cancelled') throw new AppError('ALREADY_CANCELLED', 'This quotation is already cancelled.', 409);
     if (await estimateIsConverted(tx, id)) {
       throw new AppError('QUOTE_CONVERTED', 'This quotation was converted to a sale and cannot be cancelled.', 409);

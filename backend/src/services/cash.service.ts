@@ -191,10 +191,13 @@ export function reopenDay(branchId: string, date: string) {
   });
 }
 
-export function approveRecurring(templateId: string, branchId: string, date: string, amount: number, paymentMode: string, actor: string) {
+export function approveRecurring(templateId: string, branchId: string, date: string, amount: number, paymentMode: string, actor: string, reqUser?: any) {
   return serializableTx(async (tx: any) => {
     const template = await tx.recurringExpenseTemplate.findUnique({ where: { id: templateId } });
     if (!template) throw new AppError('NOT_FOUND', 'Recurring template not found', 404);
+    // A branch-locked user must not approve an expense into another branch's drawer
+    // — the expense posts to the TEMPLATE's branch, so authorize against that.
+    assertBranchAllowed(reqUser, template.branchId || branchId);
 
     // Validate the money and mode (CASH2-5): no negative/zero amounts, and only
     // real payment modes — not "Bitcoin".

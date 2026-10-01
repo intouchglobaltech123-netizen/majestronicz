@@ -18,6 +18,12 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+/** The raw signed token (or null). Used for the SSE connection, which can't send
+ *  an Authorization header, so it passes the token as a query parameter. */
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
 function authHeaders(base: Record<string, string> = {}): Record<string, string> {
   return authToken ? { ...base, Authorization: `Bearer ${authToken}` } : base;
 }

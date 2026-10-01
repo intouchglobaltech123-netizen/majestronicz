@@ -1,6 +1,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
+import { assertBranchAllowed } from '../lib/branchGuard.js';
 
 const snap = async (tx: any) => ({
   attendanceRecords: await tx.attendanceRecord.findMany(),
@@ -21,7 +22,7 @@ const KIOSK_MAX_FAILS = 5;
 const KIOSK_LOCK_MS = 60_000;
 const kioskPinAttempts = new Map<string, { fails: number; lockUntil: number }>();
 
-export async function verifyKioskPin(employeeId: string, pin: string): Promise<{ ok: boolean }> {
+export async function verifyKioskPin(employeeId: string, pin: string, reqUser?: any): Promise<{ ok: boolean }> {
   const key = String(employeeId || '');
   const now = Date.now();
   const rec = kioskPinAttempts.get(key) ?? { fails: 0, lockUntil: 0 };
@@ -31,6 +32,9 @@ export async function verifyKioskPin(employeeId: string, pin: string): Promise<{
   }
 
   const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  // SEC6-2: a branch-locked Manager must not be able to test staff PINs in other
+  // branches — only verify staff of a branch the caller is allowed to operate in.
+  if (emp) assertBranchAllowed(reqUser, emp.branchId);
   const ok = !!emp && String(emp.pin || '') === String(pin || '').trim();
 
   if (ok) {

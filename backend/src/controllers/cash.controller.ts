@@ -35,9 +35,11 @@ export const reopenDay = async (req: Request, res: Response) => {
 export const approveRecurring = async (req: Request, res: Response) => {
   const { templateId, branchId, date, amount, paymentMode, actor } = req.body;
   // The recurring approval posts to the template's own branch (see service);
-  // still guard the branch the caller claims to be operating on.
+  // still guard the branch the caller claims to be operating on. The service
+  // re-guards against the TEMPLATE's branch so a cross-branch template can't be
+  // approved into another branch's drawer.
   assertBranchAllowed((req as any).user, branchId);
-  res.json(await cash.approveRecurring(templateId, branchId, date, amount, paymentMode, actor));
+  res.json(await cash.approveRecurring(templateId, branchId, date, amount, paymentMode, actor, (req as any).user));
 };
 
 // Dedicated replacements for the removed generic PUT/DELETE

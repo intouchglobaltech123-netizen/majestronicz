@@ -308,24 +308,10 @@ export function transferStock(
   });
 }
 
-/** Direct stock set (Item Master / stock modal). */
-export function updateBranchStock(itemId: string, branchId: string, quantity: number, minStockAlert?: number, location?: string) {
-  if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
-  return serializableTx(async (tx: any) => {
-    const ts = nowIso();
-    await tx.branchStock.upsert({
-      where: { itemId_branchId: { itemId, branchId } },
-      create: { itemId, branchId, quantity, minStockAlert: minStockAlert ?? 5, location: location?.trim() ?? '', updatedAt: ts },
-      update: {
-        quantity,
-        ...(minStockAlert !== undefined ? { minStockAlert } : {}),
-        ...(location !== undefined ? { location: location.trim() } : {}),
-        updatedAt: ts,
-      },
-    });
-    return { branchStocks: await tx.branchStock.findMany() };
-  });
-}
+// updateBranchStock() was REMOVED: it set a branch's stock to any value with no
+// history row or quantity validation (−5, 2.5, …), and no screen used it. Stock
+// quantity changes must go through adjustStock() (validated + logged). Only the
+// rack-location updater below remains.
 
 export function updateBranchStockLocation(itemId: string, branchId: string, location?: string) {
   return serializableTx(async (tx: any) => {
