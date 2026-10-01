@@ -329,9 +329,16 @@ export async function deletePayment(id: string, reqUser?: any) {
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
         if (!po) continue;
+        // Remove the PO-embedded payment entry that mirrors this ledger row, so a
+        // deleted vendor payment doesn't linger in the PO's payment history.
+        const remaining = ((po.payments as any[]) || []).filter((e) => e?.ledgerPaymentId !== id);
         await tx.purchaseOrder.update({
           where: { id: po.id },
-          data: { amountPaid: Math.max(0, Math.round(((po.amountPaid || 0) - a.amount) * 100) / 100), updatedAt: nowIso() },
+          data: {
+            amountPaid: Math.max(0, Math.round(((po.amountPaid || 0) - a.amount) * 100) / 100),
+            payments: remaining,
+            updatedAt: nowIso(),
+          },
         });
       }
     }

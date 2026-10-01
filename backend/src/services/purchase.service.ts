@@ -5,6 +5,7 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { isValidBranch } from '../lib/constants.js';
 
 const poSnapshot = async (tx: any) => ({
   purchaseOrders: await tx.purchaseOrder.findMany(),
@@ -15,10 +16,30 @@ const poSnapshot = async (tx: any) => ({
 /** Create (server-assigned PO number) or edit a purchase order; link pending order. */
 export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
   assertBranchAllowed(reqUser, poData.branchId);
+  if (!isValidBranch(poData.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${poData.branchId}`, 400);
   // Serializable + retry so a concurrent Edit-Prices and receive on the same PO
   // can't lose one another's write (E2E-5).
   return serializableTx(async (tx: any) => {
     const ts = nowIso();
+    // Reject bad line input (PUR2-*): a line must reference a real item, with a
+    // positive ordered quantity, a non-negative price and a 0–100% tax rate.
+    const lineItems = Array.isArray(poData.items) ? poData.items : [];
+    if (!lineItems.length) throw new AppError('NO_ITEMS', 'A purchase order needs at least one line item.', 400);
+    const itemIds = lineItems.map((l: any) => l.itemId).filter(Boolean);
+    const knownItems = new Set((await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true } })).map((i: any) => i.id));
+    for (const l of lineItems) {
+      if (!l.itemId || !knownItems.has(l.itemId)) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
+      if (!(Number(l.quantityOrdered) > 0)) throw new AppError('BAD_QTY', 'Ordered quantity must be greater than zero.', 400);
+      if (Number(l.purchasePrice) < 0) throw new AppError('BAD_PRICE', 'Purchase price cannot be negative.', 400);
+      if (l.taxPercent != null && !isValidTaxPercent(l.taxPercent)) throw new AppError('BAD_TAX', 'Tax % must be between 0 and 100.', 400);
+    }
+    // The vendor must exist.
+    if (poData.vendorId) {
+      const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true } });
+      if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
+    } else if (!String(poData.vendorName || '').trim()) {
+      throw new AppError('VENDOR_REQUIRED', 'A supplier is required.', 400);
+    }
     let saved: any;
     // These are set only by the receive / pay / cancel flows and the server — never
     // accepted from a save, or a PO could be created/edited as Received with a
@@ -129,8 +150,14 @@ export function deletePurchaseOrder(poId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (po) assertBranchAllowed(reqUser, po.branchId); // SEC2-1
-    if (po && (po.status === 'Received' || po.status === 'Partially Received')) {
-      throw new AppError('HAS_RECEIPTS', 'Cannot delete a PO that has received stock. Cancel it instead.', 409);
+    // A PO that ever received stock OR had a vendor payment keeps a financial
+    // history (stock receipts, debit notes, payments) — deleting it (even after a
+    // cancel) would orphan that history. Block it. PUR3-6 / E2E-4.
+    if (po && (po.status === 'Received' || po.status === 'Partially Received' || ((po.receivingHistory as any[]) || []).length > 0)) {
+      throw new AppError('HAS_RECEIPTS', 'Cannot delete a PO that has received stock — it has receipt history. Cancel it instead.', 409);
+    }
+    if (po && ((po.amountPaid || 0) > 0 || ((po.payments as any[]) || []).length > 0)) {
+      throw new AppError('HAS_PAYMENTS', 'Cannot delete a PO that has vendor payments recorded. Reverse the payment first.', 409);
     }
     if (po) await tx.purchaseOrder.delete({ where: { id: poId } });
     return poSnapshot(tx);
@@ -463,7 +490,16 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
     if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();
-    const entry = { id: rid('pay'), date: ts.split('T')[0], amount: pay, mode: mode || 'Cash', by: actor };
+    const today = ts.split('T')[0];
+    // A vendor payment hits the drawer of the PO's branch today — if that day is
+    // already closed, it would change a reconciled day (the Parties screen already
+    // refuses this; the PO page must too). (CASH-2)
+    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: po.branchId, date: today, isClosed: true } });
+    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${today} is closed. Reopen it before paying this vendor.`, 409);
+    // Link the PO-embedded entry to its ledger row so deleting the payment can
+    // remove BOTH (otherwise the deleted payment lingered in the PO history).
+    const ledgerId = rid('pay');
+    const entry = { id: rid('pay'), date: today, amount: pay, mode: mode || 'Cash', by: actor, ledgerPaymentId: ledgerId };
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
@@ -485,9 +521,9 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     }
     await tx.payment.create({
       data: {
-        id: rid('pay'), receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+        id: ledgerId, receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
         type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
-        branchId: po.branchId, date: ts.split('T')[0], amount: pay, paymentMode: mode || 'Cash',
+        branchId: po.branchId, date: today, amount: pay, paymentMode: mode || 'Cash',
         reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber}`,
         allocations: [{ refId: po.id, refNumber: po.poNumber, amount: pay }] as any,
         createdById: null, createdByName: actor, createdAt: ts,
