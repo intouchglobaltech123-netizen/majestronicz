@@ -39,7 +39,12 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
   });
   if (pastClosed.length) {
     const last = pastClosed[0];
-    const dayInvoices = await tx.invoice.findMany({ where: { branchId, date: last.date } });
+    // Include cash activity on EVERY day from the last register up to (not
+    // including) `date` — a day that had sales but no register row of its own
+    // would otherwise be skipped and its cash dropped from the next opening.
+    // There is no other register row in this span (last is the most recent), so
+    // the only expenses are the last register's own.
+    const dayInvoices = await tx.invoice.findMany({ where: { branchId, date: { gte: last.date, lt: date } } });
     const cashSales = dayInvoices.reduce((sum: number, i: any) => sum + invoiceCashCollected(i), 0);
     // Only effective expenses reduce the drawer (skip expenses still pending / rejected approval).
     const cashExpenses = (last.expenses as any[])
@@ -47,7 +52,7 @@ async function previousDayClosingBalance(tx: any, branchId: string, date: string
       .reduce((s, e) => s + (e.cashAmount || 0), 0);
     // Cash receipts/vendor payments from the Payment ledger also move the drawer,
     // so the carried-forward opening matches the day's real closing (CASH2-6).
-    const dayPayments = await tx.payment.findMany({ where: { branchId, date: last.date } });
+    const dayPayments = await tx.payment.findMany({ where: { branchId, date: { gte: last.date, lt: date } } });
     const isCash = (p: any) => (p.paymentMode || '').toLowerCase() === 'cash';
     const cashIn = dayPayments.filter((p: any) => p.type === 'in' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
     const cashOut = dayPayments.filter((p: any) => p.type === 'out' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);

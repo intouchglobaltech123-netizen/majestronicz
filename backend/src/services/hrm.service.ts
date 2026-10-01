@@ -74,11 +74,18 @@ function shiftHours(inDate: string, inTime: string, outDate: string, outTime: st
   return Math.max(0, parseFloat(((dayDiff * 1440 + outMinutes - inMinutes) / 60).toFixed(2)));
 }
 
-export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
+/** A manual clock time must be HH:mm (24-hour) — reject "banana", "25:99", etc. */
+const isValidClockTime = (t?: string): boolean => !t || /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t).trim());
+
+export function clockIn(employeeId: string, photoDataUrl: string, location: any, customTime?: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
     if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
     if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Employee profile is inactive', 409);
+    // A branch-locked user can only clock in their own branch's staff, and a
+    // manual time must be a real HH:mm — "banana" is rejected (VAL-1).
+    assertBranchAllowed(reqUser, emp.branchId);
+    if (!isValidClockTime(customTime)) throw new AppError('BAD_TIME', 'Clock-in time must be HH:mm (24-hour).', 400);
 
     const now = new Date();
     const ist = istParts(now);
@@ -101,10 +108,12 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
   });
 }
 
-export function clockOut(employeeId: string, photoDataUrl: string, location: any, customTime?: string) {
+export function clockOut(employeeId: string, photoDataUrl: string, location: any, customTime?: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
     if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
+    assertBranchAllowed(reqUser, emp.branchId); // only this branch's staff
+    if (!isValidClockTime(customTime)) throw new AppError('BAD_TIME', 'Clock-out time must be HH:mm (24-hour).', 400);
 
     const now = new Date();
     const ist = istParts(now);

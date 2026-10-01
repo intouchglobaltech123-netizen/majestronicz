@@ -8,11 +8,11 @@ export const verifyPin = async (req: Request, res: Response) => {
 
 export const clockIn = async (req: Request, res: Response) => {
   const { employeeId, photoDataUrl, location, customTime } = req.body;
-  res.json(await hrm.clockIn(employeeId, photoDataUrl, location, customTime));
+  res.json(await hrm.clockIn(employeeId, photoDataUrl, location, customTime, (req as any).user));
 };
 export const clockOut = async (req: Request, res: Response) => {
   const { employeeId, photoDataUrl, location, customTime } = req.body;
-  res.json(await hrm.clockOut(employeeId, photoDataUrl, location, customTime));
+  res.json(await hrm.clockOut(employeeId, photoDataUrl, location, customTime, (req as any).user));
 };
 export const payrollAdjustment = async (req: Request, res: Response) => {
   const { employeeId, month, adjustment, reason, standardHoursPerMonth } = req.body;
