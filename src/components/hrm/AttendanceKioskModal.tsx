@@ -16,6 +16,7 @@ import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture } from '../../types';
 import { CameraCapture } from './CameraCapture';
 import { apiPost } from '../../lib/api';
+import { playSuccess } from '../../lib/sound';
 import { toast } from 'sonner';
 
 interface AttendanceKioskModalProps {
@@ -170,7 +171,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
     const result = mode === 'in'
       ? clockIn(currentEmp.id, capturedPhoto, effectiveLocation)
       : clockOut(currentEmp.id, capturedPhoto, effectiveLocation);
-    if (result.success) onClose();
+    if (result.success) { playSuccess(); onClose(); }
     else toast.error(result.message);
   };
 

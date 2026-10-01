@@ -15,8 +15,11 @@ import {
   Menu,
   Maximize2,
   Minimize2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { cn, formatCurrency, getTodayDateString } from '../../lib/utils';
+import { playNotify, isSoundMuted, setSoundMuted } from '../../lib/sound';
 import { RecurringExpenseTemplate } from '../../types';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { ShopifyMark, FlipkartMark, AmazonMark } from '../common/StoreLogos';
@@ -61,6 +64,16 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
+  const [soundMuted, setSoundMutedState] = useState<boolean>(() => isSoundMuted());
+
+  const toggleSound = () => {
+    setSoundMutedState((prev) => {
+      const next = !prev;
+      setSoundMuted(next);
+      if (!next) playNotify(); // preview the chime when turning it back on
+      return next;
+    });
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -127,6 +140,14 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   const totalAlertCount =
     dueReminders.length + stockArrivedOrders.length + activeRecurringAlerts.length;
+
+  // Play a calm chime when a NEW alert appears (the count rises) — never on the
+  // first render and never when the count only drops as items are cleared.
+  const prevAlertCountRef = useRef(totalAlertCount);
+  useEffect(() => {
+    if (totalAlertCount > prevAlertCountRef.current) playNotify();
+    prevAlertCountRef.current = totalAlertCount;
+  }, [totalAlertCount]);
 
   const handleOpenEnquiry = (enquiryId: string) => {
     const enq = enquiries.find((e) => e.id === enquiryId);
@@ -313,11 +334,27 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </p>
                   </div>
                 </div>
-                {totalAlertCount > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-none bg-red-100 text-red-800 border border-red-200">
-                    {totalAlertCount} Due
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {totalAlertCount > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-none bg-red-100 text-red-800 border border-red-200">
+                      {totalAlertCount} Due
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleSound}
+                    aria-label={soundMuted ? 'Turn notification sound on' : 'Mute notification sound'}
+                    title={soundMuted ? 'Sound off — click to enable' : 'Sound on — click to mute'}
+                    className={cn(
+                      'h-6 w-6 rounded-none border flex items-center justify-center transition-colors cursor-pointer',
+                      soundMuted
+                        ? 'bg-white border-slate-300 text-slate-400 hover:text-slate-600'
+                        : 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
+                    )}
+                  >
+                    {soundMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
               </div>
 
               {/* Notification List Container */}

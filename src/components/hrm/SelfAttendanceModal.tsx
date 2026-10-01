@@ -5,6 +5,7 @@ import { useErp } from '../../context/ErpContext';
 import { GeoLocationCapture } from '../../types';
 import { CameraCapture } from './CameraCapture';
 import { apiGet, apiPost } from '../../lib/api';
+import { playSuccess } from '../../lib/sound';
 import { toast } from 'sonner';
 
 interface Props {
@@ -68,6 +69,20 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const mode: 'in' | 'out' = rec?.checkInTime && !rec?.checkOutTime ? 'out' : 'in';
   const linked = today?.linked !== false;
 
+  // Live "on shift for Xh Ym" while checked in (checkInTime is HH:mm:ss, IST;
+  // `now` ticks every second). Rolls over correctly past midnight.
+  let onShiftLabel: string | null = null;
+  if (mode === 'out' && rec?.checkInTime) {
+    const [h, m, s] = rec.checkInTime.split(':').map(Number);
+    if (Number.isFinite(h)) {
+      const inMin = h * 60 + (m || 0) + (s || 0) / 60;
+      const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      let diff = nowMin - inMin;
+      if (diff < 0) diff += 1440;
+      onShiftLabel = `${Math.floor(diff / 60)}h ${Math.floor(diff % 60)}m`;
+    }
+  }
+
   const handleRecord = async () => {
     if (!photo) { toast.error('Please capture your selfie first'); return; }
     setSaving(true);
@@ -77,8 +92,8 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
         '/api/attendance/self-clock',
         { photo, location: fallback }
       );
-      if (res.action === 'in') toast.success(`Checked in at ${res.record.checkInTime}`);
-      else if (res.action === 'out') toast.success(`Checked out at ${res.record.checkOutTime}`);
+      if (res.action === 'in') { playSuccess(); toast.success(`Checked in at ${res.record.checkInTime}`); }
+      else if (res.action === 'out') { playSuccess(); toast.success(`Checked out at ${res.record.checkOutTime}`); }
       else toast.info("You've already completed today's shift.");
       onClose();
     } catch (e: any) {
@@ -134,7 +149,7 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       ? `Shift complete — out at ${rec?.checkOutTime} (${rec?.hoursWorked ?? 0} hrs)`
                       : mode === 'in'
                       ? 'Ready to record your check-in'
-                      : `Checked in at ${rec?.checkInTime} — ready to check out`}
+                      : `Checked in at ${rec?.checkInTime}${onShiftLabel ? ` • on shift ${onShiftLabel}` : ''} — ready to check out`}
                   </p>
                 </div>
               </div>
