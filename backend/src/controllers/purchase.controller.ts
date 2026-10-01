@@ -12,8 +12,8 @@ export const cancelPO = async (req: Request, res: Response) => {
   res.json(await purchase.cancelPurchaseOrder(req.params.id, (req as any).user));
 };
 export const receive = async (req: Request, res: Response) => {
-  const { poId, receipts, notes, payment, actor } = req.body;
-  res.json(await purchase.receivePurchaseOrderStock(poId, receipts, notes, payment, actor, (req as any).user));
+  const { poId, receipts, notes, payment, actor, otherCharges } = req.body;
+  res.json(await purchase.receivePurchaseOrderStock(poId, receipts, notes, payment, actor, otherCharges, (req as any).user));
 };
 export const addAttachment = async (req: Request, res: Response) => {
   const { poId, attachment, actor } = req.body;

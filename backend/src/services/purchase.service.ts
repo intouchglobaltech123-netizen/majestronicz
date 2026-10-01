@@ -169,6 +169,7 @@ export function receivePurchaseOrderStock(
   notes: string | undefined,
   payment: { amount?: number; mode?: string } | undefined,
   actor: string,
+  otherCharges: number | undefined,
   reqUser?: any
 ) {
   return serializableTx(async (tx: any) => {
@@ -310,10 +311,16 @@ export function receivePurchaseOrderStock(
       });
     }
 
+    // PUR: extra charges the vendor billed (packing/freight) entered on this
+    // receipt. Accumulate onto the PO so the payable includes them.
+    const extraCharge = Math.max(0, Number(otherCharges) || 0);
+    const newOtherCharges = Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100;
+
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
         items: updatedLines, status, totalAmount: newTotalAmount, totalTax: newTotalTax,
+        otherCharges: newOtherCharges,
         amountPaid: newAmountPaid,
         receivingHistory: [receivingEvent, ...((po.receivingHistory as any[]) || [])],
         debitNotes, payments,
@@ -451,7 +458,7 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     // tax-INCLUSIVE grand total. Capping at the ex-tax goods value (as before)
     // rejected the tax portion of a GST PO as "overpayment", so such a PO could
     // never be marked fully paid. Legacy POs with no tax leave this unchanged.
-    const grandOwed = Math.round(((po.totalAmount || 0) + (Number(po.totalTax) || 0)) * 100) / 100;
+    const grandOwed = Math.round(((po.totalAmount || 0) + (Number(po.totalTax) || 0) + (Number(po.otherCharges) || 0)) * 100) / 100;
     const remaining = Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100;
     if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
     if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);

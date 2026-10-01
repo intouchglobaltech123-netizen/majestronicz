@@ -1019,6 +1019,7 @@ export interface PurchaseOrder {
   items: POLineItem[];
   totalAmount: number; // taxable value of the order, tax excluded
   totalTax?: number;   // GST accumulated from the rates confirmed at receipt
+  otherCharges?: number; // vendor-billed extras (packing/freight) added at receipt
   amountPaid?: number; // total paid to vendor against this PO (payables tracking)
   notes?: string;
   pendingOrderId?: string;
@@ -1439,11 +1440,12 @@ export const computeInvoiceCogs = (
  * paid, less debit notes billed back for damaged/short goods.
  */
 export const purchaseOrderBalanceDue = (
-  po: Pick<PurchaseOrder, 'totalAmount' | 'totalTax' | 'amountPaid' | 'debitNotes' | 'status'>
+  po: Pick<PurchaseOrder, 'totalAmount' | 'totalTax' | 'amountPaid' | 'debitNotes' | 'status' | 'otherCharges'>
 ): number => {
   if (po.status === 'Cancelled') return 0;
   const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  const grandOwed = (po.totalAmount || 0) + (po.totalTax || 0);
+  // Goods + GST + any extra charges the vendor billed (packing/freight) is what's owed.
+  const grandOwed = (po.totalAmount || 0) + (po.totalTax || 0) + (po.otherCharges || 0);
   return Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debit) * 100) / 100);
 };
 

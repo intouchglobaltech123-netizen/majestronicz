@@ -356,6 +356,9 @@ model PurchaseOrder {
   // separate from totalAmount so "what the goods cost" and "what the bill comes
   // to" stay distinguishable — the payable to the vendor is the sum of the two.
   totalTax            Float?
+  // Extra charges the vendor bills on top of the goods (packing, freight, etc.),
+  // entered while receiving. Accumulated across receipts and added to the payable.
+  otherCharges        Float?
   amountPaid          Float?  // total paid to vendor against this PO (payables tracking)
   notes               String?
   pendingOrderId      String?

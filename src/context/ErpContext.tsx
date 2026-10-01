@@ -428,7 +428,8 @@ interface ErpContextType {
     poId: string,
     receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
     notes?: string,
-    payment?: { amount?: number; mode?: string }
+    payment?: { amount?: number; mode?: string },
+    otherCharges?: number,
   ) => void;
   recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => void;
   recordPurchaseBill: (poId: string, bill: { number: string; date: string; taxable: number; gst: number }) => void;
@@ -3754,7 +3755,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     poId: string,
     receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
     notes?: string,
-    payment?: { amount?: number; mode?: string }
+    payment?: { amount?: number; mode?: string },
+    otherCharges?: number,
   ) => {
     const po = purchaseOrders.find((p) => p.id === poId);
     if (!po) {
@@ -3863,11 +3865,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
+    const extraCharge = Math.max(0, Number(otherCharges) || 0);
     const updatedPo: PurchaseOrder = {
       ...po,
       items: updatedLines,
       status: newStatus,
       totalAmount: newTotalAmount,
+      otherCharges: Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100,
       amountPaid: newAmountPaid,
       receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
       debitNotes,
@@ -3926,7 +3930,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextStocks;
     });
 
-    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name }));
+    persist(apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name, otherCharges: extraCharge }));
 
     const totalQty = validReceipts.reduce((sum, r) => sum + r.quantityReceived, 0);
     toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {

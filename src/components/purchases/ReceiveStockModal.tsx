@@ -46,6 +46,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   // Vendor payment recorded at receiving
   const [payNowInput, setPayNowInput] = useState<string>('');
   const [payMode, setPayMode] = useState<string>('Cash');
+  // Extra charges the vendor billed on this delivery (packing / freight etc.).
+  const [packingChargeInput, setPackingChargeInput] = useState<string>('');
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
 
@@ -206,7 +208,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   );
   const receiptTaxable = Math.round(receiptTotals.taxable * 100) / 100;
   const receiptTax = Math.round(receiptTotals.tax * 100) / 100;
-  const receiptPayable = Math.round((receiptTaxable + receiptTax) * 100) / 100;
+  const packingCharge = Math.max(0, Math.round((Number(packingChargeInput) || 0) * 100) / 100);
+  const receiptPayable = Math.round((receiptTaxable + receiptTax + packingCharge) * 100) / 100;
   // What the vendor is owed on this PO INCLUDING GST: goods value + tax confirmed
   // on earlier receipts + the tax being billed on THIS receipt (which is not in
   // the stored totalTax until stock-in is confirmed), less debit notes. Using the
@@ -214,7 +217,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const poDebitTotal = (purchaseOrder.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
   const poPayableInclTax = Math.max(
     0,
-    Math.round(((purchaseOrder.totalAmount || 0) + (purchaseOrder.totalTax || 0) + receiptTax - poDebitTotal) * 100) / 100,
+    Math.round(((purchaseOrder.totalAmount || 0) + (purchaseOrder.totalTax || 0) + (purchaseOrder.otherCharges || 0) + receiptTax + packingCharge - poDebitTotal) * 100) / 100,
   );
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
   const totalMissingNow = Object.values(missingToAssign).reduce((sum, val) => sum + (val || 0), 0);
@@ -278,7 +281,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       purchaseOrder.id,
       receipts,
       receivingNotes,
-      payNow > 0 ? { amount: payNow, mode: payMode } : undefined
+      payNow > 0 ? { amount: payNow, mode: payMode } : undefined,
+      packingCharge > 0 ? packingCharge : undefined,
     );
 
     // Damaged goods are recorded as a vendor debit note by receivePurchaseOrderStock
@@ -571,18 +575,34 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             </table>
           </div>
 
-          {/* Receiving Notes / Delivery Challan */}
-          <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200">
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Receiving Notes / Delivery Challan # <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={receivingNotes}
-              onChange={(e) => setReceivingNotes(e.target.value)}
-              placeholder="e.g. Inwarded via DTDC Air Express #994821, Challan DC-441"
-              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
+          {/* Receiving Notes / Delivery Challan + vendor packing/other charges */}
+          <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Receiving Notes / Delivery Challan # <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                value={receivingNotes}
+                onChange={(e) => setReceivingNotes(e.target.value)}
+                placeholder="e.g. Inwarded via DTDC Air Express #994821, Challan DC-441"
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Packing / Other Charges <span className="text-slate-400 font-normal">(₹)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={packingChargeInput}
+                onChange={(e) => setPackingChargeInput(e.target.value)}
+                placeholder="0"
+                title="Extra amount the vendor billed for packing/freight on this delivery — added to the vendor payable"
+                className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           {/* Verification check */}
@@ -662,6 +682,11 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
               <span>
                 GST <span className="font-semibold font-mono text-slate-800">{formatCurrency(receiptTax)}</span>
               </span>
+              {packingCharge > 0 && (
+                <span>
+                  Packing <span className="font-semibold font-mono text-slate-800">{formatCurrency(packingCharge)}</span>
+                </span>
+              )}
               <span>
                 Payable{' '}
                 <span className="font-bold font-mono text-slate-900 text-sm">{formatCurrency(receiptPayable)}</span>

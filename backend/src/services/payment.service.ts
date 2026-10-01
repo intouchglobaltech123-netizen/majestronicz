@@ -205,7 +205,7 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
         // the ex-tax goods value here silently dropped the GST portion of a
         // vendor payment, so an allocated payment didn't fully apply (PUR4-1).
         const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-        const grandOwed = (po.totalAmount || 0) + (Number(po.totalTax) || 0);
+        const grandOwed = (po.totalAmount || 0) + (Number(po.totalTax) || 0) + (Number(po.otherCharges) || 0);
         const balance = Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100);
         const pay = Math.min(a.amount, balance);
         await tx.purchaseOrder.update({
