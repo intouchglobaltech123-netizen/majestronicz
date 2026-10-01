@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { PurchaseOrder, purchaseOrderBalanceDue } from '../../types';
+import { PurchaseOrder, purchaseOrderBalanceDue, purchaseOrderGrandOwed } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { ArrowLeft, Wallet, Truck, ChevronDown, ChevronRight, CheckCircle2, Search, FileText } from 'lucide-react';
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal';
@@ -183,7 +183,9 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                       </thead>
                       <tbody>
                         {g.pos.map(({ po, balance }) => {
-                          const total = (po.totalAmount || 0) + (po.totalTax || 0) + (po.otherCharges || 0);
+                          // Owed-on-received grand (incl GST + charges), so Paid /
+                          // Total / Balance are consistent (not the ordered value).
+                          const total = purchaseOrderGrandOwed(po);
                           const val = poPay[po.id] ?? '';
                           const n = Number(val) || 0;
                           return (

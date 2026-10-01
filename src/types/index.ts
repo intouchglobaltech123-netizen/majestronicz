@@ -1432,20 +1432,35 @@ export const computeInvoiceCogs = (
 };
 
 /**
- * The single source of truth for what a vendor is still owed on a purchase order
- * (PUR4-1). Every screen — PO detail, PO list, vendor statement, parties/vendor
- * KPIs, dashboard, reports — and the backend payment guard must agree, or the
- * "Pay full remaining" button sends a figure the server rejects. The vendor is
- * owed the GST too, so this is the tax-INCLUSIVE grand total, less what's been
- * paid, less debit notes billed back for damaged/short goods.
+ * What a vendor is owed for the goods that ACTUALLY ARRIVED on a PO (incl. GST and
+ * any packing/other charges), NOT the full ordered value — you pay for what was
+ * received, not what is still on order (PUR5-7). "Arrived" = received + damaged
+ * units (damaged were delivered; the debit note below claws their value back);
+ * short-shipped/未arrived units are never owed. Single source of truth used by the
+ * PO list, vendor statement, parties/vendor KPIs, dashboard, reports and To Pay.
  */
+export const purchaseOrderGrandOwed = (
+  po: Pick<PurchaseOrder, 'items' | 'otherCharges'>,
+): number => {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let taxable = 0;
+  let tax = 0;
+  for (const l of po.items || []) {
+    const arrived = (Number(l.receivedQuantity) || 0) + (Number(l.damagedQuantity) || 0);
+    if (arrived <= 0) continue;
+    const lineTaxable = r2((Number(l.purchasePrice) || 0) * arrived);
+    taxable += lineTaxable;
+    tax += r2(lineTaxable * ((Number(l.taxPercent) || 0) / 100));
+  }
+  return r2(taxable + tax + (Number(po.otherCharges) || 0));
+};
+
 export const purchaseOrderBalanceDue = (
-  po: Pick<PurchaseOrder, 'totalAmount' | 'totalTax' | 'amountPaid' | 'debitNotes' | 'status' | 'otherCharges'>
+  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'debitNotes' | 'status' | 'otherCharges'>,
 ): number => {
   if (po.status === 'Cancelled') return 0;
   const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  // Goods + GST + any extra charges the vendor billed (packing/freight) is what's owed.
-  const grandOwed = (po.totalAmount || 0) + (po.totalTax || 0) + (po.otherCharges || 0);
+  const grandOwed = purchaseOrderGrandOwed(po);
   return Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debit) * 100) / 100);
 };
 
