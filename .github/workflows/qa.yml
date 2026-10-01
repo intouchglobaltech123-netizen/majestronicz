@@ -1,0 +1,46 @@
+name: QA regression suite
+
+# Runs the API regression tests in qa/ against a throwaway Postgres and a
+# local backend. No secrets are needed: the backend signs tokens with a dummy
+# local AUTH_SECRET, and nothing outside the runner is contacted.
+# Tests for findings that are still open fail until they are fixed (see qa/README.md).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [arul_backend]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: majestronicz_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      QA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/majestronicz_qa
+      QA_AUTH_SECRET: ci-dummy-local-secret-not-used-anywhere-else
+      QA_PORT: '4100'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run API regression tests
+        run: bash qa/run.sh
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-logs
+          path: qa/.logs/
