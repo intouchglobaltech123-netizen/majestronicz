@@ -225,6 +225,9 @@ export function approveRecurring(templateId: string, branchId: string, date: str
     const expenseId = rid('exp-rec');
     const newExpense = {
       id: expenseId, reason: template.name,
+      // Carry the template's category so the posted expense groups under it in the
+      // P&L / Expense reports instead of "Uncategorised".
+      category: template.category || undefined,
       cashAmount: paymentMode === 'Cash' ? amount : 0, gpayAmount: paymentMode === 'GPay' ? amount : 0,
       createdBy: actor, createdAt: nowIso(),
     };
@@ -261,7 +264,7 @@ export function approveRecurring(templateId: string, branchId: string, date: str
 
 /** Fields a client may change on a template. Everything else is server-owned. */
 const RECURRING_EDITABLE = [
-  'name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode',
+  'name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode', 'category',
 ] as const;
 
 export function updateRecurringTemplate(id: string, updates: Record<string, any>, reqUser?: any) {

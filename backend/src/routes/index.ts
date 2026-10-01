@@ -261,7 +261,7 @@ router.post('/recurring-expenses', requireCapability('cash:write'), asyncHandler
   if (existingTpl) assertBranchAllowed((req as any).user, existingTpl.branchId);
   // The approval ledger (lastApprovedMonth / approvalHistory) is NEVER accepted
   // from the client — that's how a forged "rent posted twice" got in.
-  const data = pick(b, ['name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode']);
+  const data = pick(b, ['name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode', 'category']);
   const tpl = await prisma.recurringExpenseTemplate.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
   broadcastChange('POST /api/recurring-expenses');
   res.json({ ok: true, recurringExpense: tpl, recurringExpenses: await prisma.recurringExpenseTemplate.findMany() });

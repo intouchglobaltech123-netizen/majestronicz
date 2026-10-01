@@ -2562,6 +2562,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newExpense = {
       id: expenseId,
       reason: template.name,
+      category: template.category || undefined,
       cashAmount,
       gpayAmount,
       createdBy: currentUser.name,

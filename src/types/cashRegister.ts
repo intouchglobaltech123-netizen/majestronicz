@@ -110,6 +110,7 @@ export interface RecurringExpenseTemplate {
   startMonth?: number; // 1 to 12 (Jan=1, ..., Dec=12) for Quarterly, Half-Yearly, Yearly
   dueDay: number; // 1 to 31 (e.g. 5 for 5th of month)
   paymentMode: 'Cash' | 'GPay';
+  category?: string; // expense category, so the posted expense groups in reports
   createdAt: string;
   lastApprovedMonth?: string; // e.g. "2026-09"
   approvalHistory?: RecurringExpenseApproval[];

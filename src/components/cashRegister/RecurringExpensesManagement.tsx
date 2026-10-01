@@ -8,6 +8,7 @@ import {
   isExpenseApprovedForMonth,
   formatExpenseSchedule,
   MONTH_NAMES,
+  EXPENSE_CATEGORIES,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
@@ -61,6 +62,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
   const [formStartMonth, setFormStartMonth] = useState<number>(1); // 1 = Jan
   const [formDueDay, setFormDueDay] = useState<number>(5);
   const [formPaymentMode, setFormPaymentMode] = useState<'Cash' | 'GPay'>('Cash');
+  const [formCategory, setFormCategory] = useState<string>('Rent');
 
   // Today context for monthly status calculation
   const todayStr = useMemo(() => getTodayDateString(), []);
@@ -124,6 +126,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     setFormStartMonth(1);
     setFormDueDay(5);
     setFormPaymentMode('Cash');
+    setFormCategory('Rent');
     setIsModalOpen(true);
   };
 
@@ -136,6 +139,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
     setFormStartMonth(template.startMonth || 1);
     setFormDueDay(template.dueDay);
     setFormPaymentMode(template.paymentMode);
+    setFormCategory(template.category || 'Rent');
     setIsModalOpen(true);
   };
 
@@ -168,6 +172,7 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
       startMonth: formFrequency !== 'Monthly' ? formStartMonth : undefined,
       dueDay: formDueDay,
       paymentMode: formPaymentMode,
+      category: formCategory,
     };
 
     if (editingTemplate) {
@@ -528,6 +533,23 @@ export const RecurringExpensesManagement: React.FC<Props> = ({ onQuickApprove })
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Expense category — the posted expense groups under this in the
+                  P&L and Expense reports (instead of "Uncategorised"). */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">
+                  Expense Category <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-300 rounded-none focus:outline-none focus:border-red-600 text-slate-900 cursor-pointer"
+                >
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Frequency & Cycle Grid */}

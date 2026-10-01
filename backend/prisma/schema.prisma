@@ -314,6 +314,8 @@ model DailyCashRegister {
   closingNotes        String?
 }
 
+// (category added so a scheduled expense posts under its real expense category
+//  in the P&L / Expense reports instead of "Uncategorised".)
 model RecurringExpenseTemplate {
   id                String  @id
   name              String
@@ -323,6 +325,7 @@ model RecurringExpenseTemplate {
   startMonth        Int?
   dueDay            Int
   paymentMode       String
+  category          String?
   createdAt         String
   lastApprovedMonth String?
   approvalHistory   Json?
