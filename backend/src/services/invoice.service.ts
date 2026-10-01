@@ -174,6 +174,20 @@ async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> 
   );
 }
 
+/**
+ * Remove the cash-refund ledger rows a RETURN booked against this invoice. When a
+ * bill is voided or deleted the sale is reversed in full, so its return refunds
+ * must go too — otherwise the drawer stays permanently down and an orphaned
+ * Payment 'out' row points at a bill that no longer exists (money-model cleanup).
+ */
+async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
+  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, allocations: true } });
+  const ids = outRows
+    .filter((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId))
+    .map((p: any) => p.id);
+  if (ids.length) await tx.payment.deleteMany({ where: { id: { in: ids } } });
+}
+
 /** Per-item units a bill SOLD, combos expanded to their components. Used by void
  *  and delete so the restore is aggregated per item, not per line (SAL5-3). */
 function expandSoldUnits(items: any[]): Map<string, number> {
@@ -566,6 +580,9 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
       where: { id: invoiceId },
       data: { isVoided: true, voidReason: reason || 'Cancelled / Voided', voidedAt: ts, voidedBy: actor, updatedAt: ts },
     });
+    // The sale is reversed in full — drop any return refund booked against it so
+    // the drawer isn't left permanently short by an orphaned 'out' row.
+    await purgeReturnRefunds(tx, invoiceId);
 
     // Reverse the customer's totals for exactly the bill's own linked customer.
     // Matching by phone/name could hit a different customer who happens to share a
@@ -659,22 +676,42 @@ export function processReturn(
     const subtotalTaxable =
       Number(inv.subtotal) || invItems.reduce((s, i) => s + (Number(i.taxableAmount) || 0), 0);
     const overallDisc = Number(inv.overallDiscountAmount) || 0;
-    const perUnitRefund = (itemId: string, taxRate: number, fallbackUnitPrice: number): number => {
-      const li = invItems.find((i) => (i.itemId || i.id) === itemId);
-      if (!li) {
-        // No stored line — fall back to unit price + tax (legacy behavior).
-        return Math.round(fallbackUnitPrice * (1 + (Number(taxRate) || 0) / 100) * 100) / 100;
-      }
+    // Net-of-discount, tax-inclusive value a single stored line contributed per unit.
+    const lineUnitValue = (li: any): number => {
       const q = Number(li.quantity) || 1;
       const lineTaxable = Number(li.taxableAmount) || 0;
-      const lineNetWithTax =
-        Number(li.totalAmount) || lineTaxable + (Number(li.totalTax) || 0);
+      const lineNetWithTax = Number(li.totalAmount) || lineTaxable + (Number(li.totalTax) || 0);
       const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
-      const perUnit = (lineNetWithTax - overallShare) / q;
+      return (lineNetWithTax - overallShare) / q;
+    };
+    // Per-unit refund for an item. When the same item sits on more than one line at
+    // different prices we can't know which physical unit came back, so refund the
+    // AVERAGE per-unit value across all of that item's (non-combo) lines — it's
+    // order-independent and a full return still refunds exactly the lines' total
+    // (SAL2-11: the old code took the first line's price, arbitrarily the higher one).
+    const perUnitRefund = (itemId: string, taxRate: number, fallbackUnitPrice: number): number => {
+      const lines = invItems.filter((i) => !i.isCombo && (i.itemId || i.id) === itemId);
+      if (!lines.length) {
+        // No stored catalogue line — fall back to unit price + tax (legacy behavior).
+        return Math.round(fallbackUnitPrice * (1 + (Number(taxRate) || 0) / 100) * 100) / 100;
+      }
+      const totalQty = lines.reduce((s, li) => s + (Number(li.quantity) || 0), 0);
+      const totalValue = lines.reduce((s, li) => s + lineUnitValue(li) * (Number(li.quantity) || 0), 0);
+      const perUnit = totalQty > 0 ? totalValue / totalQty : 0;
       return Math.max(0, Math.round(perUnit * 100) / 100);
     };
-    const rawRefundFor = (line: any): number =>
-      Math.round(perUnitRefund(line.itemId, line.taxRate, line.unitPrice) * line.returnQty * 100) / 100;
+    // A combo refunds from its own stored line (combos never share with item lines).
+    const perUnitComboRefund = (line: any): number => {
+      const li = invItems.find(
+        (i) => i.isCombo && ((line.comboId && i.comboId === line.comboId) || i.id === line.id),
+      );
+      return li ? Math.max(0, Math.round(lineUnitValue(li) * 100) / 100)
+        : Math.round((Number(line.unitPrice) || 0) * (1 + (Number(line.taxRate) || 0) / 100) * 100) / 100;
+    };
+    const rawRefundFor = (line: any): number => {
+      const per = line.isCombo ? perUnitComboRefund(line) : perUnitRefund(line.itemId, line.taxRate, line.unitPrice);
+      return Math.round(per * line.returnQty * 100) / 100;
+    };
 
     // Ceiling: total refunds across ALL returns can never exceed the invoice's
     // grand total. If historical returns used a different (looser) calc, cap the
@@ -839,6 +876,9 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
         await ledger.flush(tx);
         if (delLogs.length) await tx.stockAdjustmentLog.createMany({ data: delLogs });
       }
+      // Drop any return refund booked against this bill before erasing it, so the
+      // drawer isn't left short by an 'out' row pointing at a deleted invoice.
+      await purgeReturnRefunds(tx, invoiceId);
       await tx.invoice.delete({ where: { id: invoiceId } });
     }
     return snapshot(tx);

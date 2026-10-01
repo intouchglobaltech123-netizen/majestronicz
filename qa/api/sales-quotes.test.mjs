@@ -182,6 +182,43 @@ describe('sales & quotes', () => {
     near(after.totalReturnedAmount, 590, 'refund for one unit');
   });
 
+  test('SAL2-11 the same item on two lines at different prices refunds the average, not the higher line', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 100, stock: { 'erode-hq': 10 } });
+    // Two lines of the SAME item: 1 @ 100 and 1 @ 300 (18% GST → 118 + 354 = 472).
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1, { price: 100 }), line(item, 1, { price: 300 })] }));
+    near(inv.grandTotal, 472, 'bill total');
+    // Returning one unit can't know which line it came from → refund the average
+    // per-unit (236), never the higher line's 354 (the old first-line-wins bug).
+    const r1 = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    near(r1.invoices.find((i) => i.id === inv.id).totalReturnedAmount, 236, 'first unit refunds the average');
+    // Returning the second unit brings the running total to exactly the bill value.
+    const r2 = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    near(r2.invoices.find((i) => i.id === inv.id).totalReturnedAmount, 472, 'both units refund the full bill');
+  });
+
+  test('SAL5-4 voiding a bill after a cash refund removes the refund row (drawer not left short)', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] })); // paid cash, 2360
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return');
+    assert.ok((await paymentsFor(inv.id)).some((p) => p.type === 'out'), 'a refund row exists after the return');
+    ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA', actor: 'QA' }), 'void');
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 0, 'the refund row is gone after void');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 10, 'all stock restored');
+  });
+
+  test('SAL5-4 deleting a bill after a cash refund removes the refund row', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return');
+    assert.ok((await paymentsFor(inv.id)).some((p) => p.type === 'out'), 'a refund row exists after the return');
+    ok(await del(`/api/tx/invoice/${inv.id}`), 'delete');
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 0, 'the refund row is gone after delete');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 10, 'all stock restored');
+  });
+
   test('INV3-3 a combo sale takes the stored combo parts, not the parts sent by the browser', async () => {
     const date = await freshDay('erode-hq');
     const a = await createItem({ stock: { 'erode-hq': 20 } });
