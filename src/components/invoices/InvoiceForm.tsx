@@ -1383,7 +1383,12 @@ export const InvoiceForm: React.FC<Props> = ({
       // Preview/print the server-saved bill (authoritative number, id and
       // reconciled payment split), not the provisional client object (SAL4-1).
       const saved = await saveInvoice(inv);
-      onSaved(saved || inv);
+      // If the server REFUSED the save, saveInvoice shows the error toast and
+      // returns undefined — do NOT open a printable bill off the provisional
+      // object, or the user prints a "DRAFT"/wrong number for a sale that was
+      // never recorded (SAL2-5).
+      if (!saved) return;
+      onSaved(saved);
     }
   };
 
