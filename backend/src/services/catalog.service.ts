@@ -236,6 +236,16 @@ export function saveCustomer(data: any) {
 
 export function deleteCustomer(id: string) {
   return prisma.$transaction(async (tx: any) => {
+    // A customer with bills (or receipts) can't be deleted — doing so orphans
+    // their invoices and the party ledger. Archive instead.
+    const billCount = await tx.invoice.count({ where: { customerId: id } });
+    if (billCount > 0) {
+      throw new AppError('CUSTOMER_IN_USE', 'This customer has bills on record and cannot be deleted.', 409);
+    }
+    const receiptCount = await tx.payment.count({ where: { partyType: 'customer', partyId: id } });
+    if (receiptCount > 0) {
+      throw new AppError('CUSTOMER_IN_USE', 'This customer has payments on record and cannot be deleted.', 409);
+    }
     await tx.customer.deleteMany({ where: { id } });
     return { customers: await tx.customer.findMany() };
   });

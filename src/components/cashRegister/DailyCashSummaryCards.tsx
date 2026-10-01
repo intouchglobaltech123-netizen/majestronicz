@@ -109,7 +109,9 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
                 <>
                   <span className="text-rose-600 font-bold">-</span>
                   <span className="font-semibold text-rose-700">
-                    ₹{cashPaid.toLocaleString('en-IN')} (Vendor Cash)
+                    {/* Covers vendor payments AND customer cash refunds (both are
+                        cash leaving the drawer), so it's not labelled "Vendor" only. */}
+                    ₹{cashPaid.toLocaleString('en-IN')} (Cash Paid Out)
                   </span>
                 </>
               )}
