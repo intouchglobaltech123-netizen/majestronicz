@@ -68,6 +68,15 @@ describe('stock & ledger', () => {
     await assertReconciles(item, 'erode-hq', 45, 'after -1000 adjustment');
   });
 
+  test('ACT-1 a stock adjustment is stamped with the logged-in user, not the name sent in the body', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 20 } });
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: -2, reason: 'QA', actor: 'HACKER McFakename' }));
+    const row = (await ledgerOf(item.id, 'erode-hq')).find((r) => r.reason === 'QA');
+    assert.ok(row, 'the adjustment was logged');
+    assert.notEqual(row.adjustedBy, 'HACKER McFakename', 'the body-supplied actor must be ignored');
+    assert.ok(row.adjustedBy && row.adjustedBy !== 'System', 'stamped with the authenticated user');
+  });
+
   test('INV2-2 a batch transfer with the same item on two lines cannot move more than the stock', async () => {
     const item = await createItem({ stock: { 'erode-hq': 20 } });
     const res = await post('/api/stock/transfer-batch', { items: [{ itemId: item.id, quantity: 15 }, { itemId: item.id, quantity: 15 }], fromBranch: 'erode-hq', toBranch: 'chennai', actor: 'QA' });

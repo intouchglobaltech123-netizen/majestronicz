@@ -3,6 +3,9 @@ import * as invoiceService from '../services/invoice.service.js';
 import { recordAudit } from '../services/audit.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : (req.body?.actor || 'unknown'));
+// The acting user's NAME for history stamps (voidedBy/processedBy), taken from the
+// token not the body so a client can't attribute the action to someone else (ACT-1).
+const actorName = (req: any): string => (req.user?.name as string | undefined)?.trim() || String(req.body?.actor || 'System');
 
 export const createSale = async (req: Request, res: Response) => {
   const inv = req.body;
@@ -16,15 +19,15 @@ export const createSale = async (req: Request, res: Response) => {
 };
 
 export const voidInvoice = async (req: Request, res: Response) => {
-  const { invoiceId, reason, actor } = req.body;
-  const result = await invoiceService.voidInvoice(invoiceId, reason, actor, (req as any).user);
+  const { invoiceId, reason } = req.body;
+  const result = await invoiceService.voidInvoice(invoiceId, reason, actorName(req), (req as any).user);
   await recordAudit({ actor: actorOf(req), action: 'sale.void', entity: 'invoice', entityId: invoiceId, summary: `Voided sale — ${reason || 'no reason'}` });
   res.json(result);
 };
 
 export const processReturn = async (req: Request, res: Response) => {
-  const { invoiceId, returnLines, reason, notes, actor, refundMode } = req.body;
-  const result = await invoiceService.processReturn(invoiceId, returnLines, reason, notes, actor, (req as any).user, refundMode);
+  const { invoiceId, returnLines, reason, notes, refundMode } = req.body;
+  const result = await invoiceService.processReturn(invoiceId, returnLines, reason, notes, actorName(req), (req as any).user, refundMode);
   const qty = Array.isArray(returnLines) ? returnLines.reduce((s: number, l: any) => s + (l.returnQty || 0), 0) : 0;
   await recordAudit({ actor: actorOf(req), action: 'sale.return', entity: 'invoice', entityId: invoiceId, summary: `Return ${qty} unit(s) — ${reason || 'no reason'}${notes ? ` (${notes})` : ''}` });
   res.json(result);
