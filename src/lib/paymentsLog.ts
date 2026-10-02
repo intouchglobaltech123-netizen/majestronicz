@@ -2,7 +2,8 @@ import { Invoice, Payment, PurchaseOrder, PendingOrder, DailyCashRegister, getIn
 
 export type PayRow = {
   date: string;
-  direction: 'IN' | 'OUT';
+  /** TRANSFER: drawer cash moved to the bank — the shop's money, not money out (E2E9-13). */
+  direction: 'IN' | 'OUT' | 'TRANSFER';
   type: string;
   party: string;
   mode: string;
@@ -117,9 +118,12 @@ export function buildPaymentsLog(args: {
     (reg.expenses || []).forEach((e: any) => {
       if (!expenseIsEffective(e)) return;
       // A bank deposit moves drawer cash to the bank: shown, but labelled as such.
-      const type = e.category === BANK_DEPOSIT_CATEGORY ? 'Bank deposit' : 'Expense';
-      if (e.cashAmount > 0) out.push({ date: reg.date, direction: 'OUT', type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'Cash', amount: e.cashAmount, ref: '', branchId: reg.branchId });
-      if (e.gpayAmount > 0) out.push({ date: reg.date, direction: 'OUT', type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'GPay', amount: e.gpayAmount, ref: '', branchId: reg.branchId });
+      const isDeposit = e.category === BANK_DEPOSIT_CATEGORY;
+      const type = isDeposit ? 'Cash to bank' : 'Expense';
+      // E2E9-13: a deposit is a transfer between the drawer and the bank.
+      const direction: PayRow['direction'] = isDeposit ? 'TRANSFER' : 'OUT';
+      if (e.cashAmount > 0) out.push({ date: reg.date, direction, type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'Cash', amount: e.cashAmount, ref: '', branchId: reg.branchId });
+      if (e.gpayAmount > 0) out.push({ date: reg.date, direction, type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'GPay', amount: e.gpayAmount, ref: '', branchId: reg.branchId });
     });
   });
 

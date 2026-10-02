@@ -143,7 +143,9 @@ export const ReportsView: React.FC = () => {
     const sales = periodInv.reduce((t, i) => t + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)), 0);
     // The ONE 'GST collected' figure (net of returns and bill discount, IGST
     // included) — the same as the Sales register and the GST tab (RPT5-1).
-    const tax = gstCollected(periodInv).tax;
+    // RPT9-1 / E2E9-12: the same period figure as the GST tab (returns in the
+    // month they happen), from the same helper and rounding.
+    const tax = gstCollected(scoped, undefined, (d) => !!d && inRange(d)).tax;
     const receivables = scoped.reduce((t, i) => t + invoiceDue(i), 0);
     const payables = totalVendorPayable(vendorPayables(purchaseOrders, payments, inScope));
     return { sales, tax, receivables, payables, bills: periodInv.length };

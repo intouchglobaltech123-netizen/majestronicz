@@ -27,11 +27,12 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
   const totals = useMemo(() => {
     const inTotal = rows.filter((r) => r.direction === 'IN').reduce((s, r) => s + r.amount, 0);
     const outTotal = rows.filter((r) => r.direction === 'OUT').reduce((s, r) => s + r.amount, 0);
+    const transferTotal = rows.filter((r) => r.direction === 'TRANSFER').reduce((s, r) => s + r.amount, 0);
     const byMode: Record<string, number> = {};
     // Grouped by where the money lands, the same groups as the Dashboard and the
     // Sales register (E2E5-3).
     rows.filter((r) => r.direction === 'IN').forEach((r) => { const g = modeGroup(r.mode); byMode[g] = (byMode[g] || 0) + r.amount; });
-    return { inTotal, outTotal, net: inTotal - outTotal, byMode: Object.entries(byMode).sort((a, b) => b[1] - a[1]) };
+    return { inTotal, outTotal, transferTotal, net: inTotal - outTotal, byMode: Object.entries(byMode).sort((a, b) => b[1] - a[1]) };
   }, [rows]);
 
   const handleExport = (fmt: ExportFormat) => {
@@ -53,7 +54,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
           <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
             <Banknote className="h-4 w-4 text-red-600" /> Payments Log
           </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">Every payment in (sales, receipts, advances) and out (refunds, vendor payments, salaries, expenses).</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Every payment in (sales, receipts, advances) and out (refunds, vendor payments, salaries, expenses). Cash deposited to the bank is a transfer, not money out.</p>
         </div>
         <ReportExportButtons onExport={handleExport} disabled={rows.length === 0} />
       </div>
@@ -64,7 +65,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
           { label: 'Money In', value: formatCurrency(totals.inTotal), tone: 'text-emerald-700' },
           { label: 'Money Out', value: formatCurrency(totals.outTotal), tone: 'text-rose-700' },
           { label: 'Net', value: formatCurrency(totals.net), tone: totals.net >= 0 ? 'text-emerald-700' : 'text-rose-700' },
-          { label: 'Entries', value: String(rows.length), tone: 'text-slate-900' },
+          { label: 'Cash → Bank (transfer)', value: formatCurrency(totals.transferTotal), tone: 'text-indigo-700' },
         ].map((m) => (
           <div key={m.label} className="bg-white border border-slate-300 p-3 shadow-xs">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</div>
@@ -110,6 +111,8 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
                 <td className="py-2 px-3">
                   {r.direction === 'IN' ? (
                     <span className="inline-flex items-center gap-1 text-emerald-700 font-bold"><ArrowDownCircle className="h-3.5 w-3.5" /> IN</span>
+                  ) : r.direction === 'TRANSFER' ? (
+                    <span className="inline-flex items-center gap-1 text-indigo-700 font-bold">TRANSFER</span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-rose-700 font-bold"><ArrowUpCircle className="h-3.5 w-3.5" /> OUT</span>
                   )}
@@ -117,7 +120,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
                 <td className="py-2 px-3 text-slate-600">{r.type}</td>
                 <td className="py-2 px-3 text-slate-800">{r.party}</td>
                 <td className="py-2 px-3"><span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold">{r.mode}</span></td>
-                <td className={`py-2 px-3 text-right font-mono font-bold ${r.direction === 'IN' ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(r.amount)}</td>
+                <td className={`py-2 px-3 text-right font-mono font-bold ${r.direction === 'IN' ? 'text-emerald-700' : r.direction === 'TRANSFER' ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(r.amount)}</td>
                 <td className="py-2 px-3 font-mono text-slate-500">{r.ref || '-'}</td>
               </tr>
             ))}

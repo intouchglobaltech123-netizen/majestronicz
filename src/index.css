@@ -481,7 +481,8 @@ table tbody tr:hover {
   }
   body.invoice-printing #printable-invoice-doc,
   body.invoice-printing #printable-estimate-doc,
-  body.invoice-printing #printable-challan-doc {
+  body.invoice-printing #printable-challan-doc,
+  body.invoice-printing #printable-payslip-doc {
     max-height: none !important;
     overflow: visible !important;
   }

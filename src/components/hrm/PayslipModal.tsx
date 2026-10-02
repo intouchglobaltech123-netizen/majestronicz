@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { printDocument } from '../../utils/pdfExport';
 import { PayrollRecord, COMPANY_PROFILE, BRANCHES } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
@@ -16,16 +18,25 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
   onClose,
   payrollRecord,
 }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !payrollRecord) return null;
 
   const branchObj = BRANCHES.find((b) => b.id === payrollRecord.branchId);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // E2E9-7: print only the payslip (the app and the payroll table behind it are
+  // hidden), on one page — the same print scope as bills and challans.
+  const handlePrint = () => printDocument('invoice-printing');
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+  return createPortal(
+    <div id="invoice-print-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden when printing) */}
         <div className="px-6 py-3.5 border-b border-slate-300 bg-slate-100 flex items-center justify-between print:hidden shrink-0">
@@ -65,7 +76,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
         </div>
 
         {/* Printable Payslip Body */}
-        <div className="flex-1 overflow-y-auto p-8 bg-white print:p-0 print:overflow-visible text-slate-900 font-sans">
+        <div id="printable-payslip-doc" className="flex-1 overflow-y-auto p-8 bg-white print:p-0 print:overflow-visible text-slate-900 font-sans break-inside-avoid">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4 mb-6">
             <div className="flex justify-between items-start">
@@ -252,6 +263,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

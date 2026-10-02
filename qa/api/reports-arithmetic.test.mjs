@@ -416,5 +416,15 @@ describe('customers and register helpers (phase 6)', () => {
     near(itc.net, 120, 'ITC = 240 − 120');
     assert.ok(itc.rows.some((r) => r.kind === 'reversal' && r.gst < 0), 'the debit note is a row of the register');
   });
+
+  test('E2E9-13 the Payments Log shows a cash-to-bank deposit as a transfer, not money out', () => {
+    const cashRegisters = [{ branchId: 'erode-hq', date: '2026-09-10', expenses: [
+      { id: 'e1', reason: 'Bank', category: 'Deposit to Bank', cashAmount: 5000, gpayAmount: 0, approvalStatus: 'approved' },
+      { id: 'e2', reason: 'Tea', cashAmount: 100, gpayAmount: 0 },
+    ] }];
+    const rows = pl.buildPaymentsLog({ invoices: [], payments: [], purchaseOrders: [], pendingOrders: [], cashRegisters, branchScope: 'all' });
+    assert.equal(rows.find((r) => r.amount === 5000).direction, 'TRANSFER');
+    assert.equal(rows.find((r) => r.amount === 100).direction, 'OUT');
+  });
 });
 

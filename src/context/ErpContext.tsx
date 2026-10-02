@@ -615,6 +615,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.view && parsed.tab) {
+          // E2E9-11: a sub-tab that only OPENS a dialog (Register History, New
+          // customer/supplier…) is not re-opened by a page reload.
+          if (parsed.tab === 'history' && parsed.view === 'cash-register') return { view: parsed.view, tab: 'register', nonce: Date.now() };
+          if (/^new-/.test(String(parsed.tab))) return null;
           return { view: parsed.view, tab: parsed.tab, nonce: Date.now() };
         }
       }

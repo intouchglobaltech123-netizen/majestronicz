@@ -5,7 +5,7 @@ import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
-import { periodInvoiceFigures, returnDay, inputTaxCredit } from '../../lib/reportMath';
+import { periodInvoiceFigures, returnDay, inputTaxCredit, gstCollected } from '../../lib/reportMath';
 import { FileSpreadsheet, Landmark, Percent, Hash, Users, Calculator } from 'lucide-react';
 
 interface Props {
@@ -128,6 +128,10 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
         b2cs.invoices += billInPeriod ? 1 : 0; b2cs.taxable += invTaxable; b2cs.cgst += invCgst; b2cs.sgst += invSgst; b2cs.igst += invIgst; b2cs.total += invTotal;
       }
     }
+    // E2E9-12: the headline totals come from the SAME helper and rounding as the
+    // Reports header (gstCollected), so the two never differ by a paisa.
+    const g = gstCollected(filtered, noCost, inPeriod);
+    totals.taxable = g.taxable; totals.cgst = g.cgst; totals.sgst = g.sgst; totals.igst = g.igst; totals.total = g.tax;
     return {
       rateRows: [...rateMap.values()].sort((a, b) => a.rate - b.rate),
       hsnRows: [...hsnMap.values()].sort((a, b) => b.taxable - a.taxable),
