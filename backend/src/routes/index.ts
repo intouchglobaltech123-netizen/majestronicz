@@ -21,7 +21,8 @@ import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
-import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
+import { recordPayment, listPayments, deletePayment, recordPendingOrderAdvance, clearPendingOrderAdvance } from '../services/payment.service.js';
+import { registersWithLiveOpenings } from '../services/cash.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
   linkLoginToEmployee, unlinkLogin,
@@ -299,6 +300,14 @@ const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capa
   customers: { delegate: prisma.customer, cap: 'customer:write', readCap: 'customer:write' },
   'stock-transfers': { delegate: prisma.stockTransfer, cap: 'stock:write', readCap: 'stock:write' },
 };
+// The register list carries LIVE openings for open days (one carry-forward rule
+// with the screen — CASH-1 / CASH-5 / CASH8-4); closed days keep their own.
+router.get('/cash-registers', requireCapability('cash:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+  const rows: any[] = await registersWithLiveOpenings(prisma);
+  res.json(branch ? rows.filter((r) => r.branchId == null || String(r.branchId) === branch) : rows);
+}));
 for (const [path, { delegate, cap, readCap, scoped }] of Object.entries(resources)) {
   router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap, scoped));
 }
@@ -430,6 +439,22 @@ router.post('/payments', requireCapability('payment:write'), asyncHandler(async 
   await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
     summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result });
   broadcastChange('POST /api/payments');
+  res.json(result);
+}));
+// Pending-order advances are real receipts kept as store credit (CRM2-8).
+router.post('/payments/advance', requireCapability('cash:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const { orderId, amount, mode } = req.body || {};
+  const result: any = await recordPendingOrderAdvance(orderId, amount, mode, { name: user?.name, id: user?.name }, user);
+  await recordAudit({ actor: actorOf(req), action: 'payment.advance', entity: 'pendingOrder', entityId: String(orderId),
+    summary: `Advance ₹${result.payment.amount} (${result.payment.paymentMode}) · ${result.payment.receiptNumber}` });
+  broadcastChange('POST /api/payments');
+  res.json(result);
+}));
+router.post('/payments/advance/clear', requireCapability('cash:write'), asyncHandler(async (req, res) => {
+  const result = await clearPendingOrderAdvance(String(req.body?.orderId || ''), (req as any).user);
+  await recordAudit({ actor: actorOf(req), action: 'payment.advance.clear', entity: 'pendingOrder', entityId: String(req.body?.orderId || ''), summary: 'Advance given back' });
+  broadcastChange('DELETE /api/payments');
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {

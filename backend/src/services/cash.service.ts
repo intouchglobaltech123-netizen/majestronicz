@@ -2,63 +2,120 @@ import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
+import { cashAtBilling } from '../lib/billingSplit.js';
+import { assertBusinessDate } from '../lib/businessDate.js';
 
 const snap = async (tx: any) => ({
-  cashRegisters: await tx.dailyCashRegister.findMany(),
+  cashRegisters: await registersWithLiveOpenings(tx),
   recurringExpenses: await tx.recurringExpenseTemplate.findMany(),
 });
 
-// Cash actually collected on an invoice on its billing day — the sum of its
-// Cash-mode payment splits (or the legacy single-mode logic). Returns are NOT
-// netted here any more: a refund is booked as a Payment 'out' row on the RETURN
-// day (see processReturn), so netting it here too would double-count it and
-// would retroactively change a possibly-closed billing day (SAL4-12).
-function invoiceCashCollected(i: any): number {
-  if (i.isVoided) return 0;
-  const grand = Number(i.grandTotal) || 0;
-  let cash = 0;
-  const splits = Array.isArray(i.paymentSplits) ? i.paymentSplits : null;
-  if (splits && splits.length > 0) {
-    cash = splits.filter((s: any) => s.mode === 'Cash').reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
-  } else if (i.paymentMode === 'Cash') {
-    cash = i.isPartialPayment && i.partialAmount ? i.partialAmount : grand;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const DEFAULT_OPENING = (branchId: string) => (branchId === 'erode-hq' ? 12000 : 8000);
+const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+const isCashMode = (p: any) => String(p?.paymentMode || '').toLowerCase() === 'cash';
+const effectiveExpense = (e: any) => e && (e.approvalStatus == null || e.approvalStatus === 'approved');
+
+/**
+ * Per-day net cash movement of a branch from everything EXCEPT register
+ * expenses: cash taken on bills on their own day (the frozen at-billing split —
+ * see lib/billingSplit; returns are refunded as Payment 'out' rows on the return
+ * day, SAL4-12) plus cash receipts minus cash paid out in the Payment ledger.
+ */
+async function dailyCashFlow(tx: any, branchId: string): Promise<Map<string, number>> {
+  const m = new Map<string, number>();
+  const add = (d: string, v: number) => m.set(d, (m.get(d) || 0) + v);
+  const invoices = await tx.invoice.findMany({
+    where: { branchId },
+    select: { date: true, grandTotal: true, paymentSplits: true, paymentMode: true, isPartialPayment: true, partialAmount: true, isVoided: true },
+  });
+  for (const i of invoices) add(i.date, cashAtBilling(i));
+  const pays = await tx.payment.findMany({ where: { branchId }, select: { date: true, type: true, amount: true, paymentMode: true } });
+  for (const p of pays) {
+    if (!isCashMode(p)) continue;
+    add(p.date, p.type === 'in' ? Number(p.amount) || 0 : p.type === 'out' ? -(Number(p.amount) || 0) : 0);
   }
-  return Math.max(0, cash);
+  return m;
 }
 
-/** Carry-forward opening balance from the most recent closed day (else branch default). */
-async function previousDayClosingBalance(tx: any, branchId: string, date: string): Promise<number> {
-  // Carry forward from the most recent PRIOR day that has a register — whether or
-  // not it was formally closed (CASH-1). Before, only closed days carried
-  // forward, so if yesterday wasn't closed, today opened at the branch default
-  // and yesterday's balance was lost.
-  const pastClosed = await tx.dailyCashRegister.findMany({
-    where: { branchId, date: { lt: date } },
-    orderBy: { date: 'desc' },
-    take: 1,
-  });
-  if (pastClosed.length) {
-    const last = pastClosed[0];
-    // Include cash activity on EVERY day from the last register up to (not
-    // including) `date` — a day that had sales but no register row of its own
-    // would otherwise be skipped and its cash dropped from the next opening.
-    // There is no other register row in this span (last is the most recent), so
-    // the only expenses are the last register's own.
-    const dayInvoices = await tx.invoice.findMany({ where: { branchId, date: { gte: last.date, lt: date } } });
-    const cashSales = dayInvoices.reduce((sum: number, i: any) => sum + invoiceCashCollected(i), 0);
-    // Only effective expenses reduce the drawer (skip expenses still pending / rejected approval).
-    const cashExpenses = (last.expenses as any[])
-      .filter((e) => e.approvalStatus == null || e.approvalStatus === 'approved')
-      .reduce((s, e) => s + (e.cashAmount || 0), 0);
-    // Cash receipts/vendor payments from the Payment ledger also move the drawer,
-    // so the carried-forward opening matches the day's real closing (CASH2-6).
-    const dayPayments = await tx.payment.findMany({ where: { branchId, date: { gte: last.date, lt: date } } });
-    const isCash = (p: any) => (p.paymentMode || '').toLowerCase() === 'cash';
-    const cashIn = dayPayments.filter((p: any) => p.type === 'in' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
-    const cashOut = dayPayments.filter((p: any) => p.type === 'out' && isCash(p)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
-    return last.openingAmount + cashSales + cashIn - cashOut - cashExpenses;
+/**
+ * Opening balances of a branch — ONE carry-forward rule shared with the screen
+ * (src/lib/cashClosing.ts effectiveOpening mirrors it):
+ *   - a CLOSED day or a day whose opening was overridden keeps its stored
+ *     opening (a closed day never changes);
+ *   - any other day opens at the previous register day's closing plus the cash
+ *     activity of the register-less days in between (CASH-1);
+ *   - a branch's first register opens at the default float plus all earlier
+ *     cash activity (CASH8-4).
+ * Openings of open days are therefore always live: reopening an earlier day and
+ * adding to it moves every later OPEN day's opening (CASH-5).
+ * Returns a lookup for any date (with or without a register).
+ */
+async function branchOpenings(tx: any, branchId: string): Promise<(date: string) => number> {
+  return (await branchCashBook(tx, branchId)).openingOf;
+}
+
+/** Opening and closing of every register day of every branch (for reports and the
+ *  one-time data fix, which proves closed days keep their figures). */
+export async function registerFigures(tx: any): Promise<{ branchId: string; date: string; isClosed: boolean; opening: number; closing: number }[]> {
+  const regs = await tx.dailyCashRegister.findMany({ select: { branchId: true, date: true, isClosed: true } });
+  const out: any[] = [];
+  for (const b of [...new Set<string>(regs.map((r: any) => r.branchId))]) {
+    const book = await branchCashBook(tx, b);
+    for (const p of book.points) out.push({ branchId: b, ...p, isClosed: regs.some((r: any) => r.branchId === b && r.date === p.date && r.isClosed) });
   }
-  return branchId === 'erode-hq' ? 12000 : 8000;
+  return out;
+}
+
+async function branchCashBook(tx: any, branchId: string) {
+  const flow = await dailyCashFlow(tx, branchId);
+  const flowDays = [...flow.keys()].sort();
+  const regs = (await tx.dailyCashRegister.findMany({ where: { branchId } }))
+    .sort((a: any, b: any) => (a.date === b.date ? String(a.id).localeCompare(String(b.id)) : a.date.localeCompare(b.date)));
+  const flowBetween = (from: string | null, to: string) =>
+    flowDays.filter((d) => (from == null || d >= from) && d < to).reduce((t, d) => t + (flow.get(d) || 0), 0);
+  // checkpoints: [date, opening, closing] for each register day, in order
+  const points: { date: string; opening: number; closing: number }[] = [];
+  let bal = DEFAULT_OPENING(branchId);
+  let cursor: string | null = null;
+  for (const r of regs) {
+    if (points.length && points[points.length - 1].date === r.date) continue; // legacy duplicate row
+    bal += flowBetween(cursor, r.date);
+    const opening = r.isClosed || r.isOpeningOverridden ? Number(r.openingAmount) || 0 : round2(bal);
+    const expenses = ((r.expenses as any[]) || []).filter(effectiveExpense).reduce((t, e) => t + (Number(e.cashAmount) || 0), 0);
+    const closing = round2(opening + (flow.get(r.date) || 0) - expenses);
+    points.push({ date: r.date, opening, closing });
+    bal = closing;
+    cursor = nextDay(r.date);
+  }
+  const openingOf = (date: string) => {
+    let prev: { date: string; opening: number; closing: number } | null = null;
+    for (const p of points) {
+      if (p.date === date) return round2(p.opening);
+      if (p.date < date) prev = p;
+    }
+    if (!prev) return round2(DEFAULT_OPENING(branchId) + flowBetween(null, date));
+    return round2(prev.closing + flowBetween(nextDay(prev.date), date));
+  };
+  return { points, openingOf };
+}
+
+export async function effectiveOpening(tx: any, branchId: string, date: string): Promise<number> {
+  return (await branchOpenings(tx, branchId))(date);
+}
+
+/** Registers as the screens should see them: an open, non-overridden day's
+ *  opening is the live carry-forward, never a stale stored figure (CASH-5). */
+export async function registersWithLiveOpenings(tx: any, rows?: any[]): Promise<any[]> {
+  const list = rows || (await tx.dailyCashRegister.findMany());
+  const byBranch = new Map<string, (d: string) => number>();
+  const out: any[] = [];
+  for (const r of list) {
+    if (r.isClosed || r.isOpeningOverridden) { out.push(r); continue; }
+    if (!byBranch.has(r.branchId)) byBranch.set(r.branchId, await branchOpenings(tx, r.branchId));
+    out.push({ ...r, openingAmount: byBranch.get(r.branchId)!(r.date) });
+  }
+  return out;
 }
 
 async function loadRegister(tx: any, branchId: string, date: string) {
@@ -76,17 +133,15 @@ async function loadRegister(tx: any, branchId: string, date: string) {
 async function ensureRegister(tx: any, branchId: string, date: string) {
   const existing = await loadRegister(tx, branchId, date);
   if (existing) return existing;
-  const opening = await previousDayClosingBalance(tx, branchId, date);
+  const opening = await effectiveOpening(tx, branchId, date);
   return tx.dailyCashRegister.create({
     data: { id: `dcr-${branchId}-${date}`, branchId, date, openingAmount: opening, isOpeningOverridden: false, expenses: [], isClosed: false },
   });
 }
 
 export function addExpense(branchId: string, date: string, expense: any, actor: string) {
-  // An expense can't be dated in the future (VAL-1 / CASH6-2).
-  if (date && date > nowIso().slice(0, 10)) {
-    throw new AppError('BAD_DATE', 'An expense cannot be dated in the future.', 400);
-  }
+  // An expense needs a real date that is not in the future (IST) — VAL-1 / CASH6-2.
+  assertBusinessDate(date, 'An expense');
   return serializableTx(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
@@ -167,12 +222,19 @@ export function deleteExpense(branchId: string, date: string, expenseId: string)
   });
 }
 
-export function overrideOpening(branchId: string, date: string, amount: number, reason: string) {
+export function overrideOpening(branchId: string, date: string, amount: unknown, reason: unknown) {
+  // CASH8-3: a real, non-negative amount, a reason, and a day that is not in the
+  // future — a bad value is a 400, never a 500 or a stray future register.
+  assertBusinessDate(date, 'An opening-balance override');
+  const amt = typeof amount === 'string' && amount.trim() !== '' ? Number(amount) : typeof amount === 'number' ? amount : NaN;
+  if (!Number.isFinite(amt) || amt < 0) throw new AppError('BAD_AMOUNT', 'The opening balance must be a number of zero or more.', 400);
+  const why = String(reason ?? '').trim();
+  if (!why) throw new AppError('REASON_REQUIRED', 'A reason is required to override the opening balance.', 400);
   return serializableTx(async (tx: any) => {
     const reg = await ensureRegister(tx, branchId, date);
     if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
     await tx.dailyCashRegister.update({
-      where: { id: reg.id }, data: { openingAmount: amount, isOpeningOverridden: true, overrideReason: reason },
+      where: { id: reg.id }, data: { openingAmount: round2(amt), isOpeningOverridden: true, overrideReason: why },
     });
     return snap(tx);
   });
@@ -185,8 +247,11 @@ export function closeDay(branchId: string, date: string, notes: string | undefin
     const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
     if (date > todayIST) throw new AppError('FUTURE_DAY', 'Cannot close a future day.', 400);
     const reg = await ensureRegister(tx, branchId, date);
+    // Freeze the live opening into the row as the day closes: from now on this
+    // day's figures never move, whatever happens to earlier open days.
+    const opening = reg.isClosed || reg.isOpeningOverridden ? reg.openingAmount : await effectiveOpening(tx, branchId, date);
     await tx.dailyCashRegister.update({
-      where: { id: reg.id }, data: { isClosed: true, closedAt: nowIso(), closedBy: actor, closingNotes: notes ?? null },
+      where: { id: reg.id }, data: { openingAmount: opening, isClosed: true, closedAt: nowIso(), closedBy: actor, closingNotes: notes ?? null },
     });
     return snap(tx);
   });
@@ -208,6 +273,7 @@ export function approveRecurring(templateId: string, branchId: string, date: str
     // — the expense posts to the TEMPLATE's branch, so authorize against that.
     assertBranchAllowed(reqUser, template.branchId || branchId);
 
+    assertBusinessDate(date, 'A recurring-expense approval'); // CASH8-7: no future-dated approvals
     // Validate the money and mode (CASH2-5): no negative/zero amounts, and only
     // real payment modes — not "Bitcoin".
     if (!Number.isFinite(amount) || amount <= 0) {

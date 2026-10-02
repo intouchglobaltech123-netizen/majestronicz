@@ -17,6 +17,11 @@ async function creditBill({ branchId = 'erode-hq', phone, qty = 1, as = 'CEO' } 
   }), as);
 }
 
+async function customerOf(id) {
+  const rows = ok(await get('/api/customers'), 'customers');
+  return rows.find((c) => c.id === id);
+}
+
 describe('customers & receipts', () => {
   test('CRM6-1 a receipt does not rewrite the bill\'s original payment split', async () => {
     const inv = await creditBill();
@@ -95,18 +100,38 @@ describe('customers & receipts', () => {
     expectStatus(res, [400, 409], `receipt dated "${odd}"`);
   });
 
-  test('CRM4-4 money received above what is owed is not stored as unexplained cash', async () => {
+  test('CRM4-4 money received above what is owed is kept in full and the extra becomes store credit', async () => {
     const inv = await creditBill();
+    const creditBefore = Number((await customerOf(inv.customerId)).creditBalance) || 0;
     const res = await post('/api/payments', {
       type: 'in', partyType: 'customer', partyName: inv.customerName, branchId: inv.branchId, date: inv.date,
       amount: 1500, paymentMode: 'Cash', allocations: [{ refId: inv.id, amount: 1500 }],
     });
-    if (res.status === 200) {
-      const applied = (res.body.allocations || []).reduce((t, a) => t + a.amount, 0);
-      near(res.body.amount, applied, `stored ${res.body.amount} but only ${applied} was applied to the bill`);
-    } else {
-      expectStatus(res, 400);
-    }
+    const pay = ok(res, 'over-payment receipt');
+    const applied = (pay.allocations || []).reduce((t, a) => t + a.amount, 0);
+    near(pay.amount, 1500, 'the full cash handed over is recorded (the drawer counts all of it)');
+    near(applied, 1180, 'only the due is applied to the bill');
+    near(pay.storeCreditAdded, 320, 'the reply says how much became store credit');
+    near((await getInvoice(inv.id)).balanceDue, 0);
+    const cust = await customerOf(inv.customerId);
+    near(Number(cust.creditBalance) - creditBefore, 320, 'the extra ₹320 is the customer\'s store credit');
+    // Deleting the receipt takes the credit back with it.
+    ok(await del(`/api/payments/${pay.id}`), 'delete the receipt');
+    near(Number((await customerOf(inv.customerId)).creditBalance) - creditBefore, 0, 'credit removed with the receipt');
+    near((await getInvoice(inv.id)).balanceDue, 1180, 'debt back');
+  });
+
+  test('CRM7-3 an over-payment with no customer to hold the credit is refused, not trimmed', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerName: 'QA walk-in no phone', lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
+    assert.equal(inv.customerId, null);
+    const res = await post('/api/payments', {
+      type: 'in', partyType: 'customer', partyName: inv.customerName, branchId: inv.branchId, date,
+      amount: 1500, paymentMode: 'Cash', allocations: [{ refId: inv.id, amount: 1500 }],
+    });
+    expectStatus(res, 400, 'over-payment on a walk-in bill');
+    near((await getInvoice(inv.id)).balanceDue, 1180, 'nothing applied');
   });
 
   test('CRM-4 a sale does not overwrite the customer master name', async () => {

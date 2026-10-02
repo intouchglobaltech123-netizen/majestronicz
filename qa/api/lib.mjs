@@ -90,8 +90,10 @@ export function randomPhone() {
 const DAY = 86400000;
 export const isoDay = (d) => new Date(d).toISOString().slice(0, 10);
 export const addDays = (date, n) => isoDay(Date.parse(`${date}T00:00:00Z`) + n * DAY);
-/** Server "today" for Payment rows written with nowIso() (UTC). */
-export const utcToday = () => new Date().toISOString().slice(0, 10);
+/** Server "today": the shop's cash day is the India (IST) calendar day. */
+export const istToday = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+/** Kept for older tests: the server now dates money on the IST day, not UTC. */
+export const utcToday = istToday;
 
 /**
  * A random past date (2016-2024) with no cash register for `branchId` on that
@@ -356,3 +358,22 @@ export function sql(query) {
 export async function together(n, fn) {
   return Promise.all(Array.from({ length: n }, (_, i) => fn(i)));
 }
+
+// ---------------------------------------------------------------- legacy data (SQL)
+
+const q = (v) => (v == null ? 'NULL' : typeof v === 'number' || typeof v === 'boolean' ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
+
+/** Insert a bill the way OLD builds stored it (no payment split, legacy partial
+ *  fields), straight into the database — the API can no longer create one. */
+export function insertLegacyBill({ branchId, date, grand, mode = 'COD-Credit', partial = null, due = null, customerId = null, customerName = 'QA legacy customer', items = [] }) {
+  const id = `inv-legacy-${uid()}`;
+  const number = `LEGACY/${uid()}`;
+  sql(`INSERT INTO "Invoice" ("id","invoiceNumber","branchId","transactionType","customerId","customerName","date","time","paymentTerms","dueDate",
+    "stateOfSupply","withGst","items","subtotal","totalTax","totalCgst","totalSgst","overallDiscountType","overallDiscountValue","overallDiscountAmount",
+    "shippingCharges","roundOff","roundOffEnabled","grandTotal","amountInWords","termsAndConditions","paymentMode","isPartialPayment","partialAmount",
+    "balanceDue","createdAt") VALUES (${q(id)},${q(number)},${q(branchId)},'Credit',${q(customerId)},${q(customerName)},${q(date)},'10:00','Due on Receipt',${q(date)},
+    '33-Tamil Nadu',true,${q(JSON.stringify(items))},${grand},0,0,0,'%',0,0,0,0,false,${grand},'QA','QA',${q(mode)},${partial ? 'true' : 'false'},${q(partial)},
+    ${q(due)},${q(`${date}T04:30:00.000Z`)})`);
+  return { id, invoiceNumber: number, branchId, date, customerId, customerName };
+}
+

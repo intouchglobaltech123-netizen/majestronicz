@@ -1,12 +1,14 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { nowIso } from '../lib/stockLedger.js';
+import { nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { isValidBranch } from '../lib/constants.js';
 import { roleCan } from '../lib/auth.js';
 import { nextPersistent } from '../lib/sequences.js';
-import { creditBalanceOf, applyCreditDelta } from './customerCredit.service.js';
+import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customerCredit.service.js';
+import { collectedAtBilling } from '../lib/billingSplit.js';
+import { istToday, assertBusinessDate } from '../lib/businessDate.js';
 
 /**
  * Party ledger / payments service.
@@ -55,20 +57,6 @@ async function nextReceiptNumber(tx: any, type: 'in' | 'out', date: string): Pro
   // the stored counter, then bump and persist it.
   const next = await nextPersistent(tx, `seq:${prefix.toLowerCase()}:${like}`, max);
   return `${like}${String(next).padStart(4, '0')}`;
-}
-
-/** The payment splits for an invoice, synthesised for legacy single-mode / partial
- *  bills — mirrors the frontend getInvoicePaymentSplits so both agree (SAL-9). */
-function splitsOf(inv: any): { mode: string; amount: number }[] {
-  const grand = inv.grandTotal || 0;
-  if (Array.isArray(inv.paymentSplits) && inv.paymentSplits.length) return inv.paymentSplits;
-  if (inv.isPartialPayment && inv.partialAmount && inv.balanceDue) {
-    return [
-      { mode: inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: inv.partialAmount },
-      { mode: 'COD-Credit', amount: inv.balanceDue },
-    ];
-  }
-  return [{ mode: inv.paymentMode || 'Cash', amount: grand }];
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -132,10 +120,7 @@ export async function ensureCreditOriginal(tx: any, invoiceId: string): Promise<
 function creditOriginalOf(inv: any): number {
   if (inv.creditOriginal != null) return Math.max(0, Number(inv.creditOriginal) || 0);
   const grand = Number(inv.grandTotal) || 0;
-  const collectedAtBilling = splitsOf(inv)
-    .filter((s) => s.mode !== 'COD-Credit')
-    .reduce((t, s) => t + (Number(s.amount) || 0), 0);
-  return Math.max(0, round2(grand - collectedAtBilling));
+  return Math.max(0, round2(grand - collectedAtBilling(inv)));
 }
 
 /** An invoice's current outstanding: creditOriginal − receipts − returns + refunds. */
@@ -147,9 +132,14 @@ async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
 }
 
 /**
- * Recompute and persist an invoice's balanceDue + partial flags from its anchored
- * credit, its receipts and its returns. Anchors creditOriginal on first touch (so
- * the current due is preserved exactly). paymentSplits are NEVER touched.
+ * Recompute and persist an invoice's cached balanceDue from its anchored credit,
+ * its receipts, refunds and returns. Anchors creditOriginal on first touch (so the
+ * current due is preserved exactly on a bill the one-time script has not seen).
+ *
+ * The bill's AT-BILLING fields — paymentSplits, partialAmount, isPartialPayment —
+ * are NEVER touched here (UPG8-1): the drawer reads them as the cash taken on the
+ * bill's own day, so rewriting partialAmount on a receipt moved that receipt onto
+ * the bill's original, possibly closed, day and counted it twice (CASH7-1).
  */
 export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promise<void> {
   const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
@@ -162,33 +152,22 @@ export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promi
     const returns0 = Number(inv.totalReturnedAmount) || 0;
     creditOriginal = Math.max(0, round2(storedDue + receipts0 + returns0 - refunds0));
   }
-  const grand = Number(inv.grandTotal) || 0;
   const returns = Number(inv.totalReturnedAmount) || 0;
   const receipts = await invoiceReceiptsTotal(tx, invoiceId);
   const refunds = await invoiceRefundsTotal(tx, invoiceId);
   const due = Math.max(0, round2(Number(creditOriginal) - receipts - returns + refunds));
-  const collected = Math.max(0, round2(grand - returns - due)); // net − due
   await tx.invoice.update({
     where: { id: invoiceId },
-    data: {
-      creditOriginal,
-      balanceDue: due,
-      isPartialPayment: due > 0 && collected > 0,
-      partialAmount: due > 0 && collected > 0 ? collected : null,
-      updatedAt: nowIso(),
-    },
+    data: { creditOriginal, balanceDue: due, updatedAt: nowIso() },
   });
 }
 
-/** Strict YYYY-MM-DD that is a REAL calendar date — rejects "hello", "2099-13-45"
- *  and unpadded "2026-9-6" (which could otherwise slip onto the wrong/closed day). */
-function isValidYmd(d: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-  const dt = new Date(`${d}T00:00:00Z`);
-  return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === d;
-}
-
-export async function recordPayment(input: RecordPaymentInput, actor?: { name?: string; id?: string }, reqUser?: any) {
+export async function recordPayment(
+  input: RecordPaymentInput,
+  actor?: { name?: string; id?: string },
+  reqUser?: any,
+  hooks?: { afterCreate?: (tx: any, payment: any) => Promise<void> },
+) {
   const amount = Number(input.amount);
   if (!amount || amount <= 0) throw new AppError('BAD_REQUEST', 'Payment amount must be greater than zero', 400);
   if (!input.partyName?.trim()) throw new AppError('BAD_REQUEST', 'Party name is required', 400);
@@ -206,14 +185,12 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
   }
   assertBranchAllowed(reqUser, input.branchId); // SEC2-1: a receipt is booked against a branch's ledger/drawer
 
-  const date = input.date || nowIso().slice(0, 10);
-  if (!isValidYmd(date)) throw new AppError('BAD_DATE', 'Payment date must be a real date in YYYY-MM-DD format', 400);
-  // Reject impossible dates: nothing in the future, and nothing absurdly old
-  // (a mistyped 2099 or 1990 would otherwise land a receipt on a nonexistent day).
-  const istToday = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); // IST calendar day
-  if (date > istToday) throw new AppError('BAD_DATE', 'A payment cannot be dated in the future.', 400);
-  if (date < '2010-01-01') throw new AppError('BAD_DATE', 'That payment date is too far in the past.', 400);
-  const allocations = (input.allocations || []).filter((a) => a?.refId && a.amount > 0);
+  // One shared business-date rule: a real date, not after today (IST), not
+  // absurdly old. The default is TODAY IN IST, not the UTC date (CASH7-11).
+  const date = assertBusinessDate(input.date || istToday(), 'A payment');
+  const allocations = (input.allocations || [])
+    .map((a) => ({ ...a, amount: Number(a?.amount) || 0 }))
+    .filter((a) => a?.refId && a.amount > 0);
   const allocTotal = allocations.reduce((t, a) => t + a.amount, 0);
   if (allocTotal - amount > 0.01) {
     throw new AppError('BAD_REQUEST', 'Allocated amount exceeds the payment amount', 400);
@@ -266,12 +243,31 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       // row created below, and each bill's balanceDue is recomputed from the
       // ledger AFTER that row exists (so it reflects this receipt). This is the
       // one-source-of-truth model: the bill's original split is left untouched.
+      // Every allocated bill must exist, be live, and belong to the customer this
+      // receipt is for — one customer's money must never settle another
+      // customer's bill (CRM4-2). With no partyId, the receipt's customer is the
+      // bills' customer, so they must all be the same one and match the name.
+      const billsForReceipt: any[] = [];
       for (const a of allocations) {
         const inv = await tx.invoice.findUnique({ where: { id: a.refId } });
-        if (!inv) continue;
-        if (inv.isVoided) continue; // never apply a receipt to a voided bill
-        // A receipt for one customer must not settle another customer's bill.
-        if (input.partyId && inv.customerId && inv.customerId !== input.partyId) continue;
+        if (!inv) throw new AppError('NOT_FOUND', `Bill ${a.refNumber || a.refId} was not found.`, 400);
+        if (inv.isVoided) throw new AppError('VOIDED', `Bill ${inv.invoiceNumber} is voided — a receipt cannot be applied to it.`, 400);
+        billsForReceipt.push(inv);
+      }
+      const billCustomers = new Set(billsForReceipt.map((i) => i.customerId || `name:${String(i.customerName || '').trim().toLowerCase()}`));
+      if (input.partyId) {
+        const other = billsForReceipt.find((i) => i.customerId && i.customerId !== input.partyId);
+        if (other) throw new AppError('WRONG_CUSTOMER', `Bill ${other.invoiceNumber} belongs to another customer (${other.customerName}).`, 400);
+      } else {
+        if (billCustomers.size > 1) throw new AppError('WRONG_CUSTOMER', 'These bills belong to different customers. Record a separate receipt per customer.', 400);
+        const bill = billsForReceipt[0];
+        const sameName = String(bill?.customerName || '').trim().toLowerCase() === input.partyName.trim().toLowerCase();
+        if (bill?.customerId && !sameName) {
+          throw new AppError('WRONG_CUSTOMER', `Bill ${bill.invoiceNumber} belongs to ${bill.customerName}, not ${input.partyName}.`, 400);
+        }
+      }
+      for (const inv of billsForReceipt) {
+        const a = allocations.find((x) => x.refId === inv.id)!;
         // Anchor the bill's owed-at-billing credit BEFORE this receipt exists, so
         // the receipt isn't double-counted on legacy data.
         await ensureCreditOriginal(tx, inv.id);
@@ -312,16 +308,34 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
       appliedAllocations.push(...allocations);
     }
 
-    // For an ALLOCATED receipt, bank only what was actually applied to bills — an
-    // over-payment beyond the due is not stored as untracked cash (CRM4-4). A
-    // store-credit ledger for genuine advances is a separate feature.
-    const appliedTotal = Math.round(appliedAllocations.reduce((t, a) => t + (Number(a.amount) || 0), 0) * 100) / 100;
-    const recordedAmount = allocations.length ? appliedTotal : amount;
+    const appliedTotal = round2(appliedAllocations.reduce((t, a) => t + (Number(a.amount) || 0), 0));
+    const isStoreCredit = input.type === 'in' && /store\s*credit/i.test(input.paymentMode || '');
+    // The FULL amount handed over is what reaches the drawer. Whatever a customer
+    // receipt could not apply to the selected bills (an over-payment, a duplicate
+    // receipt racing another, or an on-account advance with no bill) is kept as the
+    // customer's STORE CREDIT — never trimmed away and never left unaccounted
+    // (CRM4-4 / SAL6-7 / CRM7-3). A store-credit receipt only spends what it applies.
+    const recordedAmount = isStoreCredit || input.type !== 'in' ? (allocations.length ? appliedTotal : amount) : amount;
+    const unapplied = input.type === 'in' && !isStoreCredit ? round2(amount - appliedTotal) : 0;
+    let creditCustomerId: string | null = null;
+    if (unapplied > 0.009) {
+      const billCustomerIds = new Set<string>();
+      for (const a of allocations) {
+        const inv = await tx.invoice.findUnique({ where: { id: a.refId }, select: { customerId: true } });
+        if (inv?.customerId) billCustomerIds.add(inv.customerId);
+      }
+      creditCustomerId = input.partyId || (billCustomerIds.size === 1 ? [...billCustomerIds][0] : null);
+      if (creditCustomerId && !(await tx.customer.findUnique({ where: { id: creditCustomerId }, select: { id: true } }))) creditCustomerId = null;
+      if (!creditCustomerId) {
+        if (allocations.length) {
+          throw new AppError('OVERPAYMENT', `₹${unapplied.toFixed(2)} is more than the selected bill(s) owe. Choose the customer so the extra can be kept as store credit, or reduce the amount.`, 400);
+        }
+      }
+    }
 
     // A 'Store Credit' receipt is funded by the customer's credit balance, not the
     // cash drawer — the bill is settled by spending credit they already hold. It
     // must name the customer and can't draw more than their balance.
-    const isStoreCredit = input.type === 'in' && /store\s*credit/i.test(input.paymentMode || '');
     if (isStoreCredit) {
       if (!input.partyId) throw new AppError('BAD_REQUEST', 'Choose the customer whose store credit is being applied.', 400);
       const balance = await creditBalanceOf(tx, input.partyId);
@@ -355,15 +369,29 @@ export async function recordPayment(input: RecordPaymentInput, actor?: { name?: 
     if (input.type === 'in') {
       for (const a of appliedAllocations) await recomputeInvoiceBalance(tx, a.refId);
     }
+    // Keep the unapplied part as the customer's store credit, linked to this receipt
+    // so deleting the receipt can take it back.
+    if (creditCustomerId && unapplied > 0.009) {
+      await addCustomerCredit(tx, creditCustomerId, unapplied, {
+        type: 'issued',
+        reason: allocations.length ? `Over-payment on receipt ${receiptNumber}` : `Advance / on-account receipt ${receiptNumber}`,
+        refId: payment.id,
+        refNumber: receiptNumber,
+        by: actor?.name,
+      });
+    }
     // Spend the store credit that funded this receipt (after the bills are settled).
     if (isStoreCredit && input.partyId && recordedAmount > 0.001) {
       await applyCreditDelta(tx, input.partyId, -recordedAmount, {
         type: 'applied',
         reason: `Applied to ${appliedAllocations.map((a) => a.refNumber).filter(Boolean).join(', ') || 'bill'}`,
+        refId: payment.id,
+        refNumber: receiptNumber,
         by: actor?.name,
       });
     }
-    return payment;
+    if (hooks?.afterCreate) await hooks.afterCreate(tx, payment);
+    return { ...payment, appliedAmount: appliedTotal, storeCreditAdded: creditCustomerId && unapplied > 0.009 ? unapplied : 0 };
   });
 }
 
@@ -377,7 +405,11 @@ export async function listPayments(filter?: { partyType?: string; partyId?: stri
 
 /** Delete a payment and reverse its allocations (restore invoice balances). */
 export async function deletePayment(id: string, reqUser?: any) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction((tx) => deletePaymentTx(tx, id, reqUser), { isolationLevel: 'Serializable' });
+}
+
+async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
+  {
     const payment = await tx.payment.findUnique({ where: { id } });
     if (!payment) throw new AppError('NOT_FOUND', 'Payment not found', 404);
     assertBranchAllowed(reqUser, payment.branchId); // SEC2-1
@@ -386,8 +418,24 @@ export async function deletePayment(id: string, reqUser?: any) {
     if (payment.type === 'in' && reqUser && !roleCan(reqUser.role, 'cash:write')) {
       throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to delete customer receipts.`, 403);
     }
-    if (payment.type === 'out' && reqUser && !roleCan(reqUser.role, 'purchase:write')) {
+    const isCustomerRefund = payment.type === 'out' && payment.partyType === 'customer';
+    if (payment.type === 'out' && !isCustomerRefund && reqUser && !roleCan(reqUser.role, 'purchase:write')) {
       throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to delete vendor payments.`, 403);
+    }
+    // CASH7-9: a return's refund row is the record of money paid back for goods
+    // that came back. Deleting it while the return stands put the cash back in the
+    // drawer and re-raised the customer's debt. Only a Manager/CEO may remove one,
+    // and only once the return it paid for no longer exists.
+    if (isCustomerRefund) {
+      if (reqUser && reqUser.role !== 'CEO' && reqUser.role !== 'Manager') {
+        throw new AppError('FORBIDDEN', 'Only a Manager or CEO can remove a refund.', 403);
+      }
+      for (const a of (Array.isArray(payment.allocations) ? (payment.allocations as any[]) : [])) {
+        const inv = a?.refId ? await tx.invoice.findUnique({ where: { id: a.refId } }) : null;
+        if (inv && !inv.isVoided && (Number(inv.totalReturnedAmount) || 0) > 0) {
+          throw new AppError('REFUND_LOCKED', `This refund pays for a return on bill ${inv.invoiceNumber}. It cannot be deleted while the return stands.`, 409);
+        }
+      }
     }
     // Deleting a payment dated to a closed day would change that day's cash (CASH-2).
     const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: payment.branchId, date: payment.date, isClosed: true } });
@@ -398,6 +446,27 @@ export async function deletePayment(id: string, reqUser?: any) {
     // counts on legacy data).
     if (payment.type === 'in') {
       for (const a of allocations) await ensureCreditOriginal(tx, a.refId);
+    }
+    // Store credit created from this receipt's unapplied part (an over-payment or
+    // an advance) goes with it — refuse if the customer has already spent it.
+    // A 'Store Credit' receipt gives back the credit it spent.
+    if (payment.type === 'in' && payment.partyType === 'customer') {
+      const custIds = new Set<string>();
+      if (payment.partyId) custIds.add(payment.partyId);
+      for (const a of allocations) {
+        const inv = await tx.invoice.findUnique({ where: { id: a.refId }, select: { customerId: true } });
+        if (inv?.customerId) custIds.add(inv.customerId);
+      }
+      for (const cid of custIds) {
+        const cust = await tx.customer.findUnique({ where: { id: cid } });
+        const hist: any[] = Array.isArray(cust?.creditHistory) ? (cust!.creditHistory as any[]) : [];
+        const net = round2(hist.filter((h) => h?.refId === id).reduce((t, h) => t + (Number(h.amount) || 0), 0));
+        if (Math.abs(net) < 0.005) continue;
+        if (net > 0 && (Number(cust?.creditBalance) || 0) + 0.005 < net) {
+          throw new AppError('CREDIT_USED', `₹${net.toFixed(2)} of this receipt was kept as store credit and has already been used. It cannot be deleted.`, 409);
+        }
+        await applyCreditDelta(tx, cid, -net, { type: 'adjust', reason: `Receipt ${payment.receiptNumber} deleted`, refId: id, refNumber: payment.receiptNumber, by: reqUser?.name });
+      }
     }
     // Delete the receipt row FIRST, then recompute each bill's due from the
     // remaining ledger — the debt comes back automatically because the receipt is
@@ -426,5 +495,139 @@ export async function deletePayment(id: string, reqUser?: any) {
       }
     }
     return { ok: true };
-  }, { isolationLevel: 'Serializable' });
+  }
+}
+
+// ── Pending-order advances (CRM2-8) ─────────────────────────────────────────
+//
+// An advance taken on a pending order is real money: it is recorded as a
+// customer receipt (a Payment 'in' row on the day it was taken, so the drawer
+// counts it once) and kept as the customer's store credit until the order is
+// billed. The bill made from that order then settles its unpaid (COD-Credit)
+// part from that credit automatically, so the advance is neither lost nor
+// collected twice, and the Payments Log shows it exactly once.
+
+const ADVANCE_NOTE = 'Advance on pending order';
+const ADVANCE_APPLIED_NOTE = 'Advance applied from pending order';
+
+async function advanceCustomerFor(tx: any, order: any): Promise<any> {
+  const phone = cleanPhone(order.customerPhone);
+  if (!phone) throw new AppError('NO_CUSTOMER', "Add the customer's phone number to the order before taking an advance.", 400);
+  const customers = await tx.customer.findMany();
+  const found = customers.find((c: any) => cleanPhone(c.phone) === phone);
+  if (found) return found;
+  const ts = nowIso();
+  return tx.customer.create({
+    data: {
+      id: rid('cust'), name: (order.customerName || 'Customer').trim(), phone: order.customerPhone || phone, address: '',
+      firstPurchaseDate: istToday(), purchaseCount: 0, totalSpent: 0, notes: 'Auto-created from a pending-order advance',
+      createdAt: ts, updatedAt: ts,
+    },
+  });
+}
+
+/** Unspent advance of a pending order: advances taken minus advances applied to bills. */
+export async function pendingAdvanceRemaining(tx: any, orderNumber: string): Promise<number> {
+  const rows = await tx.payment.findMany({ where: { type: 'in', reference: orderNumber } });
+  let taken = 0;
+  let applied = 0;
+  for (const p of rows) {
+    const n = String(p.notes || '');
+    if (n.startsWith(ADVANCE_NOTE)) taken += Number(p.amount) || 0;
+    else if (n.startsWith(ADVANCE_APPLIED_NOTE)) applied += Number(p.amount) || 0;
+  }
+  return Math.max(0, round2(taken - applied));
+}
+
+export async function recordPendingOrderAdvance(orderId: string, amount: unknown, mode: unknown, actor: { name?: string; id?: string }, reqUser?: any) {
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) throw new AppError('BAD_AMOUNT', 'Advance amount must be greater than zero.', 400);
+  const payMode = String(mode || 'Cash');
+  if (!['Cash', 'GPay', 'HDFC'].includes(payMode)) throw new AppError('BAD_MODE', "Advance mode must be 'Cash', 'GPay' or 'HDFC'.", 400);
+  const order = orderId ? await prisma.pendingOrder.findUnique({ where: { id: String(orderId) } }) : null;
+  if (!order) throw new AppError('NOT_FOUND', 'Pending order not found.', 404);
+  assertBranchAllowed(reqUser, order.branchId);
+  if (order.status === 'Fulfilled' || order.status === 'Cancelled') {
+    throw new AppError('ORDER_CLOSED', `This order is ${order.status.toLowerCase()} — an advance can't be taken on it.`, 409);
+  }
+  const cust = await prisma.$transaction((tx) => advanceCustomerFor(tx, order));
+  const payment = await recordPayment(
+    {
+      type: 'in', partyType: 'customer', partyId: cust.id, partyName: cust.name, branchId: order.branchId,
+      date: istToday(), amount: round2(amt), paymentMode: payMode, reference: order.orderNumber,
+      notes: `${ADVANCE_NOTE} ${order.orderNumber}`,
+    },
+    actor,
+    reqUser,
+    {
+      afterCreate: async (tx) => {
+        const fresh = await tx.pendingOrder.findUnique({ where: { id: order.id } });
+        await tx.pendingOrder.update({
+          where: { id: order.id },
+          data: {
+            advanceAmount: round2((Number(fresh?.advanceAmount) || 0) + amt),
+            advanceMode: payMode,
+            advancePaidAt: nowIso(),
+            updatedAt: nowIso(),
+          },
+        });
+      },
+    },
+  );
+  return { payment, pendingOrders: await prisma.pendingOrder.findMany(), customers: await prisma.customer.findMany() };
+}
+
+/** Give back a pending order's advance: removes its (unspent) advance receipts —
+ *  allowed only while their cash days are open and the credit is unused. */
+export async function clearPendingOrderAdvance(orderId: string, reqUser?: any) {
+  const order = orderId ? await prisma.pendingOrder.findUnique({ where: { id: String(orderId) } }) : null;
+  if (!order) throw new AppError('NOT_FOUND', 'Pending order not found.', 404);
+  assertBranchAllowed(reqUser, order.branchId);
+  await serializableTx(async (tx) => {
+    const rows = await tx.payment.findMany({ where: { type: 'in', reference: order.orderNumber } });
+    const applied = rows.some((p: any) => String(p.notes || '').startsWith(ADVANCE_APPLIED_NOTE));
+    if (applied) throw new AppError('ADVANCE_USED', 'This advance has already been applied to a bill.', 409);
+    for (const p of rows) {
+      if (String(p.notes || '').startsWith(ADVANCE_NOTE)) await deletePaymentTx(tx, p.id, reqUser);
+    }
+    await tx.pendingOrder.update({ where: { id: order.id }, data: { advanceAmount: 0, advanceMode: null, advancePaidAt: null, updatedAt: nowIso() } });
+  });
+  return { pendingOrders: await prisma.pendingOrder.findMany(), customers: await prisma.customer.findMany(), payments: await prisma.payment.findMany() };
+}
+
+/**
+ * Called by createSale for a NEW bill made from an enquiry: settle the bill's
+ * unpaid part from the advance(s) taken on that enquiry's pending order(s) — a
+ * 'Store Credit' receipt on the bill's date that spends the customer's advance
+ * credit. Never more than the bill owes, the advance left, or the credit held.
+ */
+export async function applyPendingAdvanceToBill(tx: any, invoiceId: string, actorName?: string): Promise<void> {
+  const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv?.sourceEnquiryId || !inv.customerId || inv.isVoided) return;
+  const orders = await tx.pendingOrder.findMany({ where: { enquiryId: inv.sourceEnquiryId } });
+  for (const order of orders) {
+    const remaining = await pendingAdvanceRemaining(tx, order.orderNumber);
+    if (remaining <= 0.009) continue;
+    const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
+    const due = await computeInvoiceDue(tx, fresh);
+    const credit = await creditBalanceOf(tx, inv.customerId);
+    const use = round2(Math.min(remaining, due, credit));
+    if (use <= 0.009) continue;
+    const receiptNumber = await nextReceiptNumber(tx, 'in', inv.date);
+    const payment = await tx.payment.create({
+      data: {
+        id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, receiptNumber, type: 'in', partyType: 'customer',
+        partyId: inv.customerId, partyName: inv.customerName || 'Customer', branchId: inv.branchId, date: inv.date,
+        amount: use, paymentMode: 'Store Credit', reference: order.orderNumber,
+        notes: `${ADVANCE_APPLIED_NOTE} ${order.orderNumber} to ${inv.invoiceNumber}`,
+        allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: use }] as any,
+        createdById: null, createdByName: actorName ?? null, createdAt: nowIso(),
+      },
+    });
+    await recomputeInvoiceBalance(tx, inv.id);
+    await applyCreditDelta(tx, inv.customerId, -use, {
+      type: 'applied', reason: `Advance on ${order.orderNumber} applied to ${inv.invoiceNumber}`,
+      refId: payment.id, refNumber: receiptNumber, by: actorName,
+    });
+  }
 }

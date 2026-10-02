@@ -2,13 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
-import { nextInvoiceNumber } from '../lib/sequences.js';
+import { nextInvoiceNumber, nextPersistent } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal } from './payment.service.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, applyPendingAdvanceToBill } from './payment.service.js';
 import { addCustomerCredit } from './customerCredit.service.js';
 import { GST_RATES } from '../lib/constants.js';
+import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
+import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
@@ -135,19 +137,6 @@ function reconcileInvoicePayment(inv: any) {
   inv.paymentMode = splits.find((s) => s.mode !== 'COD-Credit')?.mode || 'COD-Credit';
 }
 
-/**
- * A closed cash day is final: its cash total is derived from the invoices and
- * payments dated to it, so voiding / returning / deleting one of those bills (or
- * a payment) would silently change a day that has already been reconciled and
- * signed off. Block it — the CEO/Manager must reopen the day first (CASH-2).
- */
-async function assertDayOpen(tx: any, branchId: string, date: string, verb: string) {
-  const closed = await tx.dailyCashRegister.findFirst({ where: { branchId, date, isClosed: true } });
-  if (closed) {
-    throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before you ${verb}.`, 409);
-  }
-}
-
 /** Affected collections returned so the frontend can sync in-memory state. */
 async function snapshot(tx: any) {
   const [invoices, customers, branchStocks, stockAdjustmentLogs] = await Promise.all([
@@ -243,6 +232,11 @@ export function createSale(inv: any, reqUser?: any) {
   if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && inv.branchId !== reqUser.assignedBranchId) {
     throw new AppError('FORBIDDEN', `You are only authorized to bill for branch ${reqUser.assignedBranchId}`, 403);
   }
+  if (!inv || typeof inv !== 'object' || !Array.isArray(inv.items)) {
+    throw new AppError('BAD_REQUEST', 'A sale needs its line items.', 400);
+  }
+  // CASH8-7: a bill must carry a real date that is not in the future (IST).
+  assertBusinessDate(inv.date, 'A sale');
   recomputeInvoiceMoney(inv); // server-authoritative totals
   // Salesperson incentive: store the ₹ computed from the authoritative grand total.
   if (inv.salespersonId && Number(inv.incentivePercent) > 0) {
@@ -363,7 +357,12 @@ export function createSale(inv: any, reqUser?: any) {
         // CRM6-1 / SAL6-2: a bill that has receipts keeps its server-settled payment
         // SPLIT — accepting the client's (often stale) splits would resurrect the
         // settled debt. Receipts remain the only way to pay it down.
-        inv.paymentSplits = existing!.paymentSplits ?? inv.paymentSplits;
+        // What was collected at billing stays exactly as it was (a legacy bill with
+        // no stored split gets it made explicit); only the owed COD-Credit part
+        // follows the new total.
+        const kept = billingSplitsOf(existing).filter((sp) => sp.mode !== 'COD-Credit');
+        const owedAtBilling = Math.max(0, Math.round(((inv.grandTotal || 0) - collectedAtBilling(existing)) * 100) / 100);
+        inv.paymentSplits = owedAtBilling > 0.009 ? [...kept, { mode: 'COD-Credit', amount: owedAtBilling }] : kept;
         inv.isPartialPayment = existing!.isPartialPayment ?? false;
         inv.partialAmount = existing!.partialAmount ?? null;
         inv.paymentMode = existing!.paymentMode ?? inv.paymentMode;
@@ -373,11 +372,8 @@ export function createSale(inv: any, reqUser?: any) {
         // fn) then derives the due from this anchor, the receipts and the returns —
         // so changing a billed-and-received bill's total updates what's owed instead
         // of freezing the old amount.
-        const origSplits = Array.isArray(existing!.paymentSplits) ? (existing!.paymentSplits as any[]) : [];
-        const collectedAtBilling = origSplits
-          .filter((s) => s.mode !== 'COD-Credit')
-          .reduce((t, s) => t + (Number(s.amount) || 0), 0);
-        inv.creditOriginal = Math.max(0, Math.round(((inv.grandTotal || 0) - collectedAtBilling) * 100) / 100);
+        const collected = collectedAtBilling(existing);
+        inv.creditOriginal = Math.max(0, Math.round(((inv.grandTotal || 0) - collected) * 100) / 100);
         inv.balanceDue = inv.creditOriginal; // provisional — refreshed from the ledger after save
       } else {
         // No receipts yet: the payment is entirely at-billing, so re-reconcile the
@@ -562,6 +558,9 @@ export function createSale(inv: any, reqUser?: any) {
     // keeping receipts applied, so an edit can neither resurrect settled debt nor
     // miss a total change (CRM6-1 / SAL6-2).
     await recomputeInvoiceBalance(tx, inv.id);
+    // CRM2-8: a bill made from an enquiry settles its unpaid part from the advance
+    // already taken on that enquiry's pending order (kept as store credit).
+    if (isNewSale) await applyPendingAdvanceToBill(tx, inv.id, reqUser?.name);
     // Return the authoritative saved row alongside the snapshot so the client can
     // preview/print the bill exactly as stored — server invoice number, server id,
     // reconciled payment split — instead of its provisional client object (SAL4-1).
@@ -572,6 +571,7 @@ export function createSale(inv: any, reqUser?: any) {
 
 /** Void an invoice: restore remaining stock, log, mark voided, decrement customer. */
 export function voidInvoice(invoiceId: string, reason: string, actor: string, reqUser?: any) {
+  if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'Which bill is being voided? invoiceId is required.', 400); // SAL7-4
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
@@ -646,11 +646,45 @@ export function processReturn(
   reqUser?: any,
   refundMode?: string,
 ) {
+  // SAL7-4: a malformed request is a 400, never a 500 with database details.
+  if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'Which bill is being returned? invoiceId is required.', 400);
+  if (!Array.isArray(returnLines)) throw new AppError('BAD_REQUEST', 'returnLines must be a list.', 400);
   return serializableTx(async (tx: any) => {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
+    // Resolve every requested line against the BILL's own line and take its
+    // identity (name, code, price, tax, combo parts) from there and the item
+    // master — never from the request (SAL7-4 / INV8-8; a request that flags a
+    // plain line as a combo can't bring its own parts either).
+    const billLines: any[] = (inv.items as any[]) || [];
+    const masterItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true } });
+    const masterById = new Map(masterItems.map((i: any) => [i.id, i]));
+    returnLines = returnLines.map((l: any) => {
+      const qty = Number(l?.returnQty) || 0;
+      if (qty <= 0) return { ...l, returnQty: 0 };
+      let bl: any = null;
+      if (l?.comboId) bl = billLines.find((i) => i.isCombo && i.comboId === l.comboId);
+      if (!bl && l?.isCombo) bl = billLines.find((i) => i.isCombo && ((l.id && i.id === l.id) || (l.itemId && (i.itemId === l.itemId || i.comboId === l.itemId))));
+      if (!bl && !l?.isCombo) bl = billLines.find((i) => !i.isCombo && (i.itemId || i.id) === l?.itemId);
+      if (!bl) {
+        throw new AppError('NOT_ON_BILL', `"${String(l?.itemName || l?.itemId || 'This item').slice(0, 80)}" was not sold on this bill and cannot be returned.`, 400);
+      }
+      const master: any = masterById.get(bl.itemId);
+      return {
+        returnQty: qty,
+        id: bl.id,
+        itemId: bl.isCombo ? (bl.itemId || bl.comboId) : (bl.itemId || bl.id),
+        itemName: bl.itemName || master?.itemName || 'Item',
+        itemCode: bl.itemCode || master?.itemCode || '',
+        unitPrice: Number(bl.unitPrice) || 0,
+        taxRate: Number(bl.taxRate ?? bl.gstRate ?? 0) || 0,
+        isCombo: !!bl.isCombo,
+        comboId: bl.isCombo ? bl.comboId : undefined,
+        comboComponents: bl.isCombo ? bl.comboComponents : undefined,
+      };
+    });
     // Anchor the owed-at-billing credit from the PRE-return state so the cash
     // refund below (over-paid portion only) and the due are computed correctly.
     await ensureCreditOriginal(tx, invoiceId);
@@ -844,6 +878,11 @@ export function processReturn(
     // reduced the due above; the over-paid portion (what would otherwise be cash
     // back) is banked as STORE CREDIT the customer can spend on a future bill.
     const isCreditNote = /credit|adjust/i.test(String(refundMode || ''));
+    if (cashRefund > 0.001 && isCreditNote && !inv.customerId) {
+      // A credit note is kept on a customer's account — a walk-in bill has none,
+      // so the over-paid amount would simply vanish. Refund it instead.
+      throw new AppError('NO_CUSTOMER', 'This bill has no customer account to hold a credit note. Choose a refund mode (Cash / GPay / Bank) instead.', 400);
+    }
     if (cashRefund > 0.001 && isCreditNote && inv.customerId) {
       await addCustomerCredit(tx, inv.customerId, cashRefund, {
         type: 'issued',
@@ -854,8 +893,12 @@ export function processReturn(
       });
     }
     if (cashRefund > 0.001 && !isCreditNote) {
-      const mode = refundMode || 'Cash';
-      const today = nowIso().slice(0, 10);
+      // CASH8-6: with no explicit choice, refund the way the bill was paid (its
+      // first collected mode), not always Cash.
+      const billMode = billingSplitsOf(inv).find((sp) => sp.mode !== 'COD-Credit' && (Number(sp.amount) || 0) > 0)?.mode;
+      const mode = String(refundMode || '').trim() || billMode || 'Cash';
+      // The refund is paid out TODAY in IST — the shop's cash day (CASH7-11 / CRM8-8).
+      const today = istToday();
       // The refund is a cash payout dated TODAY. If today's drawer is already
       // closed, paying it out would change a reconciled day — block it (the caller
       // can reopen today or choose 'Adjust to credit note'). CASH-2 / SAL4-12.
@@ -872,9 +915,12 @@ export function processReturn(
         const n = parseInt(String(r.receiptNumber).slice(like.length), 10);
         if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n);
       }
+      // Same persistent high-water mark as every other PAY- number, so a refund
+      // voucher number is never reissued (SAL8-7).
+      const refundNo = await nextPersistent(tx, `seq:pay:${like}`, maxNo);
       await tx.payment.create({
         data: {
-          id: rid('pay'), receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+          id: rid('pay'), receiptNumber: `${like}${String(refundNo).padStart(4, '0')}`,
           type: 'out', partyType: 'customer', partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer',
           branchId: inv.branchId, date: today, amount: cashRefund, paymentMode: mode,
           reference: inv.invoiceNumber ?? null, notes: `Refund on sale #${inv.invoiceNumber}${reason ? ` — ${reason}` : ''}`,

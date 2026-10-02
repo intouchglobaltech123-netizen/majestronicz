@@ -1,3 +1,4 @@
+import { registersWithLiveOpenings } from './cash.service.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { SessionUser, roleCan } from '../lib/auth.js';
@@ -108,7 +109,7 @@ export async function getBootstrap(user?: SessionUser | null) {
     ]);
     return scopeBootstrap({
       items, branchStocks, combos, stockAdjustmentLogs: [], estimates, challans, invoices,
-      enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses: [], vendors: [],
+      enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses: [], vendors: [],
       purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers,
       stockTransfers: [], payments, ...config,
     }, user);
@@ -132,7 +133,7 @@ export async function getBootstrap(user?: SessionUser | null) {
 
   return scopeBootstrap({
     items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices,
-    enquiries, pendingOrders, reminders, cashRegisters, recurringExpenses, vendors,
+    enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses, vendors,
     purchaseOrders, employees, attendanceRecords, payrollRecords, customers, stockTransfers, payments, ...config,
   }, user);
 }
