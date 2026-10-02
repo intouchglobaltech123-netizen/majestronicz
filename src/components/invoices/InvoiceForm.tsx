@@ -1146,6 +1146,23 @@ export const InvoiceForm: React.FC<Props> = ({
     // line's unit price between its "pre-tax" (GST-on) and "full price" (GST-off)
     // form so the charged amount stays identical; only the GST breakdown appears/hides.
     setWithGst(newWithGst);
+    // FIN-A-2: an overall ₹ discount is in the same tax basis too — with GST on it
+    // comes off the taxable value (so the bill drops by it plus its GST), with GST
+    // off it comes off the full price. Convert it with the bill's own mix of rates.
+    if (newWithGst !== withGst && overallDiscountType === 'amount' && Number(overallDiscountValue) > 0) {
+      let full = 0;
+      let pre = 0;
+      for (const it of lineItems) {
+        const f = 1 + (Number(it.taxRate) || 0) / 100;
+        const taxable = Number(it.taxableAmount) || 0;
+        if (withGst) { pre += taxable; full += taxable * f; } else { full += taxable; pre += taxable / f; }
+      }
+      if (pre > 0 && full > 0) {
+        const factor = full / pre;
+        const v = Number(overallDiscountValue);
+        setOverallDiscountValue(Math.round((newWithGst ? v / factor : v * factor) * 100) / 100);
+      }
+    }
     setLineItems((prev) =>
       prev.map((item) => {
         const rate = item.taxRate || 0;
