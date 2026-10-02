@@ -208,7 +208,7 @@ export async function recordPayment(
   input: RecordPaymentInput,
   actor?: { name?: string; id?: string },
   reqUser?: any,
-  hooks?: { afterCreate?: (tx: any, payment: any) => Promise<void> },
+  hooks?: { afterCreate?: (tx: any, payment: any) => Promise<void>; resolveParty?: (tx: any) => Promise<{ id: string; name: string }> },
 ) {
   const amount = Number(input.amount);
   if (!amount || amount <= 0) throw new AppError('BAD_REQUEST', 'Payment amount must be greater than zero', 400);
@@ -321,6 +321,13 @@ export async function recordPayment(
     // change that reconciled day's cash total after the fact (CASH-2).
     // CASH10-1 / PUR10-8: nor to any day before the branch's latest closed day.
     await assertDayOpen(tx, branchId, date, 'record this payment');
+    // E2E10-2: a party created for this payment (a pending-order advance's
+    // customer) is created here, inside the payment — never when it is refused.
+    if (hooks?.resolveParty) {
+      const party = await hooks.resolveParty(tx);
+      input.partyId = party.id;
+      input.partyName = party.name;
+    }
 
     const receiptNumber = await nextReceiptNumber(tx, input.type, date);
     const paymentId = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -812,7 +819,8 @@ async function advanceCustomerFor(tx: any, order: any): Promise<any> {
   const ts = nowIso();
   return tx.customer.create({
     data: {
-      id: rid('cust'), name: (order.customerName || 'Customer').trim(), phone: order.customerPhone || phone, address: '',
+      // E2E10-2: stored with the normalised number, so the next lookup matches it.
+      id: rid('cust'), name: (order.customerName || 'Customer').trim(), phone, address: '',
       firstPurchaseDate: istToday(), purchaseCount: 0, totalSpent: 0, notes: 'Auto-created from a pending-order advance',
       createdAt: ts, updatedAt: ts,
     },
@@ -843,16 +851,17 @@ export async function recordPendingOrderAdvance(orderId: string, amount: unknown
   if (order.status === 'Fulfilled' || order.status === 'Cancelled') {
     throw new AppError('ORDER_CLOSED', `This order is ${order.status.toLowerCase()} — an advance can't be taken on it.`, 409);
   }
-  const cust = await prisma.$transaction((tx) => advanceCustomerFor(tx, order));
+  if (!cleanPhone(order.customerPhone ?? undefined)) throw new AppError('NO_CUSTOMER', "Add the customer's phone number to the order before taking an advance.", 400);
   const payment = await recordPayment(
     {
-      type: 'in', partyType: 'customer', partyId: cust.id, partyName: cust.name, branchId: order.branchId,
+      type: 'in', partyType: 'customer', partyName: order.customerName || 'Customer', branchId: order.branchId,
       date: istToday(), amount: round2(amt), paymentMode: payMode, reference: order.orderNumber,
       notes: `${ADVANCE_NOTE} ${order.orderNumber}`,
     },
     actor,
     reqUser,
     {
+      resolveParty: async (tx) => { const c = await advanceCustomerFor(tx, order); return { id: c.id, name: c.name }; },
       afterCreate: async (tx) => {
         const fresh = await tx.pendingOrder.findUnique({ where: { id: order.id } });
         await tx.pendingOrder.update({

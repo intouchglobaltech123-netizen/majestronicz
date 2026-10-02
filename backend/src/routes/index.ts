@@ -280,6 +280,15 @@ router.post('/vendors', requireCapability('purchase:write'), asyncHandler(async 
   const phone = digits(data.contactNo);
   const sameNamePhone = others.find((v) => v.vendorName.trim().toLowerCase() === data.vendorName.toLowerCase() && digits(v.contactNo || '') === phone);
   if (sameNamePhone) throw new AppError('DUPLICATE_VENDOR', `Supplier "${sameNamePhone.vendorName}" with this phone number already exists.`, 409);
+  // PUR6-5: the same name with another phone is the same supplier too, unless
+  // both carry (different) GSTINs that tell them apart.
+  const nameKey = (n: string) => n.toLowerCase().replace(/[.,&\s]+/g, ' ').replace(/\b(pvt|private|ltd|limited|co|company)\b/g, '').replace(/\s+/g, ' ').trim();
+  const storedRow = await prisma.vendor.findUnique({ where: { id }, select: { vendorName: true } });
+  const nameChanged = !storedRow || nameKey(storedRow.vendorName) !== nameKey(data.vendorName); // an older duplicate stays editable
+  const sameName = nameChanged && others.find((v) => nameKey(v.vendorName) === nameKey(data.vendorName) && !(data.gstin && v.gstin && v.gstin.toUpperCase() !== data.gstin));
+  if (sameName) {
+    throw new AppError('DUPLICATE_VENDOR', `Supplier "${sameName.vendorName}" already exists${sameName.contactNo ? ` (phone ${sameName.contactNo})` : ''}. Use it, or enter both GSTINs to tell two suppliers of that name apart.`, 409);
+  }
   const vendor = await prisma.vendor.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
   broadcastChange('POST /api/vendors');
   res.json({ ok: true, vendor, vendors: await prisma.vendor.findMany() });
@@ -658,33 +667,33 @@ router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asy
   res.json(result);
 }));
 router.post('/shopify/order-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor } = req.body;
-  const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor: actor || 'system' });
+  const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note } = req.body;
+  const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor: actorOf(req) });
   broadcastChange('shopify-order-status');
   res.json(result);
 }));
 router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, type, note, actor } = req.body;
-  const result = await addOrderCommunication(invoiceId, type, note, actor || 'system');
+  const { invoiceId, type, note } = req.body;
+  const result = await addOrderCommunication(invoiceId, type, note, actorOf(req));
   broadcastChange('shopify-order-comm');
   res.json(result);
 }));
 router.post('/shopify/order-packing', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, actor } = req.body;
-  const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actor || 'system');
+  const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded } = req.body;
+  const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actorOf(req));
   broadcastChange('shopify-order-packing');
   res.json(result);
 }));
 
 router.post('/shopify/order-issue', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, type, description, actor } = req.body;
-  const result = await addOrderIssue(invoiceId, type, description, actor || 'system');
+  const { invoiceId, type, description } = req.body;
+  const result = await addOrderIssue(invoiceId, type, description, actorOf(req));
   broadcastChange('shopify-order-issue');
   res.json(result);
 }));
 router.post('/shopify/order-issue-resolve', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, issueId, resolution, actor } = req.body;
-  const result = await resolveOrderIssue(invoiceId, issueId, resolution, actor || 'system');
+  const { invoiceId, issueId, resolution } = req.body;
+  const result = await resolveOrderIssue(invoiceId, issueId, resolution, actorOf(req));
   broadcastChange('shopify-order-issue');
   res.json(result);
 }));

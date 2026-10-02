@@ -106,7 +106,12 @@ export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | u
     const newReminder = !!(e.reminderDate && e.reminderTime) &&
       (!existingEnq || existingEnq.reminderDate !== e.reminderDate || existingEnq.reminderTime !== e.reminderTime);
     if (newReminder) assertReminder(e.reminderDate, e.reminderTime);
-    if (!e.timeline || e.timeline.length === 0) {
+    // ACT-1: the timeline is the server's own record — a request can't write or
+    // back-date entries. An edit keeps the stored history; a new enquiry starts
+    // with its "created" entry by the logged-in user.
+    if (existingEnq) {
+      e.timeline = [tl('edited', 'Enquiry Details Updated', 'The enquiry was edited.', actor), ...(Array.isArray(existingEnq.timeline) ? existingEnq.timeline : [])];
+    } else {
       e.timeline = [tl('created', e.isNewItemRequest ? 'New Item Enquiry Created' : 'Customer Enquiry Created',
         `Requirement logged for ${e.quantity} ${e.unit || 'Units'} of ${e.itemName} at ${e.branchId}.`, actor)];
     }

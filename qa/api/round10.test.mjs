@@ -525,3 +525,42 @@ describe('round 10: item, stock and payroll validation', async () => {
     expectStatus(await put(`/api/users/${staff.id}`, { assignedBranchId: 'mars' }), 400, 'branch mars');
   });
 });
+
+describe('round 10: who did it', async () => {
+  const { uid } = await import('./lib.mjs');
+  test('ACT-1 an enquiry\'s actor and timeline come from the login, not the request', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 50 } });
+    const id = `enq-qa-${uid()}`;
+    const forged = [{ id: 'tl-x', timestamp: '2020-01-01T00:00:00.000Z', type: 'created', title: 'Created by the CEO', description: 'forged', actor: 'Somebody Else (CEO)' }];
+    const snap = ok(await post('/api/enquiry/save', {
+      enquiry: { id, enquiryNumber: 'X', customerName: 'QA Act', customerPhone: randomPhone(), itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1, branchId: 'erode-hq', date: istToday(), time: '10:00', status: 'Open', timeline: forged },
+      actor: 'Somebody Else (CEO)',
+    }, 'Billing'));
+    const enq = snap.enquiries.find((e) => e.id === id);
+    assert.ok(!enq.timeline.some((t) => t.description === 'forged'), 'no forged entry');
+    assert.ok(enq.timeline.every((t) => !/Somebody Else/.test(t.actor || '')), `actor from the login (${enq.timeline.map((t) => t.actor)})`);
+    const res = ok(await post('/api/enquiry/notes', { enquiryId: id, notes: 'QA note', actor: 'Somebody Else (CEO)' }, 'Billing'));
+    const after = res.enquiries.find((e) => e.id === id);
+    assert.ok(after.timeline.every((t) => !/Somebody Else/.test(t.actor || '')));
+  });
+});
+
+describe('round 10: suppliers and advances', async () => {
+  const { uid } = await import('./lib.mjs');
+  test('PUR6-5 a supplier with the same name and another phone is the same supplier (unless their GSTINs differ)', async () => {
+    const name = `QA Same ${uid()} Traders`;
+    ok(await post('/api/vendors', { vendorName: name, contactNo: randomPhone(), address: 'QA' }));
+    expectStatus(await post('/api/vendors', { vendorName: `${name.toLowerCase()} pvt ltd`, contactNo: randomPhone(), address: 'QA' }), 409, 'same name, other phone');
+  });
+
+  test('E2E10-2 an advance refused on a closed day creates no customer', async () => {
+    const item = await createItem({ price: 1000, stock: {} });
+    const phone = randomPhone();
+    const id = `enq-qa-${uid()}`;
+    ok(await post('/api/enquiry/save', { enquiry: { id, enquiryNumber: 'X', customerName: 'QA Advance New', customerPhone: phone, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1, branchId: 'chennai', date: istToday(), time: '10:00', status: 'Open' } }));
+    const order = ok(await get('/api/pending-orders')).find((o) => o.enquiryId === id);
+    ok(await post('/api/cash/close', { branchId: 'chennai', date: istToday() }), 'close today');
+    expectStatus(await post('/api/payments/advance', { orderId: order.id, amount: 100, mode: 'Cash' }), 409, 'advance on a closed day');
+    assert.ok(!ok(await get('/api/customers')).some((c) => String(c.phone).endsWith(phone.slice(-10))), 'no customer was created');
+  });
+});
