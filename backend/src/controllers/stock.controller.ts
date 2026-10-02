@@ -38,7 +38,7 @@ export const receiveTransfer = async (req: Request, res: Response) => {
 export const updateStock = async (req: Request, res: Response) => {
   const { itemId, branchId, quantity, minStockAlert, location } = req.body;
   assertBranchAllowed((req as any).user, branchId);
-  res.json(await stock.updateBranchStock(itemId, branchId, quantity, minStockAlert, location));
+  res.json(await stock.updateBranchStock(itemId, branchId, quantity, minStockAlert, location, actorOf(req)));
 };
 
 export const updateLocation = async (req: Request, res: Response) => {

@@ -4,6 +4,7 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { branchName, branchLocation, isValidBranch } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { stockQty } from '../lib/units.js';
 
 const stockSnapshot = async (tx: any) => ({
   branchStocks: await tx.branchStock.findMany(),
@@ -50,8 +51,9 @@ export function transferStockBatch(
   // stock from nothing (INV2-2).
   const mergedMap = new Map<string, number>();
   for (const row of itemsToTransfer) {
-    if (!row.itemId || row.quantity <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
-    mergedMap.set(row.itemId, (mergedMap.get(row.itemId) || 0) + row.quantity);
+    const q = typeof row?.quantity === 'number' ? row.quantity : Number(row?.quantity);
+    if (!row?.itemId || !Number.isFinite(q) || q <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
+    mergedMap.set(row.itemId, (mergedMap.get(row.itemId) || 0) + q);
   }
   const mergedItems = Array.from(mergedMap.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
 
@@ -63,6 +65,8 @@ export function transferStockBatch(
       if (!row.itemId || row.quantity <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
       const item = await tx.item.findUnique({ where: { id: row.itemId } });
       if (!item) throw new AppError('NOT_FOUND', `Item not found: ${row.itemId}`, 404);
+      // Whole units for whole-unit items, sane size (INV-23).
+      row.quantity = stockQty(row.quantity, item.unit, `Transfer quantity for ${item.itemName}`);
       const fromRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId: row.itemId, branchId: fromBranch } } });
       const fromPrevQty = fromRow?.quantity ?? 0;
       if (fromPrevQty < row.quantity) {
@@ -194,11 +198,17 @@ export function adjustStock(
   // The request body is untyped JSON, so quantityChange can arrive as the string
   // "5" — then `prevQty + "5"` concatenated (20 → "205") and quietly became 205
   // units of phantom stock. Coerce to a real number and reject anything else (INV8-4).
-  const change = Number(quantityChange);
-  if (!Number.isFinite(change)) throw new AppError('BAD_QTY', 'Adjustment quantity must be a number.', 400);
+  // It must also be non-zero, whole for whole-unit items, within a sane bound,
+  // and carry a reason (INV8-4 / INV-23).
+  const why = typeof reason === 'string' ? reason.trim() : '';
+  if (!why) throw new AppError('REASON_REQUIRED', 'Choose a reason for the adjustment.', 400);
+  if (why.length > 120) throw new AppError('BAD_REASON', 'The reason is too long.', 400);
+  if (notes != null && typeof notes !== 'string') throw new AppError('BAD_NOTES', 'Notes must be text.', 400);
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    const change = stockQty(quantityChange, item.unit, 'Adjustment quantity');
+    if (change === 0) throw new AppError('BAD_QTY', 'Adjustment quantity cannot be zero.', 400);
 
     const ts = nowIso();
     const existing = await tx.branchStock.findUnique({
@@ -220,7 +230,7 @@ export function adjustStock(
     await tx.stockAdjustmentLog.create({
       data: {
         id: rid('adj'), itemId, itemName: item.itemName, itemCode: item.itemCode, branchId,
-        previousQuantity: prevQty, quantityChange: appliedChange, newQuantity: newQty, reason,
+        previousQuantity: prevQty, quantityChange: appliedChange, newQuantity: newQty, reason: why,
         notes: notes?.trim() || null, adjustedBy: actor, timestamp: ts,
       },
     });
@@ -239,7 +249,6 @@ export function transferStock(
   actor: string
 ) {
   if (fromBranch === toBranch) throw new AppError('SAME_BRANCH', 'Source and destination cannot be the same');
-  if (quantity <= 0) throw new AppError('BAD_QTY', 'Transfer quantity must be greater than 0');
   // Reject transfers to/from an unknown branch — otherwise the units leave the
   // source and land nowhere real, vanishing from the books (STK-6).
   if (!isValidBranch(fromBranch)) throw new AppError('BAD_BRANCH', `Unknown source branch: ${fromBranch}`, 400);
@@ -248,6 +257,9 @@ export function transferStock(
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    // A real number, whole for whole-unit items (INV-23).
+    quantity = stockQty(quantity, item.unit, 'Transfer quantity');
+    if (quantity <= 0) throw new AppError('BAD_QTY', 'Transfer quantity must be greater than 0', 400);
 
     const fromRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId, branchId: fromBranch } } });
     const fromPrevQty = fromRow?.quantity ?? 0;
@@ -326,13 +338,26 @@ export function transferStock(
 
 /** Set a branch's stock to an exact quantity (Item Master / stock modal), with
  *  validation and a history row for the delta. */
-export function updateBranchStock(itemId: string, branchId: string, quantity: number, minStockAlert?: number, location?: string) {
+export function updateBranchStock(itemId: string, branchId: string, quantity: number, minStockAlert?: number, location?: string, actor = 'System') {
   if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
-  const qty = Number(quantity);
-  if (!Number.isFinite(qty) || qty < 0) throw new AppError('BAD_QTY', 'Stock quantity must be zero or more.', 400);
+  // INV7-1: the low-stock threshold is a whole number of 0 or more.
+  if (minStockAlert !== undefined && minStockAlert !== null) {
+    const m = typeof minStockAlert === 'number' ? minStockAlert : Number(minStockAlert);
+    if (typeof minStockAlert === 'boolean' || !Number.isInteger(m) || m < 0 || m > 1_000_000) {
+      throw new AppError('BAD_MIN_STOCK', 'The low-stock alert level must be a whole number of 0 or more.', 400);
+    }
+    minStockAlert = m;
+  } else {
+    minStockAlert = undefined;
+  }
+  if (location !== undefined && location !== null && typeof location !== 'string') throw new AppError('BAD_LOCATION', 'Location must be text.', 400);
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    // A real number ("7" and 2.5 NOS were accepted), whole for whole-unit items,
+    // zero or more, within a sane bound (INV7-1).
+    const qty = stockQty(quantity, item.unit, 'Stock quantity');
+    if (qty < 0) throw new AppError('BAD_QTY', 'Stock quantity must be zero or more.', 400);
     const ts = nowIso();
     const existing = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId, branchId } } });
     const prevQty = existing?.quantity ?? 0;
@@ -352,7 +377,7 @@ export function updateBranchStock(itemId: string, branchId: string, quantity: nu
         data: {
           id: rid('adj'), itemId, itemName: item.itemName, itemCode: item.itemCode, branchId,
           previousQuantity: prevQty, quantityChange: change, newQuantity: qty,
-          reason: 'Stock Set', notes: 'Direct stock set', adjustedBy: 'System', timestamp: ts,
+          reason: 'Stock Set', notes: 'Direct stock set', adjustedBy: actor || 'System', timestamp: ts,
         },
       });
     }

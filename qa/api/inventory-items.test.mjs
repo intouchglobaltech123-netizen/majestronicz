@@ -127,3 +127,54 @@ describe('combos and returns', () => {
     assert.ok(!invoices.some((i) => i.branchId === 'mars'), 'no bill for mars');
   });
 });
+
+describe('stock quantity rules', () => {
+  const adjust = (item, quantityChange, extra = {}, as = 'CEO') =>
+    post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange, reason: 'Stock Audit Correction', ...extra }, as);
+
+  test('INV8-4 a stock adjustment must be a non-zero whole number with a reason and a sane size', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 20 } }); // PCS: whole units
+    for (const q of [0, 2.5, 'abc', '', null, 1e9, true]) {
+      expectStatus(await adjust(item, q), 400, `quantityChange ${JSON.stringify(q)}`);
+    }
+    expectStatus(await adjust(item, 3, { reason: '' }), 400, 'empty reason');
+    expectStatus(await adjust(item, 3, { reason: '   ' }), 400, 'blank reason');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 20, 'nothing moved');
+    ok(await adjust(item, '5'), 'a numeric string is read as a number');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 25);
+  });
+
+  test('INV-23 a weighed or measured item may move in fractions; a counted item may not', async () => {
+    const counted = await createItem({ stock: { 'erode-hq': 10 } });
+    expectStatus(await post('/api/stock/transfer', { itemId: counted.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: 2.5 }), 400, 'transfer 2.5 PCS');
+    expectStatus(await post('/api/stock/transfer-batch', { items: [{ itemId: counted.id, quantity: 1.5 }], fromBranch: 'erode-hq', toBranch: 'chennai' }), 400, 'batch transfer 1.5 PCS');
+    assert.equal(await stockOf(counted.id, 'erode-hq'), 10);
+    const code = `QA-${uid()}`.toUpperCase();
+    const cable = ok(await post('/api/catalog/item', { item: {
+      itemName: `QA cable ${code}`, itemHSN: '85444999', category: 'QA', itemCode: code, unit: 'MTR',
+      salePrice: 10, salePriceTaxMode: 'exclusive', wholesalePrice: 10, minWholesaleQty: 1, purchasePrice: 5, gstTaxSlab: 18,
+    }, initialStocks: { 'erode-hq': 12.5 } })).item;
+    ok(await adjust(cable, -0.5), 'half a metre off a cable reel');
+    assert.equal(await stockOf(cable.id, 'erode-hq'), 12);
+    // Opening stock follows the same rule.
+    const code2 = `QA-${uid()}`.toUpperCase();
+    expectStatus(await post('/api/catalog/item', { item: {
+      itemName: `QA relay ${code2}`, itemHSN: '85364900', category: 'QA', itemCode: code2, unit: 'NOS',
+      salePrice: 10, salePriceTaxMode: 'exclusive', wholesalePrice: 10, minWholesaleQty: 1, purchasePrice: 5, gstTaxSlab: 18,
+    }, initialStocks: { 'erode-hq': 2.5 } }), 400, 'opening stock 2.5 NOS');
+  });
+
+  test('INV7-1 /stock/update takes whole numbers, a threshold of 0 or more, and logs the real user', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const set = (body) => post('/api/stock/update', { itemId: item.id, branchId: 'erode-hq', ...body });
+    expectStatus(await set({ quantity: 2.5 }), 400, '2.5 PCS');
+    expectStatus(await set({ quantity: -5 }), 400, '-5');
+    expectStatus(await set({ quantity: 'abc' }), 400, 'abc');
+    expectStatus(await set({ quantity: 10, minStockAlert: -5 }), 400, 'minStockAlert -5');
+    expectStatus(await post('/api/stock/update', { itemId: 'item-nope', branchId: 'erode-hq', quantity: 3 }), 404, 'unknown item');
+    ok(await set({ quantity: '7', minStockAlert: 3 }), '"7" is read as 7');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 7);
+    const row = (await ledgerOf(item.id, 'erode-hq')).find((r) => r.reason === 'Stock Set');
+    assert.ok(row && row.adjustedBy && row.adjustedBy !== 'System', `stamped with the logged-in user (got ${row?.adjustedBy})`);
+  });
+});

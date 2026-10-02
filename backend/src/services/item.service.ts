@@ -3,6 +3,7 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { BRANCHES } from '../lib/constants.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { stockQty } from '../lib/units.js';
 
 /** Create a catalog item + initialize per-branch stock rows (atomic). */
 export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}, reqUser?: any) {
@@ -32,9 +33,12 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
         throw new AppError('DUP_CODE', `Item code "${code}" already exists`, 409);
       }
     }
-    // Opening stock can't be negative.
+    // Opening stock: a real number of 0 or more, whole for whole-unit items (INV-23).
     for (const b of BRANCHES) {
-      if ((initialStocks[b.id] ?? 0) < 0) throw new AppError('BAD_STOCK', 'Opening stock cannot be negative', 400);
+      if (initialStocks[b.id] === undefined || initialStocks[b.id] === null) continue;
+      const q = stockQty(initialStocks[b.id], itemData.unit, `Opening stock at ${b.name}`);
+      if (q < 0) throw new AppError('BAD_STOCK', 'Opening stock cannot be negative', 400);
+      initialStocks[b.id] = q;
     }
 
     const item = await tx.item.create({ data: { ...itemData, id, createdAt: ts, updatedAt: ts } });
