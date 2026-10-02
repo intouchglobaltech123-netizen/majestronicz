@@ -37,7 +37,7 @@ describe('stock & ledger', () => {
   });
 
   test('INV2-4 editing a bill writes stock history that adds up', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ stock: { 'erode-hq': 20 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
     const stored = await getInvoice(inv.id);

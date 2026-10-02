@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   API, api, post, put, get, del, ok, expectStatus, uid, login, createItem, line, saleBody, mustSell, sell,
-  freshDay, freshDays, createPO, signToken, createStaff, loginPin, receive, randomPhone, HOME,
+  freshDay, freshDays, thisMonthDay, createPO, signToken, createStaff, loginPin, receive, randomPhone, HOME,
 } from './lib.mjs';
 
 describe('auth & roles', () => {
@@ -152,7 +152,7 @@ describe('auth & roles', () => {
   });
 
   test('SAL4-3 a Coimbatore manager cannot edit an Erode bill', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, customerName: 'Erode Customer', lines: [line(item, 5)] }));
     const res = await post('/api/tx/sale', { ...saleBody({ id: inv.id, branchId: 'coimbatore', date, customerName: 'Renamed', lines: [line(item, 1)] }) }, 'Manager');
@@ -271,9 +271,11 @@ describe('auth & roles', () => {
   });
 
   test('SEC7-1 editing a bill without a date keeps its own date (no spurious day-closed)', async () => {
-    // d2 (closed below) is the day BEFORE the bill's day d1 (CASH10-1 locks
-    // every day up to the latest closed one).
-    const [d2, d1] = await freshDays('erode-hq', 2);
+    // d2 (closed below) is a day BEFORE the bill's day d1 (CASH10-1 locks
+    // every day up to the latest closed one); d1 is today, as only a bill of
+    // the current month can be edited (FIN-A-3).
+    const d2 = await freshDay('erode-hq');
+    const d1 = await thisMonthDay();
     const inv = await mustSell(saleBody({ date: d1, lines: [line(await createItem({ stock: { 'erode-hq': 5 } }), 1)] }));
     // Close a DIFFERENT (earlier) day of the same branch.
     ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d2, notes: 'QA', actor: 'QA' }), 'close other day');
@@ -285,6 +287,7 @@ describe('auth & roles', () => {
     const fresh = saleBody({ lines: [line(await createItem({ stock: { 'erode-hq': 5 } }), 1)] });
     delete fresh.date;
     expectStatus(await post('/api/tx/sale', fresh), 400, 'new sale without date');
+    ok(await post('/api/cash/reopen', { branchId: 'erode-hq', date: d2 }), 'reopen');
   });
 
   test('SEC-5 signing out revokes the token', async () => {

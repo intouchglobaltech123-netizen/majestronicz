@@ -371,8 +371,9 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
     // N: a part-paid credit bill of this release edited below what it collected
     // (CRM9-3): split Cash 3,000 on a ₹1,180 total, part-payment fields kept.
     const ns = await createItem({ price: 1000, stock: { coimbatore: 10 } });
-    const n = await mustSell(saleBody({ branchId: 'coimbatore', date: d1, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 4)], splits: [{ mode: 'Cash', amount: 3000 }, { mode: 'COD-Credit', amount: 1720 }] }));
-    ok(await receive(n, 1000, { date: d1 }), 'receipt on N');
+    // (dated today: only a bill of the current month can be edited — FIN-A-3)
+    const n = await mustSell(saleBody({ branchId: 'coimbatore', date: istToday(), transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 4)], splits: [{ mode: 'Cash', amount: 3000 }, { mode: 'COD-Credit', amount: 1720 }] }));
+    ok(await receive(n, 1000, { date: istToday() }), 'receipt on N');
     ok(await resave(await getInvoice(n.id), { items: [line(ns, 1)] }), 'edit N down to 1 unit');
     // R: an untouched go-live bill, ₹1,000 part-paid on ₹4,012.
     const cr = await newCustomer();
@@ -414,8 +415,8 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
 
     // The app is used: a receipt and a return on migrated bills, a new bill
     // edited below what it collected. Running the script again changes nothing.
-    const p = await mustSell(saleBody({ branchId: 'coimbatore', date: d4, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 2)], splits: [{ mode: 'Cash', amount: 1000 }, { mode: 'COD-Credit', amount: 1360 }] }));
-    ok(await receive(p, 1360, { date: d4 }), 'receipt on P');
+    const p = await mustSell(saleBody({ branchId: 'coimbatore', date: istToday(), transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 2)], splits: [{ mode: 'Cash', amount: 1000 }, { mode: 'COD-Credit', amount: 1360 }] }));
+    ok(await receive(p, 1360, { date: istToday() }), 'receipt on P');
     ok(await resave(await getInvoice(p.id), { items: [line(ns, 1)] }), 'edit P below what was paid');
     ok(await receive(await getInvoice(r.id), 500, { date: d4 }), 'receipt on R after the fix');
     ok(await post('/api/tx/sale-return', { invoiceId: m.id, returnLines: [returnLine(item, 1, 3400)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return the last unit of M');

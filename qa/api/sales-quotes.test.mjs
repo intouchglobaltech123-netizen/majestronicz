@@ -109,7 +109,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL2-6 editing a bill keeps its branch and number', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ stock: { 'erode-hq': 10, chennai: 10 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
     ok(await resave(inv, { branchId: 'chennai', invoiceNumber: 'HACKED-1' }), 'edit');
@@ -250,7 +250,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL4-4 re-saving a paid credit bill does not bring the debt back', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
     ok(await receive(inv, 1180), 'receipt');
@@ -261,7 +261,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL4-4 re-saving a part-paid credit bill keeps the receipt applied and adds no cash', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
     ok(await receive(inv, 500), 'part receipt');
@@ -273,7 +273,7 @@ describe('sales & quotes', () => {
   });
 
   test('QA8-1 (new) editing a paid cash bill to a higher total records the new payment instead of a hidden due', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
     // The billing screen re-sends the bill with qty 3 and the cash split for the new total.
@@ -479,14 +479,17 @@ describe('quotes and bills (round 8)', () => {
   });
 
   test('SAL3-4 a bill cannot be re-dated into another financial year', async () => {
-    const date = await freshDay('erode-hq');
+    // FIN-A-3: only a bill of the current month can be edited, and never into an
+    // ended month — so another financial year is always refused.
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 5 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
     const [y, m] = date.split('-').map(Number);
-    const otherFy = m >= 4 ? `${y}-03-15` : `${y}-04-15`;
+    const otherFy = m >= 4 ? `${y}-03-15` : `${y - 1}-03-15`;
     const res = await resave(await getInvoice(inv.id), { date: otherFy });
-    expectStatus(res, 400);
-    assert.equal(res.body.error, 'FY_CHANGE');
+    expectStatus(res, [400, 409]);
+    assert.ok(['FY_CHANGE', 'MONTH_CLOSED'].includes(res.body.error), res.body.error);
+    assert.doesNotMatch(res.body.message, /void it/);
     assert.equal((await getInvoice(inv.id)).date, date);
   });
 
@@ -543,7 +546,7 @@ describe('quotes and bills (round 8)', () => {
 
 describe('reverse return (SAL3-2)', () => {
   test('SAL3-2 reversing a cash return takes the stock back out, removes the refund and lets the bill be edited', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ stock: { 'erode-hq': 5 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));

@@ -225,7 +225,7 @@ describe('customers & receipts', () => {
   });
 
   test('SAL8-1 editing a billed-and-received bill updates what is owed', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
     ok(await receive(inv, 500), 'part receipt');
@@ -377,7 +377,7 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
   });
 
   test('CRM9-3 editing a received bill below what was paid keeps the money as store credit', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
     const pay = ok(await receive(inv, 2360), 'paid in full');
@@ -391,7 +391,7 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
   });
 
   test('CRM9-5 editing a cash bill below its total keeps the drawer and gives the excess as store credit', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
     ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)], paymentSplits: [{ mode: 'Cash', amount: 1180 }] }), 'edit to 1 unit');
@@ -402,7 +402,7 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
   });
 
   test('UPG9-5 a return on a bill edited below what was paid pays back the goods value (the refund uses the one due formula)', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay(); // FIN-A-3: only a bill of the current month can be edited
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
     ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)], paymentSplits: [{ mode: 'Cash', amount: 1180 }] }), 'edit to 1 unit');

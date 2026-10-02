@@ -402,12 +402,19 @@ export function createSale(inv: any, reqUser?: any) {
       if (existing.date !== inv.date) {
         await assertDayOpen(tx, existing.branchId, existing.date, `change the date of this bill (dated ${existing.date})`);
       }
+      // FIN-A-3: once a bill's month has ended its sales and GST are reported, so
+      // it can't be edited at all (same rule as void/delete), nor can an edit move
+      // a bill INTO an ended month.
+      assertMonthOpen(existing, 'edit');
+      if (String(inv.date).slice(0, 7) < istToday().slice(0, 7)) {
+        throw new AppError('MONTH_CLOSED', `Bill ${existing.invoiceNumber} can't be moved to ${inv.date}: that month has ended and its sales and GST are already reported.`, 409);
+      }
       // SAL3-4: the bill's number belongs to its financial year's series, so a
       // date edit may not move the bill into another financial year.
       if (financialYear(existing.date) !== financialYear(inv.date)) {
         throw new AppError(
           'FY_CHANGE',
-          `Bill ${existing.invoiceNumber} belongs to financial year ${financialYear(existing.date)}. Its date can't be moved into ${financialYear(inv.date)} — void it and bill again in that year.`,
+          `Bill ${existing.invoiceNumber} belongs to financial year ${financialYear(existing.date)}. Its date can't be moved into ${financialYear(inv.date)} — keep the bill in its own year.`,
           400,
         );
       }
@@ -520,7 +527,11 @@ export function createSale(inv: any, reqUser?: any) {
       const paidSoFar = r2e(collectedAtBilling(existing) + (await invoiceReceiptsTotal(tx, existing!.id)) - (await invoiceRefundsTotal(tx, existing!.id)) - creditBackSoFar);
       editExcess = Math.max(0, r2e(paidSoFar - (Number(inv.grandTotal) || 0))); // a bill with returns can't be edited (SAL3-2)
       if (editExcess <= 0.009) editExcess = 0;
-      if (hasReceipts || editExcess > 0) {
+      // FIN-A-1: a bill whose earlier edit below the amount paid gave store credit
+      // back keeps its collected split too — that credit is applied back to the
+      // higher total after save (CRM10-2), so taking the client's single-mode split
+      // (reset to the full total) would put money in the drawer nobody collected.
+      if (hasReceipts || editExcess > 0 || creditBackSoFar > 0.009) {
         // CRM6-1 / SAL6-2: a bill that has receipts keeps its server-settled payment
         // SPLIT — accepting the client's (often stale) splits would resurrect the
         // settled debt. Receipts remain the only way to pay it down.
@@ -887,10 +898,10 @@ async function takeBackBillCredit(tx: any, inv: any, verb: 'void' | 'delete', ac
  * that month, so both are refused for every role, CEO included — goods coming
  * back are recorded as a return (credit note) in the current month instead.
  */
-function assertMonthOpen(inv: any, verb: 'void' | 'delete'): void {
+function assertMonthOpen(inv: any, verb: 'void' | 'delete' | 'edit'): void {
   const month = String(inv?.date || '').slice(0, 7);
   if (month && month < istToday().slice(0, 7)) {
-    throw new AppError('MONTH_CLOSED', `Bill ${inv.invoiceNumber} is dated ${inv.date}, in a month that has ended — it can't be ${verb === 'void' ? 'voided' : 'deleted'} because that month's sales and GST are already reported. Use a return / credit note instead.`, 409);
+    throw new AppError('MONTH_CLOSED', `Bill ${inv.invoiceNumber} is dated ${inv.date}, in a month that has ended — it can't be ${verb === 'void' ? 'voided' : verb === 'delete' ? 'deleted' : 'edited'} because that month's sales and GST are already reported. Use a return / credit note instead.`, 409);
   }
 }
 
