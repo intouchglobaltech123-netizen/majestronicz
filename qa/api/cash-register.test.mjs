@@ -38,8 +38,8 @@ describe('cash register', () => {
   test('CASH2-6 cash receipts move the drawer; GPay receipts do not', async () => {
     const [d1, d2] = await freshDays(BR, 2);
     const item = await createItem({ price: 1000, stock: { [BR]: 10 } });
-    const billDay = await freshDay(BR);
-    const inv = await mustSell(saleBody({ branchId: BR, date: billDay, transactionType: 'Credit', customerPhone: randomPhone(),
+    // The bill is made on d1 too: a receipt can't predate its bill (CRM9-8).
+    const inv = await mustSell(saleBody({ branchId: BR, date: d1, transactionType: 'Credit', customerPhone: randomPhone(),
       lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
     await openDay(BR, d1, 5000);
     ok(await receive(inv, 300, { date: d1, mode: 'Cash' }), 'cash receipt');

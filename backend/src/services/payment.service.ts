@@ -61,6 +61,15 @@ export async function nextReceiptNumber(tx: any, type: 'in' | 'out', date: strin
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Names compared the way people type them: case, spacing and dots ignored. */
+const normName = (n: unknown) => String(n || '').toLowerCase().replace(/[.\s]+/g, ' ').trim();
+/** CRM4-2: an unlinked (older) bill belongs to a customer when its phone
+ *  matches theirs, or — when the bill has no phone — its name does. */
+function sameCustomer(inv: any, phone: unknown, name: unknown): boolean {
+  const billPhone = cleanPhone(inv?.customerPhone);
+  if (billPhone) return billPhone === cleanPhone(String(phone ?? ''));
+  return normName(inv?.customerName) === normName(name) && !!normName(name);
+}
 
 /** Sum of customer receipts (Payment 'in' rows) allocated to this invoice. */
 export async function invoiceReceiptsTotal(tx: any, invoiceId: string): Promise<number> {
@@ -110,10 +119,41 @@ export async function ensureCreditOriginal(tx: any, invoiceId: string): Promise<
   const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
   const receipts = await invoiceReceiptsTotal(tx, invoiceId);
   const refunds = await invoiceRefundsTotal(tx, invoiceId);
+  const creditBack = await invoiceCreditBackTotal(tx, inv);
   const returns = Number(inv.totalReturnedAmount) || 0;
-  // Anchor so CURRENT due (= stored balanceDue) == creditOriginal − receipts − returns + refunds.
-  const creditOriginal = Math.max(0, round2(storedDue + receipts + returns - refunds));
+  // Anchor so CURRENT due (= stored balanceDue) == creditOriginal − receipts − returns + refunds + credit given back.
+  const creditOriginal = Math.max(0, round2(storedDue + receipts + returns - refunds - creditBack + overCollectedOf(inv)));
   await tx.invoice.update({ where: { id: invoiceId }, data: { creditOriginal } });
+}
+
+/**
+ * Store credit given back to the customer AGAINST this bill (CRM9-1 / CRM9-3):
+ * a credit note on a return, the excess when a bill is edited below what was
+ * already paid, and the one-time script's over-payment / converted credit-note
+ * rows. It is money handed back exactly like a cash refund, so it raises the
+ * due the same way — otherwise deleting a receipt after a credit note left the
+ * customer holding the credit for free. Net of any credit taken back (a return
+ * reversal books a negative entry with the same reference).
+ */
+export async function invoiceCreditBackTotal(tx: any, inv: any): Promise<number> {
+  if (!inv?.customerId) return 0;
+  const cust = await tx.customer.findUnique({ where: { id: inv.customerId }, select: { creditHistory: true } });
+  const hist: any[] = Array.isArray(cust?.creditHistory) ? (cust!.creditHistory as any[]) : [];
+  let total = 0;
+  for (const h of hist) {
+    const ref = String(h?.refId || '');
+    const mine = ref === inv.id || ref === `fix-overpay:${inv.id}` ||
+      (ref.startsWith('fix-adjust:') && !!inv.invoiceNumber && h?.refNumber === inv.invoiceNumber);
+    if (mine) total += Number(h?.amount) || 0;
+  }
+  return round2(total);
+}
+
+/** What the bill's own-day split collected BEYOND its (edited) total — an edit
+ *  below the amount paid keeps that split and gives the excess back as store
+ *  credit (CRM9-3), so it counts against the due like any other payment. */
+function overCollectedOf(inv: any): number {
+  return Math.max(0, round2(collectedAtBilling(inv) - (Number(inv.grandTotal) || 0)));
 }
 
 /** The owed-at-billing credit for an invoice, preferring the stored anchor and
@@ -124,12 +164,13 @@ function creditOriginalOf(inv: any): number {
   return Math.max(0, round2(grand - collectedAtBilling(inv)));
 }
 
-/** An invoice's current outstanding: creditOriginal − receipts − returns + refunds. */
-async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
+/** An invoice's current outstanding: creditOriginal − receipts − returns + refunds + credit given back. */
+export async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
   const receipts = await invoiceReceiptsTotal(tx, inv.id);
   const refunds = await invoiceRefundsTotal(tx, inv.id);
+  const creditBack = await invoiceCreditBackTotal(tx, inv);
   const returns = Number(inv.totalReturnedAmount) || 0;
-  return Math.max(0, round2(creditOriginalOf(inv) - receipts - returns + refunds));
+  return Math.max(0, round2(creditOriginalOf(inv) - overCollectedOf(inv) - receipts - returns + refunds + creditBack));
 }
 
 /**
@@ -145,18 +186,17 @@ async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
 export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promise<void> {
   const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
   if (!inv) return;
-  let creditOriginal = inv.creditOriginal;
-  if (creditOriginal == null) {
-    const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
-    const receipts0 = await invoiceReceiptsTotal(tx, invoiceId);
-    const refunds0 = await invoiceRefundsTotal(tx, invoiceId);
-    const returns0 = Number(inv.totalReturnedAmount) || 0;
-    creditOriginal = Math.max(0, round2(storedDue + receipts0 + returns0 - refunds0));
-  }
   const returns = Number(inv.totalReturnedAmount) || 0;
   const receipts = await invoiceReceiptsTotal(tx, invoiceId);
   const refunds = await invoiceRefundsTotal(tx, invoiceId);
-  const due = Math.max(0, round2(Number(creditOriginal) - receipts - returns + refunds));
+  const creditBack = await invoiceCreditBackTotal(tx, inv);
+  const over = overCollectedOf(inv);
+  let creditOriginal = inv.creditOriginal;
+  if (creditOriginal == null) {
+    const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
+    creditOriginal = Math.max(0, round2(storedDue + receipts + returns - refunds - creditBack + over));
+  }
+  const due = Math.max(0, round2(Number(creditOriginal) - over - receipts - returns + refunds + creditBack));
   await tx.invoice.update({
     where: { id: invoiceId },
     data: { creditOriginal, balanceDue: due, updatedAt: nowIso() },
@@ -200,6 +240,21 @@ export async function recordPayment(
   const allocTotal = allocations.reduce((t, a) => t + a.amount, 0);
   if (allocTotal - amount > 0.01) {
     throw new AppError('BAD_REQUEST', 'Allocated amount exceeds the payment amount', 400);
+  }
+  // CRM9-2: a 'Store Credit' receipt only moves credit onto bills — with nothing
+  // allocated it would spend the credit into nothing.
+  const isStoreCreditIn = input.type === 'in' && /store\s*credit/i.test(input.paymentMode || '');
+  if (isStoreCreditIn && !allocations.length) {
+    throw new AppError('NOTHING_TO_APPLY', 'Store credit can only be applied to a bill. Choose the bill(s) to settle.', 400);
+  }
+  // PUR9-3: a bill/PO allocation of ₹0 or less is a mistake on every path.
+  if ((input.allocations || []).some((a) => a?.refId && !(Number(a.amount) > 0))) {
+    throw new AppError('NOTHING_TO_APPLY', 'Each bill or purchase order in a payment needs an amount greater than ₹0.', 400);
+  }
+  // PUR9-3: a payment out that settles purchase orders is a VENDOR payment —
+  // any other party type would skip the supplier rules below.
+  if (input.type === 'out' && input.partyType !== 'vendor' && allocations.length) {
+    throw new AppError('BAD_PARTY', 'Only a supplier payment can be applied to purchase orders.', 400);
   }
 
   // Serializable + retry so simultaneous receipts don't collide on the number
@@ -285,18 +340,31 @@ export async function recordPayment(
         if (inv.isVoided) throw new AppError('VOIDED', `Bill ${inv.invoiceNumber} is voided — a receipt cannot be applied to it.`, 400);
         billsForReceipt.push(inv);
       }
-      const billCustomers = new Set(billsForReceipt.map((i) => i.customerId || `name:${String(i.customerName || '').trim().toLowerCase()}`));
+      const billCustomers = new Set(billsForReceipt.map((i) => i.customerId || `name:${normName(i.customerName)}`));
       if (input.partyId) {
         const other = billsForReceipt.find((i) => i.customerId && i.customerId !== input.partyId);
         if (other) throw new AppError('WRONG_CUSTOMER', `Bill ${other.invoiceNumber} belongs to another customer (${other.customerName}).`, 400);
+        // CRM4-2: an older bill saved without a customer link must still be the
+        // SAME customer — matched on the bill's phone, else its name.
+        const unlinked = billsForReceipt.filter((i) => !i.customerId);
+        if (unlinked.length) {
+          const cust = await tx.customer.findUnique({ where: { id: input.partyId } });
+          if (!cust) throw new AppError('BAD_CUSTOMER', 'The selected customer does not exist.', 400);
+          const stranger = unlinked.find((i) => !sameCustomer(i, cust.phone, cust.name));
+          if (stranger) throw new AppError('WRONG_CUSTOMER', `Bill ${stranger.invoiceNumber} is in the name of ${stranger.customerName || 'another customer'}, not ${cust.name}.`, 400);
+        }
       } else {
         if (billCustomers.size > 1) throw new AppError('WRONG_CUSTOMER', 'These bills belong to different customers. Record a separate receipt per customer.', 400);
         const bill = billsForReceipt[0];
-        const sameName = String(bill?.customerName || '').trim().toLowerCase() === input.partyName.trim().toLowerCase();
-        if (bill?.customerId && !sameName) {
+        // CRM4-2: with no customer chosen, the receipt must name the bill's own
+        // customer — linked or not.
+        if (normName(bill?.customerName) !== normName(input.partyName)) {
           throw new AppError('WRONG_CUSTOMER', `Bill ${bill.invoiceNumber} belongs to ${bill.customerName}, not ${input.partyName}.`, 400);
         }
       }
+      // CRM9-8: money can't be received against a bill before the bill existed.
+      const early = billsForReceipt.find((i) => i.date && date < i.date);
+      if (early) throw new AppError('BAD_DATE', `The receipt date ${date} is before bill ${early.invoiceNumber} (${early.date}).`, 400);
       for (const inv of billsForReceipt) {
         const a = allocations.find((x) => x.refId === inv.id)!;
         // Anchor the bill's owed-at-billing credit BEFORE this receipt exists, so
@@ -388,6 +456,9 @@ export async function recordPayment(
         if (allocations.length) {
           throw new AppError('OVERPAYMENT', `₹${unapplied.toFixed(2)} is more than the selected bill(s) owe. Choose the customer so the extra can be kept as store credit, or reduce the amount.`, 400);
         }
+        // CRM9-6: an on-account receipt is held as a customer's credit — with no
+        // real customer it would be banked to no one.
+        throw new AppError('CUSTOMER_REQUIRED', 'An advance / on-account receipt must be for a customer in the customer list. Choose the customer first.', 400);
       }
     }
 
@@ -539,7 +610,8 @@ export async function listPayments(filter?: { partyType?: string; partyId?: stri
 
 /** Delete a payment and reverse its allocations (restore invoice balances). */
 export async function deletePayment(id: string, reqUser?: any) {
-  return prisma.$transaction((tx) => deletePaymentTx(tx, id, reqUser), { isolationLevel: 'Serializable' });
+  // CRM9-7: serializable WITH retry, so two deletes at once don't 500 (P2034).
+  return serializableTx((tx) => deletePaymentTx(tx, id, reqUser));
 }
 
 async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
@@ -747,6 +819,11 @@ export async function applyPendingAdvanceToBill(tx: any, invoiceId: string, acto
   for (const order of orders) {
     const remaining = await pendingAdvanceRemaining(tx, order.orderNumber);
     if (remaining <= 0.009) continue;
+    // CRM9-4: the advance is the credit of the customer who PAID it — never
+    // spend another customer's store credit on this bill.
+    const advanceRows = await tx.payment.findMany({ where: { type: 'in', reference: order.orderNumber } });
+    const holder = advanceRows.find((p: any) => String(p.notes || '').startsWith(ADVANCE_NOTE))?.partyId;
+    if (!holder || holder !== inv.customerId) continue;
     const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
     const due = await computeInvoiceDue(tx, fresh);
     const credit = await creditBalanceOf(tx, inv.customerId);

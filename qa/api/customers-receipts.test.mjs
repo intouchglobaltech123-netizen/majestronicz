@@ -7,8 +7,8 @@ import {
 } from './lib.mjs';
 
 /** A credit (COD) bill of 1,180 on a fresh day; returns the saved invoice. */
-async function creditBill({ branchId = 'erode-hq', phone, qty = 1, as = 'CEO' } = {}) {
-  const date = await freshDay(branchId);
+async function creditBill({ branchId = 'erode-hq', phone, qty = 1, as = 'CEO', date: onDate } = {}) {
+  const date = onDate || await freshDay(branchId);
   const item = await createItem({ price: 1000, stock: { [branchId]: 10 } });
   const total = 1180 * qty;
   return mustSell(saleBody({
@@ -197,7 +197,7 @@ describe('customers & receipts', () => {
     const inv1 = await creditBill();
     const p1 = ok(await receive(inv1, 100, { date: inv1.date }), 'receipt 1');
     ok(await del(`/api/payments/${p1.id}`), 'delete receipt 1');
-    const inv2 = await creditBill();
+    const inv2 = await creditBill({ date: inv1.date });
     const p2 = ok(await receive(inv2, 100, { date: inv1.date }), 'receipt 2 (same month)');
     assert.notEqual(p2.receiptNumber, p1.receiptNumber, 'the deleted number must not be reissued');
   });
@@ -304,5 +304,145 @@ describe('customer GSTIN', () => {
     assert.equal(c.gstin, '33ABZFM5739L1ZD');
     ok(await post('/api/catalog/customer', { ...c, gstin: null }), 'clear GSTIN');
     assert.equal(ok(await get('/api/customers')).find((x) => x.id === c.id).gstin, null);
+  });
+});
+
+describe('round 9: credit notes, edits below what was paid, receipt rules', () => {
+  const rlOf = (inv, qty = 1) => {
+    const li = inv.items[0];
+    return { itemId: li.itemId, itemCode: li.itemCode, itemName: li.itemName, returnQty: qty, unitPrice: li.unitPrice, taxRate: li.taxRate };
+  };
+
+  test('CRM9-1 deleting a receipt after a credit-note return brings the debt back (credit note counts like a refund)', async () => {
+    const inv = await creditBill();
+    const pay = ok(await receive(inv, 1180), 'pay in full');
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rlOf(inv)], reason: 'QA', actor: 'QA', refundMode: 'Adjust to credit note' }), 'credit-note return');
+    near((await customerOf(inv.customerId)).creditBalance, 1180, 'credit note issued');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'settled');
+    ok(await del(`/api/payments/${pay.id}`), 'delete the receipt');
+    near((await getInvoice(inv.id)).balanceDue, 1180, 'they never paid but hold the 1,180 credit: the debt is back');
+  });
+
+  test('CRM9-1 the cash-refund path gives the same result as the credit-note path', async () => {
+    const inv = await creditBill();
+    const pay = ok(await receive(inv, 1180), 'pay in full');
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rlOf(inv)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'cash refund return');
+    ok(await del(`/api/payments/${pay.id}`), 'delete the receipt');
+    near((await getInvoice(inv.id)).balanceDue, 1180, 'debt back');
+  });
+
+  test('CRM9-2 a Store Credit receipt without a bill is refused and the credit is untouched', async () => {
+    const inv = await creditBill();
+    ok(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 500, reason: 'QA' }), 'grant');
+    const res = await post('/api/payments', {
+      type: 'in', partyType: 'customer', partyId: inv.customerId, partyName: inv.customerName,
+      branchId: inv.branchId, date: inv.date, amount: 500, paymentMode: 'Store Credit',
+    });
+    expectStatus(res, 400, 'store credit with no allocation');
+    near((await customerOf(inv.customerId)).creditBalance, 500, 'credit kept');
+  });
+
+  test('CRM9-2 a Store Credit receipt records only what it applies', async () => {
+    const inv = await creditBill();
+    ok(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 2000, reason: 'QA' }), 'grant');
+    const pay = ok(await post('/api/payments', {
+      type: 'in', partyType: 'customer', partyId: inv.customerId, partyName: inv.customerName,
+      branchId: inv.branchId, date: inv.date, amount: 1500, paymentMode: 'Store Credit',
+      allocations: [{ refId: inv.id, amount: 1180 }],
+    }), 'store credit receipt');
+    near(pay.amount, 1180, 'recorded = applied');
+    near((await customerOf(inv.customerId)).creditBalance, 820, '2,000 − 1,180');
+  });
+
+  test('CRM9-3 editing a received bill below what was paid keeps the money as store credit', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
+    const pay = ok(await receive(inv, 2360), 'paid in full');
+    ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)] }), 'edit down to 1 unit');
+    const after = await getInvoice(inv.id);
+    near(after.balanceDue, 0, 'nothing owed');
+    near((await customerOf(inv.customerId)).creditBalance, 1180, 'the 1,180 paid beyond the new total is store credit');
+    // Deleting the receipt now: they owe the bill AND hold the credit.
+    ok(await del(`/api/payments/${pay.id}`), 'delete receipt');
+    near((await getInvoice(inv.id)).balanceDue, 2360, '1,180 bill + 1,180 credit handed back');
+  });
+
+  test('CRM9-5 editing a cash bill below its total keeps the drawer and gives the excess as store credit', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
+    ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)], paymentSplits: [{ mode: 'Cash', amount: 1180 }] }), 'edit to 1 unit');
+    const after = await getInvoice(inv.id);
+    near(after.paymentSplits.filter((s) => s.mode === 'Cash').reduce((t, s) => t + s.amount, 0), 2360, 'cash collected on the day is unchanged');
+    near(after.balanceDue, 0);
+    near((await customerOf(inv.customerId)).creditBalance, 1180, 'excess is store credit');
+  });
+
+  test('CRM9-5 a walk-in bill cannot be edited below what was collected', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, customerName: 'QA walk-in', lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
+    const res = await resave(await getInvoice(inv.id), { items: [line(item, 1)], paymentSplits: [{ mode: 'Cash', amount: 1180 }] });
+    expectStatus(res, 409, 'edit below collected on a walk-in');
+    near((await getInvoice(inv.id)).grandTotal, 2360, 'bill unchanged');
+  });
+
+  test('CRM9-9 a bill with receipts cannot be moved to another customer', async () => {
+    const inv = await creditBill();
+    ok(await receive(inv, 100), 'receipt');
+    const res = await resave(await getInvoice(inv.id), { customerId: undefined, customerName: 'Someone Else QA', customerPhone: randomPhone() });
+    expectStatus(res, 409, 'moving the bill');
+  });
+
+  test('CRM4-2 a receipt on an unlinked older bill must name the bill\'s own customer', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell({ ...saleBody({ date, transactionType: 'Credit', customerName: 'QA Unlinked Person', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }), skipCustomerSave: true });
+    assert.equal(inv.customerId ?? null, null);
+    const otherPhone = randomPhone();
+    const other = ok(await post('/api/catalog/customer', { name: 'QA Other Customer', phone: otherPhone, address: '' })).customers.find((c) => c.phone === otherPhone);
+    const base = { type: 'in', partyType: 'customer', branchId: inv.branchId, date, amount: 100, paymentMode: 'Cash', allocations: [{ refId: inv.id, amount: 100 }] };
+    expectStatus(await post('/api/payments', { ...base, partyId: other.id, partyName: other.name }), 400, 'another customer');
+    expectStatus(await post('/api/payments', { ...base, partyName: 'Random Name' }), 400, 'another name');
+    ok(await post('/api/payments', { ...base, partyName: ' qa  unlinked person ' }), 'same name, different spacing/case');
+  });
+
+  test('CRM9-6 an on-account receipt with no real customer is refused', async () => {
+    const date = await freshDay('erode-hq');
+    const res = await post('/api/payments', { type: 'in', partyType: 'customer', partyName: 'Nobody QA', branchId: 'erode-hq', date, amount: 500, paymentMode: 'Cash' });
+    expectStatus(res, 400, 'advance banked to no one');
+  });
+
+  test('CRM9-7 two simultaneous deletes of one receipt: one succeeds, none 500', async () => {
+    const inv = await creditBill();
+    const pay = ok(await receive(inv, 300));
+    const results = await together(2, () => del(`/api/payments/${pay.id}`));
+    assert.ok(results.every((r) => r.status === 200 || r.status === 404), results.map((r) => r.status).join(','));
+    assert.equal(results.filter((r) => r.status === 200).length, 1);
+    near((await getInvoice(inv.id)).balanceDue, 1180);
+  });
+
+  test('CRM9-8 a receipt dated before the bill is refused', async () => {
+    const inv = await creditBill();
+    const prev = new Date(Date.parse(`${inv.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    expectStatus(await receive(inv, 100, { date: prev }), 400, 'receipt before bill');
+  });
+
+  test('CRM-7 the customer master refuses 0000000000 and other non-mobile numbers', async () => {
+    expectStatus(await post('/api/catalog/customer', { name: 'QA Zero', phone: '0000000000', address: '' }), 400, 'zeros');
+    expectStatus(await post('/api/catalog/customer', { name: 'QA Five', phone: '5123456789', address: '' }), 400, 'starts with 5');
+  });
+
+  test('CRM9-11 store credit adjustments: capped, no silent clamp, Manager only for their branch, customer with credit not deletable', async () => {
+    const inv = await creditBill(); // Erode bill
+    expectStatus(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 1e12, reason: 'QA' }), 400, 'absurd amount');
+    ok(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 300, reason: 'QA' }), 'grant 300');
+    expectStatus(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: -500, reason: 'QA' }), 400, 'remove more than held');
+    expectStatus(await post(`/api/catalog/customer/${inv.customerId}/credit`, { amount: 50, reason: 'QA' }, 'Manager'), 403, 'Coimbatore Manager on an Erode customer');
+    const phone = randomPhone();
+    const c = ok(await post('/api/catalog/customer', { name: 'QA credit holder', phone, address: '' })).customers.find((x) => x.phone === phone);
+    ok(await post(`/api/catalog/customer/${c.id}/credit`, { amount: 100, reason: 'QA goodwill' }), 'grant on a new customer');
+    expectStatus(await del(`/api/catalog/customer/${c.id}`), 409, 'delete a customer holding credit');
   });
 });

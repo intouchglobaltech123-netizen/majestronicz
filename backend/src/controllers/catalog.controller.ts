@@ -37,5 +37,5 @@ export const saveCustomer = async (req: Request, res: Response) => res.json(awai
 export const deleteCustomer = async (req: Request, res: Response) => res.json(await catalog.deleteCustomer(req.params.id));
 export const adjustCustomerCredit = async (req: Request, res: Response) => {
   const u = (req as any).user;
-  res.json(await adjustCustomerCreditSvc(req.params.id, Number(req.body?.amount), String(req.body?.reason || ''), u?.name));
+  res.json(await adjustCustomerCreditSvc(req.params.id, Number(req.body?.amount), String(req.body?.reason || ''), u?.name, u));
 };

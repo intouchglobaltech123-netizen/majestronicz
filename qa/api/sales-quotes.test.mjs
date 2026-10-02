@@ -548,8 +548,9 @@ describe('reverse return (SAL3-2)', () => {
     const hist = (await ledgerOf(item.id, 'erode-hq')).filter((l) => l.reason === 'Sales Return Reversed');
     assert.equal(hist.length, 1); near(hist[0].quantityChange, -1);
     assert.ok((await auditRows(inv.id)).some((a) => a.action === 'sale.return-reverse'), 'audit row');
-    ok(await resave(after, { items: [line(item, 1)] }), 'edit allowed again');
-    assert.equal(await stockOf(item.id, 'erode-hq'), 4);
+    // (An edit BELOW the collected total on a walk-in is refused — CRM9-5.)
+    ok(await resave(after, { items: [line(item, 3)] }), 'edit allowed again');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 2);
   });
 
   test('SAL3-2 reversing a damaged return changes no stock', async () => {

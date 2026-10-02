@@ -68,14 +68,35 @@ export async function creditBalanceOf(tx: any, customerId: string): Promise<numb
  * enforced at the route. A positive amount grants credit, a negative one removes
  * it (clamped at zero).
  */
-export function adjustCustomerCredit(customerId: string, amount: number, reason: string, by?: string) {
+/** CRM9-11: one manual adjustment can't move more than this. */
+export const MAX_CREDIT_ADJUST = 1_000_000;
+
+export function adjustCustomerCredit(customerId: string, amount: number, reason: string, by?: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const cust = await tx.customer.findUnique({ where: { id: customerId } });
     if (!cust) throw new AppError('NOT_FOUND', 'Customer not found', 404);
-    const amt = Number(amount);
+    const amt = round2(Number(amount));
     if (!Number.isFinite(amt) || amt === 0) throw new AppError('BAD_AMOUNT', 'Enter a non-zero credit amount.', 400);
+    if (Math.abs(amt) > MAX_CREDIT_ADJUST) {
+      throw new AppError('BAD_AMOUNT', `A single store-credit adjustment can be at most ₹${MAX_CREDIT_ADJUST.toLocaleString('en-IN')}.`, 400);
+    }
     if (!String(reason || '').trim()) throw new AppError('REASON_REQUIRED', 'A reason is required to adjust store credit.', 400);
-    await applyCreditDelta(tx, customerId, amt, { type: 'adjust', reason, by });
+    // CRM9-11: removing more than the customer holds is refused, not clamped silently.
+    const balance = round2(Math.max(0, Number(cust.creditBalance) || 0));
+    if (amt < 0 && -amt > balance + 0.005) {
+      throw new AppError('INSUFFICIENT_CREDIT', `The customer only holds ₹${balance.toFixed(2)} of store credit.`, 400);
+    }
+    // CRM9-11: a branch Manager adjusts credit only for customers who deal with
+    // their branch (a bill or a receipt there), or who have no history yet.
+    if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId) {
+      const bills = await tx.invoice.findMany({ where: { customerId }, select: { branchId: true } });
+      const pays = await tx.payment.findMany({ where: { partyType: 'customer', partyId: customerId }, select: { branchId: true } });
+      const branches = new Set([...bills, ...pays].map((r: any) => r.branchId));
+      if (branches.size && !branches.has(reqUser.assignedBranchId)) {
+        throw new AppError('FORBIDDEN', "This customer deals with another branch — ask that branch's Manager or the CEO to adjust their credit.", 403);
+      }
+    }
+    await applyCreditDelta(tx, customerId, amt, { type: 'adjust', reason: String(reason).trim().slice(0, 200), by });
     return { customers: await tx.customer.findMany() };
   });
 }

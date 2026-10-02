@@ -18,6 +18,22 @@ const customerOf = async (id) => ok(await get('/api/customers')).find((c) => c.i
 const openingOf = async (branchId, date) => (await register(branchId, date))?.openingAmount;
 
 describe('closed cash days never change', () => {
+  test('CASH9-1 sending another branchId does not bypass the closed-day check on a bill edit (old or new date)', async () => {
+    const [d1, d2] = await freshDays('erode-hq', 2);
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date: d1, lines: [line(item, 1)] }));
+    const inv2 = await mustSell(saleBody({ date: d2, lines: [line(item, 1)] }));
+    ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d1, actor: 'QA' }), 'close d1');
+    try {
+      expectStatus(await resave(await getInvoice(inv.id), { branchId: 'chennai', items: [line(item, 2)] }), 409, 'edit a closed-day bill via another branch');
+      expectStatus(await resave(await getInvoice(inv2.id), { branchId: 'chennai', date: d1 }), 409, 'move a bill onto the closed day via another branch');
+      assert.equal((await getInvoice(inv.id)).items[0].quantity, 1);
+      assert.equal((await getInvoice(inv2.id)).date, d2);
+    } finally {
+      ok(await post('/api/cash/reopen', { branchId: 'erode-hq', date: d1 }));
+    }
+  });
+
   test('CASH-2 a bill cannot be moved off a closed day by editing its date', async () => {
     const [d1, d2] = await freshDays('erode-hq', 2);
     const item = await createItem({ stock: { 'erode-hq': 5 } });

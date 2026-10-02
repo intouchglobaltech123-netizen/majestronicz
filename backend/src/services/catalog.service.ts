@@ -325,6 +325,12 @@ export function saveCustomer(data: any) {
     if (!phone) throw new AppError('PHONE_REQUIRED', 'Phone number is required', 400);
     if (phone.length !== 10) throw new AppError('INVALID_PHONE', 'Enter a valid 10-digit phone number', 400);
     if (!data.name?.trim()) throw new AppError('NAME_REQUIRED', 'Customer name is required', 400);
+    // CRM-7: a real Indian mobile (starts 6-9) — "0000000000" is not a number. A
+    // number already on the record (older data) is not re-judged on other edits.
+    const prevRow = data.id ? await tx.customer.findUnique({ where: { id: String(data.id) } }) : null;
+    if (!/^[6-9]\d{9}$/.test(phone) && cleanPhone(prevRow?.phone) !== phone) {
+      throw new AppError('INVALID_PHONE', 'Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9).', 400);
+    }
 
     // Normalise/validate the optional GSTIN. Blank is fine; a non-empty value
     // must match the 15-char GSTIN format (CRM-7).
@@ -391,6 +397,12 @@ export function deleteCustomer(id: string) {
     const receiptCount = await tx.payment.count({ where: { partyType: 'customer', partyId: id } });
     if (receiptCount > 0) {
       throw new AppError('CUSTOMER_IN_USE', 'This customer has payments on record and cannot be deleted.', 409);
+    }
+    // CRM9-11: store credit is money the shop owes the customer — deleting the
+    // customer would silently wipe it.
+    const holder = await tx.customer.findUnique({ where: { id }, select: { creditBalance: true } });
+    if ((Number(holder?.creditBalance) || 0) > 0.005) {
+      throw new AppError('CUSTOMER_HAS_CREDIT', `This customer holds ₹${Number(holder!.creditBalance).toFixed(2)} of store credit and cannot be deleted.`, 409);
     }
     // Legacy bills were linked only by phone number (no customerId). Deleting the
     // customer would orphan those too, so match the customer's phone against bills

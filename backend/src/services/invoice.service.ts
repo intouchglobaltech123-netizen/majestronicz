@@ -6,7 +6,7 @@ import { nextInvoiceNumber, nextPersistent, financialYear } from '../lib/sequenc
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
@@ -286,11 +286,15 @@ export function createSale(inv: any, reqUser?: any) {
     // SEC7-1: without a date, `date: undefined` below matched ANY closed day of
     // the branch (spurious DAY_CLOSED). An edit keeps the stored bill's date; a
     // new sale must state one.
+    const stored = inv.id ? await tx.invoice.findUnique({ where: { id: inv.id } }) : null;
     if (!inv.date) {
-      const stored = inv.id ? await tx.invoice.findUnique({ where: { id: inv.id } }) : null;
       if (!stored) throw new AppError('DATE_REQUIRED', 'The bill date is required.', 400);
       inv.date = stored.date;
     }
+    // CASH9-1: an edit keeps the STORED bill's branch, and the closed-day checks
+    // (the new date here, the old date below) run against that branch — sending
+    // another branchId must not dodge a closed day.
+    if (stored) inv.branchId = stored.branchId;
     const reg = await tx.dailyCashRegister.findFirst({
       where: { branchId: inv.branchId, date: inv.date, isClosed: true },
     });
@@ -415,6 +419,12 @@ export function createSale(inv: any, reqUser?: any) {
     // COD-Credit split without touching the collected split, so the stored splits
     // no longer sum to the total, and recomputing would resurrect already-settled
     // debt.
+    // CRM9-3 / CRM9-5: on an edit, what the customer has already paid on this
+    // bill (own-day split + receipts − refunds − credit given back). An edit to a
+    // total below that keeps the collected split as it is (the drawer never
+    // shrinks silently) and gives the excess back as store credit after save.
+    let editExcess = 0;
+    let creditBackSoFar = 0;
     if (isNewSale) {
       reconcileInvoicePayment(inv);
     } else {
@@ -423,7 +433,12 @@ export function createSale(inv: any, reqUser?: any) {
       const hasReceipts = existingReceipts.some((p: any) =>
         Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === existing!.id && (Number(a?.amount) || 0) > 0),
       );
-      if (hasReceipts) {
+      creditBackSoFar = await invoiceCreditBackTotal(tx, existing);
+      const r2e = (n: number) => Math.round(n * 100) / 100;
+      const paidSoFar = r2e(collectedAtBilling(existing) + (await invoiceReceiptsTotal(tx, existing!.id)) - (await invoiceRefundsTotal(tx, existing!.id)) - creditBackSoFar);
+      editExcess = Math.max(0, r2e(paidSoFar - (Number(inv.grandTotal) || 0))); // a bill with returns can't be edited (SAL3-2)
+      if (editExcess <= 0.009) editExcess = 0;
+      if (hasReceipts || editExcess > 0) {
         // CRM6-1 / SAL6-2: a bill that has receipts keeps its server-settled payment
         // SPLIT — accepting the client's (often stale) splits would resurrect the
         // settled debt. Receipts remain the only way to pay it down.
@@ -526,6 +541,21 @@ export function createSale(inv: any, reqUser?: any) {
     } else {
       // Walk-in with no phone / no customerId: no customer master, display-only name.
       inv.customerId = null;
+    }
+
+    if (oldInvoice) {
+      // CRM9-9: receipts and credit given back on this bill belong to its
+      // customer's ledger — moving the bill to someone else would leave that
+      // money on the wrong account. Delete the receipts first.
+      const moved = (oldCustomerId || null) !== (inv.customerId || null);
+      if (moved && ((await invoiceReceiptsTotal(tx, oldInvoice.id)) > 0.009 || Math.abs(creditBackSoFar) > 0.009)) {
+        throw new AppError('HAS_RECEIPTS', `Bill ${oldInvoice.invoiceNumber} has receipts or store credit on ${oldInvoice.customerName || 'its customer'}'s account, so it can't be moved to another customer. Delete the receipt(s) first.`, 409);
+      }
+      // CRM9-3: an edit below what was already paid gives the excess back as
+      // store credit — a walk-in bill has no account to hold it.
+      if (editExcess > 0 && !inv.customerId) {
+        throw new AppError('PAID_MORE_THAN_BILL', `₹${editExcess.toFixed(2)} has already been paid on this bill, more than its new total. A walk-in bill can't keep the difference as store credit — record a return (refund) instead, or add the customer.`, 409);
+      }
     }
 
     // Editing a bill onto a different customer: back the old invoice's contribution
@@ -668,6 +698,18 @@ export function createSale(inv: any, reqUser?: any) {
     // worked out on screen). A void puts it back to Open.
     if (isNewSale && inv.sourceEstimateId) {
       await tx.estimate.update({ where: { id: inv.sourceEstimateId }, data: { status: 'Converted' } });
+    }
+    // CRM9-3 / CRM9-5: the part already paid beyond the new total is the
+    // customer's store credit, linked to this bill (it counts against the due
+    // like a refund, so a later receipt delete brings the right debt back).
+    if (editExcess > 0 && inv.customerId) {
+      await addCustomerCredit(tx, inv.customerId, editExcess, {
+        type: 'issued',
+        reason: `Bill ${inv.invoiceNumber} edited below the amount paid — excess kept as store credit`,
+        refId: inv.id,
+        refNumber: inv.invoiceNumber ?? undefined,
+        by: reqUser?.name,
+      });
     }
     // Recompute the cached due from the (immutable) split, any receipts and any
     // returns — the single source of truth. On a new bill this equals the credit

@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, put, get, api, ok, expectStatus, near, r2, uid, createItem, createCombo, comboLine, line, serviceLine, saleBody, mustSell, sell,
-  getInvoice, receive, returnLine, freshDay, randomPhone, istToday, login,
+  getInvoice, receive, returnLine, freshDay, freshDays, randomPhone, istToday, login,
 } from './lib.mjs';
 import { importTs } from './lib-ts.mjs';
 
@@ -100,12 +100,20 @@ describe('reports arithmetic', () => {
         else if (p.type === 'out' && p.partyType === 'customer') refunds.set(a.refId, (refunds.get(a.refId) || 0) + a.amount);
       }
     }
+    // Store credit handed back against a bill (a credit note, or the excess of an
+    // edit below what was paid) counts like a refund (CRM9-1 / CRM9-3).
+    const creditBack = new Map();
+    for (const c of ok(await get('/api/customers'))) {
+      for (const h of c.creditHistory || []) if (h?.refId) creditBack.set(`${c.id}|${h.refId}`, (creditBack.get(`${c.id}|${h.refId}`) || 0) + (Number(h.amount) || 0));
+    }
     const bills = ok(await get('/api/invoices')).filter((i) => !i.isVoided && Array.isArray(i.paymentSplits) && i.paymentSplits.length);
     for (const b of bills) {
-      // Credit at billing = total minus everything collected when the bill was made.
+      // Credit at billing = total minus everything collected when the bill was made
+      // (negative when an edit took the total below what was collected).
       const credit = b.grandTotal - sum(b.paymentSplits.filter((s) => s.mode !== 'COD-Credit'), (s) => s.amount);
+      const back = b.customerId ? (creditBack.get(`${b.customerId}|${b.id}`) || 0) + (creditBack.get(`${b.customerId}|fix-overpay:${b.id}`) || 0) : 0;
       // Cash refunded to the customer raises what they owe (money left the drawer).
-      const due = Math.max(0, r2(credit - (receipts.get(b.id) || 0) - (b.totalReturnedAmount || 0) + (refunds.get(b.id) || 0)));
+      const due = Math.max(0, r2(credit - (receipts.get(b.id) || 0) - (b.totalReturnedAmount || 0) + (refunds.get(b.id) || 0) + back));
       near(b.balanceDue ?? 0, due, `${b.invoiceNumber} due`);
     }
     near((await getInvoice(inv.id)).balanceDue, 480, 'test bill: 2360 - 700 - 1180');
@@ -272,9 +280,8 @@ describe('profit, GST and money reports (phase 6)', () => {
   });
 
   test('CRM6-9 money collected is counted by the receipt\'s own mode and date', async () => {
-    const date = await freshDay('erode-hq');
+    const [date, later] = await freshDays('erode-hq', 2); // a receipt can't predate its bill (CRM9-8)
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [serviceLine(1, 1000, 18)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
-    const later = (await freshDay('erode-hq'));
     ok(await receive(inv, 1180, { mode: 'GPay', date: later }));
     const payments = ok(await get('/api/payments'));
     const bills = [await getInvoice(inv.id)];
