@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
@@ -150,7 +151,7 @@ async function saleDelta(tx: any, ch: SaleChanges) {
   const customerIds = [...new Set(ch.customerIds.filter(Boolean).map(String))];
   const itemIds = [...new Set(ch.itemIds.filter(Boolean))];
   const invoices = invoiceIds.length ? await tx.invoice.findMany({ where: { id: { in: invoiceIds } } }) : [];
-  const customers = customerIds.length ? await tx.customer.findMany({ where: { id: { in: customerIds } } }) : [];
+  const customers = customerIds.length ? await withLiveBillCounts(tx, await tx.customer.findMany({ where: { id: { in: customerIds } } })) : []; // FIN-A-5
   const branchStocks = itemIds.length ? await tx.branchStock.findMany({ where: { branchId: ch.branchId, itemId: { in: itemIds } } }) : [];
   const payments: any[] = [];
   for (const id of invoiceIds) payments.push(...(await tx.payment.findMany({ where: allocatedTo(id) })));

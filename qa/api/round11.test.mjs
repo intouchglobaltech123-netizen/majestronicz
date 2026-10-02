@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, resave,
-  freshDay, thisMonthDay, randomPhone,
+  freshDay, thisMonthDay, randomPhone, sql,
 } from './lib.mjs';
 
 async function newEmployee(branchId, extra = {}) {
@@ -101,5 +101,74 @@ describe('round 11: staff, purchases and stock', () => {
     const stored = ok(await get('/api/employees')).find((e) => e.id === emp.id);
     assert.equal(stored.status, 'Active');
     ok(await post('/api/employees', { ...base, phone: '98421 01122', email: 'qa@example.com', joinedDate: '2026-01-05' }, 'Manager'), 'valid values save');
+  });
+});
+
+describe('round 11: live counts', () => {
+  test('FIN-A-5 live updates and /api/sync carry the live bill count, not the stored counter', async () => {
+    if (!sql('SELECT 1')) return;
+    const date = await thisMonthDay();
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const phone = randomPhone();
+    const a = await mustSell(saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [line(item, 1)] }));
+    sql(`UPDATE "Customer" SET "purchaseCount"=99 WHERE id='${a.customerId}'`);
+    const res = ok(await post('/api/tx/sale', saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [line(item, 1)] })));
+    sql(`UPDATE "Customer" SET "purchaseCount"=99 WHERE id='${a.customerId}'`);
+    assert.equal(res.customers.find((c) => c.id === a.customerId)?.purchaseCount, 2, 'sale reply');
+    const sync = ok(await get(`/api/sync?customers=${a.customerId}`));
+    assert.equal(sync.customers.find((c) => c.id === a.customerId)?.purchaseCount, 2, '/api/sync');
+  });
+});
+
+describe('round 11: report arithmetic (unit)', async () => {
+  const { importTs } = await import('./lib-ts.mjs');
+  const rm = await importTs('src/lib/reportMath.ts');
+
+  test('FIN-A-6 GST collected equals the sum of the bills\' stored totalTax, line figures are whole paisa per bill', async () => {
+    // Three lines of ₹0.05 tax and a bill discount: the server stores the tax
+    // rounded once per bill (₹0.12 here); summing each line's unrounded share
+    // across many bills drifted from Σ bill totalTax.
+    const lines = [1, 2, 3].map((i) => ({ id: `l${i}`, itemId: `it${i}`, itemName: 'x', quantity: 1, taxRate: 18, taxableAmount: 0.28, totalTax: 0.05, totalAmount: 0.33 }));
+    const bill = (id) => ({ id, branchId: 'erode-hq', date: '2026-10-01', withGst: true, stateOfSupply: '33-Tamil Nadu', subtotal: 0.84, overallDiscountAmount: 0.14, totalTax: 0.12, grandTotal: 0.82, items: lines, returns: [] });
+    const bills = [bill('a'), bill('b'), bill('c')];
+    const g = rm.gstCollected(bills);
+    assert.equal(g.tax, 0.36, `tax ${g.tax}`);
+    for (const b of bills) {
+      const fig = rm.invoiceFigures(b, () => 0);
+      const cents = fig.lines.map((l) => l.tax * 100);
+      assert.ok(cents.every((c) => Math.abs(c - Math.round(c)) < 1e-6), `whole paisa ${cents}`);
+      assert.equal(Math.round(cents.reduce((t, c) => t + c, 0)), 12);
+      assert.equal(Math.round(fig.lines.reduce((t, l) => t + l.taxable, 0) * 100), 70);
+    }
+    // Real bills saved by the server with a bill discount.
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 333.33, stock: { 'erode-hq': 50 } });
+    const item5 = await createItem({ price: 101.01, gst: 5, stock: { 'erode-hq': 50 } });
+    const saved = [];
+    for (const d of [3.33, 7.77, 1.11, 9.99]) {
+      saved.push(await mustSell({ ...saleBody({ date, lines: [line(item, 1), line(item, 2), line(item5, 1)] }), overallDiscountType: 'amount', overallDiscountValue: d }));
+    }
+    const stored = Math.round(saved.reduce((t, b) => t + b.totalTax, 0) * 100) / 100;
+    assert.equal(rm.gstCollected(saved).tax, stored, 'GST collected = Σ bill totalTax');
+  });
+
+  test('FIN-A-7 the printed SGST and CGST put the odd paisa on the same side as the stored bill', async () => {
+    const pt = await importTs('src/lib/printTax.ts');
+    const server = await importTs('backend/src/lib/taxCalc.ts');
+    const r2 = (n) => Math.round(n * 100) / 100;
+    for (const [d, a, b] of [[120.46, 2774.97, 666.66], [0, 0.29, 0.29], [3.33, 101.01, 333.33], [0, 333.33, 101.01]]) {
+      const items = [
+        { itemHSN: '85371000', taxableAmount: a, taxRate: 18, totalTax: r2(a * 0.18) },
+        { itemHSN: '85371000', taxableAmount: b, taxRate: 5, totalTax: r2(b * 0.05) },
+      ];
+      const t = server.calculateInvoiceTotals(items, true, 'amount', d, 0, false);
+      const rows = pt.supplyTaxRows(items, t.overallDiscountAmount, t.subtotal, false, t.totalTax);
+      const sum = (type) => r2(rows.filter((r) => r.taxType === type).reduce((x, r) => x + r.taxAmount, 0));
+      assert.equal(sum('SGST'), t.totalSgst, `SGST ${JSON.stringify(rows)} vs ${t.totalSgst}`);
+      assert.equal(sum('CGST'), t.totalCgst, 'CGST');
+      const hsn = pt.hsnRateSummary(items, t.overallDiscountAmount, t.subtotal, false, t.totalTax);
+      assert.equal(r2(hsn.reduce((x, h) => x + h.sgst, 0)), t.totalSgst, 'HSN SGST');
+      assert.equal(r2(hsn.reduce((x, h) => x + h.cgst, 0)), t.totalCgst, 'HSN CGST');
+    }
   });
 });

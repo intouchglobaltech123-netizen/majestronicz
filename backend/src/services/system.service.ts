@@ -1,4 +1,5 @@
 import { registersWithLiveOpenings } from './cash.service.js';
+import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { maskStaffPayments } from './payment.service.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -189,22 +190,6 @@ export async function itemStats() {
   return { itemSales90d: itemSales90dV, itemLastSale: itemLastSaleV };
 }
 
-/**
- * CRM-8: a customer's purchase count (which drives the loyalty reward) is the
- * number of their LIVE bills, read fresh — an older stored counter that
- * drifted no longer shows "Reward ready".
- */
-async function withLiveBillCounts<T extends { id: string }>(customers: T[]): Promise<T[]> {
-  if (!customers.length) return customers;
-  const counts = await prisma.invoice.groupBy({
-    by: ['customerId'],
-    where: { customerId: { not: null }, OR: [{ isVoided: null }, { isVoided: false }] },
-    _count: { _all: true },
-  });
-  const byId = new Map(counts.map((c: any) => [c.customerId, c._count._all]));
-  return customers.map((c) => ({ ...c, purchaseCount: byId.get(c.id) ?? 0 }));
-}
-
 /** Scoped ERP state payload matching role authorization. */
 export async function getBootstrap(user?: SessionUser | null, q: Record<string, unknown> = {}) {
   const full = String(q?.full || '') === '1';
@@ -284,7 +269,7 @@ export async function getBootstrap(user?: SessionUser | null, q: Record<string, 
     return scopeBootstrap({
       items, branchStocks, combos, stockAdjustmentLogs: history.stockAdjustmentLogs, estimates, challans, invoices,
       enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses: [], vendors: [],
-      purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers: await withLiveBillCounts(customers),
+      purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers: await withLiveBillCounts(prisma, customers, { all: true }),
       stockTransfers: history.stockTransfers, payments, ...config, historyFrom,
     }, user);
   }
@@ -310,7 +295,7 @@ export async function getBootstrap(user?: SessionUser | null, q: Record<string, 
   return scopeBootstrap({
     items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices,
     enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses, vendors,
-    purchaseOrders, employees, attendanceRecords, payrollRecords, customers: await withLiveBillCounts(customers), stockTransfers, payments, ...config, historyFrom,
+    purchaseOrders, employees, attendanceRecords, payrollRecords, customers: await withLiveBillCounts(prisma, customers, { all: true }), stockTransfers, payments, ...config, historyFrom,
   }, user);
 }
 
@@ -362,7 +347,7 @@ export async function getSync(user: SessionUser | null | undefined, q: Record<st
     role !== 'Sales' && list('payments').length ? prisma.payment.findMany({ where: { id: { in: list('payments') } } }) : Promise.resolve([]),
   ]);
   return {
-    delta: true, invoices, customers, branchStocks, stockAdjustmentLogs,
+    delta: true, invoices, customers: await withLiveBillCounts(prisma, customers), branchStocks, stockAdjustmentLogs, // FIN-A-5
     payments: seesSales ? payments : payments.filter((p: any) => p.type === 'out' && p.partyType === 'vendor'),
   };
 }

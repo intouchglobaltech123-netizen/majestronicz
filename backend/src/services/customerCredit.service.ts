@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -97,6 +98,6 @@ export function adjustCustomerCredit(customerId: string, amount: number, reason:
       }
     }
     await applyCreditDelta(tx, customerId, amt, { type: 'adjust', reason: String(reason).trim().slice(0, 200), by });
-    return { customers: await tx.customer.findMany() };
+    return { customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }) }; // FIN-A-5
   });
 }

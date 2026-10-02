@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, cleanPhone } from '../lib/stockLedger.js';
 import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/sequences.js';
@@ -423,7 +424,7 @@ export function saveCustomer(data: any) {
         },
       });
     }
-    return { customers: await tx.customer.findMany() };
+    return { customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }) }; // FIN-A-5
   });
 }
 
@@ -457,7 +458,7 @@ export function deleteCustomer(id: string) {
       }
     }
     await tx.customer.deleteMany({ where: { id } });
-    return { customers: await tx.customer.findMany() };
+    return { customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }) }; // FIN-A-5
   });
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
@@ -876,7 +877,7 @@ export async function recordPendingOrderAdvance(orderId: string, amount: unknown
       },
     },
   );
-  return { payment, pendingOrders: await prisma.pendingOrder.findMany(), customers: await prisma.customer.findMany() };
+  return { payment, pendingOrders: await prisma.pendingOrder.findMany(), customers: await withLiveBillCounts(prisma, await prisma.customer.findMany(), { all: true }) };
 }
 
 /** Give back a pending order's advance: removes its (unspent) advance receipts —
@@ -894,7 +895,7 @@ export async function clearPendingOrderAdvance(orderId: string, reqUser?: any) {
     }
     await tx.pendingOrder.update({ where: { id: order.id }, data: { advanceAmount: 0, advanceMode: null, advancePaidAt: null, updatedAt: nowIso() } });
   });
-  return { pendingOrders: await prisma.pendingOrder.findMany(), customers: await prisma.customer.findMany(), payments: await prisma.payment.findMany() };
+  return { pendingOrders: await prisma.pendingOrder.findMany(), customers: await withLiveBillCounts(prisma, await prisma.customer.findMany(), { all: true }), payments: await prisma.payment.findMany() };
 }
 
 /**
