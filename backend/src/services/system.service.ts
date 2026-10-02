@@ -152,7 +152,8 @@ function historyCutoff(): { date: string; iso: string } {
 }
 const recentInvoicesWhere = (c: { date: string; iso: string }, branchId?: string | null) => ({
   ...(branchId ? { branchId } : {}),
-  OR: [{ date: { gte: c.date } }, { balanceDue: { gt: 0.009 } }, { updatedAt: { gte: c.iso } }],
+  // (older bills with no stored due yet are included too — their due is worked out on screen)
+  OR: [{ date: { gte: c.date } }, { balanceDue: { gt: 0.009 } }, { balanceDue: null }, { updatedAt: { gte: c.iso } }],
 });
 
 /** One page of the bills / stock history older than the bootstrap window. */
