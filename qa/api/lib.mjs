@@ -115,14 +115,14 @@ export const freshDay = async (branchId) => (await freshDays(branchId, 1))[0];
 // ---------------------------------------------------------------- items & stock
 
 /** Create a catalogue item with opening stock per branch. Returns the item row. */
-export async function createItem({ price = 1000, gst = 18, purchasePrice = 600, stock = {}, name, as = 'CEO', marginCategory } = {}) {
+export async function createItem({ price = 1000, gst = 18, purchasePrice = 600, stock = {}, name, as = 'CEO', marginCategory, unit = 'PCS', extra = {} } = {}) {
   const code = `QA-${uid()}`.toUpperCase();
   const item = {
     itemName: name || `QA item ${code}`,
     itemHSN: '85371000',
     category: 'QA',
     itemCode: code,
-    unit: 'PCS',
+    unit,
     salePrice: price,
     salePriceTaxMode: 'exclusive',
     wholesalePrice: price,
@@ -130,6 +130,7 @@ export async function createItem({ price = 1000, gst = 18, purchasePrice = 600, 
     purchasePrice,
     gstTaxSlab: gst,
     ...(marginCategory ? { marginCategory } : {}),
+    ...extra,
   };
   const res = await post('/api/catalog/item', { item, initialStocks: stock }, as);
   const body = ok(res, 'create item');

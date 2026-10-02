@@ -10,5 +10,7 @@ router.post('/sale', asyncHandler(ctrl.createSale));
 // — Billing can create and return, but not erase a bill from the record.
 router.post('/void-invoice', requireManagerOrCEO, asyncHandler(ctrl.voidInvoice));
 router.post('/sale-return', asyncHandler(ctrl.processReturn));
+// SAL3-2: undo a return (Manager/CEO; the service re-checks role and branch).
+router.post('/reverse-return', requireManagerOrCEO, asyncHandler(ctrl.reverseReturn));
 router.delete('/invoice/:id', requireManagerOrCEO, asyncHandler(ctrl.deleteInvoice));
 export default router;

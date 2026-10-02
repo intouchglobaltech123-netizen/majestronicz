@@ -121,6 +121,8 @@ model Estimate {
   termsAndConditions  String
   sourceEnquiryId     String?
   sourceEnquiryNumber String?
+  // Place of supply ("33-Tamil Nadu" when empty); another state's code means IGST.
+  stateOfSupply       String?
   createdAt           String
   // Quotation lifecycle: 'Open' (default) → 'Converted' (a sale was billed from
   // it; derived from the invoice too) or 'Cancelled' (with a reason). No delete.

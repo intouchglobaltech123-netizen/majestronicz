@@ -4,15 +4,16 @@ import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, near, uid, createItem, stockOf, line, comboLine, createCombo, saleBody, sell,
   mustSell, getInvoice, resave, returnLine, receive, freshDay, utcToday, together, paymentsFor,
+  serviceLine, randomPhone, istToday, addDays, sql, ledgerOf,
 } from './lib.mjs';
 
-async function createQuote(item, qty, branchId = 'erode-hq', date) {
+async function createQuote(item, qty, branchId = 'erode-hq', date, extra = {}) {
   const id = `est-qa-${uid()}`;
   const body = ok(await post('/api/catalog/estimate', {
     id, branchId, date, time: '10:00', customerName: 'QA Quote Customer', withGst: true,
     items: [{ id: `li-${uid()}`, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, itemHSN: item.itemHSN,
       unit: 'PCS', quantity: qty, unitPrice: item.salePrice, gstRate: item.gstTaxSlab }],
-    termsAndConditions: 'QA',
+    termsAndConditions: 'QA', ...extra,
   }), 'create quote');
   return body.estimates.find((e) => e.id === id);
 }
@@ -357,5 +358,289 @@ describe('sales & quotes', () => {
     ok(await del(`/api/tx/invoice/${a.id}`), 'delete newest bill');
     const b = await mustSell(saleBody({ branchId: 'chennai', date, lines: [line(item, 1)] }));
     assert.notEqual(b.invoiceNumber, a.invoiceNumber, 'invoice numbers must never be reissued');
+  });
+});
+
+// ---------------------------------------------------------------- round 8: quotes, validation, reverse return
+
+const quoteBody = (item, over = {}, lineOver = {}) => ({
+  id: `est-qa-${uid()}`, branchId: 'erode-hq', date: '2026-09-20', time: '10:00', customerName: 'QA Quote', withGst: true,
+  items: [{ id: `li-${uid()}`, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1,
+    unitPrice: item.salePrice, gstRate: item.gstTaxSlab, ...lineOver }],
+  termsAndConditions: 'QA', ...over,
+});
+const estimates = async () => ok(await get('/api/estimates'), 'estimates');
+const auditRows = async (entityId) => ok(await get(`/api/audit?entity=invoice&entityId=${encodeURIComponent(entityId)}`), 'audit');
+const reverse = (invoiceId, returnId, as = 'CEO') => post('/api/tx/reverse-return', { invoiceId, returnId }, as);
+const lastReturn = (inv) => inv.returns[inv.returns.length - 1];
+
+describe('quotes and bills (round 8)', () => {
+  test('SAL8-3 a quote can only be deleted by the CEO, never once converted', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const q = await createQuote(item, 1, 'erode-hq', date);
+    expectStatus(await del(`/api/catalog/estimate/${q.id}`, 'Billing'), 403, 'Billing delete');
+    expectStatus(await del(`/api/catalog/estimate/${q.id}`, 'Manager'), 403, 'Coimbatore Manager deletes an Erode quote');
+    const conv = await createQuote(item, 1, 'erode-hq', date);
+    await mustSell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: conv.id }));
+    expectStatus(await del(`/api/catalog/estimate/${conv.id}`), 409, 'CEO deletes a converted quote');
+    ok(await del(`/api/catalog/estimate/${q.id}`), 'CEO deletes an open quote');
+    assert.ok(!(await estimates()).some((e) => e.id === q.id));
+    assert.ok((await estimates()).some((e) => e.id === conv.id), 'converted quote kept');
+  });
+
+  test('SAL8-2 a bill cannot be made from a missing, cancelled or other-branch quote', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 10, coimbatore: 10 } });
+    const missing = await sell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: 'est-does-not-exist' }));
+    expectStatus(missing.res, 400, 'made-up quote');
+    const cancelled = await createQuote(item, 1, 'erode-hq', date);
+    ok(await post(`/api/catalog/estimate/${cancelled.id}/cancel`, { reason: 'QA' }), 'cancel quote');
+    const c = await sell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: cancelled.id }));
+    expectStatus(c.res, 409, 'cancelled quote');
+    assert.equal(c.res.body.error, 'QUOTE_CANCELLED');
+    const other = await createQuote(item, 1, 'coimbatore', date);
+    const o = await sell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: other.id }));
+    expectStatus(o.res, 400, 'other branch quote');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 10, 'no stock moved');
+  });
+
+  test('SAL8-10 billing a quote stores it as Converted; voiding the bill reopens it', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const q = await createQuote(item, 1, 'erode-hq', date);
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: q.id }));
+    assert.equal((await estimates()).find((e) => e.id === q.id).status, 'Converted');
+    ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA' }), 'void');
+    assert.equal((await estimates()).find((e) => e.id === q.id).status, 'Open');
+    expectStatus(await post(`/api/catalog/estimate/${q.id}/cancel`, { reason: 'QA' }), 200, 'an Open quote can be cancelled again');
+  });
+
+  test('SAL8-8 quotes get the invoice checks: GST slab, price, discount', async () => {
+    const item = await createItem();
+    for (const [what, over, lineOver] of [
+      ['GST 3%', {}, { gstRate: 3 }],
+      ['negative price', {}, { unitPrice: -100 }],
+      ['price "abc"', {}, { unitPrice: 'abc' }],
+      ['150% line discount', {}, { discountType: '%', discountValue: 150 }],
+      ['150% overall discount', { overallDiscountType: '%', overallDiscountValue: 150 }, {}],
+      ['0% on an 18% item', {}, { gstRate: 0 }],
+    ]) {
+      const res = await post('/api/catalog/estimate', quoteBody(item, over, lineOver));
+      expectStatus(res, 400, what);
+    }
+  });
+
+  test('SAL4-5 a sale refuses a GST rate other than the catalogue rate and a non-number price', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ gst: 18, stock: { 'erode-hq': 5 } });
+    const zero = await sell(saleBody({ date, lines: [line(item, 1, { taxRate: 0 })] }));
+    expectStatus(zero.res, 400, 'rate 0 on an 18% item');
+    assert.equal(zero.res.body.error, 'BAD_GST');
+    const abc = await sell(saleBody({ date, lines: [line(item, 1, { price: 'abc' })] }));
+    expectStatus(abc.res, 400, 'price "abc"');
+    const svc = await sell(saleBody({ date, lines: [serviceLine(1, 500, 3)] }));
+    expectStatus(svc.res, 400, 'free-text line at 3%');
+    await mustSell(saleBody({ date, lines: [serviceLine(1, 500, 0)] }));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 5);
+  });
+
+  test('SAL8-9 a ₹0 line with no catalogue item is refused', async () => {
+    const date = await freshDay('erode-hq');
+    const res = (await sell(saleBody({ date, lines: [serviceLine(1, 0)] }))).res;
+    expectStatus(res, 400);
+    assert.equal(res.body.error, 'ZERO_PRICE_LINE');
+  });
+
+  test('SAL2-8 a fractional quantity of a whole-unit item is refused; metres may be fractional', async () => {
+    const date = await freshDay('erode-hq');
+    const pcs = await createItem({ stock: { 'erode-hq': 10 } });
+    const half = await sell(saleBody({ date, lines: [line(pcs, 0.5)] }));
+    expectStatus(half.res, 400, '0.5 PCS');
+    assert.equal(half.res.body.error, 'WHOLE_UNITS');
+    assert.equal(await stockOf(pcs.id, 'erode-hq'), 10);
+    const cable = await createItem({ unit: 'MTR', stock: { 'erode-hq': 10 } });
+    await mustSell(saleBody({ date, lines: [line(cable, 2.5)] }));
+    assert.equal(await stockOf(cable.id, 'erode-hq'), 7.5);
+  });
+
+  test('SAL3-4 a bill cannot be re-dated into another financial year', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    const [y, m] = date.split('-').map(Number);
+    const otherFy = m >= 4 ? `${y}-03-15` : `${y}-04-15`;
+    const res = await resave(await getInvoice(inv.id), { date: otherFy });
+    expectStatus(res, 400);
+    assert.equal(res.body.error, 'FY_CHANGE');
+    assert.equal((await getInvoice(inv.id)).date, date);
+  });
+
+  test('SAL2-15 a future-dated bill is refused', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    expectStatus((await sell(saleBody({ date: addDays(istToday(), 2), lines: [line(item, 1)] }))).res, 400);
+  });
+
+  test('SAL8-5 place of supply: "Tamil Nadu" is intra-state, another state is IGST (bills and quotes)', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const tn = await mustSell(saleBody({ date, lines: [line(item, 1)], stateOfSupply: 'Tamil Nadu' }));
+    near(tn.totalCgst, 90, 'CGST'); near(tn.totalSgst, 90, 'SGST');
+    const ka = await mustSell(saleBody({ date, lines: [line(item, 1)], stateOfSupply: '29-Karnataka' }));
+    near(ka.totalCgst, 0); near(ka.totalSgst, 0); near(ka.totalTax, 180);
+    near(ka.items[0].igstAmount, 180, 'line IGST');
+    const q = await createQuote(item, 1, 'erode-hq', date, { stateOfSupply: '29-Karnataka' });
+    near(q.totalCgst, 0); near(q.totalTax, 180); near(q.items[0].igstAmount, 180);
+  });
+
+  test('SAL4-9 deleting a bill writes an audit row with its number, amount and branch', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    ok(await del(`/api/tx/invoice/${inv.id}`), 'delete');
+    const row = (await auditRows(inv.id)).find((a) => a.action === 'sale.delete');
+    assert.ok(row, 'audit row');
+    assert.match(row.summary, new RegExp(inv.invoiceNumber.replace(/[/]/g, '\\/')));
+    assert.match(row.summary, /₹1180/);
+    assert.match(row.summary, /erode-hq/);
+  });
+
+  test('E2E8-13 a return on a credit bill reports the due reduced, not a refund', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
+    const r = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA' }));
+    near(r.returnSummary.cashRefund, 0, 'nothing paid back');
+    near(r.returnSummary.dueReduced, 1180, 'due reduced');
+    assert.equal(r.returnSummary.restockedUnits, 1);
+  });
+
+  test('E2E-15 a damaged return reports units written off, none restocked', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    const r = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'Damaged on arrival', refundMode: 'Cash' }));
+    assert.equal(r.returnSummary.restockedUnits, 0);
+    assert.equal(r.returnSummary.writtenOffUnits, 1);
+    assert.equal(r.returnSummary.damaged, true);
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3);
+  });
+});
+
+describe('reverse return (SAL3-2)', () => {
+  test('SAL3-2 reversing a cash return takes the stock back out, removes the refund and lets the bill be edited', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 4);
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 1, 'refund row');
+    const returned = await getInvoice(inv.id);
+    expectStatus(await resave(returned), 409, 'edit refused while the return stands');
+    const res = ok(await reverse(inv.id, lastReturn(returned).id), 'reverse');
+    assert.equal(res.reversed.refund.kind, 'deleted');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3, 'stock back out');
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 0, 'refund removed (its day is open)');
+    const after = await getInvoice(inv.id);
+    assert.equal(after.returns.length, 0);
+    near(after.totalReturnedAmount, 0);
+    near(after.balanceDue, 0);
+    const hist = (await ledgerOf(item.id, 'erode-hq')).filter((l) => l.reason === 'Sales Return Reversed');
+    assert.equal(hist.length, 1); near(hist[0].quantityChange, -1);
+    assert.ok((await auditRows(inv.id)).some((a) => a.action === 'sale.return-reverse'), 'audit row');
+    ok(await resave(after, { items: [line(item, 1)] }), 'edit allowed again');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 4);
+  });
+
+  test('SAL3-2 reversing a damaged return changes no stock', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'Damaged', refundMode: 'Cash' }));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3);
+    ok(await reverse(inv.id, lastReturn(await getInvoice(inv.id)).id));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3);
+    assert.equal((await paymentsFor(inv.id)).filter((p) => p.type === 'out').length, 0);
+  });
+
+  test('SAL3-2 reversing a return on a credit bill restores the due', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA' }));
+    near((await getInvoice(inv.id)).balanceDue, 1180);
+    ok(await reverse(inv.id, lastReturn(await getInvoice(inv.id)).id));
+    near((await getInvoice(inv.id)).balanceDue, 2360, 'due restored');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3);
+  });
+
+  test('SAL3-2 a credit-note return is reversed off the store credit, refused once spent', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const mk = async () => {
+      const inv = await mustSell(saleBody({ date, customerName: 'QA credit note', customerPhone: randomPhone(), lines: [line(item, 1)] }));
+      ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Adjust to credit note' }));
+      return getInvoice(inv.id);
+    };
+    const credit = async (id) => ok(await get('/api/customers')).find((c) => c.id === id).creditBalance || 0;
+    const a = await mk();
+    near(await credit(a.customerId), 1180);
+    ok(await reverse(a.id, lastReturn(a).id), 'reverse');
+    near(await credit(a.customerId), 0, 'credit taken back');
+    const b = await mk();
+    ok(await post(`/api/catalog/customer/${b.customerId}/credit`, { amount: -1000, reason: 'QA spend' }), 'spend credit');
+    const res = await reverse(b.id, lastReturn(b).id);
+    expectStatus(res, 409, 'credit already spent');
+    assert.equal(res.body.error, 'CREDIT_SPENT');
+    assert.equal((await getInvoice(b.id)).returns.length, 1, 'return kept');
+  });
+
+  test('SAL3-2 only Manager/CEO of the bill branch may reverse, and newest return first', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 3)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const cur = await getInvoice(inv.id);
+    expectStatus(await reverse(inv.id, cur.returns[1].id, 'Billing'), 403, 'Billing');
+    expectStatus(await reverse(inv.id, cur.returns[1].id, 'Manager'), 403, 'Coimbatore Manager on an Erode bill');
+    expectStatus(await reverse(inv.id, cur.returns[0].id), 409, 'older return first');
+    ok(await reverse(inv.id, cur.returns[1].id), 'newest');
+    ok(await reverse(inv.id, cur.returns[0].id), 'then the older one');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 2);
+  });
+
+  test('SAL3-2 a refund paid today cannot be reversed while today is closed', async () => {
+    const date = await freshDay('chennai');
+    const item = await createItem({ stock: { chennai: 5 } });
+    const inv = await mustSell(saleBody({ branchId: 'chennai', date, lines: [line(item, 1)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const today = istToday();
+    ok(await post('/api/cash/close', { branchId: 'chennai', date: today, actor: 'QA' }), 'close today');
+    try {
+      expectStatus(await reverse(inv.id, lastReturn(await getInvoice(inv.id)).id), 409, 'today closed');
+      assert.equal(await stockOf(item.id, 'chennai'), 5, 'nothing changed');
+    } finally {
+      ok(await post('/api/cash/reopen', { branchId: 'chennai', date: today }), 'reopen today');
+    }
+  });
+
+  test('SAL3-2 a refund from a closed earlier day is taken back as a receipt today', { skip: !process.env.DATABASE_URL && 'needs DATABASE_URL' }, async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const refund = (await paymentsFor(inv.id)).find((p) => p.type === 'out');
+    sql(`UPDATE "Payment" SET "date" = '${date}' WHERE "id" = '${refund.id}'`);
+    ok(await post('/api/cash/close', { branchId: 'erode-hq', date, actor: 'QA' }), 'close the refund day');
+    const res = ok(await reverse(inv.id, lastReturn(await getInvoice(inv.id)).id), 'reverse');
+    assert.equal(res.reversed.refund.kind, 'collected');
+    const rows = await paymentsFor(inv.id);
+    assert.ok(rows.some((p) => p.id === refund.id), 'the closed day keeps its refund');
+    const back = rows.find((p) => p.type === 'in');
+    assert.ok(back, 'refund taken back as a receipt');
+    assert.equal(back.date, istToday());
+    near(back.amount, refund.amount);
+    near((await getInvoice(inv.id)).balanceDue, 0, 'nothing owed');
   });
 });

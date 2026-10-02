@@ -42,7 +42,7 @@ export interface RecordPaymentInput {
  * the caller's serializable transaction (with retry) so two receipts at the same
  * moment can't both take the same number.
  */
-async function nextReceiptNumber(tx: any, type: 'in' | 'out', date: string): Promise<string> {
+export async function nextReceiptNumber(tx: any, type: 'in' | 'out', date: string): Promise<string> {
   const prefix = type === 'in' ? 'RCPT' : 'PAY';
   const ym = (date || nowIso()).slice(0, 7).replace('-', '');
   const like = `${prefix}-${ym}-`;

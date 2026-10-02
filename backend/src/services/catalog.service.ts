@@ -6,6 +6,8 @@ import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { GSTIN_RE } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
+import { applySupplySplit } from '../lib/supply.js';
 
 /**
  * Server-authoritative recompute of estimate line taxes + totals.
@@ -15,6 +17,11 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
  */
 function recomputeEstimateMoney(est: any) {
   const withGst = !!est.withGst;
+  // A quote gets the same input checks as a bill (SAL8-8).
+  if (!est || typeof est !== 'object' || !Array.isArray(est.items)) {
+    throw new AppError('BAD_REQUEST', 'A quotation needs its line items.', 400);
+  }
+  assertLineInputs(est, 'quotation');
   est.items = (est.items || []).map((li: any) => {
     const rate = li.gstRate ?? li.taxRate ?? 0;
     const calc = calculateLineTax(li.quantity, li.unitPrice, rate, withGst, li.discountType || '%', li.discountValue ?? li.discount ?? 0);
@@ -28,6 +35,7 @@ function recomputeEstimateMoney(est: any) {
   est.totalTax = totals.totalTax;
   est.totalCgst = totals.totalCgst;
   est.totalSgst = totals.totalSgst;
+  applySupplySplit(est); // inter-state quote → IGST (SAL8-5)
   est.overallDiscountAmount = totals.overallDiscountAmount;
   est.shippingCharges = totals.shippingCharges;
   est.roundOff = totals.roundOff;
@@ -64,7 +72,8 @@ export function saveEstimate(data: any, reqUser?: any) {
       if (existing.status === 'Cancelled') {
         throw new AppError('QUOTE_CANCELLED', 'This quotation was cancelled and can no longer be edited.', 409);
       }
-      if (await estimateIsConverted(tx, existing.id)) {
+      await assertLinesAgainstCatalogue(tx, data, existing.branchId, { previousItems: (existing.items as any[]) || [] });
+      if (existing.status === 'Converted' || await estimateIsConverted(tx, existing.id)) {
         throw new AppError('QUOTE_CONVERTED', 'This quotation was already converted to a sale and can no longer be edited.', 409);
       }
       const { id, ...rest } = data;
@@ -75,6 +84,7 @@ export function saveEstimate(data: any, reqUser?: any) {
     } else {
       // A branch-locked user can only create a quote for their own branch.
       assertBranchAllowed(reqUser, data.branchId);
+      await assertLinesAgainstCatalogue(tx, data, data.branchId);
       const id = data.id || `est-${Date.now()}`;
       const estimateNumber = await nextEstimateNumber(tx, data.branchId, data.date);
       const clean = { ...data };
@@ -93,7 +103,7 @@ export function cancelEstimate(id: string, reason: string, actor?: string, reqUs
     if (!est) throw new AppError('NOT_FOUND', 'Quotation not found', 404);
     assertBranchAllowed(reqUser, est.branchId); // SEC5-2: can't cancel another branch's quote
     if (est.status === 'Cancelled') throw new AppError('ALREADY_CANCELLED', 'This quotation is already cancelled.', 409);
-    if (await estimateIsConverted(tx, id)) {
+    if (est.status === 'Converted' || await estimateIsConverted(tx, id)) {
       throw new AppError('QUOTE_CONVERTED', 'This quotation was converted to a sale and cannot be cancelled.', 409);
     }
     await tx.estimate.update({
@@ -104,15 +114,22 @@ export function cancelEstimate(id: string, reason: string, actor?: string, reqUs
   });
 }
 
-export function deleteEstimate(id: string) {
-  // Kept for data cleanup only — the UI no longer exposes delete (quotes are
-  // Cancelled with a reason instead). Refuse to delete a converted quote so the
-  // bill's source link is never orphaned.
+export function deleteEstimate(id: string, reqUser?: any) {
+  // Kept for data cleanup only — a quote is normally Cancelled with a reason.
+  // CEO only (enforced at the route too), checked against the STORED quote's
+  // branch, and never for a converted quote — the bill's source link must not be
+  // orphaned (SAL8-3).
   return prisma.$transaction(async (tx: any) => {
-    if (await estimateIsConverted(tx, id)) {
+    if (reqUser && reqUser.role !== 'CEO') {
+      throw new AppError('FORBIDDEN', 'Only the CEO can delete a quotation. Cancel it with a reason instead.', 403);
+    }
+    const est = await tx.estimate.findUnique({ where: { id } });
+    if (!est) throw new AppError('NOT_FOUND', 'Quotation not found', 404);
+    assertBranchAllowed(reqUser, est.branchId);
+    if (est.status === 'Converted' || await estimateIsConverted(tx, id)) {
       throw new AppError('QUOTE_CONVERTED', 'This quotation was converted to a sale and cannot be deleted. Void the bill first.', 409);
     }
-    await tx.estimate.deleteMany({ where: { id } });
+    await tx.estimate.delete({ where: { id } });
     return { estimates: await tx.estimate.findMany() };
   });
 }

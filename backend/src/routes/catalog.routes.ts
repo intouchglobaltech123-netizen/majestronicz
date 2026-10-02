@@ -12,6 +12,7 @@ router.delete('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.d
 // Estimates / Quotes
 router.post('/estimate', requireCapability('estimate:write'), asyncHandler(ctrl.saveEstimate));
 router.post('/estimate/:id/cancel', requireCapability('estimate:write'), asyncHandler(ctrl.cancelEstimate));
+// SAL8-3: deleting a quote is a CEO-only clean-up (the service re-checks it).
 router.delete('/estimate/:id', requireCapability('estimate:write'), asyncHandler(ctrl.deleteEstimate));
 // Challans
 router.post('/challan', requireCapability('challan:write'), asyncHandler(ctrl.saveChallan));

@@ -22,7 +22,7 @@ export const cancelEstimate = async (req: Request, res: Response) => {
   const actor = (req as any).user ? `${(req as any).user.name} [${(req as any).user.role}]` : (req.body?.actor || undefined);
   res.json(await catalog.cancelEstimate(req.params.id, String(req.body?.reason || ''), actor, (req as any).user));
 };
-export const deleteEstimate = async (req: Request, res: Response) => res.json(await catalog.deleteEstimate(req.params.id));
+export const deleteEstimate = async (req: Request, res: Response) => res.json(await catalog.deleteEstimate(req.params.id, (req as any).user));
 export const saveChallan = async (req: Request, res: Response) => res.json(await catalog.saveChallan(req.body));
 export const markChallanReceived = async (req: Request, res: Response) =>
   res.json(await catalog.markChallanReceived(req.params.id, req.body?.receiverName ? String(req.body.receiverName) : undefined));

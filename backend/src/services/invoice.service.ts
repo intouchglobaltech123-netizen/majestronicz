@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
-import { nextInvoiceNumber, nextPersistent } from '../lib/sequences.js';
+import { nextInvoiceNumber, nextPersistent, financialYear } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, applyPendingAdvanceToBill } from './payment.service.js';
-import { addCustomerCredit } from './customerCredit.service.js';
-import { GST_RATES } from '../lib/constants.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
+import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
+import { applySupplySplit } from '../lib/supply.js';
 import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
@@ -17,25 +18,11 @@ import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
  * whatever the client sent. Makes stored money values server-authoritative so a
  * tampered or buggy client can never persist incorrect amounts.
  */
-const VALID_GST_RATES = new Set(GST_RATES.map((g: any) => Number(g.rate)));
-const HOME_STATE_CODE = '33'; // Tamil Nadu — a supply to any other state is inter-state (IGST).
-
 function recomputeInvoiceMoney(inv: any) {
   const withGst = !!inv.withGst;
-  // Validate line inputs server-side (SAL-17 / SAL4-5).
-  for (const li of (inv.items || []) as any[]) {
-    if (Number(li.unitPrice) < 0) throw new AppError('BAD_PRICE', 'A unit price cannot be negative.', 400);
-    const rate = Number(li.taxRate ?? li.gstRate ?? 0);
-    if (withGst && !VALID_GST_RATES.has(rate)) {
-      throw new AppError('BAD_GST', 'GST rate must be a valid slab (0, 5, 12, 18 or 28%).', 400);
-    }
-    if ((li.discountType || '%') === '%' && Number(li.discountValue || 0) > 100) {
-      throw new AppError('BAD_DISCOUNT', 'A line discount cannot exceed 100%.', 400);
-    }
-  }
-  if ((inv.overallDiscountType || '%') === '%' && Number(inv.overallDiscountValue || 0) > 100) {
-    throw new AppError('BAD_DISCOUNT', 'The overall discount cannot exceed 100%.', 400);
-  }
+  // Validate line inputs server-side (SAL-17 / SAL4-5): real numbers, price ≥ 0,
+  // discount ≤ 100%, quantity > 0, a valid GST slab. Shared with quotes (SAL8-8).
+  assertLineInputs(inv, 'bill');
 
   inv.items = (inv.items || []).map((li: any) => {
     const calc = calculateLineTax(li.quantity, li.unitPrice, li.taxRate, withGst, li.discountType || '%', li.discountValue || 0);
@@ -50,13 +37,9 @@ function recomputeInvoiceMoney(inv: any) {
   inv.totalCgst = totals.totalCgst;
   inv.totalSgst = totals.totalSgst;
   // Inter-state supply is taxed as IGST, not CGST + SGST (RPT4-3). The total tax is
-  // unchanged; it just isn't split into the two state halves.
-  const supplyCode = String(inv.stateOfSupply || '').split('-')[0].trim();
-  if (supplyCode && supplyCode !== HOME_STATE_CODE) {
-    inv.totalCgst = 0;
-    inv.totalSgst = 0;
-    inv.items = inv.items.map((li: any) => ({ ...li, cgstAmount: 0, sgstAmount: 0, igstAmount: li.totalTax }));
-  }
+  // unchanged; it just isn't split into the two state halves. "Tamil Nadu" with or
+  // without its code is intra-state (SAL8-5).
+  applySupplySplit(inv);
   inv.overallDiscountAmount = totals.overallDiscountAmount;
   inv.shippingCharges = totals.shippingCharges;
   inv.roundOff = totals.roundOff;
@@ -188,6 +171,12 @@ async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
   await tx.payment.deleteMany({ where: { id: { in: targets.map((p: any) => p.id) } } });
 }
 
+/** SAL8-10: a voided/deleted bill frees its source quote — Converted → Open. */
+async function reopenSourceQuote(tx: any, inv: any): Promise<void> {
+  if (!inv?.sourceEstimateId) return;
+  await tx.estimate.updateMany({ where: { id: inv.sourceEstimateId, status: 'Converted' }, data: { status: 'Open' } });
+}
+
 /** Per-item units a bill SOLD, combos expanded to their components. Used by void
  *  and delete so the restore is aggregated per item, not per line (SAL5-3). */
 function expandSoldUnits(items: any[]): Map<string, number> {
@@ -310,6 +299,15 @@ export function createSale(inv: any, reqUser?: any) {
           throw new AppError('DAY_CLOSED', `This bill is dated ${existing.date}, a closed cash day. Reopen that day before changing the bill's date.`, 409);
         }
       }
+      // SAL3-4: the bill's number belongs to its financial year's series, so a
+      // date edit may not move the bill into another financial year.
+      if (financialYear(existing.date) !== financialYear(inv.date)) {
+        throw new AppError(
+          'FY_CHANGE',
+          `Bill ${existing.invoiceNumber} belongs to financial year ${financialYear(existing.date)}. Its date can't be moved into ${financialYear(inv.date)} — void it and bill again in that year.`,
+          400,
+        );
+      }
       // SEC5-2: the guard at the top of this function ran against the client's
       // inv.branchId. On an edit, authorize against the STORED bill's branch too,
       // so a branch-locked user can't edit another branch's bill by putting their
@@ -318,7 +316,22 @@ export function createSale(inv: any, reqUser?: any) {
         throw new AppError('FORBIDDEN', `You are only authorized to edit bills for branch ${reqUser.assignedBranchId}`, 403);
       }
     }
+    // Catalogue rate, ₹0 free-text lines and whole units (SAL4-5, SAL8-9, SAL2-8).
+    await assertLinesAgainstCatalogue(tx, inv, inv.branchId, { previousItems: (existing?.items as any[]) || [] });
     if (isNewSale) {
+      // SAL8-2: a bill made from a quotation must point at a real, live quote of
+      // the same branch — not a made-up id, a cancelled quote or another branch's.
+      if (inv.sourceEstimateId) {
+        const est = await tx.estimate.findUnique({ where: { id: String(inv.sourceEstimateId) } });
+        if (!est) throw new AppError('QUOTE_NOT_FOUND', 'The quotation this bill is made from does not exist.', 400);
+        if (est.status === 'Cancelled') {
+          throw new AppError('QUOTE_CANCELLED', `Quotation ${est.estimateNumber} was cancelled and can't be billed.`, 409);
+        }
+        if (est.branchId !== inv.branchId) {
+          throw new AppError('QUOTE_OTHER_BRANCH', `Quotation ${est.estimateNumber} belongs to another branch.`, 400);
+        }
+        inv.sourceEstimateNumber = est.estimateNumber;
+      }
       // SAL3-1: a quotation can only become ONE live invoice. The client hides
       // the Convert button once converted, but that is bypassable and races, so
       // reject a second conversion of the same estimate on the server. A voided
@@ -562,6 +575,11 @@ export function createSale(inv: any, reqUser?: any) {
     // existing bill on an id collision); edits update the found row (SAL2-1).
     if (isNewSale) await tx.invoice.create({ data: inv });
     else await tx.invoice.update({ where: { id }, data: rest });
+    // SAL8-10: the quote this bill came from is now Converted (stored, not just
+    // worked out on screen). A void puts it back to Open.
+    if (isNewSale && inv.sourceEstimateId) {
+      await tx.estimate.update({ where: { id: inv.sourceEstimateId }, data: { status: 'Converted' } });
+    }
     // Recompute the cached due from the (immutable) split, any receipts and any
     // returns — the single source of truth. On a new bill this equals the credit
     // just billed; on an edit it re-derives the due from the new total while
@@ -625,6 +643,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     // The sale is reversed in full — drop any return refund booked against it so
     // the drawer isn't left permanently short by an orphaned 'out' row.
     await purgeReturnRefunds(tx, invoiceId);
+    await reopenSourceQuote(tx, inv);
 
     // Reverse the customer's totals for exactly the bill's own linked customer.
     // Matching by phone/name could hit a different customer who happens to share a
@@ -857,6 +876,9 @@ export function processReturn(
 
     const totalRefund = returnRecords.reduce((s, r) => s + r.refundAmount, 0);
     const existingReturns = (inv.returns as any[]) || [];
+    // One id for this return batch, so it can be reversed as a unit later (SAL3-2).
+    const batchId = rid('rtb');
+    for (const r of returnRecords) { r.batchId = batchId; r.damaged = isDamaged; }
     await tx.invoice.update({
       where: { id: invoiceId },
       data: {
@@ -888,6 +910,8 @@ export function processReturn(
     // reduced the due above; the over-paid portion (what would otherwise be cash
     // back) is banked as STORE CREDIT the customer can spend on a future bill.
     const isCreditNote = /credit|adjust/i.test(String(refundMode || ''));
+    let refundPaymentId: string | null = null;
+    let refundModeUsed: string | null = null;
     if (cashRefund > 0.001 && isCreditNote && !inv.customerId) {
       // A credit note is kept on a customer's account — a walk-in bill has none,
       // so the over-paid amount would simply vanish. Refund it instead.
@@ -928,9 +952,10 @@ export function processReturn(
       // Same persistent high-water mark as every other PAY- number, so a refund
       // voucher number is never reissued (SAL8-7).
       const refundNo = await nextPersistent(tx, `seq:pay:${like}`, maxNo);
+      const paymentId = rid('pay');
       await tx.payment.create({
         data: {
-          id: rid('pay'), receiptNumber: `${like}${String(refundNo).padStart(4, '0')}`,
+          id: paymentId, receiptNumber: `${like}${String(refundNo).padStart(4, '0')}`,
           type: 'out', partyType: 'customer', partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer',
           branchId: inv.branchId, date: today, amount: cashRefund, paymentMode: mode,
           reference: inv.invoiceNumber ?? null, notes: `Refund on sale #${inv.invoiceNumber}${reason ? ` — ${reason}` : ''}`,
@@ -938,8 +963,38 @@ export function processReturn(
           createdById: null, createdByName: actor, createdAt: ts,
         },
       });
+      refundPaymentId = paymentId;
+      refundModeUsed = mode;
     }
-    return snapshot(tx);
+    // Remember what this batch paid back, so a reversal undoes exactly that (SAL3-2).
+    const paidBack = cashRefund > 0.001 ? cashRefund : 0;
+    if (paidBack > 0) {
+      const tagged = ((await tx.invoice.findUnique({ where: { id: invoiceId }, select: { returns: true } }))?.returns as any[]) || [];
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          returns: tagged.map((r: any) => (r.batchId === batchId
+            ? { ...r, batchRefundCash: refundPaymentId ? paidBack : 0, batchRefundPaymentId: refundPaymentId, batchCreditIssued: refundPaymentId ? 0 : paidBack }
+            : r)) as any,
+        },
+      });
+    }
+    // What the screen should say: money paid back (cash or credit note) vs. the
+    // due that was simply reduced, and units actually put back on the shelf
+    // (damaged units are written off — E2E8-13, E2E-15).
+    const restockedUnits = isDamaged ? 0 : validLines.reduce((t: number, l: any) => t + ((l.isCombo || itemById.has(l.itemId)) ? Number(l.returnQty) || 0 : 0), 0);
+    const returnSummary = {
+      batchId,
+      value: Math.round(totalRefund * 100) / 100,
+      cashRefund: refundPaymentId ? paidBack : 0,
+      refundMode: refundPaymentId ? refundModeUsed : null,
+      creditIssued: refundPaymentId ? 0 : paidBack,
+      dueReduced: Math.max(0, Math.round((totalRefund - paidBack) * 100) / 100),
+      damaged: isDamaged,
+      restockedUnits,
+      writtenOffUnits: isDamaged ? validLines.reduce((t: number, l: any) => t + (Number(l.returnQty) || 0), 0) : 0,
+    };
+    return { ...(await snapshot(tx)), returnSummary };
   });
 }
 
@@ -986,7 +1041,160 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       // drawer isn't left short by an 'out' row pointing at a deleted invoice.
       await purgeReturnRefunds(tx, invoiceId);
       await tx.invoice.delete({ where: { id: invoiceId } });
+      if (!inv.isVoided) await reopenSourceQuote(tx, inv);
     }
-    return snapshot(tx);
+    // SAL4-9: hand back what was deleted so the audit row can name it.
+    const deleted = inv ? { invoiceNumber: inv.invoiceNumber, grandTotal: inv.grandTotal, branchId: inv.branchId, date: inv.date, customerName: inv.customerName, wasVoided: !!inv.isVoided } : null;
+    return { ...(await snapshot(tx)), deleted };
+  });
+}
+
+/**
+ * Reverse a return (SAL3-2, client-approved): undo exactly what the return did.
+ *  - Stock goes back out for the units that were restocked; damaged units were
+ *    written off, so they cause no stock change now either.
+ *  - Money: a cash refund 'out' row is deleted when its day is still open,
+ *    otherwise the customer pays it back as an 'in' row dated TODAY (today must
+ *    be open). A credit note is taken back off the customer's store credit —
+ *    refused if they already spent it.
+ *  - The bill's returns, returned total and due are restored; history rows and
+ *    an audit row (in the controller) are written.
+ * Returns are undone newest-first: each return's refund was worked out from the
+ * bill as it stood after the earlier ones, so only the latest can be undone
+ * exactly. Once every return is reversed the bill can be edited again.
+ */
+export function reverseReturn(invoiceId: string, returnId: string, actor: string, reqUser?: any) {
+  if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'invoiceId is required.', 400);
+  if (!returnId || typeof returnId !== 'string') throw new AppError('BAD_REQUEST', 'returnId is required.', 400);
+  if (reqUser && reqUser.role !== 'CEO' && reqUser.role !== 'Manager') {
+    throw new AppError('FORBIDDEN', 'Only a Manager or CEO can reverse a return.', 403);
+  }
+  return serializableTx(async (tx: any) => {
+    const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
+    if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
+    assertBranchAllowed(reqUser, inv.branchId);
+    if (inv.isVoided) throw new AppError('VOIDED', 'This bill is voided — its returns can no longer be reversed.', 409);
+    const returns: any[] = ((inv.returns as any[]) || []).filter(Boolean);
+    const target = returns.find((r) => r.id === returnId);
+    if (!target) throw new AppError('RETURN_NOT_FOUND', 'That return is not on this bill.', 404);
+    // Returns made before batches were tagged are grouped by their timestamp
+    // (one return call stamps all its lines with the same time).
+    const batchOf = (r: any) => r.batchId || `at:${r.returnedAt}`;
+    const key = batchOf(target);
+    if (batchOf(returns[returns.length - 1]) !== key) {
+      throw new AppError('NOT_LATEST_RETURN', 'Reverse the later return(s) on this bill first — returns are undone newest first.', 409);
+    }
+    const batch = returns.filter((r) => batchOf(r) === key);
+    const remaining = returns.filter((r) => batchOf(r) !== key);
+    const damaged = batch.some((r) => r.damaged === true || (r.damaged == null && /damag/i.test(String(r.reason || ''))));
+    const ts = nowIso();
+    const today = istToday();
+
+    // ---- money ---------------------------------------------------------------
+    let refundPaymentId: string | null = target.batchRefundPaymentId ?? null;
+    let creditIssued = Number(target.batchCreditIssued) || 0;
+    if (!target.batchId) {
+      // Legacy return: find what it paid out by its timestamp.
+      const outs = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer', createdAt: target.returnedAt } });
+      refundPaymentId = outs.find((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === inv.id))?.id ?? null;
+      if (!refundPaymentId && inv.customerId) {
+        const cust = await tx.customer.findUnique({ where: { id: inv.customerId } });
+        const t0 = Date.parse(target.returnedAt);
+        const entry = ((cust?.creditHistory as any[]) || []).find((h: any) =>
+          h?.type === 'issued' && h?.refId === inv.id && Math.abs(Date.parse(h.date) - t0) < 10_000);
+        creditIssued = Number(entry?.amount) || 0;
+      }
+    }
+    let refundReversal: { kind: 'deleted' | 'collected'; amount: number; mode: string; date: string } | null = null;
+    if (refundPaymentId) {
+      const pay = await tx.payment.findUnique({ where: { id: refundPaymentId } });
+      if (pay) {
+        const refundDayClosed = await tx.dailyCashRegister.findFirst({ where: { branchId: pay.branchId, date: pay.date, isClosed: true } });
+        if (!refundDayClosed) {
+          // The refund's day is still open — take the payout off that day.
+          await tx.payment.delete({ where: { id: pay.id } });
+          refundReversal = { kind: 'deleted', amount: pay.amount, mode: pay.paymentMode, date: pay.date };
+        } else {
+          // That day is reconciled: the customer hands the refund back today.
+          await assertDayOpen(tx, pay.branchId, today, 'take back the refund of this return');
+          await tx.payment.create({
+            data: {
+              id: rid('pay'), receiptNumber: await nextReceiptNumber(tx, 'in', today),
+              type: 'in', partyType: 'customer', partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer',
+              branchId: pay.branchId, date: today, amount: pay.amount, paymentMode: pay.paymentMode,
+              reference: inv.invoiceNumber ?? null,
+              notes: `Refund ${pay.receiptNumber} taken back — return on #${inv.invoiceNumber} reversed`,
+              allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: pay.amount }] as any,
+              createdById: reqUser?.userId ?? null, createdByName: actor, createdAt: ts,
+            },
+          });
+          refundReversal = { kind: 'collected', amount: pay.amount, mode: pay.paymentMode, date: today };
+        }
+      }
+    }
+    if (creditIssued > 0.001 && inv.customerId) {
+      const balance = await creditBalanceOf(tx, inv.customerId);
+      if (balance + 0.001 < creditIssued) {
+        throw new AppError('CREDIT_SPENT', `The ₹${creditIssued} credit note from this return was already used (store credit left ₹${balance}). It can't be reversed.`, 409);
+      }
+      await applyCreditDelta(tx, inv.customerId, -creditIssued, {
+        type: 'adjust', reason: `Credit note taken back — return on #${inv.invoiceNumber} reversed`,
+        refId: inv.id, refNumber: inv.invoiceNumber ?? undefined, by: actor,
+      });
+    }
+
+    // ---- stock ---------------------------------------------------------------
+    const items = await tx.item.findMany();
+    const itemById = new Map(items.map((i: any) => [i.id, i]));
+    const out = new Map<string, number>();
+    if (!damaged) {
+      for (const r of batch) {
+        const q = Number(r.returnedQuantity) || 0;
+        if (q <= 0) continue;
+        if (r.isCombo && Array.isArray(r.comboComponents)) {
+          for (const c of r.comboComponents) {
+            const u = (Number(c.quantity) || 0) * q;
+            if (u > 0 && itemById.has(c.itemId)) out.set(c.itemId, (out.get(c.itemId) || 0) + u);
+          }
+        } else if (r.itemId && itemById.has(r.itemId)) {
+          out.set(r.itemId, (out.get(r.itemId) || 0) + q);
+        }
+      }
+    }
+    const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
+    const logs: any[] = [];
+    for (const [itemId, qty] of out.entries()) {
+      const ci: any = itemById.get(itemId);
+      if (ledger.qty(itemId) < qty) {
+        throw new AppError('INSUFFICIENT_STOCK', `"${ci?.itemName || itemId}": only ${ledger.qty(itemId)} in stock — the returned units were already sold or moved, so the return can't be reversed.`, 409);
+      }
+      const { prevQty, newQty } = ledger.apply(itemId, -qty, false);
+      logs.push({
+        id: rid('adj'), itemId, itemName: ci?.itemName || 'Item', itemCode: ci?.itemCode || '', branchId: inv.branchId,
+        previousQuantity: prevQty, quantityChange: -qty, newQuantity: newQty, reason: 'Sales Return Reversed',
+        notes: `Return on #${inv.invoiceNumber} reversed`, adjustedBy: actor, timestamp: ts,
+      });
+    }
+    await ledger.flush(tx);
+    if (logs.length) await tx.stockAdjustmentLog.createMany({ data: logs });
+
+    // ---- bill ----------------------------------------------------------------
+    const value = Math.round(batch.reduce((t, r) => t + (Number(r.refundAmount) || 0), 0) * 100) / 100;
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        returns: remaining as any,
+        totalReturnedAmount: Math.max(0, Math.round(((Number(inv.totalReturnedAmount) || 0) - value) * 100) / 100),
+        updatedAt: ts,
+      },
+    });
+    await recomputeInvoiceBalance(tx, invoiceId);
+    const reversed = {
+      invoiceNumber: inv.invoiceNumber, branchId: inv.branchId, value, damaged,
+      units: batch.reduce((t, r) => t + (Number(r.returnedQuantity) || 0), 0),
+      stockOut: [...out.values()].reduce((t, q) => t + q, 0),
+      refund: refundReversal, creditTakenBack: creditIssued > 0.001 ? creditIssued : 0,
+    };
+    return { ...(await snapshot(tx)), reversed };
   });
 }
