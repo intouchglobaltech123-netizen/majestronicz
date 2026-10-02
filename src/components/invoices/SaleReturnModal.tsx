@@ -154,10 +154,30 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     return rawTotalRefund > 0 && (rawTotalRefund > ceiling || (takesAll && Math.abs(rawTotalRefund - ceiling) < 1)) ? ceiling / rawTotalRefund : 1;
   }, [invoice, rawTotalRefund, totalReturnedAmount, linesWithReturnState]);
 
+  // Each row's refund as the server books it: scaled and rounded per line, and
+  // when the return takes back everything left, the paisa left by that
+  // rounding goes on the last line (E2E9-5) — so the preview equals what is
+  // booked (FIN-E-4: ₹27,499.99 shown, ₹27,500 booked).
+  const rowRefund = useMemo(() => {
+    const m = new Map<string, number>();
+    const picked = linesWithReturnState.filter((l) => l.totalRefund > 0);
+    for (const l of picked) m.set(l.lineId, round2(l.totalRefund * refundScale));
+    if (invoice && refundScale !== 1 && picked.length) {
+      const ceiling = Math.max(0, invoice.grandTotal - totalReturnedAmount);
+      const sum = [...m.values()].reduce((t, v) => t + v, 0);
+      const takesAll = linesWithReturnState.every((l) => l.alreadyReturned + l.currentReturnQty >= (l.quantity || 0) - 1e-9);
+      if (takesAll && Math.abs(ceiling - sum) < 1) {
+        const last = picked[picked.length - 1].lineId;
+        m.set(last, round2((m.get(last) || 0) + (ceiling - sum)));
+      }
+    }
+    return m;
+  }, [linesWithReturnState, refundScale, invoice, totalReturnedAmount]);
+
   // Summary uses the same scale + rounding as the displayed rows so they reconcile
   const totalRefundAmount = useMemo(() => {
-    return linesWithReturnState.reduce((sum, l) => sum + round2(l.totalRefund * refundScale), 0);
-  }, [linesWithReturnState, refundScale]);
+    return round2([...rowRefund.values()].reduce((sum, v) => sum + v, 0));
+  }, [rowRefund]);
 
   const totalUnitsToReturn = useMemo(() => {
     return linesWithReturnState.reduce((sum, l) => sum + l.currentReturnQty, 0);
@@ -383,18 +403,19 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                       </td>
 
                       <td className="py-3 px-3 text-right font-mono font-medium">
-                        {formatCurrency(line.unitPrice)}
+                        {/* FIN-E-4: the unit price as billed — after the line's own discount */}
+                        {formatCurrency(round2((Number(line.taxableAmount) || (line.unitPrice || 0) * (line.quantity || 0)) / (line.quantity || 1)))}
                         {invoice.withGst && line.taxRate ? (
                           <span className="block text-[11px] text-slate-400">+{line.taxRate}% GST</span>
                         ) : null}
-                        {/* E2E10-5: what one unit gives back, after its discounts and GST */}
+                        {/* E2E10-5: what one unit gives back, after its discounts and GST — rounded like the row total */}
                         <span className="block text-[11px] text-slate-500" title="Refund for one unit: after the line and bill discounts, incl. GST">
-                          net {formatCurrency(line.perUnitRefund)} / unit
+                          net {formatCurrency(line.currentReturnQty > 0 ? round2((rowRefund.get(line.lineId) || 0) / line.currentReturnQty) : round2(line.perUnitRefund * refundScale))} / unit
                         </span>
                       </td>
 
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                        {formatCurrency(round2(line.totalRefund * refundScale))}
+                        {formatCurrency(rowRefund.get(line.lineId) || 0)}
                       </td>
                     </tr>
                   );
