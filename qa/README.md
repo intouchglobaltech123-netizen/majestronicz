@@ -67,6 +67,9 @@ Run against a freshly seeded database. Tests use random past dates for cash days
 | `api/stock-ledger.test.mjs` | Stock history matches stock after every kind of change, transfers, branch rules, item delete rules |
 | `api/reports-arithmetic.test.mjs` | GST split, discount before GST, grand total identity, amount in words, splits and dues add up, IGST, invalid values |
 | `api/staff-payroll.test.mjs` | Mark Paid (incl. at once), payroll locks, clock-in/out, kiosk PIN lockout and branch check |
+| `api/inventory-items.test.mjs` | Combo sales/returns/edits use stored parts, combo API validation, challans follow transfers (numbers, receive, locks), item archive, unique names, required HSN, linked vendors, stock history reads per branch, shared 90-day sales figures, quantity rules |
+| `smoke/inventory-ui.mjs` | Optional browser checks of the challan, transfer, archive, combo-saving, low-stock badge and Purchase inventory screens (run by hand, like smoke.mjs) |
+| `smoke/barcode-pages.mjs` | Optional: prints every barcode label preset to PDF through the Barcode Generator and counts the pages |
 | `smoke/smoke.mjs` | Logs in as each role and opens every sidebar screen. Fails on page errors, the "Something went wrong" screen, or API responses of 500 and above. It first adds a check-in without a location (HRM6-1). |
 | `run.sh` | Reset, seed, start, test, stop. |
 | `../.github/workflows/qa.yml` | The same in GitHub Actions with a Postgres service and a dummy secret. |
