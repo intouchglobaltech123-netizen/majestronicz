@@ -354,6 +354,44 @@ function constrainByDeployOrder(pending: { evs: Ev[]; hits: Hit[] }[], known: { 
   }
 }
 
+/**
+ * FIN-E-7: --overrides is read strictly — a bill number that isn't in the
+ * database, or a value that isn't an amount / the documented object, stops the
+ * run instead of being silently ignored.
+ */
+async function loadOverrides(): Promise<Record<string, Override>> {
+  if (!OVERRIDES_FILE) return {};
+  let raw: any;
+  try { raw = JSON.parse(readFileSync(OVERRIDES_FILE, 'utf8')); } catch (e: any) { usage(`--overrides ${OVERRIDES_FILE}: not readable JSON (${e?.message || e}).`); }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) usage('--overrides must be a JSON object: { "<invoice number>": <amount> | { "collectedAtBilling": <amount>, "trimRefunds": true, "keepRefunds": true } }.');
+  const amount = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  const problems: string[] = [];
+  const overrides: Record<string, Override> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v === 'number') {
+      if (!amount(v)) problems.push(`${k}: ${v} is not an amount of ₹0 or more`);
+      else overrides[k] = { collectedAtBilling: v };
+      continue;
+    }
+    if (typeof v === 'string') { problems.push(`${k}: ${JSON.stringify(v)} is text, not an amount — write it as a number, e.g. 5000`); continue; }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) { problems.push(`${k}: ${JSON.stringify(v)} is neither an amount nor { collectedAtBilling, trimRefunds, keepRefunds }`); continue; }
+    const o = v as any;
+    const unknown = Object.keys(o).filter((x) => !['collectedAtBilling', 'trimRefunds', 'keepRefunds'].includes(x));
+    if (unknown.length) problems.push(`${k}: unknown field(s) ${unknown.join(', ')}`);
+    if (o.collectedAtBilling !== undefined && !amount(o.collectedAtBilling)) problems.push(`${k}: collectedAtBilling ${JSON.stringify(o.collectedAtBilling)} is not an amount of ₹0 or more (write it as a number, e.g. 5000)`);
+    for (const f of ['trimRefunds', 'keepRefunds']) if (o[f] !== undefined && typeof o[f] !== 'boolean') problems.push(`${k}: ${f} must be true or false`);
+    if (o.trimRefunds === true && o.keepRefunds === true) problems.push(`${k}: trimRefunds and keepRefunds can't both be true`);
+    overrides[k] = { collectedAtBilling: o.collectedAtBilling, trimRefunds: o.trimRefunds, keepRefunds: o.keepRefunds };
+  }
+  const keys = Object.keys(raw);
+  if (keys.length) {
+    const found = new Set((await prisma.invoice.findMany({ where: { invoiceNumber: { in: keys } }, select: { invoiceNumber: true } })).map((r: any) => r.invoiceNumber));
+    for (const k of keys) if (!found.has(k)) problems.push(`${k}: no bill with this number in the database`);
+  }
+  if (problems.length) usage(`--overrides ${OVERRIDES_FILE} has ${problems.length} problem(s); nothing was run:\n  ${problems.join('\n  ')}`);
+  return overrides;
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
@@ -362,9 +400,7 @@ async function main() {
   if (APPLY && !flag('--i-have-a-backup')) {
     usage('--apply changes money records. Take a backup first (pg_dump -Fc, see docs/DEPLOY_EXISTING_DATA.md) and add --i-have-a-backup.');
   }
-  const raw = OVERRIDES_FILE ? JSON.parse(readFileSync(OVERRIDES_FILE, 'utf8')) : {};
-  const overrides: Record<string, Override> = {};
-  for (const [k, v] of Object.entries(raw)) overrides[k] = typeof v === 'number' ? { collectedAtBilling: v } : (v as Override);
+  const overrides = await loadOverrides();
   const target = (() => {
     try { const u = new URL(process.env.DATABASE_URL!); return `${u.hostname}${u.port ? ':' + u.port : ''}${u.pathname}`; } catch { return '(unparsed DATABASE_URL)'; }
   })();
@@ -1187,13 +1223,13 @@ async function run(tx: any, overrides: Record<string, Override>) {
          "balanceDue" = x.bd, "customerId" = COALESCE(x.cid, i."customerId")
        FROM jsonb_to_recordset($1::jsonb) AS x(id text, ps jsonb, pa double precision, ip boolean, co double precision, bd double precision, cid text)
        WHERE i.id = x.id`, JSON.stringify(money.slice(i, i + 500)));
-    if ((i / 500) % 10 === 9 || i + 500 >= money.length) progress(`writing bills: ${Math.min(i + 500, money.length)}/${money.length}`);
+    if ((i / 500) % 10 === 9 || i + 500 >= money.length) progress(`${APPLY ? 'writing' : 'would write'} bills: ${Math.min(i + 500, money.length)}/${money.length}`);
   }
   for (let i = 0; i < costs.length; i += 500) {
     await tx.$executeRawUnsafe(
       `UPDATE "Invoice" AS i SET items = x.items FROM jsonb_to_recordset($1::jsonb) AS x(id text, items jsonb) WHERE i.id = x.id`,
       JSON.stringify(costs.slice(i, i + 500)));
-    if ((i / 500) % 10 === 9 || i + 500 >= costs.length) progress(`writing line costs: ${Math.min(i + 500, costs.length)}/${costs.length}`);
+    if ((i / 500) % 10 === 9 || i + 500 >= costs.length) progress(`${APPLY ? 'writing' : 'would write'} line costs: ${Math.min(i + 500, costs.length)}/${costs.length}`);
   }
   for (const [id, p] of paymentUpdates) {
     if (paymentDeletes.has(id)) continue;
@@ -1214,7 +1250,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const c = customers.get(id);
     await tx.customer.update({ where: { id }, data: { creditBalance: c.creditBalance, creditHistory: c.creditHistory } });
   }
-  progress(`written: ${invoiceUpdates.size} bills, ${paymentUpdates.size} receipts, ${paymentCreates.length} refunds, ${paymentDeletes.size} rows removed, ${dirtyCustomers.size} customers`);
+  progress(`${APPLY ? 'written' : 'would write (dry run, rolled back)'}: ${invoiceUpdates.size} bills, ${paymentUpdates.size} receipts, ${paymentCreates.length} refunds, ${paymentDeletes.size} rows removed, ${dirtyCustomers.size} customers`);
 
   // ---- 7. opening-stock history rows -------------------------------------------
   const stocks = await tx.branchStock.findMany();

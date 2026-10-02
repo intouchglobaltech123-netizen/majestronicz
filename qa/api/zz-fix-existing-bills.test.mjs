@@ -2,7 +2,7 @@
 // Runs last (zz-) because --apply touches every bill in the test database.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -432,6 +432,26 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
 
   test('UPG8-3 --apply without --i-have-a-backup is refused', () => {
     assert.throws(() => runScript('--apply'), /backup|exit|Command failed/i);
+  });
+
+  test('FIN-E-7 --overrides with an unknown bill number or a value that is not an amount stops the run; FIN-E-8 a dry run says "would write"', async () => {
+    const real = (await getInvoice((await mustSell(saleBody({ date: istToday(), lines: [line(await createItem({ stock: { 'erode-hq': 2 } }), 1)] }))).id)).invoiceNumber;
+    const dir = mkdtempSync(join(tmpdir(), 'fixbills-bad-'));
+    for (const [body, why] of [[{ 'NO-SUCH-BILL-1': 100 }, /no bill with this number/], [{ [real]: '5000' }, /not an amount/], [{ [real]: { collectedAtBilling: 'x' } }, /not an amount/],
+      [{ [real]: { keepRefunds: 'yes' } }, /true or false/], [{ [real]: { collectedAtBilling: 1, oops: 1 } }, /unknown field/]]) {
+      const file = join(dir, `o-${Math.random().toString(36).slice(2)}.json`);
+      writeFileSync(file, JSON.stringify(body));
+      let err = null;
+      try { runScript('--overrides', file); } catch (e) { err = e; }
+      assert.ok(err, `refused: ${JSON.stringify(body)}`);
+      assert.equal(err.status, 2);
+      assert.match(String(err.stderr), why);
+    }
+    const out = mkdtempSync(join(tmpdir(), 'fixbills-dry-'));
+    const res = spawnSync(join(BACKEND, 'node_modules', '.bin', 'tsx'), ['scripts/fix-existing-bills.ts', '--out', out], { cwd: BACKEND, env: { ...process.env }, encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+    assert.doesNotMatch(res.stderr, /\] written:/, 'a dry run never says "written"');
+    assert.match(res.stderr, /would write \(dry run, rolled back\):/);
   });
 });
 
