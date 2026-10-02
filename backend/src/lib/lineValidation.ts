@@ -1,6 +1,7 @@
 import { AppError } from '../middleware/errorHandler.js';
 import { GST_RATES } from './constants.js';
 import { effectiveTaxSlab } from './tax.js';
+import { isWholeUnit } from './units.js';
 
 /**
  * Line checks shared by bills and quotations, so a quote can never carry money
@@ -10,12 +11,6 @@ import { effectiveTaxSlab } from './tax.js';
 
 const VALID_GST_RATES = new Set(GST_RATES.map((g: any) => Number(g.rate)));
 
-/** Units that are counted, never measured — a fractional quantity is a typo. */
-const WHOLE_UNITS = new Set([
-  'NOS', 'NO', 'NUMBERS', 'PCS', 'PC', 'PIECE', 'PIECES', 'SET', 'SETS', 'BOX', 'BOXES', 'PKT', 'PACK', 'PACKET',
-  'PAIR', 'PAIRS', 'UNIT', 'UNITS', 'EA', 'EACH', 'ROLL', 'ROLLS', 'KIT', 'BTL', 'BOTTLE', 'CAN', 'DOZ',
-]);
-export const isWholeUnit = (unit: unknown): boolean => WHOLE_UNITS.has(String(unit || '').trim().toUpperCase());
 
 const lineRate = (li: any) => li.taxRate ?? li.gstRate ?? 0;
 const lineDiscount = (li: any) => li.discountValue ?? li.discount ?? 0;
@@ -111,7 +106,9 @@ export async function assertLinesAgainstCatalogue(
       if (!((Number(li.unitPrice) || 0) > 0)) {
         throw new AppError('ZERO_PRICE_LINE', `"${name}" has no catalogue item and no price. Pick the item from the list or enter its price.`, 400);
       }
-      if (isWholeUnit(li.unit) && !Number.isInteger(qty)) {
+      // A typed line with no unit has nothing to count by — only a named counted
+      // unit (NOS, PCS…) forces whole numbers.
+      if (li.unit && isWholeUnit(li.unit) && !Number.isInteger(qty)) {
         throw new AppError('WHOLE_UNITS', `"${name}" is in whole ${String(li.unit).toUpperCase()} — ${qty} is not a whole number.`, 400);
       }
     } else if (!Number.isInteger(qty)) {

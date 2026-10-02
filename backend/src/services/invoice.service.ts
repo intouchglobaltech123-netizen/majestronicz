@@ -10,6 +10,7 @@ import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, ap
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
+import { isValidBranch } from '../lib/constants.js';
 import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
@@ -184,10 +185,11 @@ function expandSoldUnits(items: any[]): Map<string, number> {
   for (const it of items || []) {
     const q = Number(it.quantity) || 0;
     if (q <= 0) continue;
-    if (it.isCombo && Array.isArray(it.comboComponents)) {
-      for (const c of it.comboComponents) {
-        const u = (Number(c.quantity) || 0) * q;
-        if (u > 0) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
+    if (it.isCombo) {
+      // A combo line moves only its stored parts — never the combo id itself.
+      for (const c of (Array.isArray(it.comboComponents) ? it.comboComponents : [])) {
+        const u = (Number(c?.quantity) || 0) * q;
+        if (u > 0 && c.itemId) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
       }
     } else if (it.itemId) {
       m.set(it.itemId, (m.get(it.itemId) || 0) + q);
@@ -196,17 +198,30 @@ function expandSoldUnits(items: any[]): Map<string, number> {
   return m;
 }
 
+/** The combo line on this bill that a return (or request) refers to, matched by
+ *  combo id, line id or the combo's item id. */
+function soldComboLine(billItems: any[], ref: any): any | null {
+  return (billItems || []).find(
+    (it) => it.isCombo && ((ref.comboId && it.comboId === ref.comboId) || (ref.id && it.id === ref.id) || (ref.itemId && (it.itemId === ref.itemId || it.comboId === ref.itemId))),
+  ) || null;
+}
+
 /** Per-item units RETURNED, combos expanded (damaged returns included — they
- *  aren't restocked, so they correctly reduce what a void/delete puts back). */
-function expandReturnedUnits(returns: any[]): Map<string, number> {
+ *  aren't restocked, so they correctly reduce what a void/delete puts back).
+ *  A combo return is expanded with the parts the BILL sold it with, not the
+ *  parts stored on the return record — older builds stored the browser's parts
+ *  there, so a void/delete after such a return restored stock twice (INV8-2). */
+function expandReturnedUnits(returns: any[], billItems: any[] = []): Map<string, number> {
   const m = new Map<string, number>();
   for (const r of returns || []) {
     const q = Number(r.returnedQuantity) || 0;
     if (q <= 0) continue;
-    if (r.isCombo && Array.isArray(r.comboComponents)) {
-      for (const c of r.comboComponents) {
-        const u = (Number(c.quantity) || 0) * q;
-        if (u > 0) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
+    if (r.isCombo) {
+      const sold = soldComboLine(billItems, r);
+      const parts = Array.isArray(sold?.comboComponents) ? sold.comboComponents : (Array.isArray(r.comboComponents) ? r.comboComponents : []);
+      for (const c of parts) {
+        const u = (Number(c?.quantity) || 0) * q;
+        if (u > 0 && c.itemId) m.set(c.itemId, (m.get(c.itemId) || 0) + u);
       }
     } else if (r.itemId) {
       m.set(r.itemId, (m.get(r.itemId) || 0) + q);
@@ -341,6 +356,9 @@ export function createSale(inv: any, reqUser?: any) {
         throw new AppError('FORBIDDEN', `You are only authorized to edit bills for branch ${reqUser.assignedBranchId}`, 403);
       }
     }
+    // INV6-4: a new bill must be for a real branch — a bill for 'mars' was saved
+    // and took stock from a branch that doesn't exist.
+    if (isNewSale && !isValidBranch(inv.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${String(inv.branchId).slice(0, 40)}`, 400);
     // Catalogue rate, ₹0 free-text lines and whole units (SAL4-5, SAL8-9, SAL2-8).
     await assertLinesAgainstCatalogue(tx, inv, inv.branchId, { previousItems: (existing?.items as any[]) || [] });
     if (isNewSale) {
@@ -516,28 +534,60 @@ export function createSale(inv: any, reqUser?: any) {
 
     // A combo's components come from the STORED combo master, never the browser —
     // a tampered request (claiming the kit uses 0 of item A) must not change what
-    // stock is taken (INV3-3). Normalise each combo line's stored components too,
-    // so later void/return restock from the real parts.
+    // stock is taken (INV3-3). A combo line must name a combo that exists; a
+    // made-up or missing comboId is refused instead of falling back to the
+    // browser's parts. On an EDIT, a combo line already on the bill keeps the
+    // parts it was sold with, even if the combo master changed since (INV8-3).
+    // Each line's normalised parts are stored, so later void/return/delete
+    // restock exactly what the sale took.
     const comboMasters = await tx.comboItem.findMany();
     const comboById = new Map(comboMasters.map((c: any) => [c.id, c]));
-    const componentsOf = (line: any): any[] => {
-      const master: any = line.comboId ? comboById.get(line.comboId) : null;
-      const comps = (master?.components as any[]) || (line.comboComponents as any[]) || [];
-      // Never trust a negative component quantity.
-      return comps.map((c: any) => ({ ...c, quantity: Math.max(0, Number(c.quantity) || 0) }));
-    };
+    const catalogItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true } });
+    const catalogById = new Map<string, any>(catalogItems.map((i: any) => [i.id, i]));
+    // Positive parts only, named from the item master (INV6-8).
+    const cleanParts = (comps: any[]): any[] =>
+      (Array.isArray(comps) ? comps : [])
+        .filter((c: any) => c && c.itemId && Number(c.quantity) > 0)
+        .map((c: any) => ({
+          itemId: c.itemId,
+          itemName: catalogById.get(c.itemId)?.itemName || c.itemName || 'Combo component',
+          itemCode: catalogById.get(c.itemId)?.itemCode || c.itemCode || '',
+          quantity: Number(c.quantity),
+        }));
+    const oldLines: any[] = oldInvoice ? ((oldInvoice.items as any[]) || []) : [];
     for (const li of inv.items as any[]) {
-      if (li.isCombo) li.comboComponents = componentsOf(li);
+      if (!li.isCombo) continue;
+      const kept = oldLines.find(
+        (o) => o.isCombo && Array.isArray(o.comboComponents) && o.comboComponents.length &&
+          ((li.id && o.id === li.id) || (li.comboId && o.comboId === li.comboId)),
+      );
+      if (kept) {
+        li.comboId = kept.comboId ?? li.comboId;
+        li.comboComponents = cleanParts(kept.comboComponents);
+        continue;
+      }
+      const master: any = li.comboId ? comboById.get(li.comboId) : null;
+      if (!master) {
+        throw new AppError('UNKNOWN_COMBO', `"${String(li.itemName || 'This combo').slice(0, 80)}" is not a combo in the catalog. Pick the combo again from the list.`, 400);
+      }
+      li.comboComponents = cleanParts(master.components as any[]);
+      if (!li.comboComponents.length) {
+        throw new AppError('EMPTY_COMBO', `The combo "${master.comboName}" has no valid parts. Fix the combo in Items first.`, 400);
+      }
     }
 
-    // Build demand maps (combo-expanded via the stored master) for the NEW bill and
-    // the OLD bill (edit). Stock change per item = restored(old) − sold(new).
+    // Build demand maps (combo-expanded) for the NEW bill and the OLD bill (edit).
+    // The old bill is expanded from ITS OWN stored parts — what that sale really
+    // took — not today's combo master (INV8-3). Stock change per item =
+    // restored(old) − sold(new).
     const expand = (items: any[], into: Map<string, { qty: number; name: string; code: string }>) => {
       for (const it of items || []) {
         if (it.isCombo) {
-          for (const comp of componentsOf(it)) {
-            const needed = (Number(comp.quantity) || 0) * (Number(it.quantity) || 0);
-            const cur = into.get(comp.itemId) || { qty: 0, name: comp.itemName || 'Combo component', code: comp.itemCode || '' };
+          for (const comp of (Array.isArray(it.comboComponents) ? it.comboComponents : [])) {
+            const needed = Math.max(0, Number(comp?.quantity) || 0) * (Number(it.quantity) || 0);
+            if (!comp?.itemId || needed <= 0) continue;
+            const ci = catalogById.get(comp.itemId);
+            const cur = into.get(comp.itemId) || { qty: 0, name: ci?.itemName || comp.itemName || 'Combo component', code: ci?.itemCode || comp.itemCode || '' };
             into.set(comp.itemId, { qty: cur.qty + needed, name: cur.name, code: cur.code });
           }
         } else if (it.itemId) {
@@ -647,7 +697,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     // combos — restoring per line double-counted the returns when the same item
     // appeared on two lines and left stock behind on a void (SAL5-3).
     const sold = expandSoldUnits(inv.items as any[]);
-    const returned = expandReturnedUnits((inv.returns as any[]) || []);
+    const returned = expandReturnedUnits((inv.returns as any[]) || [], inv.items as any[]);
     for (const [itemId, soldQty] of sold.entries()) {
       const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
       if (restore <= 0) continue;
@@ -848,17 +898,17 @@ export function processReturn(
     // inflated component quantities could restore more than was ever sold and
     // create stock from nothing (STK-1).
     const soldComboComponents = (line: any): any[] => {
-      const sold = (inv.items as any[]).find(
-        (it) => it.isCombo && ((line.comboId && it.comboId === line.comboId) || it.id === line.id),
-      );
-      return (sold?.comboComponents as any[]) || line.comboComponents || [];
+      const sold = soldComboLine(inv.items as any[], { comboId: line.comboId, id: line.id });
+      const parts = Array.isArray(sold?.comboComponents) ? sold.comboComponents : [];
+      return parts.filter((c: any) => c?.itemId && Number(c.quantity) > 0);
     };
 
     for (const line of validLines) {
-      if (line.isCombo && (soldComboComponents(line).length || line.comboComponents?.length)) {
-        for (const comp of soldComboComponents(line)) {
+      if (line.isCombo) {
+        const parts = soldComboComponents(line);
+        for (const comp of parts) {
           // Damaged returns restore 0 units (write-off); others restock normally.
-          const qtyToRestore = isDamaged ? 0 : comp.quantity * line.returnQty;
+          const qtyToRestore = isDamaged ? 0 : Number(comp.quantity) * line.returnQty;
           const { prevQty, newQty } = ledger.apply(comp.itemId, qtyToRestore);
           const ci: any = itemById.get(comp.itemId);
           newLogs.push({
@@ -873,7 +923,9 @@ export function processReturn(
           id: rid('ret'), itemId: line.itemId, itemCode: line.itemCode, itemName: line.itemName,
           returnedQuantity: line.returnQty, unitPrice: line.unitPrice, taxRate: line.taxRate,
           refundAmount: refundFor(line), returnedAt: ts, reason, notes, processedBy: actor,
-          isCombo: true, comboId: line.comboId, comboComponents: line.comboComponents,
+          // The SOLD line's parts, so a later void/delete subtracts exactly what
+          // this return put back (INV8-2).
+          isCombo: true, comboId: line.comboId, comboComponents: parts,
         });
       } else {
         // Only restore stock for real catalogue items. A typed service line (e.g.
@@ -1046,7 +1098,7 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
         const items = await tx.item.findMany();
         const itemById = new Map(items.map((i: any) => [i.id, i]));
         const sold = expandSoldUnits(inv.items as any[]);
-        const returned = expandReturnedUnits((inv.returns as any[]) || []);
+        const returned = expandReturnedUnits((inv.returns as any[]) || [], inv.items as any[]);
         const ts = nowIso();
         const delLogs: any[] = [];
         for (const [itemId, soldQty] of sold.entries()) {
@@ -1173,19 +1225,14 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     // ---- stock ---------------------------------------------------------------
     const items = await tx.item.findMany();
     const itemById = new Map(items.map((i: any) => [i.id, i]));
+    // Exactly the units the return put back: a combo return is expanded with the
+    // parts the bill sold it with — the same parts processReturn restocked and
+    // stored on the return (INV8-2) — so reversing a kit takes back its parts,
+    // never the combo id or the browser's idea of the kit.
     const out = new Map<string, number>();
     if (!damaged) {
-      for (const r of batch) {
-        const q = Number(r.returnedQuantity) || 0;
-        if (q <= 0) continue;
-        if (r.isCombo && Array.isArray(r.comboComponents)) {
-          for (const c of r.comboComponents) {
-            const u = (Number(c.quantity) || 0) * q;
-            if (u > 0 && itemById.has(c.itemId)) out.set(c.itemId, (out.get(c.itemId) || 0) + u);
-          }
-        } else if (r.itemId && itemById.has(r.itemId)) {
-          out.set(r.itemId, (out.get(r.itemId) || 0) + q);
-        }
+      for (const [itemId, qty] of expandReturnedUnits(batch, inv.items as any[]).entries()) {
+        if (itemById.has(itemId)) out.set(itemId, Math.round(qty * 1000) / 1000);
       }
     }
     const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);

@@ -6,7 +6,8 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { isValidBranch, allowsFractionalQty } from '../lib/constants.js';
+import { isValidBranch } from '../lib/constants.js';
+import { allowsFractionalQty } from '../lib/units.js';
 import { lineSettled, lineGoodValue, poPayCap } from '../lib/poMoney.js';
 
 const poSnapshot = async (tx: any) => ({
@@ -295,7 +296,12 @@ export function receivePurchaseOrderStock(
     const ts = nowIso();
     const lines = po.items as any[];
 
-    // Validate each item's receipt (exists on PO, non-negative, valid tax).
+    // Validate each item's receipt (exists on PO, non-negative, whole for counted
+    // units, valid tax). The unit comes from the item master (the PO line's copy
+    // as a fallback), the same rule as the PO save and every stock move.
+    const masterUnits = new Map<string, string | null>(
+      (await tx.item.findMany({ where: { id: { in: valid.map((r) => r.itemId) } }, select: { id: true, unit: true } })).map((i: any) => [i.id, i.unit]),
+    );
     for (const rec of valid) {
       const line = lines.find((l) => l.itemId === rec.itemId);
       if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
@@ -303,8 +309,9 @@ export function receivePurchaseOrderStock(
       const dmg = n(rec.damagedQuantity);
       const missing = n(rec.missingQuantity);
       if (good < 0 || dmg < 0 || missing < 0) throw new AppError('NEGATIVE_QTY', 'Received, damaged or missing quantity cannot be negative.', 400);
-      if (!allowsFractionalQty(line.unit) && [good, dmg, missing].some((q) => !Number.isInteger(q))) {
-        throw new AppError('BAD_QTY', `"${line.itemName || rec.itemId}" is counted in whole units.`, 400);
+      const unit = masterUnits.get(rec.itemId) || line.unit;
+      if (!allowsFractionalQty(unit) && [good, dmg, missing].some((q) => !Number.isInteger(q))) {
+        throw new AppError('BAD_QTY', `"${line.itemName || rec.itemId}" is counted in whole ${String(unit || 'units').toUpperCase()} — enter whole quantities.`, 400);
       }
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
         throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);

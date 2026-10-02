@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { ComboItem, ComboComponent } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { comboSavings, salePriceInclTax, COMBO_GST_RATE } from '../../lib/comboPricing';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { ItemImage } from '../common/ItemImage';
 import { ImageUploadField } from '../common/ImageUploadField';
@@ -175,12 +176,11 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
 
   // Compute live separate prices, combo price, and savings
   const liveCalculations = useMemo(() => {
-    let buyingSeparately = 0;
+    // Same tax-inclusive comparison as the combo list (INV3-6).
     const componentDetails = componentRows.map((row) => {
       const item = items.find((i) => i.id === row.itemId);
-      const unitPrice = item ? item.salePrice : 0;
+      const unitPrice = item ? salePriceInclTax(item) : 0;
       const subtotal = unitPrice * (row.quantity || 0);
-      buyingSeparately += subtotal;
       return {
         ...row,
         item,
@@ -190,15 +190,15 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
     });
 
     const numericComboPrice = typeof comboPrice === 'number' ? comboPrice : 0;
-    const savings = buyingSeparately - numericComboPrice;
-    const savingsPercent =
-      buyingSeparately > 0 && savings > 0
-        ? ((savings / buyingSeparately) * 100).toFixed(1)
-        : '0.0';
+    const cmp = comboSavings(componentRows, items, numericComboPrice);
+    const buyingSeparately = cmp.separate;
+    const savings = cmp.savings;
+    const savingsPercent = savings > 0 ? cmp.percent.toFixed(1) : '0.0';
 
     return {
       buyingSeparately,
       numericComboPrice,
+      comboInclusive: cmp.comboInclusive,
       savings,
       savingsPercent,
       componentDetails,
@@ -633,7 +633,7 @@ export const CreateComboModal: React.FC<CreateComboModalProps> = ({
                   <div className="text-xs font-bold tracking-wide flex items-center gap-2 flex-wrap">
                     <span>Buying separately: {formatCurrency(liveCalculations.buyingSeparately)}</span>
                     <span>·</span>
-                    <span>Combo Price: {formatCurrency(liveCalculations.numericComboPrice)}</span>
+                    <span>Combo Price: {formatCurrency(liveCalculations.comboInclusive)} incl. {COMBO_GST_RATE}% GST</span>
                     <span>·</span>
                     <span
                       className={cn(

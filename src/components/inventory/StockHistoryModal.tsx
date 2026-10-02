@@ -22,6 +22,13 @@ interface Props {
   asPage?: boolean;
 }
 
+/** Reasons the app writes to the stock history (INV4-16). */
+const KNOWN_STOCK_REASONS = [
+  'Sale', 'Sale (edited)', 'Deleted Sale', 'Voided Sale', 'Sales Return', 'Sales Return (Damaged - Written Off)',
+  'Purchase Receipt', 'Opening Stock', 'Stock Set', 'Inter-branch Transfer',
+  'Stock Audit Correction', 'Damage', 'Loss / Theft', 'Return to Vendor', 'Other',
+];
+
 export const StockHistoryModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -45,6 +52,14 @@ export const StockHistoryModal: React.FC<Props> = ({
   const [selectedReasonFilter, setSelectedReasonFilter] = useState<string>('all');
 
   if (!isOpen) return null;
+
+  // INV4-16: every reason the system writes (sales, voids, deletes, returns,
+  // receipts, opening stock, stock sets, transfers, manual adjustments), plus any
+  // other reason present in the history.
+  const reasonOptions = Array.from(new Set([
+    ...KNOWN_STOCK_REASONS,
+    ...stockAdjustmentLogs.map((l) => l.reason).filter(Boolean),
+  ]));
 
   const filteredLogs = stockAdjustmentLogs.filter((log) => {
     // 1. Filter by specific item if provided
@@ -184,12 +199,9 @@ export const StockHistoryModal: React.FC<Props> = ({
               className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600"
             >
               <option value="all">All Reasons</option>
-              <option value="Stock Audit Correction">Stock Audit Correction</option>
-              <option value="Damage">Damage</option>
-              <option value="Loss / Theft">Loss / Theft</option>
-              <option value="Inter-branch Transfer">Inter-branch Transfer</option>
-              <option value="Return to Vendor">Return to Vendor</option>
-              <option value="Other">Other</option>
+              {reasonOptions.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
             </select>
           </div>
         </div>

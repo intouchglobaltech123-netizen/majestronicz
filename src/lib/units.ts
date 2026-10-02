@@ -1,11 +1,19 @@
 /**
- * Units that are counted, never measured — selling half of one is a typo
- * (SAL2-8). Mirrors backend/src/lib/lineValidation.ts; MTR, KGS and other
- * measured units still allow fractions.
+ * THE unit rule on screen — mirrors backend/src/lib/units.ts exactly. Units sold
+ * by weight / length / volume / area / time can carry fractional quantities (2.5
+ * MTR is real); every other unit (PCS, NOS, SET, BOX, PKT, ROLL…) is counted in
+ * whole units (SAL2-8, PUR5-2, INV8-4).
  */
-const WHOLE_UNITS = new Set([
-  'NOS', 'NO', 'NUMBERS', 'PCS', 'PC', 'PIECE', 'PIECES', 'SET', 'SETS', 'BOX', 'BOXES', 'PKT', 'PACK', 'PACKET',
-  'PAIR', 'PAIRS', 'UNIT', 'UNITS', 'EA', 'EACH', 'ROLL', 'ROLLS', 'KIT', 'BTL', 'BOTTLE', 'CAN', 'DOZ',
+const MEASURED_UNITS = new Set([
+  'KG', 'KGS', 'G', 'GM', 'GMS', 'GRAM', 'GRAMS',
+  'M', 'MTR', 'MTRS', 'MTS', 'METER', 'METERS', 'METRE', 'METRES', 'CM', 'MM', 'FT', 'FEET', 'INCH',
+  'SQFT', 'SQM',
+  'L', 'LTR', 'LTRS', 'LITRE', 'LITRES', 'ML',
+  'HR', 'HRS', 'HOUR', 'HOURS',
 ]);
 
-export const isWholeUnit = (unit?: string): boolean => WHOLE_UNITS.has(String(unit || '').trim().toUpperCase());
+/** True when the unit is measured, so a fractional quantity is allowed. */
+export const allowsFractionalQty = (unit?: string | null): boolean => MEASURED_UNITS.has(String(unit || '').trim().toUpperCase());
+
+/** True when the unit is counted in whole numbers (2.5 NOS is not a thing). */
+export const isWholeUnit = (unit?: string | null): boolean => !allowsFractionalQty(unit);

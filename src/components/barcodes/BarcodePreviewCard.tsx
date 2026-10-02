@@ -138,7 +138,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
           <Printer className="h-3.5 w-3.5 text-red-700" />
           <span>Symbology: <strong>Code 128 (Subset B)</strong></span>
         </div>
-        <span>{preset.labelsPerPage} labels / A4 page</span>
+        <span>{preset.labelsPerPage === 1 ? `${preset.widthMm}×${preset.heightMm} mm roll` : `${preset.labelsPerPage} labels / A4 page`}</span>
       </div>
     </div>
   );

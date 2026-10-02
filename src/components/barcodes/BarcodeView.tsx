@@ -252,6 +252,14 @@ export const BarcodeView: React.FC = () => {
                 <p className="text-xs text-slate-600 mt-0.5 font-medium">
                   {totalLabels === 0 ? (
                     'Queue is currently empty. Add items above to calculate required pages.'
+                  ) : activePreset.labelsPerPage === 1 ? (
+                    // E2E6-12: a thermal roll prints one sticker per label, not A4 pages.
+                    <>
+                      <strong className="text-slate-900 font-extrabold text-sm">
+                        {totalLabels} label{totalLabels === 1 ? '' : 's'}
+                      </strong>{' '}
+                      on {activePreset.widthMm}×{activePreset.heightMm} mm roll
+                    </>
                   ) : (
                     <>
                       You will need{' '}

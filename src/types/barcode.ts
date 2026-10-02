@@ -40,7 +40,8 @@ export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
     rows: 10,
     labelsPerPage: 40,
     pageMarginTopMm: 15,
-    pageMarginLeftMm: 5,
+    // 2 + 4×50 + 3×2 = 208 mm: fits the 210 mm A4 width (5 mm overflowed it).
+    pageMarginLeftMm: 2,
     gapXmm: 2,
     gapYmm: 2,
   },

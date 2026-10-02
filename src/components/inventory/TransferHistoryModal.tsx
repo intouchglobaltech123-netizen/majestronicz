@@ -33,10 +33,13 @@ export const TransferHistoryModal: React.FC<Props> = ({ isOpen, onClose, asPage 
     currentBranch,
     currentUser,
     receiveStockTransfer,
+    canWriteStock,
   } = useErp();
 
-  // The destination branch (or CEO) confirms an in-transit transfer.
+  // The destination branch (or CEO) confirms an in-transit transfer — only roles
+  // that can move stock; Billing/Purchase now read this list too (INV7-2).
   const canReceive = (toBranch: string) => {
+    if (!canWriteStock) return false;
     if (currentUser.role === 'CEO') return true;
     const myBranch = currentUser.assignedBranchId || (currentBranch !== 'all' ? currentBranch : undefined);
     return !!myBranch && myBranch === toBranch;

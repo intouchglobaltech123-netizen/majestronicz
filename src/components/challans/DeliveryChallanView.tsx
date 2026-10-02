@@ -20,13 +20,29 @@ import { cn, getTodayDateString } from '../../lib/utils';
 const challanStatusOf = (c: DeliveryChallan): 'pending' | 'received' =>
   c.status === 'received' ? 'received' : 'pending';
 
+/** A challan generated for an inter-branch stock transfer (DC-TRF-###). */
+const isTransferChallan = (c: DeliveryChallan): boolean => /^DC-TRF-/i.test(c.challanNumber || '');
+
 interface DeliveryChallanViewProps {
   /** Which tab to open first when embedded (e.g. inside the Sales screen). */
   initialTab?: 'new' | 'history';
 }
 
 export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initialTab = 'new' }) => {
-  const { challans, deleteChallan, markChallanReceived, activeSubTab } = useErp();
+  const { challans, deleteChallan, markChallanReceived, activeSubTab, currentUser, canWriteStock } = useErp();
+  const isManagerOrCeo = currentUser?.role === 'CEO' || currentUser?.role === 'Manager';
+  // INV-13: a received challan is final; a transfer challan mirrors its transfer,
+  // so only a Manager/CEO may touch it (and never once received).
+  const canEdit = (c: DeliveryChallan) => challanStatusOf(c) !== 'received' && (!isTransferChallan(c) || isManagerOrCeo);
+  const canDelete = (c: DeliveryChallan) => !isTransferChallan(c) || (isManagerOrCeo && challanStatusOf(c) !== 'received');
+  // INV8-5 / INV8-6: confirm first; a transfer challan is received through its
+  // transfer (the destination stock is credited at the same time).
+  const confirmReceived = (c: DeliveryChallan) => {
+    const msg = isTransferChallan(c)
+      ? `Receive the goods on ${c.challanNumber} at the destination branch? The stock is added to that branch now.`
+      : `Mark ${c.challanNumber} as received by ${c.recipientName}?`;
+    if (window.confirm(msg)) markChallanReceived(c.id);
+  };
 
   const [activeTab, setActiveTab] = useState<'new' | 'history'>(initialTab);
   const [editingChallan, setEditingChallan] = useState<DeliveryChallan | null>(null);
@@ -315,7 +331,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
                           {challanStatusOf(ch) === 'received' ? (
                             <span
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
-                              title={ch.receivedAt ? `Received ${ch.receivedAt.slice(0, 10)}${ch.receivedBy?.name ? ` by ${ch.receivedBy.name}` : ''}` : 'Received'}
+                              title={ch.receivedAt ? `Received ${ch.receivedBy?.date || ch.receivedAt.slice(0, 10)}${ch.receivedBy?.time ? ` ${ch.receivedBy.time} IST` : ''}${ch.receivedBy?.name ? ` by ${ch.receivedBy.name}` : ''}` : 'Received'}
                             >
                               <CheckCircle2 className="h-3 w-3" /> Received
                             </span>
@@ -328,13 +344,13 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
 
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            {challanStatusOf(ch) === 'pending' && (
+                            {challanStatusOf(ch) === 'pending' && (!isTransferChallan(ch) || canWriteStock) && (
                               <button
-                                onClick={() => markChallanReceived(ch.id)}
+                                onClick={() => confirmReceived(ch)}
                                 className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                                title="Mark this delivery as received by the recipient"
+                                title={isTransferChallan(ch) ? 'Receive this stock transfer at the destination branch' : 'Mark this delivery as received by the recipient'}
                               >
-                                <CheckCircle2 className="h-3 w-3" /> Mark Received
+                                <CheckCircle2 className="h-3 w-3" /> {isTransferChallan(ch) ? 'Receive Transfer' : 'Mark Received'}
                               </button>
                             )}
                             <button
@@ -345,25 +361,29 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
                               <Printer className="h-3.5 w-3.5" />
                             </button>
 
-                            <button
-                              onClick={() => handleEdit(ch)}
-                              className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
-                              title="Edit Challan"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
+                            {canEdit(ch) && (
+                              <button
+                                onClick={() => handleEdit(ch)}
+                                className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                title="Edit Challan"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
 
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Delete Delivery Challan ${ch.challanNumber}?`)) {
-                                  deleteChallan(ch.id);
-                                }
-                              }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                              title="Delete Challan"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {canDelete(ch) && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Delete Delivery Challan ${ch.challanNumber}?`)) {
+                                    deleteChallan(ch.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Delete Challan"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

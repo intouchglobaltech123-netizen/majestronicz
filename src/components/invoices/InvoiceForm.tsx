@@ -748,7 +748,9 @@ export const InvoiceForm: React.FC<Props> = ({
   const lineIsWholeUnit = (li: InvoiceLineItem): boolean => {
     if (li.isCombo) return true;
     const master = li.itemId ? items.find((i) => i.id === li.itemId) : undefined;
-    return isWholeUnit(master?.unit || li.unit);
+    if (master) return isWholeUnit(master.unit);
+    // A typed line counts whole only when it names a counted unit (as the server).
+    return !!li.unit && isWholeUnit(li.unit);
   };
   // SAL8-9: a line typed but never picked from the catalogue, with no price.
   const isZeroFreeTextLine = (li: InvoiceLineItem): boolean =>

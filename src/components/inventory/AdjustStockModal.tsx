@@ -5,6 +5,7 @@ import { X, Plus, Minus, AlertTriangle, Check, ShieldAlert, ArrowRight, MapPin }
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { UniversalDropdown } from '../common/UniversalDropdown';
+import { allowsFractionalQty } from '../../lib/units';
 
 interface Props {
   isOpen: boolean;
@@ -13,15 +14,9 @@ interface Props {
   targetBranchId?: BranchId;
 }
 
-// Units measured by weight / length / volume can carry fractional quantities.
-// Discrete units (pieces, boxes, numbers, sets, packets) must stay whole numbers.
-const DECIMAL_UNITS = [
-  'KG', 'KGS', 'GM', 'GMS', 'GRAM', 'GRAMS',
-  'MTR', 'MTRS', 'MTS', 'CM', 'FT', 'INCH',
-  'LTR', 'LTRS', 'LITRE', 'LITRES', 'ML',
-];
-const unitAllowsDecimals = (unit?: string): boolean =>
-  !!unit && DECIMAL_UNITS.includes(unit.trim().toUpperCase());
+// Measured units (MTR, KGS, LTR…) can carry fractional quantities; counted units
+// (PCS, NOS, SET, BOX…) stay whole — the shared rule in lib/units.ts.
+const unitAllowsDecimals = allowsFractionalQty;
 
 // Parse a quantity input respecting the unit's decimal rule: whole-number units
 // are rounded to the nearest integer (never silently truncated); decimal-capable
@@ -386,7 +381,7 @@ export const AdjustStockModal: React.FC<Props> = ({
             <ShieldAlert className="h-4 w-4 text-red-700 shrink-0 mt-0.5" />
             <span>
               This operation will permanently log an adjustment attributed to{' '}
-              <strong className="text-slate-800 font-bold">{currentUser.name} ({currentUser.role})</strong>{' '}
+              <strong className="text-slate-800 font-bold">{currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}</strong>{' '}
               with the current timestamp.
             </span>
           </div>
