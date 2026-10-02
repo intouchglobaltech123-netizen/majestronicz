@@ -8,7 +8,10 @@ import { withRetry } from './retry.js';
  * oversell — Postgres aborts the conflicting tx and we transparently retry.
  */
 export function serializableTx<T>(fn: (tx: any) => Promise<T>): Promise<T> {
-  return withRetry(() => prisma.$transaction(fn, { isolationLevel: 'Serializable' }));
+  // FIN-B-3: Prisma's default 5 s transaction timeout ended busy PO receipts
+  // with P2028 (a 500) while they waited out conflicting writers; the same
+  // generous limits as lockedTx, and a timed-out (rolled back) try is retried.
+  return withRetry(() => prisma.$transaction(fn, { isolationLevel: 'Serializable', maxWait: 15_000, timeout: 60_000 }));
 }
 
 /**
