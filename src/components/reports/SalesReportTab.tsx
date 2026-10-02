@@ -81,7 +81,7 @@ export const SalesReportTab: React.FC<Props> = ({
     const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
     const modes = collectionsByMode(invoices, payments, inRange, inScope);
     // Units and revenue per product, net of returns and the bill discount.
-    const allItems = productSales(filteredInvoices);
+    const allItems = productSales(filteredInvoices).filter((p) => p.quantity > 0.0005 || p.revenue > 0.005); // RPT9-3: fully returned items are not "top"
     const topByQty = [...allItems].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
     const topByRevenue = [...allItems].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 

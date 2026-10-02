@@ -5,7 +5,7 @@ import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
-import { invoiceFigures } from '../../lib/reportMath';
+import { periodInvoiceFigures, returnDay } from '../../lib/reportMath';
 import { FileSpreadsheet, Landmark, Percent, Hash, Users, Calculator } from 'lucide-react';
 
 interface Props {
@@ -75,16 +75,18 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     return (c?.gstin || '').trim().toUpperCase();
   };
 
+  // RPT9-1: a bill counts in the period of its date, and each return as a credit
+  // note in the period it happened — so a filed month never changes.
+  const inPeriod = (d: string) => !!d && (!startDate || d >= startDate) && (!endDate || d <= endDate);
   const filtered = useMemo(
     () =>
       invoices.filter((inv) => {
         if (inv.isVoided) return false;
         if (!inv.withGst) return false; // GST report covers taxable (GST) invoices only
-        if (startDate && inv.date < startDate) return false;
-        if (endDate && inv.date > endDate) return false;
         if (branchScope !== 'all' && inv.branchId !== branchScope) return false;
-        return true;
+        return inPeriod(inv.date) || (inv.returns || []).some((r) => inPeriod(returnDay(r, inv.date)));
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [invoices, startDate, endDate, branchScope]
   );
 
@@ -93,14 +95,17 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     const hsnMap = new Map<string, HsnRow>();
     const b2bMap = new Map<string, B2BRow>();
     const b2cs = { invoices: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-    const totals = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, invoices: filtered.length };
+    const totals = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, invoices: filtered.filter((i) => inPeriod(i.date)).length, creditNotes: 0 };
 
     for (const inv of filtered) {
       const gstin = buyerGstin(inv);
       // The shared report maths (src/lib/reportMath): each line net of the bill
       // discount and of the units returned on it, IGST on inter-state bills —
       // the same figures as the Reports header and the Sales register (RPT5-1).
-      const fig = invoiceFigures(inv, noCost);
+      const fig = periodInvoiceFigures(inv, noCost, inPeriod);
+      if (!fig) continue;
+      const billInPeriod = inPeriod(inv.date);
+      if (!billInPeriod) totals.creditNotes += 1;
       let invTaxable = 0, invCgst = 0, invSgst = 0, invIgst = 0, invTotal = 0;
       for (const lf of fig.lines) {
         const li = lf.line;
@@ -123,11 +128,11 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       // B2B (registered buyer, has GSTIN) vs B2CS (unregistered / consumer)
       if (gstin && gstin.length >= 15) {
         const b = b2bMap.get(gstin) || { gstin, name: inv.customerName || '', invoices: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-        b.invoices += 1; b.taxable += invTaxable; b.cgst += invCgst; b.sgst += invSgst; b.igst += invIgst; b.total += invTotal;
+        b.invoices += billInPeriod ? 1 : 0; b.taxable += invTaxable; b.cgst += invCgst; b.sgst += invSgst; b.igst += invIgst; b.total += invTotal;
         b.name = inv.customerName || b.name;
         b2bMap.set(gstin, b);
       } else {
-        b2cs.invoices += 1; b2cs.taxable += invTaxable; b2cs.cgst += invCgst; b2cs.sgst += invSgst; b2cs.igst += invIgst; b2cs.total += invTotal;
+        b2cs.invoices += billInPeriod ? 1 : 0; b2cs.taxable += invTaxable; b2cs.cgst += invCgst; b2cs.sgst += invSgst; b2cs.igst += invIgst; b2cs.total += invTotal;
       }
     }
     return {
@@ -189,6 +194,9 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
             <h3 className="text-sm font-extrabold text-slate-900">GST Summary (GSTR-1 / GSTR-3B basis)</h3>
             <p className="text-xs text-slate-500">
               {totals.invoices} GST invoice(s) · {startDate} → {endDate} · outward tax liability
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Returns are reported in the month they happen (as credit notes{totals.creditNotes ? ` — ${totals.creditNotes} on bills of earlier periods` : ''}); a filed month never changes.
             </p>
           </div>
         </div>

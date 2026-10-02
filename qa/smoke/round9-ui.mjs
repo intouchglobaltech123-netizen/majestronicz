@@ -242,6 +242,30 @@ try {
     check('SAL9-3 switching to a customer without GSTIN resets it to Tamil Nadu', local === '33-Tamil Nadu', local);
     await ctx.close();
   }
+
+  // ---------- V2: the sales PDF shows whole invoice numbers and totals ----------
+  if (want('V2')) {
+    const { ctx, page } = await login('CEO');
+    await nav(page, 'Sale Invoices');
+    const from = page.getByLabel('From date').first();
+    await from.fill('2000-01-01').catch(() => {});
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.locator('button[title="Download as PDF"]').first().click()]);
+    const pdfPath = path.join(os.tmpdir(), `sales-${uid()}.pdf`);
+    await dl.saveAs(pdfPath);
+    let text = null;
+    try {
+      text = execFileSync('python3', ['-c', 'import sys,pymupdf;d=pymupdf.open(sys.argv[1]);print("\\f".join(p.get_text() for p in d))', pdfPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch { /* pymupdf missing */ }
+    if (text) {
+      const bills = (await must('GET', '/api/invoices')).filter((i) => !String(i.invoiceNumber).startsWith('BULK/')).slice(0, 5);
+      const missing = bills.filter((b) => !text.replace(/\s+/g, '').includes(String(b.invoiceNumber).replace(/\s+/g, '')));
+      check('V2 every invoice number is printed whole in the sales PDF', missing.length === 0, missing.map((b) => b.invoiceNumber).join(', '));
+      check('V2 no value is cut with "..."', !/\d\.\.\./.test(text));
+    } else {
+      console.log('SKIP V2 PDF text check (python3 pymupdf not installed)');
+    }
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }

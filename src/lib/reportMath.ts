@@ -94,7 +94,7 @@ export interface InvoiceFigures {
 }
 
 /** Every report figure of one bill (zeros for a voided bill). */
-export function invoiceFigures(inv: Invoice, costOf: CostOf): InvoiceFigures {
+export function invoiceFigures(inv: Invoice, costOf: CostOf, returnsOverride?: Invoice['returns']): InvoiceFigures {
   const empty: InvoiceFigures = {
     lines: [], taxable: 0, tax: 0, cgst: 0, sgst: 0, igst: 0, shipping: 0, discount: 0, revenue: 0, cogs: 0, writeOff: 0, grossProfit: 0,
   };
@@ -109,7 +109,7 @@ export function invoiceFigures(inv: Invoice, costOf: CostOf): InvoiceFigures {
 
   // Returned units per key, split over the bill's lines of that key by quantity.
   const back = new Map<string, { qty: number; damaged: number }>();
-  for (const r of inv.returns || []) {
+  for (const r of (returnsOverride ?? inv.returns) || []) {
     const k = r.isCombo && r.comboId ? `c:${r.comboId}` : r.itemId;
     const cur = back.get(k) || { qty: 0, damaged: 0 };
     cur.qty += num(r.returnedQuantity);
@@ -151,15 +151,56 @@ export function invoiceFigures(inv: Invoice, costOf: CostOf): InvoiceFigures {
   return out;
 }
 
+/** The India (IST) day a return happened on (its returnedAt timestamp). */
+export const returnDay = (r: { returnedAt?: string }, fallback: string): string => {
+  const t = r?.returnedAt ? Date.parse(r.returnedAt) : NaN;
+  return Number.isNaN(t) ? fallback : new Date(t + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+};
+
+/**
+ * A bill's figures for a PERIOD report (GST returns, P&L) — RPT9-1, client
+ * policy: a filed month never changes. The bill counts in full (before any
+ * return) in the period of its own date, and every return counts as a credit
+ * note (negative figures) in the period of the day it happened. A return in a
+ * later month therefore lowers THAT month, not the bill's month. Returns null
+ * when neither the bill nor any of its returns falls in the period. The bill
+ * list and the customer views keep showing each bill net of its returns.
+ */
+export function periodInvoiceFigures(inv: Invoice, costOf: CostOf, inRange: (day: string) => boolean): InvoiceFigures | null {
+  if (!inv || inv.isVoided) return null;
+  const billIn = inRange(inv.date || '');
+  const returnsIn = (inv.returns || []).filter((r) => inRange(returnDay(r, inv.date || '')));
+  if (!billIn && !returnsIn.length) return null;
+  // Figures with only the period's returns taken off. Bill in the period: that
+  // IS gross − credit notes; bill earlier: only the credit notes (after − gross).
+  const after = invoiceFigures(inv, costOf, returnsIn);
+  if (billIn) return after;
+  const gross = invoiceFigures(inv, costOf, []);
+  const minus = <T extends Record<string, any>>(a: T, b: T, keys: (keyof T)[]): T => {
+    const o: any = { ...a };
+    for (const k of keys) o[k] = (Number(a[k]) || 0) - (Number(b[k]) || 0);
+    return o;
+  };
+  const lineKeys: (keyof LineFigures)[] = ['soldQty', 'returnedQty', 'damagedQty', 'netQty', 'taxable', 'tax', 'cgst', 'sgst', 'igst', 'value', 'cogs', 'writeOff'];
+  const out = minus(after, gross, ['taxable', 'tax', 'cgst', 'sgst', 'igst', 'revenue', 'cogs', 'writeOff', 'grossProfit']);
+  out.shipping = 0; // shipping belongs to the bill's own period
+  out.revenue = out.taxable;
+  out.discount = 0;
+  out.lines = after.lines.map((lf, i) => minus(lf, gross.lines[i], lineKeys));
+  return out;
+}
+
 export interface GstTotals { taxable: number; tax: number; cgst: number; sgst: number; igst: number; invoices: number }
 
 /** "GST collected" for a set of bills: net of returns and bill discount, IGST
  *  included. Only GST bills count. The ONE figure every screen shows. */
-export function gstCollected(invoices: Invoice[], costOf: CostOf = () => 0): GstTotals {
+export function gstCollected(invoices: Invoice[], costOf: CostOf = () => 0, inRange?: (day: string) => boolean): GstTotals {
   const t: GstTotals = { taxable: 0, tax: 0, cgst: 0, sgst: 0, igst: 0, invoices: 0 };
   for (const inv of invoices) {
     if (inv.isVoided || !inv.withGst) continue;
-    const fig = invoiceFigures(inv, costOf);
+    // With a period, returns count in the month they happened (RPT9-1).
+    const fig = inRange ? periodInvoiceFigures(inv, costOf, inRange) : invoiceFigures(inv, costOf);
+    if (!fig) continue;
     t.taxable += fig.taxable; t.tax += fig.tax; t.cgst += fig.cgst; t.sgst += fig.sgst; t.igst += fig.igst;
     t.invoices += 1;
   }
@@ -179,8 +220,11 @@ export const isOperatingExpense = (e: DailyCashRegister['expenses'][number]): bo
 export function makeExpenseCategoryOf(templates: RecurringExpenseTemplate[] = []) {
   const byExpense = new Map<string, string>();
   for (const t of templates || []) {
-    if (!t.category) continue;
-    for (const a of t.approvalHistory || []) if (a?.cashExpenseId) byExpense.set(a.cashExpenseId, t.category);
+    // RPT2-4: a template saved without a category (the demo rent/utility
+    // templates) reports under its own name, not "Uncategorised".
+    const cat = (t.category || '').trim() || (t.name || '').trim();
+    if (!cat) continue;
+    for (const a of t.approvalHistory || []) if (a?.cashExpenseId) byExpense.set(a.cashExpenseId, cat);
   }
   return (e: DailyCashRegister['expenses'][number]): string =>
     (e.category || '').trim() || byExpense.get(e.id) || 'Uncategorised';
@@ -268,10 +312,14 @@ export function computeProfit(args: {
   const of = (b: string) => (byBranch[b] = byBranch[b] || emptyLine());
 
   for (const inv of args.invoices || []) {
-    if (inv.isVoided || !inRange(inv.date) || !inScope(inv.branchId)) continue;
-    const fig = invoiceFigures(inv, costOf);
+    if (inv.isVoided || !inScope(inv.branchId)) continue;
+    // RPT9-1: the bill in its own period, each return as a credit note in the
+    // period it happened.
+    const fig = periodInvoiceFigures(inv, costOf, inRange);
+    if (!fig) continue;
     const s = of(inv.branchId);
-    s.revenue += fig.revenue; s.cogs += fig.cogs; s.writeOff += fig.writeOff; s.invoiceCount += 1;
+    s.revenue += fig.revenue; s.cogs += fig.cogs; s.writeOff += fig.writeOff;
+    if (inRange(inv.date)) s.invoiceCount += 1;
   }
   for (const reg of args.registers || []) {
     if (!inRange(reg.date) || !inScope(reg.branchId)) continue;

@@ -3,7 +3,7 @@ import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, Invoice, computeInvoiceFinance, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
-import { computeProfit } from '../../lib/reportMath';
+import { computeProfit, productSales } from '../../lib/reportMath';
 import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
@@ -169,23 +169,21 @@ export const DashboardView: React.FC = () => {
   }, [invoices, payments, thisMonth, isAllBranches, currentBranch]);
 
   // ---- Top products (this month) ----
+  // RPT-1 / RPT5-3 / RPT9-3: units and revenue NET of returns and of the
+  // bill-level discount (the Sales register's own maths, src/lib/reportMath
+  // productSales); a product returned in full (0 left) is not listed.
   const topProducts = useMemo(() => {
-    const map: Record<string, { name: string; qty: number; revenue: number }> = {};
-    scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
-      (i.items || []).forEach((li: any) => {
-        // RPT6-1: group by the catalogue item / combo, not the line's typed name
-        // (the same item sold under two names appeared twice).
-        const comboKey = li.isCombo ? (li.comboId || li.itemId) : null;
-        const key = comboKey ? `combo:${comboKey}` : li.itemId ? `item:${li.itemId}` : `name:${li.itemName || li.itemCode || 'Item'}`;
-        const name = comboKey
-          ? combos.find((c) => c.id === comboKey)?.comboName || li.itemName || 'Combo'
-          : (li.itemId && items.find((it) => it.id === li.itemId)?.itemName) || li.itemName || li.itemCode || 'Item';
-        if (!map[key]) map[key] = { name, qty: 0, revenue: 0 };
-        map[key].qty += li.quantity || 0;
-        map[key].revenue += li.totalAmount || 0;
-      });
-    });
-    const rows = Object.values(map).sort((a, b) => (topMetric === 'revenue' ? b.revenue - a.revenue : b.qty - a.qty)).slice(0, 5);
+    const sales = productSales(scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)));
+    const rows = sales
+      .filter((p) => p.quantity > 0.0005 || p.revenue > 0.005)
+      .map((p) => ({
+        // RPT6-1: named from the catalogue item / combo, not the line's typed name.
+        name: (p.isCombo ? combos.find((c) => c.id === p.itemId)?.comboName : p.itemId ? items.find((it) => it.id === p.itemId)?.itemName : undefined) || p.itemName || 'Item',
+        qty: p.quantity,
+        revenue: p.revenue,
+      }))
+      .sort((a, b) => (topMetric === 'revenue' ? b.revenue - a.revenue : b.qty - a.qty))
+      .slice(0, 5);
     const max = Math.max(1, ...rows.map((r) => (topMetric === 'revenue' ? r.revenue : r.qty)));
     return { rows, max };
   }, [scopedSales, thisMonth, topMetric, items, combos]);

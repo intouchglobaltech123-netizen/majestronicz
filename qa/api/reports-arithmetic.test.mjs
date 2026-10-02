@@ -362,4 +362,45 @@ describe('customers and register helpers (phase 6)', () => {
     near(day.cashPaid, 200);
     near(day.closing, 1000 + 300 + 200 - 50 - 70 - 80 - 10, 'every line in the sum');
   });
+
+  test('RPT9-1 a return counts as a credit note in the month it happened; the bill\'s month does not change', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, gst: 18, purchasePrice: 600, stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    const saved = await getInvoice(inv.id);
+    // Pretend the return happened in a LATER month than the bill.
+    const billMonth = date.slice(0, 7);
+    const later = `${Number(billMonth.slice(0, 4)) + 1}${billMonth.slice(4)}`;
+    const moved = { ...saved, returns: saved.returns.map((r) => ({ ...r, returnedAt: `${later}-15T06:00:00.000Z` })) };
+    const inMonth = (m) => (d) => d.startsWith(m);
+    const billPeriod = rm.gstCollected([moved], undefined, inMonth(billMonth));
+    near(billPeriod.taxable, 2000, 'the bill\'s month keeps both units (filed month unchanged)');
+    near(billPeriod.tax, 360);
+    const returnPeriod = rm.gstCollected([moved], undefined, inMonth(later));
+    near(returnPeriod.taxable, -1000, 'the return is a credit note in its own month');
+    near(returnPeriod.tax, -180);
+    const p1 = rm.computeProfit({ invoices: [moved], items: [], registers: [], payments: [], payrollRecords: [], startDate: `${billMonth}-01`, endDate: `${billMonth}-31`, inScope: () => true });
+    const p2 = rm.computeProfit({ invoices: [moved], items: [], registers: [], payments: [], payrollRecords: [], startDate: `${later}-01`, endDate: `${later}-31`, inScope: () => true });
+    near(p1.total.revenue, 2000, 'P&L of the bill month: gross');
+    near(p2.total.revenue, -1000, 'P&L of the return month: the credit note');
+    near(p1.total.cogs + p2.total.cogs, 600, 'cost of the one kept unit over both months');
+    // Same month: the bill shows net, as before.
+    const sameMonth = { ...saved, returns: saved.returns.map((r) => ({ ...r, returnedAt: `${date}T06:00:00.000Z` })) };
+    near(rm.gstCollected([sameMonth], undefined, inMonth(billMonth)).taxable, 1000, 'bill and return in one month: net');
+  });
+
+  test('RPT-1 / RPT5-3 / RPT9-3 product sales are net of returns and the bill discount', async () => {
+    const date = await freshDay('erode-hq');
+    const a = await createItem({ price: 1000, gst: 18, stock: { 'erode-hq': 10 } });
+    const b = await createItem({ price: 500, gst: 18, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(a, 4), line(b, 1)], overallDiscountValue: 10 }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(a, 1), returnLine(b, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    const rows = rm.productSales([await getInvoice(inv.id)]);
+    const ra = rows.find((r) => r.itemId === a.id);
+    near(ra.quantity, 3, '4 sold − 1 returned');
+    near(ra.revenue, 3 * 1180 * 0.9, 'after the 10% bill discount');
+    near(rows.find((r) => r.itemId === b.id).quantity, 0, 'fully returned → 0 (screens leave it out)');
+  });
 });
+

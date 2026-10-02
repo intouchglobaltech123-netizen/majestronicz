@@ -1,15 +1,20 @@
 import { Invoice, BRANCHES, computeInvoiceFinance, getInvoicePaymentSplits, isInvoiceFullyReturned } from '../types';
+import { invoiceFigures } from './reportMath';
 
 /**
  * One sales-export layout for the Sales list and the Sales report (SAL6-9 /
  * RPT-4): a status for every bill (not just voided ones), every payment mode of
  * a split, returns, net, received and due, and a totals row.
  */
+// RPT9-2: the bill's own columns are labelled "as billed" (before returns), and
+// the net taxable value and GST after returns (what the summary shows) follow.
 export const SALES_EXPORT_HEADERS = [
-  'Date', 'Invoice No', 'Customer', 'Phone', 'Branch', 'Place of Supply', 'Payment Modes', 'Sub Total (Rs)', 'Bill Discount (Rs)',
-  'Taxable (Rs)', 'CGST (Rs)', 'SGST (Rs)', 'IGST (Rs)', 'Shipping (Rs)', 'Bill Total (Rs)', 'Returned (Rs)', 'Net (Rs)',
+  'Date', 'Invoice No', 'Customer', 'Phone', 'Branch', 'Place of Supply', 'Payment Modes', 'Sub Total as billed (Rs)', 'Bill Discount (Rs)',
+  'Taxable as billed (Rs)', 'CGST as billed (Rs)', 'SGST as billed (Rs)', 'IGST as billed (Rs)', 'Shipping (Rs)', 'Bill Total (Rs)', 'Returned (Rs)', 'Net (Rs)',
+  'Net Taxable after returns (Rs)', 'Net GST after returns (Rs)',
   'Received (Rs)', 'Due (Rs)', 'Status',
 ];
+const noCost = () => 0;
 
 /** Money as a NUMBER rounded to paise — a spreadsheet can add it up (RPT2-6). */
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -32,7 +37,7 @@ export function paymentModesLabel(inv: Invoice): string {
 
 export function salesExportRows(invoices: Invoice[]): (string | number)[][] {
   const rows: (string | number)[][] = [];
-  const t = { sub: 0, disc: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, ship: 0, total: 0, ret: 0, net: 0, rec: 0, due: 0, live: 0 };
+  const t = { sub: 0, disc: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, ship: 0, total: 0, ret: 0, net: 0, netTaxable: 0, netGst: 0, rec: 0, due: 0, live: 0 };
   for (const inv of invoices) {
     const fin = computeInvoiceFinance(inv);
     const igst = inv.withGst && (inv.totalCgst || 0) + (inv.totalSgst || 0) < (inv.totalTax || 0) - 0.009 ? (inv.totalTax || 0) - (inv.totalCgst || 0) - (inv.totalSgst || 0) : 0;
@@ -40,12 +45,13 @@ export function salesExportRows(invoices: Invoice[]): (string | number)[][] {
     // Each row reconciles: Sub Total − Bill Discount = Taxable; Taxable + GST +
     // Shipping (+ round-off) = Bill Total (RPT4-7).
     const taxable = (inv.subtotal || 0) - disc;
+    const fig = invoiceFigures(inv, noCost); // net of returns and bill discount (zeros when voided)
     rows.push([
       inv.date, inv.invoiceNumber, inv.customerName, inv.customerPhone || '',
       BRANCHES.find((b) => b.id === inv.branchId)?.shortCode || inv.branchId,
       inv.stateOfSupply || '', paymentModesLabel(inv), r2(inv.subtotal), r2(disc), r2(taxable),
       r2(inv.totalCgst), r2(inv.totalSgst), r2(igst), r2(inv.shippingCharges || 0),
-      r2(inv.grandTotal), r2(fin.returns), r2(fin.net), r2(fin.received), r2(fin.due), saleStatus(inv),
+      r2(inv.grandTotal), r2(fin.returns), r2(fin.net), r2(fig.taxable), r2(fig.tax), r2(fin.received), r2(fin.due), saleStatus(inv),
     ]);
     // Voided bills are listed for the record but not added to the totals.
     if (inv.isVoided) continue;
@@ -53,10 +59,11 @@ export function salesExportRows(invoices: Invoice[]): (string | number)[][] {
     t.sub += inv.subtotal || 0; t.disc += disc; t.taxable += taxable;
     t.cgst += inv.totalCgst || 0; t.sgst += inv.totalSgst || 0; t.igst += igst; t.ship += inv.shippingCharges || 0;
     t.total += inv.grandTotal || 0; t.ret += fin.returns; t.net += fin.net; t.rec += fin.received; t.due += fin.due;
+    t.netTaxable += fig.taxable; t.netGst += fig.tax;
   }
   rows.push([
     'TOTAL', `${t.live} live bill(s)`, '', '', '', '', '', r2(t.sub), r2(t.disc), r2(t.taxable), r2(t.cgst), r2(t.sgst), r2(t.igst),
-    r2(t.ship), r2(t.total), r2(t.ret), r2(t.net), r2(t.rec), r2(t.due), 'Voided bills excluded',
+    r2(t.ship), r2(t.total), r2(t.ret), r2(t.net), r2(t.netTaxable), r2(t.netGst), r2(t.rec), r2(t.due), 'Voided bills excluded',
   ]);
   return rows;
 }

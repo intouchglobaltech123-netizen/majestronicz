@@ -51,7 +51,7 @@ export async function exportToPdf(filename: string, headers: string[], rows: Cel
   const margin = 28;
   const usable = pageW - margin * 2;
   const pad = 3;
-  const fontSize = headers.length > 14 ? 6.5 : headers.length > 10 ? 7 : 8;
+  let fontSize = headers.length > 14 ? 6.5 : headers.length > 10 ? 7 : 8;
   let y = 40;
 
   if (title) {
@@ -69,46 +69,61 @@ export async function exportToPdf(filename: string, headers: string[], rows: Cel
     }
     return pdfText(c);
   };
-  // Width each column by its widest content (header words count once), then
-  // scale to the page.
-  doc.setFontSize(fontSize);
-  doc.setFont('helvetica', 'bold');
-  const headerWords = headers.map((h) => Math.max(...pdfText(h).split(/\s+/).map((w) => doc.getTextWidth(w)), 20));
-  doc.setFont('helvetica', 'normal');
   // A row with text only in its first cell is a section label: it spans the page.
   const isLabelRow = (r: Cell[]) => r.length > 0 && r.slice(1).every((c) => c === '' || c == null);
-  const want = Array.from({ length: cols }, (_, i) => {
-    const headerWord = headerWords[i];
-    const body = rows.filter((r) => !isLabelRow(r)).reduce((m, r) => Math.max(m, Math.min(220, doc.getTextWidth(show(r[i])))), 0);
-    return Math.max(headerWord, body) + pad * 2;
-  });
-  // Too wide for the page: keep every column at least as wide as its longest
-  // header word and take the room from the long text columns.
-  const base = headerWords.map((w) => w + pad * 2);
-  const total = want.reduce((t, w) => t + w, 0);
-  const baseSum = base.reduce((t, w) => t + w, 0);
-  const extra = want.map((w, i) => Math.max(0, w - base[i]));
-  const extraSum = extra.reduce((t, w) => t + w, 0);
-  const widths = total <= usable
-    ? want.map((w) => (w / total) * usable)
-    : baseSum < usable && extraSum > 0
-      ? base.map((b, i) => b + (extra[i] / extraSum) * (usable - baseSum))
-      : want.map((w) => (w / total) * usable);
-  const xs = widths.map((_, i) => margin + widths.slice(0, i).reduce((t, w) => t + w, 0));
-  const fit = (t: string, w: number) => {
-    if (doc.getTextWidth(t) <= w) return t;
-    let s = t;
-    while (s.length > 1 && doc.getTextWidth(s + '...') > w) s = s.slice(0, -1);
-    return s + '...';
+  const bodyRows = rows.filter((r) => !isLabelRow(r));
+  // V2: a column of numbers is never cut ("1,23,4..." lost the figure); text
+  // wraps onto more lines instead of being truncated.
+  const numericCol = Array.from({ length: cols }, (_, i) => bodyRows.some((r) => isNumericCell(r[i])) && bodyRows.every((r) => r[i] === '' || r[i] == null || isNumericCell(r[i]) || String(r[0]) === 'TOTAL'));
+  const layout = () => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', 'bold');
+    const headerOnly = headers.map((h) => Math.max(...pdfText(h).split(/\s+/).map((w) => doc.getTextWidth(w)), 14) + pad * 2);
+    doc.setFont('helvetica', 'normal');
+    // A word is never split across lines (a date, an invoice number, a branch
+    // code): a text column is at least as wide as its longest word (capped).
+    const headerWords = headerOnly.map((hw, i) => Math.max(hw, Math.min(120, bodyRows.reduce((m, r) => Math.max(m, ...show(r[i]).split(/\s+/).map((w) => doc.getTextWidth(w))), 0) + pad * 2)));
+    // Numbers: their widest value. Text: its widest value up to a cap (it wraps).
+    const need = Array.from({ length: cols }, (_, i) => {
+      const body = bodyRows.reduce((m, r) => Math.max(m, doc.getTextWidth(show(r[i]))), 0) + pad * 2;
+      return Math.max(headerWords[i], numericCol[i] ? body : Math.min(body, 160));
+    });
+    const fixed = need.reduce((t, w, i) => t + (numericCol[i] ? w : headerWords[i]), 0);
+    return { headerWords, need, fixed };
   };
+  let L = layout();
+  // Shrink the type (down to 5 pt) until every number and every header word fits.
+  while (L.fixed > usable && fontSize > 5) { fontSize = Math.max(5, fontSize - 0.5); L = layout(); }
+  const totalNeed = L.need.reduce((t, w) => t + w, 0);
+  let widths: number[];
+  if (totalNeed <= usable) {
+    widths = L.need.map((w) => (w / totalNeed) * usable);
+  } else {
+    // Numbers keep their full width; text columns share what is left.
+    const textIdx = L.need.map((_, i) => i).filter((i) => !numericCol[i]);
+    const numSum = L.need.reduce((t, w, i) => t + (numericCol[i] ? w : 0), 0);
+    const left = Math.max(0, usable - numSum);
+    const textMin = textIdx.reduce((t, i) => t + L.headerWords[i], 0);
+    const textWant = textIdx.reduce((t, i) => t + L.need[i], 0);
+    widths = L.need.map((w, i) => {
+      if (numericCol[i]) return w;
+      if (left <= textMin || textWant <= textMin) return L.headerWords[i];
+      return L.headerWords[i] + ((w - L.headerWords[i]) / (textWant - textMin)) * (left - textMin);
+    });
+  }
+  const xs = widths.map((_, i) => margin + widths.slice(0, i).reduce((t, w) => t + w, 0));
+  const lineH = () => fontSize + 2;
 
   const drawHeader = () => {
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', 'bold');
     const wrapped = headers.map((h, i) => doc.splitTextToSize(pdfText(h), widths[i] - pad * 2) as string[]);
     const lines = Math.max(...wrapped.map((w) => w.length));
-    wrapped.forEach((w, i) => w.forEach((t, k) => doc.text(t, xs[i] + pad, y + k * (fontSize + 2))));
-    y += lines * (fontSize + 2) + 2;
+    wrapped.forEach((w, i) => w.forEach((t, k) => {
+      if (numericCol[i]) doc.text(t, xs[i] + widths[i] - pad, y + k * lineH(), { align: 'right' });
+      else doc.text(t, xs[i] + pad, y + k * lineH());
+    }));
+    y += lines * lineH() + 2;
     doc.setDrawColor(200); doc.line(margin, y - fontSize, pageW - margin, y - fontSize);
     y += 4;
     doc.setFont('helvetica', 'normal');
@@ -116,21 +131,23 @@ export async function exportToPdf(filename: string, headers: string[], rows: Cel
 
   drawHeader();
   rows.forEach((r) => {
-    if (y > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
     const label = String(r[0] ?? '');
     doc.setFont('helvetica', /^(TOTAL|---)/.test(label) ? 'bold' : 'normal');
     if (isLabelRow(r)) {
-      if (label) doc.text(fit(pdfText(label), usable), margin + pad, y);
-      y += fontSize + 5;
+      if (y > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
+      const wrapped = doc.splitTextToSize(pdfText(label), usable - pad * 2) as string[];
+      wrapped.forEach((t, k) => doc.text(t, margin + pad, y + k * lineH()));
+      y += wrapped.length * lineH() + 3;
       return;
     }
-    r.forEach((c, i) => {
-      if (i >= cols) return;
-      const t = fit(show(c), widths[i] - pad * 2);
-      if (isNumericCell(c)) doc.text(t, xs[i] + widths[i] - pad, y, { align: 'right' });
-      else doc.text(t, xs[i] + pad, y);
-    });
-    y += fontSize + 5;
+    const cells = r.slice(0, cols).map((c, i) => (isNumericCell(c) ? [show(c)] : (doc.splitTextToSize(show(c), widths[i] - pad * 2) as string[]).slice(0, 4)));
+    const lines = Math.max(1, ...cells.map((c) => c.length));
+    if (y + (lines - 1) * lineH() > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
+    cells.forEach((c, i) => c.forEach((t, k) => {
+      if (isNumericCell(r[i])) doc.text(t, xs[i] + widths[i] - pad, y + k * lineH(), { align: 'right' });
+      else doc.text(t, xs[i] + pad, y + k * lineH());
+    }));
+    y += lines * lineH() + 3;
   });
 
   doc.save(`${baseName(filename)}.pdf`);

@@ -13,7 +13,7 @@ import { RecurringExpenseBanner } from './RecurringExpenseBanner';
 import { ApproveRecurringExpenseModal } from './ApproveRecurringExpenseModal';
 import { RecurringExpensesManagement } from './RecurringExpensesManagement';
 import { RecurringExpenseTemplate } from '../../types';
-import { computeDayCashClosing } from '../../lib/cashClosing';
+import { computeDayCashClosing, DEFAULT_OPENING } from '../../lib/cashClosing';
 import {
   Calendar,
   Building,
@@ -490,6 +490,7 @@ export const DailyCashRegisterView: React.FC = () => {
         cashSalaries={dayClosing.cashSalaries}
         collection={dayCollection}
         hasPreviousRegister={hasPreviousRegister}
+        defaultFloat={DEFAULT_OPENING(activeBranchId)}
         cashExpenses={expenseBreakdown.cash}
         gpayExpenses={expenseBreakdown.gpay}
         closingBalance={closingBalance}

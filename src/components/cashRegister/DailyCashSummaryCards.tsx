@@ -26,6 +26,8 @@ interface Props {
   collection?: { cash: number; digital: number; credit: number };
   /** True when an earlier register day exists for this branch (CASH4-7). */
   hasPreviousRegister?: boolean;
+  /** The branch's default opening float (CASH4-7). */
+  defaultFloat?: number;
   cashExpenses: number;
   gpayExpenses: number;
   closingBalance: number;
@@ -49,6 +51,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   cashSalaries = 0,
   collection,
   hasPreviousRegister = true,
+  defaultFloat,
   cashExpenses,
   gpayExpenses,
   closingBalance,
@@ -195,7 +198,13 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
                 // Carried from the previous register day (not necessarily yesterday,
                 // CASH-11). A branch's first register day starts from the default
                 // float instead — say so (CASH4-7).
-                <span>{hasPreviousRegister ? 'Carried from the previous register day' : 'Default opening float (first register day)'}</span>
+                <span>{hasPreviousRegister
+                  ? 'Carried from the previous register day'
+                  : defaultFloat != null && Math.abs(openingAmount - defaultFloat) > 0.005
+                    // CASH4-7: the first register day opens at the default float PLUS
+                    // the cash taken on earlier days that had no register.
+                    ? `Default float ${formatCurrency(defaultFloat)} + cash from earlier days (first register day)`
+                    : 'Default opening float (first register day)'}</span>
               )}
             </p>
           </div>

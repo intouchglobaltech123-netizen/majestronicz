@@ -144,6 +144,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
           <p className="text-xs text-slate-500 mt-0.5">
             Net revenue (ex-GST) − cost of goods sold − write-offs − operating expenses − payroll, {formatDate(startDate)} to {formatDate(endDate)}
           </p>
+          <p className="text-[11px] text-slate-500">Returns are reported in the month they happen (a return on an earlier bill lowers this period, not the bill's).</p>
         </div>
 
         <ReportExportButtons onExport={handleExport} />

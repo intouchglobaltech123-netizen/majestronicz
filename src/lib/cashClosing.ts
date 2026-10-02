@@ -88,7 +88,7 @@ export function computeDayCashClosing(
   };
 }
 
-const DEFAULT_OPENING = (branchId: string) => (branchId === 'erode-hq' ? 12000 : 8000);
+export const DEFAULT_OPENING = (branchId: string) => (branchId === 'erode-hq' ? 12000 : 8000);
 const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
 /**
