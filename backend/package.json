@@ -12,7 +12,9 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "fix:existing-bills": "tsx scripts/fix-existing-bills.ts",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

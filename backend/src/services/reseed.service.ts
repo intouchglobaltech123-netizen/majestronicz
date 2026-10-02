@@ -9,6 +9,7 @@ import {
 } from '../data/seedData.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
 import { buildDefaultMatrix } from '../lib/auth.js';
+import { buildOpeningStockRows } from '../lib/openingStock.js';
 
 /**
  * Resets the database to the demo dataset. Shared by the CLI seed script and
@@ -39,34 +40,18 @@ export async function reseedDatabase() {
   // current seeded stock MINUS the net of the other seeded movements for that
   // item/branch — so replaying (opening + movements) lands back on the seeded
   // quantity instead of double-counting those demo events.
-  const itemMetaById = new Map((INITIAL_ITEMS as any[]).map((i) => [i.id, i]));
-  const netSeedMovement = new Map<string, number>();
-  for (const log of INITIAL_STOCK_ADJUSTMENT_LOGS as any[]) {
-    const k = `${log.itemId}|${log.branchId}`;
-    netSeedMovement.set(k, (netSeedMovement.get(k) || 0) + (Number(log.quantityChange) || 0));
-  }
-  const openingLogs = (INITIAL_BRANCH_STOCKS as any[])
-    .map((s) => {
-      const openingQty = Math.round(((Number(s.quantity) || 0) - (netSeedMovement.get(`${s.itemId}|${s.branchId}`) || 0)) * 100) / 100;
-      const meta = itemMetaById.get(s.itemId);
-      return { s, openingQty, meta };
-    })
-    .filter((x) => x.openingQty !== 0)
-    .map(({ s, openingQty, meta }) => ({
-      id: `adj-open-${s.branchId}-${s.itemId}`,
-      itemId: s.itemId,
-      itemName: meta?.itemName || 'Item',
-      itemCode: meta?.itemCode || '',
-      branchId: s.branchId,
-      previousQuantity: 0,
-      quantityChange: openingQty,
-      newQuantity: openingQty,
-      reason: 'Opening Stock',
+  const openingLogs = buildOpeningStockRows(
+    INITIAL_BRANCH_STOCKS as any[],
+    INITIAL_STOCK_ADJUSTMENT_LOGS as any[],
+    INITIAL_ITEMS as any[],
+    {
+      idFor: (branchId, itemId) => `adj-open-${branchId}-${itemId}`,
+      // Dated before the demo movement events so a chronological replay starts here.
+      timestampFor: () => '2025-04-01T00:00:00.000Z',
       notes: 'Opening balance at go-live',
       adjustedBy: 'System (Opening Balance)',
-      // Dated before the demo movement events so a chronological replay starts here.
-      timestamp: '2025-04-01T00:00:00.000Z',
-    }));
+    },
+  );
 
   await prisma.stockAdjustmentLog.createMany({ data: INITIAL_STOCK_ADJUSTMENT_LOGS as any });
   if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
