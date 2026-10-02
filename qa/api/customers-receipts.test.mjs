@@ -180,6 +180,28 @@ describe('customers & receipts', () => {
     near((await getInvoice(inv.id)).balanceDue, 1180, 'full debt restored, accounting for the refund taken');
   });
 
+  test('UPG9-5 a second return pays back nothing to a customer who already got a refund and now owes; the due follows the refund', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 3400, stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({
+      date, transactionType: 'Credit', customerName: 'QA Refund Twice', customerPhone: randomPhone(),
+      lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 3000 }, { mode: 'COD-Credit', amount: 5024 }],
+    }));
+    near(inv.grandTotal, 8024);
+    const pay = ok(await receive(inv, 5024), 'receipt of the rest');
+    const rl = { itemId: item.id, itemCode: item.itemCode, itemName: item.itemName, returnQty: 1, unitPrice: 3400, taxRate: 18 };
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rl], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'first return');
+    const refunds = async () => (await paymentsFor(inv.id)).filter((p) => p.type === 'out').reduce((t, p) => t + p.amount, 0);
+    near(await refunds(), 4012, 'fully paid: the first unit comes back in cash');
+    near((await getInvoice(inv.id)).balanceDue, 0);
+    ok(await del(`/api/payments/${pay.id}`), 'the receipt is deleted');
+    near((await getInvoice(inv.id)).balanceDue, 5024, 'owed again: 5,024 − 4,012 returned + 4,012 refunded');
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rl], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'second return');
+    near(await refunds(), 4012, 'no cash to a customer who owes: (3,000 + 0 − 4,012) − (8,024 − 8,024) < 0');
+    // due = owed at billing − receipts − returns + refunds = 5,024 − 0 − 8,024 + 4,012
+    near((await getInvoice(inv.id)).balanceDue, 1012, 'the stored due follows the formula');
+  });
+
   test('SEC: the Purchase role cannot record or delete a customer receipt', async () => {
     const inv = await creditBill();
     expectStatus(await receive(inv, 100, { as: 'Purchase' }), 403, 'Purchase records a receipt');

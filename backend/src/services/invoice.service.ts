@@ -6,7 +6,10 @@ import { nextInvoiceNumber, nextPersistent, financialYear } from '../lib/sequenc
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { creditNotesForBill, legacyRefundId } from '../lib/returnRefunds.js';
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
@@ -978,24 +981,23 @@ export function processReturn(
         updatedAt: ts,
       },
     });
-    // A return reduces what the customer still owes — refresh the cached due.
-    await recomputeInvoiceBalance(tx, invoiceId);
-
-    // How much CASH to actually pay back. A return credits the customer the
-    // goods value, which FIRST reduces what they still owe; only the portion by
-    // which their payments now EXCEED the (reduced) net bill is refunded. So a
-    // return on an unpaid credit bill refunds ₹0 (it just cuts the debt), while a
-    // return on a fully-paid bill refunds the full value. Caps the refund at what
-    // was actually paid — the drawer never pays out money the customer never gave.
+    // How much to pay back (UPG9-5). A return credits the customer the goods
+    // value, which FIRST reduces what they still owe; only what they have paid
+    // beyond the (reduced) net bill goes back — less what was ALREADY paid back
+    // on this bill (earlier cash refunds and credit notes). So a return on an
+    // unpaid credit bill refunds ₹0, a return on a fully-paid bill refunds its
+    // full value, and a customer who still owes money (e.g. a receipt was
+    // deleted after an earlier refund) gets nothing back:
+    //   refund = max(0, (collected at billing + receipts − paid back) − (grand − returns after))
+    // (creditOriginal was anchored from the PRE-return state above.)
     const grandR = Number(inv.grandTotal) || 0;
     const creditOrig = Math.max(0, Number(inv.creditOriginal) || 0);
     const receipts = await invoiceReceiptsTotal(tx, invoiceId);
-    const paid = Math.max(0, Math.round(((grandR - creditOrig) + receipts) * 100) / 100); // collected-at-billing + receipts
-    const returnsBefore = Number(inv.totalReturnedAmount) || 0;
-    const returnsAfter = returnsBefore + totalRefund;
-    const overBefore = Math.max(0, Math.round((paid - (grandR - returnsBefore)) * 100) / 100);
-    const overAfter = Math.max(0, Math.round((paid - (grandR - returnsAfter)) * 100) / 100);
-    const cashRefund = Math.max(0, Math.round((overAfter - overBefore) * 100) / 100);
+    const holder = inv.customerId ? await tx.customer.findUnique({ where: { id: inv.customerId }, select: { creditHistory: true } }) : null;
+    const alreadyPaidBack = round2((await invoiceRefundsTotal(tx, invoiceId)) + creditNotesForBill(holder?.creditHistory, invoiceId));
+    const paid = round2((grandR - creditOrig) + receipts - alreadyPaidBack);
+    const returnsAfter = (Number(inv.totalReturnedAmount) || 0) + totalRefund;
+    const cashRefund = Math.max(0, round2(paid - (grandR - returnsAfter)));
 
     // 'Adjust to credit note' means: don't pay cash now. The goods value already
     // reduced the due above; the over-paid portion (what would otherwise be cash
@@ -1057,6 +1059,9 @@ export function processReturn(
       refundPaymentId = paymentId;
       refundModeUsed = mode;
     }
+    // The refund row raises what the customer owes back to what they really
+    // hold: refresh the cached due only now, after it exists (UPG9-5).
+    await recomputeInvoiceBalance(tx, invoiceId);
     // Remember what this batch paid back, so a reversal undoes exactly that (SAL3-2).
     const paidBack = cashRefund > 0.001 ? cashRefund : 0;
     if (paidBack > 0) {
@@ -1185,15 +1190,31 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     let refundPaymentId: string | null = target.batchRefundPaymentId ?? null;
     let creditIssued = Number(target.batchCreditIssued) || 0;
     if (!target.batchId) {
-      // Legacy return: find what it paid out by its timestamp.
+      // Legacy return: its refund is the row an older build stamped with the
+      // return's own time, or the one the one-time script / demo seed recorded
+      // for it later under a fixed id (UPG9-10 / CRM9-14).
+      const forBill = (p: any) => !!p && Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === inv.id);
       const outs = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer', createdAt: target.returnedAt } });
-      refundPaymentId = outs.find((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === inv.id))?.id ?? null;
+      refundPaymentId = outs.find(forBill)?.id ?? null;
+      if (!refundPaymentId) {
+        const backfilled = await tx.payment.findUnique({ where: { id: legacyRefundId(inv.id, target.returnedAt) } });
+        if (forBill(backfilled) && backfilled.type === 'out') refundPaymentId = backfilled.id;
+      }
       if (!refundPaymentId && inv.customerId) {
         const cust = await tx.customer.findUnique({ where: { id: inv.customerId } });
         const t0 = Date.parse(target.returnedAt);
         const entry = ((cust?.creditHistory as any[]) || []).find((h: any) =>
-          h?.type === 'issued' && h?.refId === inv.id && Math.abs(Date.parse(h.date) - t0) < 10_000);
+          h?.type === 'issued' && (
+            (h?.refId === inv.id && Math.abs(Date.parse(h.date) - t0) < 10_000) ||
+            // an older 'Adjust' refund the one-time script turned into store credit
+            (h?.billId === inv.id && h?.batchAt === target.returnedAt)));
         creditIssued = Number(entry?.amount) || 0;
+      }
+      // SAL9-8: an older build's return that left no refund row was paid back in
+      // cash that only the one-time data fix records. Reversing it before that
+      // runs would take the goods back and never take that money back.
+      if (!refundPaymentId && !(creditIssued > 0) && !(await tx.appConfig.findUnique({ where: { key: 'migration:fix-existing-bills' } }))) {
+        throw new AppError('MIGRATION_PENDING', 'This return was made by an older version of the app and its refund is not recorded yet. Run the one-time data fix first (fix-existing-bills, see docs/DEPLOY_EXISTING_DATA.md), then reverse it.', 409);
       }
     }
     let refundReversal: { kind: 'deleted' | 'collected'; amount: number; mode: string; date: string } | null = null;
