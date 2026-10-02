@@ -523,6 +523,8 @@ model User {
   employeeId       String? // linked Employee record (attendance / payroll)
   createdAt        String
   updatedAt        String?
+  // Sign out (SEC-5): tokens issued before this moment (epoch ms) are rejected.
+  tokensValidAfter Float?
 
   @@index([role])
   @@index([status])

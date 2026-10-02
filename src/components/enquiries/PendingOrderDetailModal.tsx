@@ -128,7 +128,12 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
   };
 
   const daysWaiting = calculateDaysWaiting(pendingOrder.createdAt);
-  const restock = calculateRestockStatus(pendingOrder.expectedRestockDate);
+  // A Fulfilled / Cancelled order is closed: it can't be "overdue" and its date
+  // and advance are no longer editable (the server refuses too) — CRM-12.
+  const isOpenOrder = pendingOrder.status === 'Waiting' || pendingOrder.status === 'Stock Arrived';
+  const restock = isOpenOrder
+    ? calculateRestockStatus(pendingOrder.expectedRestockDate)
+    : { text: pendingOrder.status === 'Fulfilled' ? 'Order fulfilled' : 'Order cancelled', isOverdue: false, days: 0 };
 
   const handlePrint = () => {
     window.print();
@@ -312,7 +317,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                       Expected: <strong>{pendingOrder.expectedRestockDate || 'No date set'}</strong>
                     </p>
                   </div>
-                  {canEditRestockDate && !isEditingExpectedDate && (
+                  {canEditRestockDate && isOpenOrder && !isEditingExpectedDate && (
                     <button
                       type="button"
                       onClick={() => setIsEditingExpectedDate(true)}
@@ -324,7 +329,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                   )}
                 </div>
 
-                {isEditingExpectedDate && (
+                {isEditingExpectedDate && isOpenOrder && (
                   <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2">
                     <input
                       type="date"
@@ -364,11 +369,14 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                       <span className="font-bold text-emerald-800 font-mono text-base">₹{(pendingOrder.advanceAmount).toLocaleString('en-IN')}</span>
                       <span className="text-slate-500 text-xs"> advance received{pendingOrder.advanceMode ? ` · ${pendingOrder.advanceMode}` : ''}{pendingOrder.advancePaidAt ? ` · ${pendingOrder.advancePaidAt.slice(0, 10)}` : ''}</span>
                     </div>
-                    <button type="button" onClick={handleClearAdvance} className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer">Clear</button>
+                    {isOpenOrder && (
+                      <button type="button" onClick={handleClearAdvance} className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer">Clear</button>
+                    )}
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 mb-2">No advance recorded yet.</p>
                 )}
+                {isOpenOrder && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
@@ -397,6 +405,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     {pendingOrder.advanceAmount ? 'Add More' : 'Record Advance'}
                   </button>
                 </div>
+                )}
               </div>
             </div>
 
@@ -572,7 +581,7 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
         {/* Action Footer Toolbar */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2">
-            {canEditRestockDate && (
+            {canEditRestockDate && isOpenOrder && (
               <button
                 type="button"
                 onClick={() => onEditRestockDate(pendingOrder)}

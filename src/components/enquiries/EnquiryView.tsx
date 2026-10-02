@@ -744,7 +744,7 @@ export const EnquiryView: React.FC = () => {
       <EnquiryFormModal
         isOpen={isNewModalOpen}
         onClose={() => setIsNewModalOpen(false)}
-        onSavedAndConvert={(enqId, targetType) => convertEnquiryToSale(enqId, targetType)}
+        onSavedAndConvert={(enqId, targetType, enq) => convertEnquiryToSale(enqId, targetType, enq)}
       />
 
       {/* Enquiry Detail Modal (Full preview matching Sales pattern) */}
@@ -773,7 +773,9 @@ export const EnquiryView: React.FC = () => {
           initialValues={{
             itemName: catalogEnquiry.itemName,
             imageUrl: catalogEnquiry.itemImageUrl,
+            unit: catalogEnquiry.unit,
           }}
+          requirePositivePrice
           onItemAdded={(newItem) => {
             // Never link the same enquiry twice — a second add would spawn a
             // duplicate pending order (CRM-19).

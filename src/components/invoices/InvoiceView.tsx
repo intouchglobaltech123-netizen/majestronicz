@@ -229,7 +229,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // If redirected with an estimate to convert, open a new Sale tab for it.
   useEffect(() => {
     if (estimateToConvert) {
-      openBillTab({ documentType: 'Invoice', convertedEstimate: estimateToConvert, label: `Convert ${estimateToConvert.estimateNumber}` });
+      // An enquiry conversion carries the enquiry number (already "ENQ-…") — label it as such (E2E6-8).
+      const fromEnquiry = estimateToConvert.id.startsWith('est-conv-') && estimateToConvert.sourceEnquiryNumber
+        && !estimates.some((e) => e.id === estimateToConvert.id);
+      openBillTab({ documentType: 'Invoice', convertedEstimate: estimateToConvert, label: fromEnquiry ? `Bill ${estimateToConvert.sourceEnquiryNumber}` : `Convert ${estimateToConvert.estimateNumber}` });
       setEstimateToConvert(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

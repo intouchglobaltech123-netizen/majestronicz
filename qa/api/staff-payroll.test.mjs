@@ -1,7 +1,7 @@
 // Staff, attendance, kiosk PINs and payroll.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { post, get, ok, expectStatus, near, uid, together, sql } from './lib.mjs';
+import { post, put, get, api, ok, expectStatus, near, uid, together, sql, loginPin } from './lib.mjs';
 
 /** A fresh active employee (created by the CEO) so lockouts and payroll rows never collide. */
 async function newEmployee(branchId = 'erode-hq', salary = 20800) {
@@ -111,5 +111,60 @@ describe('staff & payroll', () => {
 
   test('HRM-6 kiosk PINs must be 4 digits', async () => {
     expectStatus(await post('/api/employees', { name: `QA ${uid()}`, designation: 'x', branchId: 'erode-hq', monthlySalary: 1, pin: '12a4' }), 400);
+  });
+  test('E2E7-6 Mark Paid without a payrollId is refused and changes no payroll row', async () => {
+    const { emp } = await newEmployee();
+    const draft = await draftRow(emp, '2026-02');
+    const before = ok(await get('/api/payroll-records'));
+    const res = await post('/api/hrm/payroll-paid', { paymentMode: 'Cash', paymentReference: 'WIPE' });
+    expectStatus(res, 400);
+    const after = ok(await get('/api/payroll-records'));
+    for (const b of before) {
+      const a = after.find((x) => x.id === b.id);
+      assert.equal(a.status, b.status, `${b.id} status changed`);
+      assert.equal(a.paymentReference ?? null, b.paymentReference ?? null, `${b.id} reference changed`);
+    }
+    assert.equal(after.find((x) => x.id === draft.id).status, 'Draft');
+  });
+
+  test('E2E7-6 Mark Paid for an unknown payroll row is a 404', async () => {
+    expectStatus(await post('/api/hrm/payroll-paid', { payrollId: `pay-nope-${uid()}`, paymentMode: 'Cash' }), 404);
+  });
+
+  test('HRM8-1 a location without coordinates is stored as no location', async () => {
+    const { emp } = await newEmployee();
+    ok(await post('/api/hrm/clock-in', { employeeId: emp.id, location: { addressHint: 'Verified Branch Premises' }, customTime: '09:00:00' }), 'in');
+    ok(await post('/api/hrm/clock-out', { employeeId: emp.id, location: { latitude: 'x', longitude: null }, customTime: '17:00:00' }), 'out');
+    const rec = ok(await get('/api/attendance-records')).find((a) => a.employeeId === emp.id);
+    assert.equal(rec.checkInLocation, null);
+    assert.equal(rec.checkOutLocation, null);
+    const { emp: emp2 } = await newEmployee();
+    ok(await post('/api/hrm/clock-in', { employeeId: emp2.id, location: { latitude: 11.34, longitude: 77.71, accuracy: 12, addressHint: 'Live' } }), 'with GPS');
+    const rec2 = ok(await get('/api/attendance-records')).find((a) => a.employeeId === emp2.id);
+    assert.deepEqual(rec2.checkInLocation, { latitude: 11.34, longitude: 77.71, accuracy: 12, addressHint: 'Live' });
+  });
+
+  test('HRM6-4 disabling and re-enabling a login keeps clock-in working', async () => {
+    const { emp } = await newEmployee();
+    let user;
+    for (let i = 0; i < 20 && !user; i++) {
+      const pin = String(1000 + Math.floor(Math.random() * 9000));
+      const r = await post('/api/staff/login', { employeeId: emp.id, role: 'Billing', name: emp.name, pin, assignedBranchId: 'erode-hq' });
+      if (r.status === 409) continue;
+      user = ok(r, 'enable login');
+    }
+    ok(await put(`/api/users/${user.id}`, { status: 'disabled' }), 'disable');
+    ok(await put(`/api/users/${user.id}`, { status: 'active' }), 're-enable');
+    const stored = ok(await get(`/api/employees/${emp.id}`));
+    assert.equal(stored.status, 'Active');
+    ok(await post('/api/hrm/clock-in', { employeeId: emp.id, customTime: '09:00:00' }), 'clock-in after re-enable');
+  });
+
+  // Runs last in this file: it resets the demo data.
+  test('HRM3-8 after Reset Demo Data, Billing can still clock in', async () => {
+    ok(await post('/api/admin/reseed', {}), 'reseed');
+    const res = await api('POST', '/api/attendance/self-clock', { as: 'Billing', body: { photo: null, location: null } });
+    ok(res, 'Billing self check-in');
+    assert.ok(['in', 'out', 'done'].includes(res.body.action));
   });
 });

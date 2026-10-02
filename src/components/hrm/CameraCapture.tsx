@@ -87,8 +87,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     }
   };
 
-  // Instant fallback snapshot generator (useful for environments without webcams or restricted permissions)
+  // Instant fallback snapshot generator — a TESTING aid only. A production build
+  // must not offer it: anyone could punch in with a fake "selfie" (HRM-7).
+  const allowSimulate = !import.meta.env.PROD;
   const handleSimulateSelfie = () => {
+    if (!allowSimulate) return;
     const canvas = document.createElement('canvas');
     canvas.width = 640;
     canvas.height = 480;
@@ -158,9 +161,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
             <div>
               <p className="text-sm font-semibold text-slate-200">Webcam Not Available</p>
               <p className="text-xs text-slate-400 mt-1">
-                Camera access blocked or device lacks webcam. You can generate an instant verified selfie snapshot for testing.
+                {allowSimulate
+                  ? 'Camera access blocked or device lacks webcam. You can generate an instant selfie snapshot for testing.'
+                  : 'Camera access is blocked or this device has no webcam. Allow camera access in the browser and try again.'}
               </p>
             </div>
+            {allowSimulate && (
             <button
               type="button"
               onClick={handleSimulateSelfie}
@@ -169,6 +175,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               <Camera className="h-3.5 w-3.5" />
               <span>Generate Instant Snapshot</span>
             </button>
+            )}
           </div>
         ) : (
           // Live Video Stream
@@ -217,7 +224,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               <span>Take Selfie</span>
             </button>
 
-            {!cameraError && (
+            {!cameraError && allowSimulate && (
               <button
                 type="button"
                 onClick={handleSimulateSelfie}

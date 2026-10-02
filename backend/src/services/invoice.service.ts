@@ -248,6 +248,14 @@ export function createSale(inv: any, reqUser?: any) {
     inv.incentiveAmount = inv.incentiveAmount ?? null;
   }
   return serializableTx(async (tx: any) => {
+    // SEC7-1: without a date, `date: undefined` below matched ANY closed day of
+    // the branch (spurious DAY_CLOSED). An edit keeps the stored bill's date; a
+    // new sale must state one.
+    if (!inv.date) {
+      const stored = inv.id ? await tx.invoice.findUnique({ where: { id: inv.id } }) : null;
+      if (!stored) throw new AppError('DATE_REQUIRED', 'The bill date is required.', 400);
+      inv.date = stored.date;
+    }
     const reg = await tx.dailyCashRegister.findFirst({
       where: { branchId: inv.branchId, date: inv.date, isClosed: true },
     });

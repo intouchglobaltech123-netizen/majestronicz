@@ -7,6 +7,7 @@ import { CameraCapture } from './CameraCapture';
 import { apiGet, apiPost } from '../../lib/api';
 import { playSuccess } from '../../lib/sound';
 import { toast } from 'sonner';
+import { hasCoords, formatCoords } from '../../lib/geo';
 
 interface Props {
   isOpen: boolean;
@@ -87,10 +88,10 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
     if (!photo) { toast.error('Please capture your selfie first'); return; }
     setSaving(true);
     try {
-      const fallback: GeoLocationCapture = location || { latitude: 11.341, longitude: 77.7172, accuracy: 15, addressHint: 'Branch premises' };
+      // No GPS → no location (HRM-7); never a made-up "Branch premises" fix.
       const res = await apiPost<{ action: 'in' | 'out' | 'done'; record: { checkInTime?: string; checkOutTime?: string } }>(
         '/api/attendance/self-clock',
-        { photo, location: fallback }
+        { photo, location: hasCoords(location) ? location : null }
       );
       if (res.action === 'in') { playSuccess(); toast.success(`Checked in at ${res.record.checkInTime}`); }
       else if (res.action === 'out') { playSuccess(); toast.success(`Checked out at ${res.record.checkOutTime}`); }
@@ -172,9 +173,9 @@ export const SelfAttendanceModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     <span className="flex items-center gap-1.5 font-semibold text-slate-700">
                       <Navigation className="h-3.5 w-3.5 text-red-700" /> Location
                     </span>
-                    {location ? (
+                    {hasCoords(location) ? (
                       <span className="text-[11px] font-mono text-slate-600">
-                        {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                        {formatCoords(location)}
                       </span>
                     ) : (
                       <span className="text-[11px] text-slate-400">{fetchingLoc ? 'Detecting…' : 'Unavailable'}</span>

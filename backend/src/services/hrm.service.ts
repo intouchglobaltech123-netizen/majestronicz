@@ -79,6 +79,26 @@ function shiftHours(inDate: string, inTime: string, outDate: string, outTime: st
   return Math.max(0, parseFloat(((dayDiff * 1440 + outMinutes - inMinutes) / 60).toFixed(2)));
 }
 
+/**
+ * Keep only a real GPS fix: numeric latitude/longitude (plus optional accuracy
+ * and a short label). Anything else is stored as "no location" — a location
+ * object without coordinates crashed the Attendance screen (HRM8-1), and a
+ * client must not be able to store a made-up "Verified" fix without GPS (HRM-7).
+ */
+function cleanLocation(loc: any): any {
+  if (!loc || typeof loc !== 'object') return null;
+  const lat = loc.latitude, lng = loc.longitude;
+  if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const out: any = { latitude: lat, longitude: lng };
+  if (typeof loc.accuracy === 'number' && Number.isFinite(loc.accuracy)) out.accuracy = loc.accuracy;
+  if (typeof loc.addressHint === 'string') out.addressHint = loc.addressHint.slice(0, 120);
+  return out;
+}
+
+/** Employee status is 'Active'; older rows saved the login's lowercase 'active' (HRM6-4). */
+const isActiveStatus = (s: unknown) => s === 'Active' || s === 'active';
+
 /** A manual clock time must be HH:mm or HH:mm:ss (24-hour) — reject "banana" etc. */
 const isValidClockTime = (t?: string): boolean => !t || /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(t).trim());
 
@@ -86,7 +106,7 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
     if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
-    if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Employee profile is inactive', 409);
+    if (!isActiveStatus(emp.status)) throw new AppError('INACTIVE', 'Employee profile is inactive', 409);
     // A branch-locked user can only clock in their own branch's staff, and a
     // manual time must be a real HH:mm — "banana" is rejected (VAL-1).
     assertBranchAllowed(reqUser, emp.branchId);
@@ -105,7 +125,7 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
     await tx.attendanceRecord.create({
       data: {
         id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
-        checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: location ?? null, status: 'Present',
+        checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location), status: 'Present',
         createdAt: now.toISOString(), updatedAt: now.toISOString(),
       },
     });
@@ -138,7 +158,7 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
 
     await tx.attendanceRecord.update({
       where: { id: existing.id },
-      data: { checkOutTime: timeStr, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
+      data: { checkOutTime: timeStr, checkOutPhoto: photoDataUrl, checkOutLocation: cleanLocation(location), hoursWorked: diffHours, updatedAt: now.toISOString() },
     });
     return snap(tx);
   });
@@ -154,7 +174,7 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
   return prisma.$transaction(async (tx: any) => {
     const emp = await tx.employee.findUnique({ where: { id: employeeId } });
     if (!emp) throw new AppError('NO_PROFILE', 'No attendance profile is linked to your account.', 404);
-    if (emp.status !== 'Active') throw new AppError('INACTIVE', 'Your attendance profile is inactive.', 409);
+    if (!isActiveStatus(emp.status)) throw new AppError('INACTIVE', 'Your attendance profile is inactive.', 409);
 
     const now = new Date();
     const ist = istParts(now);
@@ -171,7 +191,7 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
       const diffHours = Math.min(16, shiftHours(openShift.date, openShift.checkInTime, today, ist.time)); // cap a stale open shift (HRM3-5)
       const record = await tx.attendanceRecord.update({
         where: { id: openShift.id },
-        data: { checkOutTime: ist.time, checkOutPhoto: photoDataUrl, checkOutLocation: location, hoursWorked: diffHours, updatedAt: now.toISOString() },
+        data: { checkOutTime: ist.time, checkOutPhoto: photoDataUrl, checkOutLocation: cleanLocation(location), hoursWorked: diffHours, updatedAt: now.toISOString() },
       });
       return { action: 'out', record };
     }
@@ -184,7 +204,7 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
     const record = await tx.attendanceRecord.create({
       data: {
         id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
-        checkInTime: ist.time, checkInPhoto: photoDataUrl || null, checkInLocation: location ?? null, status: 'Present',
+        checkInTime: ist.time, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location), status: 'Present',
         createdAt: now.toISOString(), updatedAt: now.toISOString(),
       },
     });
@@ -230,6 +250,13 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
 }
 
 export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any) {
+  // E2E7-6: a call without a payrollId used to fall through to a legacy
+  // `updateMany({ where: { id: undefined } })`, which Prisma reads as "no
+  // filter" — every payroll row became Paid and paid rows lost their payment
+  // reference. Require the row being paid.
+  const id = typeof payrollId === 'string' ? payrollId.trim() : '';
+  if (!id) throw new AppError('PAYROLL_ID_REQUIRED', 'Choose the payroll row to mark as paid.', 400);
+  if (!String(paymentMode || '').trim()) throw new AppError('PAYMENT_MODE_REQUIRED', 'Choose how the salary was paid.', 400);
   // Serializable + retry so two people pressing "Mark Paid" at the same moment
   // can't both pay the row — the second serialises after the first and sees it as
   // already Paid (HRM6-3).
@@ -237,7 +264,7 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
     const ts = nowIso();
     // Match an existing persisted record: first by id, else by employee+month
     // (computed rows carry a synthetic "calc-…" id with no DB row yet).
-    let existing = payrollId ? await tx.payrollRecord.findUnique({ where: { id: payrollId } }) : null;
+    let existing = await tx.payrollRecord.findUnique({ where: { id } });
     if (!existing && record?.employeeId && record?.month) {
       existing = await tx.payrollRecord.findFirst({ where: { employeeId: record.employeeId, month: record.month } });
     }
@@ -300,11 +327,8 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
         },
       });
     } else {
-      // Legacy fallback: best-effort update by id.
-      await tx.payrollRecord.updateMany({
-        where: { id: payrollId },
-        data: { status: 'Paid', paidAt: ts, paymentMode, paymentReference: paymentReference ?? null, updatedAt: ts },
-      });
+      // No such payroll row and no computed figures to create one from.
+      throw new AppError('NOT_FOUND', 'Payroll row not found.', 404);
     }
     return snap(tx);
   });

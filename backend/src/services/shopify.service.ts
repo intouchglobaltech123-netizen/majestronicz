@@ -714,8 +714,8 @@ export async function updateOnlineOrderStatus(
   }
 ): Promise<{ invoice: any; shopify?: { success: boolean; error?: string } }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!inv) throw new Error('Order not found');
-  if (![...ONLINE_PIPELINE, 'Cancelled'].includes(status)) throw new Error(`Invalid status: ${status}`);
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (![...ONLINE_PIPELINE, 'Cancelled'].includes(status)) throw new AppError('BAD_STATUS', `Invalid order status: ${String(status).slice(0, 40)}`, 400); // PLT5-1
 
   const now = nowIso();
   // Append-only activity trail: who + what + when. Never rewritten or deleted.
@@ -757,7 +757,7 @@ export async function saveOrderPacking(
   actor: string,
 ): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!inv) throw new Error('Order not found');
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
   const now = nowIso();
   const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
   history.push({ status: (inv as any).onlineStatus || 'New', at: now, by: actor, note: 'Packing details saved' });
@@ -787,7 +787,7 @@ export async function addOrderIssue(
   actor: string,
 ): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!inv) throw new Error('Order not found');
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
   if (!ISSUE_TYPES.includes(type)) throw new AppError('BAD_ISSUE_TYPE', `Invalid issue type: ${type}`, 400);
   const issues = Array.isArray((inv as any).issues) ? (inv as any).issues : [];
   issues.push({
@@ -810,7 +810,7 @@ export async function resolveOrderIssue(
   actor: string,
 ): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!inv) throw new Error('Order not found');
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
   const issues = Array.isArray((inv as any).issues) ? (inv as any).issues : [];
   const now = nowIso();
   let found = false;
@@ -843,8 +843,8 @@ export async function addOrderCommunication(
   actor: string,
 ): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!inv) throw new Error('Order not found');
-  if (!COMM_TYPES.includes(type)) throw new Error(`Invalid communication type: ${type}`);
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!COMM_TYPES.includes(type)) throw new AppError('BAD_TYPE', `Invalid communication type: ${String(type).slice(0, 40)}`, 400);
   const log = Array.isArray((inv as any).communicationLog) ? (inv as any).communicationLog : [];
   log.push({ type, by: actor, at: nowIso(), note: note?.trim() || undefined });
   await prisma.invoice.update({ where: { id: invoiceId }, data: { communicationLog: log } });

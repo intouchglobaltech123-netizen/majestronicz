@@ -24,7 +24,7 @@ import { PhoneInput } from '../common/PhoneInput';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSavedAndConvert?: (enquiryId: string, targetType: 'estimate' | 'invoice') => void;
+  onSavedAndConvert?: (enquiryId: string, targetType: 'estimate' | 'invoice', enquiry: Enquiry) => void;
 }
 
 export const EnquiryFormModal: React.FC<Props> = ({
@@ -39,12 +39,18 @@ export const EnquiryFormModal: React.FC<Props> = ({
     getNextEnquiryNumber,
     saveEnquiry,
     canConvertEnquiry,
+    currentUser,
   } = useErp();
 
+  // A branch-locked login (Manager etc.) can only log enquiries for its own
+  // branch — the server refuses any other, so don't offer them (CRM-14).
+  const lockedBranch: BranchId | null =
+    currentUser.role !== 'CEO' && currentUser.assignedBranchId ? (currentUser.assignedBranchId as BranchId) : null;
+  const defaultBranch = (): BranchId =>
+    lockedBranch || (!isAllBranches && currentBranch !== 'all' ? (currentBranch as BranchId) : 'erode-hq');
+
   // Branch
-  const [branchId, setBranchId] = useState<BranchId>(() => {
-    return !isAllBranches && currentBranch !== 'all' ? (currentBranch as BranchId) : 'erode-hq';
-  });
+  const [branchId, setBranchId] = useState<BranchId>(defaultBranch);
 
   // Customer details
   const [customerName, setCustomerName] = useState('');
@@ -102,7 +108,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
     const reminder = new Date();
     reminder.setDate(reminder.getDate() + 1);
 
-    setBranchId(!isAllBranches && currentBranch !== 'all' ? (currentBranch as BranchId) : 'erode-hq');
+    setBranchId(defaultBranch());
     setCustomerName('');
     setCustomerPhone('');
     setItemMode('existing');
@@ -136,22 +142,35 @@ export const EnquiryFormModal: React.FC<Props> = ({
     setSearchQuery(item.itemName);
   };
 
-  const handleSaveOnly = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Shared input validation (CRM-15): a phone, when given, must be a valid
-    // 10-digit Indian mobile; a follow-up reminder can't be set in the past.
+  // Shared input validation for both Save and Save & Convert (CRM-15 / CRM4-7):
+  // a phone, when given, must be a valid 10-digit Indian mobile; the time must be
+  // a real HH:mm; a follow-up reminder can't be set in the past.
+  const validateCommon = (withReminder: boolean): boolean => {
     if (customerPhone.trim()) {
       const digits = customerPhone.replace(/\D/g, '').slice(-10);
       if (!/^[6-9]\d{9}$/.test(digits)) {
         toast.error('Enter a valid 10-digit mobile number, or leave the phone blank.');
-        return;
+        return false;
       }
     }
-    if (reminderDate && reminderDate < getTodayDateString()) {
-      toast.error('Reminder date cannot be in the past.');
-      return;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      toast.error('Enter a valid time (HH:mm).');
+      return false;
     }
+    if (!date) {
+      toast.error('Enter the enquiry date.');
+      return false;
+    }
+    if (withReminder && reminderDate && reminderDate < getTodayDateString()) {
+      toast.error('Reminder date cannot be in the past.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSaveOnly = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateCommon(true)) return;
 
     if (itemMode === 'new') {
       if (!customerName.trim() || !newItemName.trim() || quantity <= 0) {
@@ -236,6 +255,7 @@ export const EnquiryFormModal: React.FC<Props> = ({
       toast.error('Please complete all required fields');
       return;
     }
+    if (!validateCommon(false)) return;
 
     const generatedNumber = getNextEnquiryNumber(branchId);
     const newEnquiry: Enquiry = {
@@ -260,7 +280,9 @@ export const EnquiryFormModal: React.FC<Props> = ({
     saveEnquiry(newEnquiry, hasShortage ? expectedRestockDate : undefined);
     onClose();
     if (onSavedAndConvert) {
-      onSavedAndConvert(newEnquiry.id, targetType);
+      // Pass the enquiry itself: it is not in the context's list until the next
+      // render, so converting by id alone silently did nothing (CRM-1).
+      onSavedAndConvert(newEnquiry.id, targetType, newEnquiry);
     }
   };
 
@@ -329,9 +351,11 @@ export const EnquiryFormModal: React.FC<Props> = ({
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value as BranchId)}
-                className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600 cursor-pointer"
+                disabled={!!lockedBranch}
+                title={lockedBranch ? 'You can log enquiries for your own branch only' : undefined}
+                className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600 cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
               >
-                {BRANCHES.map((b) => (
+                {BRANCHES.filter((b) => !lockedBranch || b.id === lockedBranch).map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.shortCode})
                   </option>
@@ -360,7 +384,8 @@ export const EnquiryFormModal: React.FC<Props> = ({
               </label>
               <div className="relative">
                 <input
-                  type="text"
+                  type="time"
+                  required
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full pl-3 pr-8 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600 font-mono"

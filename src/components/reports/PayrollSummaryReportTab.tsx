@@ -13,7 +13,7 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getTodayDateString } from '../../lib/utils';
 import { computePayrollRows } from '../../lib/payroll';
 
 interface Props {
@@ -31,8 +31,8 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
     setCurrentView,
   } = useErp();
 
-  // Pick month filter (default: "2026-09")
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  // Month filter — opens on the current month, not a hard-coded 2026-09 (RPT8-3 / PLT-5).
+  const [selectedMonth, setSelectedMonth] = useState(() => getTodayDateString().slice(0, 7));
 
   // Security check: Only CEO can view Payroll report
   if (currentUser.role !== 'CEO') {

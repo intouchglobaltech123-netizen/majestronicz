@@ -55,14 +55,12 @@ export const HrmView: React.FC = () => {
   // KPI Calculations
   const activeStaff = employees.filter((e) => e.status === 'Active');
   const todayCheckIns = attendanceRecords.filter((a) => a.date === todayStr && a.checkInTime);
-  const monthRecords = attendanceRecords.filter((a) => a.date.startsWith(currentMonthStr));
-  const monthLaborHours = monthRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
 
   // Monthly payroll expense — uses the SAME shared computation as the Payroll
   // rows (attendance pay + incentives + adjustments) so this KPI equals the sum
   // of the displayed payroll rows rather than a bare hours × rate estimate.
   const standardHours = payrollSettings.standardHoursPerMonth || 208;
-  const monthPayrollExpense = computePayrollRows({
+  const monthPayrollRows = computePayrollRows({
     employees,
     attendanceRecords,
     invoices,
@@ -70,7 +68,13 @@ export const HrmView: React.FC = () => {
     month: currentMonthStr,
     standardHours,
     branchScope: currentBranch,
-  }).reduce((sum, r) => sum + r.finalPayable, 0);
+  });
+  const monthPayrollExpense = monthPayrollRows.reduce((sum, r) => sum + r.finalPayable, 0);
+  // Labour hours from the same rows the Payroll screen shows, so both cards agree
+  // for the same month and branch (E2E-19) — not a raw sum of every attendance row.
+  const monthLaborHours = monthPayrollRows.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0);
+  // "Oct", "Nov", … from today's month instead of a hard-coded "Sep" (PLT-5).
+  const currentMonthLabel = new Date(`${currentMonthStr}-01T00:00:00`).toLocaleString('en-IN', { month: 'short' });
 
   // Today's presence — unique active staff who checked in vs those who didn't.
   const presentIds = new Set(todayCheckIns.map((a) => a.employeeId));
@@ -271,7 +275,7 @@ export const HrmView: React.FC = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Labor Hours (Sep)
+              Labor Hours ({currentMonthLabel})
             </p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {monthLaborHours.toFixed(1)} hrs

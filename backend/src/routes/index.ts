@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { requireCapability, requireAuth, requireManagerOrCEO } from '../middleware/rbac.js';
+import { requireCapability, requireAuth, requireManagerOrCEO, sessionIsLive } from '../middleware/rbac.js';
 import { issueToken, verifyToken, hashPin, Capability } from '../lib/auth.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
 import { nowIso } from '../lib/stockLedger.js';
+import { cleanRecurringFields } from '../lib/validate.js';
 import invoiceRoutes from './invoice.routes.js';
 import stockRoutes from './stock.routes.js';
 import purchaseRoutes from './purchase.routes.js';
@@ -98,6 +99,16 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   }
   loginAttempts.set(ip, rec);
   throw new AppError('INVALID_PIN', `Incorrect PIN.${remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before a 1-minute lock.` : ' Locked for 1 minute.'}`, 401);
+}));
+
+// Sign out (SEC-5): tokens are stateless and live 12h, so a copied token kept
+// working after "Sign out". Record the moment; attachUser rejects every token
+// of this account issued before it (all of this user's open sessions end).
+router.post('/auth/logout', requireAuth, asyncHandler(async (req, res) => {
+  const actor = (req as any).user;
+  await prisma.user.update({ where: { id: actor.userId }, data: { tokensValidAfter: Date.now(), updatedAt: nowIso() } });
+  await recordAudit({ actor: actorOf(req), action: 'auth.logout', entity: 'user', entityId: actor.userId, summary: 'Signed out' });
+  res.json({ ok: true });
 }));
 
 // Rate-limit change-pin per account so it can't be used as a PIN oracle. The
@@ -257,10 +268,9 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
 
 router.post('/recurring-expenses', requireManagerOrCEO, asyncHandler(async (req, res) => {
   const b = req.body || {};
-  if (!String(b.name || '').trim()) throw new AppError('NAME_REQUIRED', 'Expense name is required', 400);
-  if (Number(b.defaultAmount) <= 0) throw new AppError('BAD_AMOUNT', 'Amount must be greater than zero', 400);
-  const due = Number(b.dueDay);
-  if (!Number.isInteger(due) || due < 1 || due > 31) throw new AppError('BAD_DUE', 'Due day must be 1–31', 400);
+  // VAL-1 / PLT6-1: typed, whitelisted fields (frequency, amount cap, branch) —
+  // a wrong type used to reach Prisma and return a 500 with its error text.
+  const data: any = cleanRecurringFields(b);
   // SEC5-1: recurring-expense templates are branch-scoped — a branch-locked user
   // must not create one for another branch.
   assertBranchAllowed((req as any).user, b.branchId);
@@ -269,7 +279,6 @@ router.post('/recurring-expenses', requireManagerOrCEO, asyncHandler(async (req,
   if (existingTpl) assertBranchAllowed((req as any).user, existingTpl.branchId);
   // The approval ledger (lastApprovedMonth / approvalHistory) is NEVER accepted
   // from the client — that's how a forged "rent posted twice" got in.
-  const data = pick(b, ['name', 'defaultAmount', 'branchId', 'frequency', 'startMonth', 'dueDay', 'paymentMode', 'category']);
   const tpl = await prisma.recurringExpenseTemplate.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
   broadcastChange('POST /api/recurring-expenses');
   res.json({ ok: true, recurringExpense: tpl, recurringExpenses: await prisma.recurringExpenseTemplate.findMany() });
@@ -410,7 +419,11 @@ router.get('/events', (req, res, next) => {
   const token = typeof req.query.token === 'string' ? req.query.token : undefined;
   const session = verifyToken(token);
   if (!session || !session.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
-  next();
+  // Same revocation as every other request (disabled / role changed / signed out).
+  sessionIsLive(session).then((live) => {
+    if (!live) return next(new AppError('UNAUTHENTICATED', 'Login required', 401));
+    next();
+  }, next);
 }, sseHandler);
 
 // ---- Access control matrix (view/edit; edit is CEO/admin only) ----
@@ -588,5 +601,10 @@ router.post('/shopify/webhook/orders', asyncHandler(async (req, res) => {
 
 router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user))));
 router.get('/health', asyncHandler(async (_req, res) => res.json(await system.healthCheck())));
+
+// ERR-1: an unknown /api route answers with JSON, not Express's HTML "Cannot PUT" page.
+router.use((req, res) => {
+  res.status(404).json({ error: 'NOT_FOUND', message: `No such API route: ${req.method} ${req.baseUrl}${req.path}` });
+});
 
 export default router;

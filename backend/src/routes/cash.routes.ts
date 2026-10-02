@@ -18,6 +18,8 @@ router.post('/approve-recurring', requireManagerOrCEO, asyncHandler(ctrl.approve
 // PUT/DELETE /api/recurring-expenses/:id routes that crud.ts removed while the
 // Recurring Expenses screen was still calling them (every edit/delete 404'd,
 // and the UI still said "updated").
-router.put('/recurring/:id', asyncHandler(ctrl.updateRecurring));
-router.delete('/recurring/:id', asyncHandler(ctrl.deleteRecurring));
+// Like creating one, editing or deleting a template is Manager/CEO only —
+// Billing holds cash:write but must not rewrite rent/EB templates (SEC8-1).
+router.put('/recurring/:id', requireManagerOrCEO, asyncHandler(ctrl.updateRecurring));
+router.delete('/recurring/:id', requireManagerOrCEO, asyncHandler(ctrl.deleteRecurring));
 export default router;

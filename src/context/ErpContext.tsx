@@ -284,7 +284,9 @@ interface ErpContextType {
   clearPendingAdvance: (orderId: string) => Promise<boolean>;
   cancelEnquiry: (enquiryId: string, reason: string) => void;
   cancelPendingOrder: (orderId: string, reason: string) => void;
-  convertEnquiryToSale: (enquiryId: string, targetType: 'estimate' | 'invoice') => void;
+  convertEnquiryToSale: (enquiryId: string, targetType: 'estimate' | 'invoice', enquiry?: Enquiry) => void;
+  /** Record that a SAVED bill/quotation was made from an enquiry (closes it + its pending order). */
+  markEnquiryConverted: (enquiryId: string, targetType: 'estimate' | 'invoice', docId: string, docNumber: string) => Promise<void>;
   getNextEnquiryNumber: (branchId: BranchId) => string;
   canCancelEnquiry: boolean;
   canEditRestockDate: boolean;
@@ -454,13 +456,13 @@ interface ErpContextType {
   clockIn: (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ) => { success: boolean; message: string; record?: AttendanceRecord };
   clockOut: (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ) => { success: boolean; message: string; record?: AttendanceRecord };
   updatePayrollSettings: (settings: PayrollSettings) => void;
@@ -1279,6 +1281,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    // Revoke the token on the server too (SEC-5) — fire-and-forget, so signing
+    // out never hangs on a slow or unreachable backend.
+    if (getAuthToken()) void apiPost('/api/auth/logout', {}).catch(() => {});
     setAuthToken(null);
     setIsAuthenticated(false);
     setMustResetPin(false);
@@ -3488,9 +3493,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const convertEnquiryToSale = (enquiryId: string, targetType: 'estimate' | 'invoice') => {
-    const enq = enquiries.find((e) => e.id === enquiryId);
+  // Open the quotation / bill form pre-filled from an enquiry. Nothing is marked
+  // Converted here: that happens only once the document is actually saved
+  // (markEnquiryConverted) — leaving the form, or "+ Bill" without billing, used
+  // to close the enquiry and fulfil its pending order anyway (CRM-2 / PLT7-1).
+  // `enquiry` is passed by "Save & Convert", whose just-saved enquiry is not in
+  // this render's list yet (CRM-1).
+  const convertEnquiryToSale = (enquiryId: string, targetType: 'estimate' | 'invoice', enquiry?: Enquiry) => {
+    const enq = enquiry && enquiry.id === enquiryId ? enquiry : enquiries.find((e) => e.id === enquiryId);
     if (!enq) return;
+    if (enq.status === 'Converted' || enq.status === 'Cancelled') {
+      toast.error(`Enquiry ${enq.enquiryNumber} is already ${enq.status}.`);
+      return;
+    }
 
     const item = items.find((i) => i.id === enq.itemId);
     const preTaxPrice = item
@@ -3502,7 +3517,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const preFilledEstimate: Estimate = {
       id: `est-conv-${Date.now()}`,
-      estimateNumber: targetType === 'estimate' ? getNextEstimateNumber(enq.branchId) : `ENQ-${enq.enquiryNumber}`,
+      estimateNumber: targetType === 'estimate' ? getNextEstimateNumber(enq.branchId) : enq.enquiryNumber,
       branchId: enq.branchId,
       date: getTodayDateString(),
       time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
@@ -3549,93 +3564,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView('invoices');
     }
 
-    const convTimelineEvent: EnquiryTimelineEvent = {
-      id: `tl-conv-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      type: 'converted',
-      title: `Converted to ${targetType === 'estimate' ? 'Quotation / Estimate' : 'Sales Invoice'}`,
-      description: `Generated document #${preFilledEstimate.estimateNumber}.`,
-      actor: currentUser.name,
-    };
-
-    // Mark enquiry as Converted
-    setEnquiries((prev) =>
-      prev.map((e) =>
-        e.id === enquiryId
-          ? {
-              ...e,
-              status: 'Converted' as const,
-              convertedTo: {
-                type: targetType,
-                id: preFilledEstimate.id,
-                number: preFilledEstimate.estimateNumber,
-                convertedAt: new Date().toISOString(),
-              },
-              timeline: [convTimelineEvent, ...(e.timeline || [])],
-              updatedAt: new Date().toISOString(),
-            }
-          : e
-      )
-    );
-
-    setSelectedEnquiryForDetail((prev) =>
-      prev && prev.id === enquiryId
-        ? {
-            ...prev,
-            status: 'Converted' as const,
-            convertedTo: {
-              type: targetType,
-              id: preFilledEstimate.id,
-              number: preFilledEstimate.estimateNumber,
-              convertedAt: new Date().toISOString(),
-            },
-            timeline: [convTimelineEvent, ...(prev.timeline || [])],
-            updatedAt: new Date().toISOString(),
-          }
-        : prev
-    );
-
-    // If a linked pending order exists AND is still open (Waiting / Stock
-    // Arrived), mark it Fulfilled. A Cancelled order must not be revived (CRM-11).
-    const isOpenPo = (s: string) => s === 'Waiting' || s === 'Stock Arrived';
-    setPendingOrders((prev) =>
-      prev.map((po) =>
-        po.enquiryId === enquiryId && isOpenPo(po.status)
-          ? {
-              ...po,
-              status: 'Fulfilled' as const,
-              fulfilledAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : po
-      )
-    );
-
-    setSelectedPendingOrderForDetail((prev) =>
-      prev && prev.enquiryId === enquiryId && isOpenPo(prev.status)
-        ? {
-            ...prev,
-            status: 'Fulfilled' as const,
-            fulfilledAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-        : prev
-    );
-
-    // A converted enquiry is closed: clear its open follow-up reminders so they
-    // no longer surface as pending call-backs (CRM-10).
-    setReminders((prev) =>
-      prev.map((r) =>
-        r.enquiryId === enquiryId && !r.isCompleted
-          ? { ...r, isCompleted: true, completedAt: new Date().toISOString() }
-          : r
-      )
-    );
-
-    persist(apiPost('/api/enquiry/convert', { enquiryId, targetType, docId: preFilledEstimate.id, docNumber: preFilledEstimate.estimateNumber, actor: currentUser.name }));
-    toast.success(`Converting Enquiry ${enq.enquiryNumber} to ${targetType === 'estimate' ? 'Estimate' : 'Sales Invoice'}`, {
-      description: `Customer & line items pre-filled. Review and save.`,
+    toast.info(`Enquiry ${enq.enquiryNumber}: review and save the ${targetType === 'estimate' ? 'quotation' : 'bill'}`, {
+      description: 'Customer & line items pre-filled. The enquiry is closed once you save.',
     });
+  };
+
+  const markEnquiryConverted = async (enquiryId: string, targetType: 'estimate' | 'invoice', docId: string, docNumber: string) => {
+    const enq = enquiries.find((e) => e.id === enquiryId);
+    if (enq && enq.status !== 'Follow-up') return; // already converted / cancelled
+    try {
+      const snap = await apiPost<any>('/api/enquiry/convert', { enquiryId, targetType, docId, docNumber, actor: currentUser.name });
+      applySnapshot(snap);
+      const now = new Date().toISOString();
+      const isOpenPo = (st: string) => st === 'Waiting' || st === 'Stock Arrived';
+      setSelectedEnquiryForDetail((prev) =>
+        prev && prev.id === enquiryId
+          ? { ...prev, status: 'Converted' as const, convertedTo: { type: targetType, id: docId, number: docNumber, convertedAt: now } }
+          : prev
+      );
+      setSelectedPendingOrderForDetail((prev) =>
+        prev && prev.enquiryId === enquiryId && isOpenPo(prev.status) ? { ...prev, status: 'Fulfilled' as const, fulfilledAt: now } : prev
+      );
+    } catch (e: any) {
+      toast.error('The document was saved, but the enquiry could not be marked converted', { description: e?.message });
+    }
   };
 
   // Vendor Management Actions
@@ -4131,7 +4083,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clockIn = (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ): { success: boolean; message: string; record?: AttendanceRecord } => {
     const emp = employees.find((e) => e.id === employeeId);
@@ -4169,7 +4121,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setAttendanceRecords((prev) => [newRecord, ...prev]);
     toast.success(`Check-In Recorded: ${emp.name}`, {
-      description: `Time: ${timeStr} • GPS Accuracy: ±${location.accuracy || 10}m`,
+      description: `Time: ${timeStr} • ${location ? `GPS Accuracy: ±${location.accuracy || 10}m` : 'No GPS'}`,
     });
     persist(apiPost('/api/hrm/clock-in', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-in successful', record: newRecord };
@@ -4178,7 +4130,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clockOut = (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ): { success: boolean; message: string; record?: AttendanceRecord } => {
     const emp = employees.find((e) => e.id === employeeId);
@@ -4458,6 +4410,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cancelEnquiry,
         cancelPendingOrder,
         convertEnquiryToSale,
+        markEnquiryConverted,
         getNextEnquiryNumber,
         canCancelEnquiry,
         canEditRestockDate,
