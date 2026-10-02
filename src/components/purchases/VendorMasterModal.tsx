@@ -84,7 +84,7 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
       errs.address = 'Office / warehouse address is required';
     }
     if (gstin.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gstin.trim())) {
-      errs.gstin = 'Invalid GSTIN format (e.g. 33AABCD1234E1Z5)';
+      errs.gstin = 'Invalid GSTIN format (e.g. 33AABCD1234E1ZF)';
     }
     // PUR6-5: the same supplier must not be registered twice (the server refuses
     // it too) — same GSTIN, or the same name with the same phone number.
@@ -220,7 +220,7 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
                 value={gstin}
                 onChange={(e) => { setGstin(e.target.value.toUpperCase()); setGstinCheck(null); }}
                 onBlur={(e) => verifyGstin(e.target.value)}
-                placeholder="e.g. 33AABCD1234E1Z5"
+                placeholder="e.g. 33AABCD1234E1ZF"
                 maxLength={15}
                 className={`w-full pl-9.5 pr-3 py-2 text-sm font-mono uppercase rounded-xl border bg-white focus:outline-hidden focus:ring-2 transition-all ${
                   errors.gstin

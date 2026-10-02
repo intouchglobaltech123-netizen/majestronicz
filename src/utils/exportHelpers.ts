@@ -140,13 +140,24 @@ export async function exportToPdf(filename: string, headers: string[], rows: Cel
       y += wrapped.length * lineH() + 3;
       return;
     }
-    const cells = r.slice(0, cols).map((c, i) => (isNumericCell(c) ? [show(c)] : (doc.splitTextToSize(show(c), widths[i] - pad * 2) as string[]).slice(0, 4)));
+    // V2: a long text cell prints in full (it was cut after 4 lines); a row
+    // that does not fit the page continues on the next one.
+    const cells = r.slice(0, cols).map((c, i) => (isNumericCell(c) ? [show(c)] : (doc.splitTextToSize(show(c), widths[i] - pad * 2) as string[])));
     const lines = Math.max(1, ...cells.map((c) => c.length));
-    if (y + (lines - 1) * lineH() > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
-    cells.forEach((c, i) => c.forEach((t, k) => {
-      if (isNumericCell(r[i])) doc.text(t, xs[i] + widths[i] - pad, y + k * lineH(), { align: 'right' });
-      else doc.text(t, xs[i] + pad, y + k * lineH());
-    }));
+    const room = Math.floor((pageH - 24 - 40) / lineH());
+    if (y + (Math.min(lines, room) - 1) * lineH() > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
+    for (let k = 0; k < lines; k++) {
+      if (k > 0 && y + k * lineH() > pageH - 24) {
+        doc.addPage(); y = 40; drawHeader();
+        y -= k * lineH(); // keep the row's own line numbering below
+      }
+      cells.forEach((c, i) => {
+        const t = c[k];
+        if (t === undefined) return;
+        if (isNumericCell(r[i])) doc.text(t, xs[i] + widths[i] - pad, y + k * lineH(), { align: 'right' });
+        else doc.text(t, xs[i] + pad, y + k * lineH());
+      });
+    }
     y += lines * lineH() + 3;
   });
 

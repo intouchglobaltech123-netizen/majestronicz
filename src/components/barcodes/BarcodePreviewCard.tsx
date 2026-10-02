@@ -121,7 +121,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
             {line4 ? (
               <div className="w-full truncate text-slate-500 text-[8.5px]">{line4}</div>
             ) : isDummy ? (
-              <div className="w-full truncate text-slate-500 text-[8.5px]">PKD: 09/2026 • Erode Branch</div>
+              <div className="w-full truncate text-slate-500 text-[8.5px]">PKD: {new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7).split('-').reverse().join('/')} • Erode Branch</div>
             ) : null}
           </div>
         </div>

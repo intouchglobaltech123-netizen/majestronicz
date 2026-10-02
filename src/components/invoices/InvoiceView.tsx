@@ -6,6 +6,7 @@ import { ListExportBar } from '../common/ListExportBar';
 import { SALES_EXPORT_HEADERS, salesExportRows } from '../../lib/salesExport';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
 import { calculateInvoiceTotals } from '../../lib/taxCalculations';
+import { periodSales } from '../../lib/reportMath';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
@@ -73,6 +74,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     voidInvoice,
     currentUser,
     activeSubTab,
+    payments,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -504,24 +506,31 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const voidedCount = filteredInvoices.filter((i) => i.isVoided).length;
 
   // Today's at-a-glance metrics for the billing header (branch-scoped).
+  // SAL10-9: the money cards are what came in TODAY by mode — bills' own
+  // split, plus receipts taken today, less refunds paid today — and "Sales" is
+  // today's sales on the report rule (returns on the day they happen).
   const todayStats = useMemo(() => {
-    const t = new Date();
-    const todayStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-    const scoped = invoices.filter(
-      (i) => !i.isVoided && (i.date || '').startsWith(todayStr) && (isAllBranches || i.branchId === currentBranch)
-    );
-    let amount = 0, cash = 0, gpay = 0, hdfc = 0, credit = 0;
+    const todayStr = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const inScope = (b: string) => isAllBranches || b === currentBranch;
+    const scoped = invoices.filter((i) => !i.isVoided && i.date === todayStr && inScope(i.branchId));
+    const modeOf = (m: string) => { const x = String(m || '').trim().toLowerCase(); return x === 'cash' ? 'cash' : x === 'gpay' || x === 'upi' ? 'gpay' : x === 'hdfc' || x === 'card' || x === 'bank transfer' || x === 'cheque' ? 'hdfc' : ''; };
+    const by: Record<string, number> = { cash: 0, gpay: 0, hdfc: 0 };
+    let credit = 0;
     for (const inv of scoped) {
-      amount += Math.max(0, (inv.grandTotal || 0) - (inv.totalReturnedAmount || 0));
       for (const s of getInvoicePaymentSplits(inv)) {
-        if (s.mode === 'Cash') cash += s.amount;
-        else if (s.mode === 'GPay') gpay += s.amount;
-        else if (s.mode === 'HDFC') hdfc += s.amount;
-        else if (s.mode === 'COD-Credit') credit += s.amount;
+        if (s.mode === 'COD-Credit') credit += s.amount;
+        else if (modeOf(s.mode)) by[modeOf(s.mode)] += s.amount;
       }
     }
-    return { count: scoped.length, amount, cash, gpay, hdfc, credit };
-  }, [invoices, isAllBranches, currentBranch]);
+    for (const p of payments) {
+      if (p.partyType !== 'customer' || p.date !== todayStr || !inScope(p.branchId)) continue;
+      const k = modeOf(p.paymentMode);
+      if (!k) continue; // store credit moves no money
+      by[k] += p.type === 'in' ? Number(p.amount) || 0 : -(Number(p.amount) || 0);
+    }
+    const amount = periodSales(invoices.filter((i) => inScope(i.branchId)), (d) => d === todayStr).net;
+    return { count: scoped.length, amount, cash: by.cash, gpay: by.gpay, hdfc: by.hdfc, credit };
+  }, [invoices, payments, isAllBranches, currentBranch]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
@@ -965,7 +974,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 <div key={m.label} className="p-3.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</span>
                   <div className={`text-2xl font-bold font-mono mt-0.5 ${m.tone}`}>{m.value}</div>
-                  <span className="text-[11px] text-slate-400">Today</span>
+                  <span className="text-[11px] text-slate-400">{['Cash', 'GPay', 'HDFC'].includes(m.label) ? 'Today · incl. receipts, less refunds' : 'Today'}</span>
                 </div>
               ))}
             </div>

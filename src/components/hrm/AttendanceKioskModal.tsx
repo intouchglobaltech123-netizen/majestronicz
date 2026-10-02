@@ -129,6 +129,14 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
     );
   }, [activeEmployees, search]);
 
+  // HRM10-4: Esc closes the kiosk like every other dialog.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const proceedToCapture = async () => {

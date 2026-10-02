@@ -85,6 +85,7 @@ import {
   AccessMatrix,
   Capability,
   computeMarginSalePrice,
+  getInvoicePaymentSplits,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
 import { LoginScreen } from '../components/auth/LoginScreen';
@@ -2747,8 +2748,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved: Invoice = (snap?.savedInvoice as Invoice) || newInvoice;
       // TOAST-1: an edit is "updated" (the stock moves only by the difference, if any).
       const wasEdit = invoices.some((i) => i.id === newInvoice.id);
+      // SAL9-15: name every mode the bill was split into, not just the first.
+      const modes = getInvoicePaymentSplits(saved)
+        .filter((sp) => (Number(sp.amount) || 0) > 0)
+        .map((sp) => `${sp.mode === 'COD-Credit' ? 'Credit (owed)' : sp.mode} ₹${(Number(sp.amount) || 0).toLocaleString('en-IN')}`)
+        .join(' + ');
       toast.success(`Invoice ${saved.invoiceNumber} ${wasEdit ? 'updated' : 'saved'}`, {
-        description: `${saved.customerName} • ₹${(saved.grandTotal || 0).toLocaleString('en-IN')} [${saved.paymentMode}]`,
+        description: `${saved.customerName} • ₹${(saved.grandTotal || 0).toLocaleString('en-IN')}${modes ? ` [${modes}]` : ''}`,
       });
       return saved;
     } catch (e: any) {

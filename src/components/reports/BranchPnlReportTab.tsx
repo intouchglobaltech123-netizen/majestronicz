@@ -18,6 +18,11 @@ import { cn, formatCurrency, formatDate } from '../../lib/utils';
 
 /** Whole rupees, Indian grouping, one sign style (FMT-1). */
 const rs = (n: number) => formatCurrency(Math.round(n));
+/** E2E10-7: a deduction prints with ONE minus — a negative deduction (a credit
+ *  note month) prints as an addition, never "−-₹500". */
+const minus = (v: number) => (Math.round((Number(v) || 0) * 100) / 100 < 0 ? `+${rs(-v)}` : `−${rs(v)}`);
+/** E2E10-7: no margin % without revenue. */
+const marginText = (p: { revenue: number; marginPct: number }) => (p.revenue > 0 ? `${p.marginPct.toFixed(1)}%` : '—');
 
 interface Props {
   startDate: string;
@@ -219,7 +224,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                       : 'bg-rose-100 text-rose-800'
                   )}
                 >
-                  {pnlData.consolidated.marginPct.toFixed(1)}%
+                  {marginText(pnlData.consolidated)}
                 </span>
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
@@ -300,12 +305,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-amber-700">
-                        −{rs(branchPnl(b.id).cogs)}
+                        {minus(branchPnl(b.id).cogs)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-amber-800 bg-blue-50/20 text-sm">
-                        −{rs(pnlData.consolidated.cogs)}
+                        {minus(pnlData.consolidated.cogs)}
                       </td>
                     )}
                   </tr>
@@ -315,12 +320,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     <td className="py-2.5 px-4 pl-8 text-[11px] font-semibold text-slate-700">Damaged Goods Written Off</td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-2.5 px-4 text-right text-[11px] font-bold text-amber-700">
-                        −{rs(branchPnl(b.id).writeOff)}
+                        {minus(branchPnl(b.id).writeOff)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-2.5 px-4 text-right text-[11px] font-bold text-amber-800 bg-blue-50/10">
-                        −{rs(pnlData.consolidated.writeOff)}
+                        {minus(pnlData.consolidated.writeOff)}
                       </td>
                     )}
                   </tr>
@@ -348,12 +353,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-rose-700">
-                        −{rs(branchPnl(b.id).totalExpenses)}
+                        {minus(branchPnl(b.id).totalExpenses)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-rose-900 bg-blue-50/20 text-sm">
-                        −{rs(pnlData.consolidated.totalExpenses)}
+                        {minus(pnlData.consolidated.totalExpenses)}
                       </td>
                     )}
                   </tr>
@@ -366,12 +371,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-rose-700">
-                        −{rs(branchPnl(b.id).payroll)}
+                        {minus(branchPnl(b.id).payroll)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-rose-900 bg-blue-50/20 text-sm">
-                        −{rs(pnlData.consolidated.payroll)}
+                        {minus(pnlData.consolidated.payroll)}
                       </td>
                     )}
                   </tr>
@@ -412,12 +417,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     <td className="py-2.5 px-4 font-semibold text-slate-700">Net Margin %</td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-2.5 px-4 text-right font-bold text-slate-800">
-                        {branchPnl(b.id).marginPct.toFixed(1)}%
+                        {marginText(branchPnl(b.id))}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-2.5 px-4 text-right font-extrabold text-blue-900 bg-blue-50/20">
-                        {pnlData.consolidated.marginPct.toFixed(1)}%
+                        {marginText(pnlData.consolidated)}
                       </td>
                     )}
                   </tr>

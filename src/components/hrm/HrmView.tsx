@@ -246,7 +246,10 @@ export const HrmView: React.FC = () => {
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
               {activeStaff.length} Employees
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Across 3 branches</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {/* PLT10-1: the branches these staff really work at */}
+              {(() => { const n = new Set(activeStaff.map((e) => e.branchId)).size; return `Across ${n} branch${n === 1 ? '' : 'es'}`; })()}
+            </p>
           </div>
         </div>
 

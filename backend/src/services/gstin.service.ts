@@ -61,7 +61,7 @@ export function gstinChecksumValid(gstin: string): boolean {
 export function validateGstinOffline(raw: string): GstinResult {
   const gstin = String(raw || '').trim().toUpperCase();
   if (!GSTIN_RE.test(gstin)) {
-    return { gstin, valid: false, source: 'offline', message: 'Not a GSTIN format (e.g. 33AABCD1234E1Z5).' };
+    return { gstin, valid: false, source: 'offline', message: 'Not a GSTIN format (e.g. 33AABCD1234E1ZF).' };
   }
   if (!gstinChecksumValid(gstin)) {
     return { gstin, valid: false, source: 'offline', message: 'GSTIN check digit does not match — please re-type it.' };

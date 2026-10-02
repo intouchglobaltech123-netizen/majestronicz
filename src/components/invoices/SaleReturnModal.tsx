@@ -67,6 +67,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     const subtotalTaxable =
       invoice.subtotal || invoice.items.reduce((s, i) => s + (i.taxableAmount || 0), 0);
     const overallDisc = invoice.overallDiscountAmount || 0;
+    // E2E10-5 / RPT10-3: the server's own rule — the bill discount comes off the
+    // taxable value and GST is on what is left, so a line's share is its value
+    // incl. GST times the bill's net ratio.
+    const netRatio = subtotalTaxable > 0 ? Math.max(0, subtotalTaxable - overallDisc) / subtotalTaxable : 1;
 
     // SAL-15: the boxes are keyed by LINE, not by item — the same item on two
     // lines used to share one box. What was already returned of an item is
@@ -82,8 +86,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     const unitValue = (it: typeof invoice.items[number]) => {
       const lt = it.taxableAmount || 0;
       const net = it.totalAmount || lt + (it.totalTax || 0);
-      const share = subtotalTaxable > 0 ? overallDisc * (lt / subtotalTaxable) : 0;
-      return (net - share) / (it.quantity || 1);
+      return (net * netRatio) / (it.quantity || 1);
     };
     const avgByItem = new Map<string, number>();
     {
@@ -107,12 +110,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       const maxReturnable = Math.max(0, item.quantity - alreadyReturned);
       const currentReturnQty = Math.min(maxReturnable, returnQuantities[item.id] || 0);
 
-      const q = item.quantity || 1;
-      const lineTaxable = item.taxableAmount || 0;
-      const lineNetWithTax =
-        item.totalAmount || lineTaxable + (item.totalTax || 0);
-      const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
-      const perUnitRaw = !item.isCombo && avgByItem.has(itemId) ? avgByItem.get(itemId)! : (lineNetWithTax - overallShare) / q;
+      const perUnitRaw = !item.isCombo && avgByItem.has(itemId) ? avgByItem.get(itemId)! : unitValue(item);
       const perUnitRefund = Math.max(0, Math.round(perUnitRaw * 100) / 100);
       // INV9-1: whole-unit items and kits come back in whole units.
       const wholeUnits = !!item.isCombo || isWholeUnit(item.unit);
@@ -149,8 +147,12 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const refundScale = useMemo(() => {
     if (!invoice) return 1;
     const ceiling = Math.max(0, invoice.grandTotal - totalReturnedAmount);
-    return rawTotalRefund > ceiling && rawTotalRefund > 0 ? ceiling / rawTotalRefund : 1;
-  }, [invoice, rawTotalRefund, totalReturnedAmount]);
+    // E2E10-5: like the server, a return that takes back everything left on the
+    // bill returns the whole remaining value — its round-off included.
+    const takesAll = !(Number(invoice.shippingCharges) > 0) && linesWithReturnState.length > 0
+      && linesWithReturnState.every((l) => l.alreadyReturned + l.currentReturnQty >= (l.quantity || 0) - 1e-9);
+    return rawTotalRefund > 0 && (rawTotalRefund > ceiling || (takesAll && Math.abs(rawTotalRefund - ceiling) < 1)) ? ceiling / rawTotalRefund : 1;
+  }, [invoice, rawTotalRefund, totalReturnedAmount, linesWithReturnState]);
 
   // Summary uses the same scale + rounding as the displayed rows so they reconcile
   const totalRefundAmount = useMemo(() => {
@@ -259,7 +261,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
             <div className="border-l border-slate-300 pl-4">
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Branch</span>
-              <span className="font-bold uppercase font-mono text-slate-800">{invoice.branchId}</span>
+              <span className="font-bold text-slate-800">{BRANCHES.find((b) => b.id === invoice.branchId)?.name || invoice.branchId}</span>
             </div>
             <div className="border-l border-slate-300 pl-4">
               <span className="text-slate-400 block text-[11px] uppercase font-bold">Sale Date</span>
@@ -385,6 +387,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                         {invoice.withGst && line.taxRate ? (
                           <span className="block text-[11px] text-slate-400">+{line.taxRate}% GST</span>
                         ) : null}
+                        {/* E2E10-5: what one unit gives back, after its discounts and GST */}
+                        <span className="block text-[11px] text-slate-500" title="Refund for one unit: after the line and bill discounts, incl. GST">
+                          net {formatCurrency(line.perUnitRefund)} / unit
+                        </span>
                       </td>
 
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">

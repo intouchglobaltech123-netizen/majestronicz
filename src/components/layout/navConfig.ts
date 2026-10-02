@@ -32,6 +32,8 @@ export interface NavSub {
   managersOnly?: boolean;
   /** CRM5-8: only for logins that work with customers (not Purchase). */
   customersOnly?: boolean;
+  /** Shown only to a payroll admin (PLT10-3). */
+  payrollOnly?: boolean;
 }
 
 export interface NavAction {
@@ -150,7 +152,9 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'reports', subTabId: 'expenses', label: 'Expense Report', cap: 'reports' },
       { id: 'reports', subTabId: 'payments', label: 'Payments Log', cap: 'reports' },
       { id: 'reports', subTabId: 'audit', label: 'Audit Trail', cap: 'reports' },
-      { id: 'reports', subTabId: 'payroll', label: 'Payroll Summary', cap: 'reports' },
+      // PLT10-3: the report shows payroll data — only for payroll (CEO); other
+      // roles got an empty page.
+      { id: 'reports', subTabId: 'payroll', label: 'Payroll Summary', cap: 'reports', payrollOnly: true },
     ],
   },
   {

@@ -133,7 +133,9 @@ export const BarcodeForm: React.FC<Props> = ({
     setLine1(formatMrp(selectedItem));
     setLine2(`HSN: ${selectedItem.itemHSN} • ${selectedItem.category}`);
     setLine3(`Model: ${selectedItem.itemCode}`);
-    setLine4(`PKD: 09/2026 • ${isAllBranches ? 'HQ' : currentBranchData?.shortCode || 'ERD'}`);
+    // PLT10-2: the packed month is this month, not a fixed "09/2026".
+    const pkd = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7).split('-').reverse().join('/');
+    setLine4(`PKD: ${pkd} • ${isAllBranches ? 'HQ' : currentBranchData?.shortCode || 'ERD'}`);
     toast.success('Autofilled standard retail label text');
   };
 
@@ -378,7 +380,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="text"
                 value={line4}
                 onChange={(e) => setLine4(e.target.value)}
-                placeholder="Line 4: e.g. PKD: 09/2026"
+                placeholder="Line 4: e.g. PKD: MM/YYYY"
                 className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>

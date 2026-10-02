@@ -125,7 +125,7 @@ export const DashboardView: React.FC = () => {
     return {
       value: total.netProfit,
       gross: total.grossProfit,
-      margin: total.revenue > 0 ? Math.round((total.netProfit / total.revenue) * 100) : 0,
+      margin: total.revenue > 0 ? `${Math.round((total.netProfit / total.revenue) * 100)}%` : '—', // E2E10-7
     };
   }, [invoices, items, cashRegisters, payments, payrollRecords, recurringExpenses, thisMonth, isAllBranches, currentBranch]);
 
@@ -265,7 +265,7 @@ export const DashboardView: React.FC = () => {
           icon={IndianRupee} tone="red" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
           icon={TrendingUp} tone="slate" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
-        <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`net · gross ${formatCurrency(Math.round(profit.gross))} · ${profit.margin}% margin`}
+        <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`net · gross ${formatCurrency(Math.round(profit.gross))} · ${profit.margin} margin`}
           icon={Percent} tone="emerald" onClick={() => setCurrentView('reports')} />
         <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
           icon={ArrowDownCircle} tone="amber" onClick={() => navigateToTab('parties', 'customers')} accent={money.receivables > 0} />

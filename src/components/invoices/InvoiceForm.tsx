@@ -621,6 +621,7 @@ export const InvoiceForm: React.FC<Props> = ({
       const generated = getNextEstimateNumber(duplicateSourceEstimate.branchId, getTodayDateString());
       setInvoiceNumber(generated);
       toast.info(`Duplicated from Quotation #${duplicateSourceEstimate.estimateNumber}`, {
+        id: `dup-est-${duplicateSourceEstimate.id}`, // SAL9-15
         description: 'All items and pricing copied. Please search or enter a customer to proceed.',
       });
     } else if (duplicateSourceInvoice) {
@@ -671,6 +672,7 @@ export const InvoiceForm: React.FC<Props> = ({
       const generated = getNextInvoiceNumber(duplicateSourceInvoice.branchId);
       setInvoiceNumber(generated);
       toast.info(`Duplicated from Invoice #${duplicateSourceInvoice.invoiceNumber}`, {
+        id: `dup-inv-${duplicateSourceInvoice.id}`, // SAL9-15: shown once, even if the form re-runs this
         description: 'All items and pricing copied. Please search or enter a customer to proceed.',
       });
     } else {
