@@ -163,6 +163,29 @@ try {
     await page.waitForTimeout(1200);
     await ctx.close();
   }
+
+  // ---------- SEC10-5: a default-PIN login stays on "Set your PIN", also after a reload ----------
+  if (want('SEC10-5')) {
+    let pin = null;
+    for (let i = 0; i < 20 && !pin; i++) {
+      const p = String(1000 + Math.floor(Math.random() * 9000));
+      if (Object.values(PINS).includes(p) || p === '4444') continue;
+      const r = await api('POST', '/api/users', { name: `QA r10 reset ${uid()}`, role: 'Billing', pin: p, assignedBranchId: 'erode-hq' });
+      if (r.status === 200) pin = p;
+    }
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, timezoneId: 'Asia/Kolkata' });
+    const page = await ctx.newPage();
+    await page.goto(FE, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1500);
+    await page.keyboard.type(pin, { delay: 80 });
+    await page.waitForTimeout(2500);
+    const first = (await page.getByText('Set your PIN').count()) > 0 && (await page.locator('aside').count()) === 0;
+    await page.reload(); await page.waitForTimeout(2500);
+    const again = (await page.getByText('Set your PIN').count()) > 0 && (await page.locator('aside').count()) === 0;
+    await page.screenshot({ path: path.join(SHOTS, 'r10-pin-reset.png') });
+    check('SEC10-5 a new login is held on "Set your PIN", also after reloading the page', first && again, `first ${first}, after reload ${again}`);
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }

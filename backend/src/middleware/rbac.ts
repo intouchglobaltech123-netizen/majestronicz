@@ -15,19 +15,28 @@ export const tokenIssuedAt = (session: SessionUser): number =>
  * sign-out (SEC-5). On a DB hiccup the (already verified) token is trusted.
  */
 export async function sessionIsLive(session: SessionUser): Promise<boolean> {
-  if (!session.userId) return false;
+  return (await sessionState(session)).live;
+}
+
+/** Live check plus whether the account must still set its own PIN (SEC10-5). */
+async function sessionState(session: SessionUser): Promise<{ live: boolean; mustResetPin: boolean }> {
+  if (!session.userId) return { live: false, mustResetPin: false };
   try {
     const account = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { status: true, role: true, tokensValidAfter: true },
+      select: { status: true, role: true, tokensValidAfter: true, mustResetPin: true },
     });
-    if (!account || account.status !== 'active' || account.role !== session.role) return false;
-    if (account.tokensValidAfter != null && tokenIssuedAt(session) < account.tokensValidAfter) return false;
+    if (!account || account.status !== 'active' || account.role !== session.role) return { live: false, mustResetPin: false };
+    if (account.tokensValidAfter != null && tokenIssuedAt(session) < account.tokensValidAfter) return { live: false, mustResetPin: false };
+    return { live: true, mustResetPin: !!account.mustResetPin };
   } catch {
     /* on a DB hiccup, fall back to the (already cryptographically valid) token */
   }
-  return true;
+  return { live: true, mustResetPin: false };
 }
+
+/** SEC10-5: what an account that must still set its own PIN may call. */
+const PIN_RESET_ALLOWED = new Set(['/api/auth/change-pin', '/api/auth/logout', '/api/health', '/api/events']);
 
 // Attach the authenticated user (if a valid Bearer token is present) to req.
 // Also enforces live session revocation: a token is rejected the moment its
@@ -45,9 +54,17 @@ export async function attachUser(req: Request & { user?: SessionUser | null }, _
     req.user = null;
     return next();
   }
-  if (session?.userId && !(await sessionIsLive(session))) {
-    req.user = null; // revoked → treated as unauthenticated
-    return next();
+  if (session?.userId) {
+    const state = await sessionState(session);
+    if (!state.live) {
+      req.user = null; // revoked → treated as unauthenticated
+      return next();
+    }
+    // SEC10-5: a new staff login with a default PIN can do nothing until it sets
+    // its own PIN — enforced here, not only by the browser's reset screen.
+    if (state.mustResetPin && !PIN_RESET_ALLOWED.has(req.path.replace(/\/+$/, ''))) {
+      return next(new AppError('PIN_RESET_REQUIRED', 'Set your own PIN first (Change PIN), then continue.', 403));
+    }
   }
   req.user = session;
   next();

@@ -455,3 +455,28 @@ describe('round 10: customer money', async () => {
   });
 
 });
+
+describe('round 10: sign-in rules', async () => {
+  const { loginPin, PINS, api: call } = await import('./lib.mjs');
+  test('SEC10-5 a new login with a default PIN can do nothing but change its PIN (enforced by the server)', async () => {
+    let pin, created;
+    for (let i = 0; i < 20 && !created; i++) {
+      pin = String(1000 + Math.floor(Math.random() * 9000));
+      if (Object.values(PINS).includes(pin)) continue;
+      const res = await post('/api/users', { name: `QA Reset ${Date.now()}`, role: 'Billing', pin, assignedBranchId: 'erode-hq' });
+      if (res.status !== 409) created = ok(res, 'create staff');
+    }
+    const token = await loginPin(pin);
+    const boot = await call('GET', '/api/bootstrap', { as: { token } });
+    expectStatus(boot, 403, 'bootstrap before the PIN change');
+    assert.equal(boot.body.error, 'PIN_RESET_REQUIRED');
+    expectStatus(await call('GET', '/api/invoices', { as: { token } }), 403, 'reads too');
+    let own;
+    for (let i = 0; i < 20; i++) {
+      own = String(1000 + Math.floor(Math.random() * 9000));
+      if (Object.values(PINS).includes(own) || own === pin) continue;
+      if ((await call('POST', '/api/auth/change-pin', { as: { token }, body: { newPin: own } })).status === 200) break;
+    }
+    ok(await call('GET', '/api/bootstrap', { as: { token } }), 'works once the PIN is changed');
+  });
+});

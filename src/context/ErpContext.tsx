@@ -915,6 +915,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsAuthenticated(false);
         }
       } catch (e: any) {
+        // SEC10-5: an account that must still set its own PIN gets the reset screen.
+        if (e?.code === 'PIN_RESET_REQUIRED') {
+          if (!cancelled) setMustResetPin(true);
+          return;
+        }
         console.error('Bootstrap load failed:', e);
         if (!cancelled) setBootstrapError(e?.message ?? 'Failed to reach backend');
       } finally {
@@ -1311,6 +1316,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await apiPost('/api/auth/change-pin', { newPin });
       setMustResetPin(false);
       setCurrentUser((u) => ({ ...u, pin: newPin }));
+      // SEC10-5: the server held the data back until the PIN was changed.
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
       toast.success('PIN updated', { description: 'Your new PIN is now active.' });
       return true;
     } catch (e: any) {

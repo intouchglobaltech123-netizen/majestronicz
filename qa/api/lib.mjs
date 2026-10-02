@@ -375,7 +375,16 @@ export async function createStaff(role, branchId) {
     if (Object.values(PINS).includes(pin)) continue;
     const res = await post('/api/users', { name: `QA ${role} ${uid()}`, role, pin, assignedBranchId: branchId });
     if (res.status === 409) continue;
-    return { user: ok(res, 'create staff'), pin };
+    const user = ok(res, 'create staff');
+    // SEC10-5: a new login must set its own PIN before anything else works.
+    const token = await loginPin(pin);
+    for (let j = 0; j < 20; j++) {
+      const own = String(crypto.randomInt(1000, 10000));
+      if (Object.values(PINS).includes(own) || own === pin) continue;
+      const ch = await api('POST', '/api/auth/change-pin', { as: { token }, body: { newPin: own } });
+      if (ch.status === 200) return { user, pin: own, defaultPin: pin };
+    }
+    throw new Error('could not set the new staff member\'s own PIN');
   }
   throw new Error('could not create staff account');
 }
