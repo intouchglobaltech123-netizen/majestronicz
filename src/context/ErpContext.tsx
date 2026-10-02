@@ -508,6 +508,8 @@ interface ErpContextType {
   payments: Payment[];
   recordPayment: (input: RecordPaymentInput) => Promise<Payment | null>;
   deletePayment: (id: string) => Promise<void>;
+  /** CRM9-11: Manager/CEO grant or correct a customer's store credit. */
+  adjustCustomerCredit: (customerId: string, amount: number, reason: string) => Promise<boolean>;
   canRecordPayment: boolean;
 
   // Multi-item transfers, dead-stock, outstanding balance, inventory config
@@ -1019,6 +1021,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.success('Payment deleted and balances restored');
     } catch (e: any) {
       toast.error(e?.message || 'Could not delete payment');
+    }
+  };
+
+  const adjustCustomerCredit = async (customerId: string, amount: number, reason: string): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ customers: Customer[] }>(`/api/catalog/customer/${encodeURIComponent(customerId)}/credit`, { amount, reason });
+      if (Array.isArray(res?.customers)) setCustomers(res.customers);
+      toast.success(amount > 0 ? `Store credit of ₹${amount.toLocaleString('en-IN')} added` : `Store credit reduced by ₹${(-amount).toLocaleString('en-IN')}`);
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not adjust store credit');
+      return false;
     }
   };
 
@@ -4144,6 +4158,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payments,
         recordPayment,
         deletePayment,
+        adjustCustomerCredit,
         canRecordPayment,
         loginError,
         clearLoginError,

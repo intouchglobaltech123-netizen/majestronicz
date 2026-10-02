@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance, isInvoiceForCustomer, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, istStamp } from '../../lib/utils';
 import {
   X,
   Phone,
@@ -53,7 +53,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onEditCustomer,
   onCreateSale,
 }) => {
-  const { invoices, loyaltySettings, customers, payments, canRecordPayment, deletePayment, currentBranch } = useErp();
+  const { invoices, loyaltySettings, customers, payments, canRecordPayment, deletePayment, currentBranch, currentUser, adjustCustomerCredit } = useErp();
+  const canAdjustCredit = currentUser?.role === 'CEO' || currentUser?.role === 'Manager';
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+  const [creditSaving, setCreditSaving] = useState(false);
   const receiptBranch = currentBranch && currentBranch !== 'all' ? currentBranch : (BRANCHES[0]?.id || 'erode-hq');
   const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
   const [selectedInvoiceForPdf, setSelectedInvoiceForPdf] = useState<Invoice | null>(null);
@@ -105,14 +109,16 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       const collected = getInvoicePaymentSplits(inv)
         .filter((sp) => sp.mode !== 'COD-Credit')
         .reduce((t, sp) => t + (Number(sp.amount) || 0), 0);
-      rows.push({ key: `b-${inv.id}`, date: inv.date, sort: `${inv.date}${inv.time || ''}0`, kind: 'Bill', ref: inv.invoiceNumber, detail: inv.items.length + ' item(s)', debit: inv.grandTotal || 0, credit: 0 });
+      rows.push({ key: `b-${inv.id}`, date: inv.date, sort: `${inv.date}T${inv.time || '00:00'}|0`, kind: 'Bill', ref: inv.invoiceNumber, detail: inv.items.length + ' item(s)', debit: inv.grandTotal || 0, credit: 0 });
       if (collected > 0.005) {
         const modes = getInvoicePaymentSplits(inv).filter((sp) => sp.mode !== 'COD-Credit' && sp.amount > 0).map((sp) => sp.mode).join(' + ');
-        rows.push({ key: `c-${inv.id}`, date: inv.date, sort: `${inv.date}${inv.time || ''}1`, kind: 'Paid at billing', ref: inv.invoiceNumber, detail: modes, debit: 0, credit: collected });
+        rows.push({ key: `c-${inv.id}`, date: inv.date, sort: `${inv.date}T${inv.time || '00:00'}|1`, kind: 'Paid at billing', ref: inv.invoiceNumber, detail: modes, debit: 0, credit: collected });
       }
       for (const r of inv.returns || []) {
-        const d = String(r.returnedAt || inv.date).slice(0, 10);
-        rows.push({ key: `r-${r.id}`, date: d, sort: `${r.returnedAt || d}2`, kind: 'Return', ref: inv.invoiceNumber, detail: `${r.returnedQuantity} × ${r.itemName}`, debit: 0, credit: Number(r.refundAmount) || 0 });
+        // CRM9-13: timestamps are placed on their India day and time, not UTC.
+        const at = istStamp(r.returnedAt) || `${inv.date}T23:59`;
+        const d = at.slice(0, 10);
+        rows.push({ key: `r-${r.id}`, date: d, sort: `${at}|2`, kind: 'Return', ref: inv.invoiceNumber, detail: `${r.returnedQuantity} × ${r.itemName}`, debit: 0, credit: Number(r.refundAmount) || 0 });
       }
     }
     for (const p of payments) {
@@ -122,16 +128,17 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       if (!mine) continue;
       if (p.type === 'in') {
         if (/store\s*credit/i.test(p.paymentMode || '')) continue;
-        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}${p.createdAt || ''}3`, kind: 'Receipt', ref: p.receiptNumber, detail: p.paymentMode, debit: 0, credit: Number(p.amount) || 0 });
+        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}T${istStamp(p.createdAt).slice(11) || '23:59'}|3`, kind: 'Receipt', ref: p.receiptNumber, detail: p.paymentMode, debit: 0, credit: Number(p.amount) || 0 });
       } else {
-        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}${p.createdAt || ''}4`, kind: 'Refund', ref: p.receiptNumber, detail: p.paymentMode, debit: Number(p.amount) || 0, credit: 0 });
+        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}T${istStamp(p.createdAt).slice(11) || '23:59'}|4`, kind: 'Refund', ref: p.receiptNumber, detail: p.paymentMode, debit: Number(p.amount) || 0, credit: 0 });
       }
     }
     for (const h of currentCustomer.creditHistory || []) {
       if (h.type !== 'adjust' || (h as any).refId) continue; // receipt-linked entries are already in the receipt
-      const d = String(h.date || '').slice(0, 10);
+      const at = istStamp(h.date);
+      const d = at.slice(0, 10);
       const amt = Number(h.amount) || 0;
-      rows.push({ key: `s-${h.id}`, date: d, sort: `${h.date}5`, kind: 'Credit adjusted', ref: '', detail: h.reason || '', debit: amt < 0 ? -amt : 0, credit: amt > 0 ? amt : 0 });
+      rows.push({ key: `s-${h.id}`, date: d, sort: `${at}|5`, kind: 'Credit adjusted', ref: '', detail: h.reason || '', debit: amt < 0 ? -amt : 0, credit: amt > 0 ? amt : 0 });
     }
     rows.sort((a, b) => a.sort.localeCompare(b.sort));
     let bal = 0;
@@ -678,6 +685,76 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </div>
             )}
 
+            {/* Store credit ledger + Manager/CEO adjustment (CRM9-11) */}
+            {((currentCustomer.creditHistory || []).length > 0 || canAdjustCredit) && (
+              <div className="pt-2" data-testid="store-credit-ledger">
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
+                  <Wallet className="h-4 w-4 text-indigo-600" />
+                  <span>Store credit</span>
+                  <span className="ml-auto text-[11px] font-bold font-mono text-slate-700">Balance {formatCurrency(currentCustomer.creditBalance || 0)}</span>
+                </h3>
+                {(currentCustomer.creditHistory || []).length > 0 && (
+                  <div className="border border-slate-200 overflow-x-auto max-h-56 overflow-y-auto">
+                    <table className="w-full text-[11px]">
+                      <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider sticky top-0">
+                        <tr>
+                          <th className="text-left px-3 py-1.5">Date</th>
+                          <th className="text-left px-3 py-1.5">Entry</th>
+                          <th className="text-right px-3 py-1.5">Amount</th>
+                          <th className="text-right px-3 py-1.5">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {[...(currentCustomer.creditHistory || [])].reverse().map((h) => (
+                          <tr key={h.id}>
+                            <td className="px-3 py-1.5 whitespace-nowrap">{istStamp(h.date).replace('T', ' ') || h.date}</td>
+                            <td className="px-3 py-1.5 font-sans text-slate-800">
+                              <span className="font-semibold capitalize">{h.type}</span>
+                              {h.reason ? <span className="text-slate-500"> · {h.reason}</span> : null}
+                              {h.by ? <span className="text-slate-400"> · {h.by}</span> : null}
+                            </td>
+                            <td className={cn('px-3 py-1.5 text-right font-bold', h.amount >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                              {h.amount >= 0 ? '+' : '−'}{formatCurrency(Math.abs(h.amount))}
+                            </td>
+                            <td className="px-3 py-1.5 text-right">{formatCurrency(h.balanceAfter)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {canAdjustCredit && (
+                  <form
+                    className="flex flex-wrap items-end gap-2 mt-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const amt = Number(creditAmount);
+                      if (!amt || !creditReason.trim() || creditSaving) return;
+                      setCreditSaving(true);
+                      const done = await adjustCustomerCredit(currentCustomer.id, amt, creditReason.trim());
+                      setCreditSaving(false);
+                      if (done) { setCreditAmount(''); setCreditReason(''); }
+                    }}
+                  >
+                    <div>
+                      <label htmlFor="cd-credit-amt" className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Adjust by ₹ (− to remove)</label>
+                      <input id="cd-credit-amt" type="number" step="0.01" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)}
+                        className="w-32 px-2 py-1 border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-red-600" />
+                    </div>
+                    <div className="flex-1 min-w-[10rem]">
+                      <label htmlFor="cd-credit-reason" className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Reason</label>
+                      <input id="cd-credit-reason" type="text" maxLength={200} value={creditReason} onChange={(e) => setCreditReason(e.target.value)}
+                        className="w-full px-2 py-1 border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-red-600" />
+                    </div>
+                    <button type="submit" disabled={!Number(creditAmount) || !creditReason.trim() || creditSaving}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                      {creditSaving ? 'Saving…' : 'Adjust credit'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
             {/* Payments received ledger */}
             {customerPayments.length > 0 && (
               <div className="pt-2">
@@ -740,11 +817,14 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           partyId={currentCustomer.id}
           partyName={currentCustomer.name}
           branchId={receiptBranch}
-          outstanding={outstandingSummary.unpaidInvoices.map((u) => ({
+          outstanding={outstandingSummary.unpaidInvoices
+            .filter((u) => !currentBranch || currentBranch === 'all' || u.invoice.branchId === currentBranch)
+            .map((u) => ({
             refId: u.invoice.id,
             refNumber: u.invoice.invoiceNumber,
             date: u.invoice.date,
             balanceDue: u.balanceDue,
+            branchId: u.invoice.branchId,
           }))}
         />
       )}

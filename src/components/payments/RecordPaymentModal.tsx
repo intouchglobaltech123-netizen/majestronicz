@@ -4,6 +4,7 @@ import { useErp } from '../../context/ErpContext';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import type { PaymentAllocation } from '../../types';
+import { BRANCHES } from '../../types';
 import { RECEIPT_MODES, STORE_CREDIT_MODE } from '../../lib/paymentModes';
 
 // One shared list of modes (E2E5-3): the sale modes (Cash, GPay, HDFC) first,
@@ -16,6 +17,8 @@ export interface OutstandingDoc {
   refNumber: string;
   date?: string;
   balanceDue: number;
+  /** The bill's branch — a receipt is banked to ONE branch (E2E8-8). */
+  branchId?: string;
 }
 
 interface RecordPaymentModalProps {
@@ -37,10 +40,25 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   partyType,
   partyId,
   partyName,
-  branchId,
-  outstanding = [],
+  branchId: branchIdProp,
+  outstanding: outstandingAll = [],
 }) => {
   const { recordPayment, customers } = useErp();
+  // E2E8-8: one receipt is banked to one branch's drawer. When the unpaid bills
+  // span branches (CEO on "All Branches"), pick the branch first and allocate
+  // only within it — auto-allocation across branches was refused by the server.
+  const docBranches = useMemo(
+    () => [...new Set(outstandingAll.map((o) => o.branchId).filter(Boolean) as string[])],
+    [outstandingAll]
+  );
+  const [docBranch, setDocBranch] = useState<string>('');
+  const multiBranch = docBranches.length > 1;
+  const activeBranch = multiBranch ? (docBranches.includes(docBranch) ? docBranch : docBranches[0]) : '';
+  const outstanding = useMemo(
+    () => (multiBranch ? outstandingAll.filter((o) => o.branchId === activeBranch) : outstandingAll),
+    [outstandingAll, multiBranch, activeBranch]
+  );
+  const branchId = multiBranch ? activeBranch : branchIdProp;
   const totalDue = useMemo(() => outstanding.reduce((t, o) => t + o.balanceDue, 0), [outstanding]);
 
   // Store credit the customer holds — only offered as a receipt mode for a
@@ -112,6 +130,11 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   // server refuses it; a vendor payment records only what it applies.
   const isCustomerIn = type === 'in' && partyType === 'customer';
   const extraNeedsCustomer = isCustomerIn && !partyId && allocations.length > 0 && unallocated > 0.009 && mode !== 'Store Credit';
+  // CRM9-2: store credit only moves onto bills — every rupee must be applied.
+  const storeCreditUnapplied = isCustomerIn && mode === 'Store Credit' && (allocations.length === 0 || unallocated > 0.009);
+  // CRM9-6: money with no bill is held as a customer's credit — it needs a customer.
+  const onAccountNeedsCustomer = isCustomerIn && !partyId && allocations.length === 0;
+  const blocked = overCredit || extraNeedsCustomer || storeCreditUnapplied || onAccountNeedsCustomer;
   const extraLabel = isCustomerIn
     ? mode === 'Store Credit'
       ? `${formatCurrency(unallocated)} not used`
@@ -121,7 +144,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     : `${formatCurrency(unallocated)} not applied`;
 
   const submit = async () => {
-    if (amountNum <= 0 || saving || overCredit || extraNeedsCustomer) return;
+    if (amountNum <= 0 || saving || blocked) return;
     setSaving(true);
     const res = await recordPayment({
       type, partyType, partyId, partyName, branchId,
@@ -159,6 +182,27 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
         {/* Body */}
         <div className="p-4 space-y-3.5 overflow-y-auto">
+          {multiBranch && (
+            <div>
+              <label htmlFor="rp-branch" className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Bills of branch</label>
+              <select
+                id="rp-branch"
+                value={activeBranch}
+                onChange={(e) => {
+                  setDocBranch(e.target.value);
+                  const due = outstandingAll.filter((o) => o.branchId === e.target.value).reduce((t, o) => t + o.balanceDue, 0);
+                  setAmount(due > 0 ? String(Math.round(due * 100) / 100) : '');
+                  setManual({});
+                }}
+                className="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-900"
+              >
+                {docBranches.map((b) => (
+                  <option key={b} value={b}>{BRANCHES.find((x) => x.id === b)?.name || b}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">One receipt is banked to one branch. Record a separate receipt for each branch.</p>
+            </div>
+          )}
           {totalDue > 0 && (
             <div className="flex items-center justify-between rounded-none bg-amber-50 border border-amber-300 px-3 py-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-900">Total outstanding balance:</span>
@@ -288,8 +332,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
         {/* Footer */}
         <div className="px-4 py-3 bg-slate-50 border-t border-slate-300 flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-600 font-semibold">
-            {isIn ? 'Receipt' : 'Voucher'} will be posted to party ledger.
+          <span className={cn('text-xs font-semibold', storeCreditUnapplied || onAccountNeedsCustomer ? 'text-red-700' : 'text-slate-600')} role={storeCreditUnapplied || onAccountNeedsCustomer ? 'alert' : undefined}>
+            {storeCreditUnapplied
+              ? 'Store credit can only be applied to bills — apply the full amount.'
+              : onAccountNeedsCustomer
+                ? 'An advance with no bill needs a customer from the customer list.'
+                : `${isIn ? 'Receipt' : 'Voucher'} will be posted to party ledger.`}
           </span>
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="px-3 py-1.5 rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer">
@@ -297,7 +345,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </button>
             <button
               onClick={submit}
-              disabled={amountNum <= 0 || unallocated < 0 || saving || overCredit || extraNeedsCustomer}
+              disabled={amountNum <= 0 || unallocated < 0 || saving || blocked}
               className={cn('px-4 py-1.5 rounded-none text-white text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer uppercase', isIn ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800')}
             >
               {saving ? <Wallet className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />}

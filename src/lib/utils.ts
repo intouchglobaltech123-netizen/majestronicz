@@ -47,6 +47,13 @@ export function formatDate(value?: string | null): string {
   return `${d} ${MONTHS_SHORT[Number(m) - 1] || m} ${y}`;
 }
 
+/** An ISO timestamp as its India (IST) "YYYY-MM-DDTHH:MM", or '' when it isn't one. */
+export function istStamp(iso?: string | null): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return '';
+  return new Date(t + 5.5 * 3600 * 1000).toISOString().slice(0, 16);
+}
+
 /**
  * Returns today's date in YYYY-MM-DD format using local time to prevent UTC timezone offset issues.
  */
