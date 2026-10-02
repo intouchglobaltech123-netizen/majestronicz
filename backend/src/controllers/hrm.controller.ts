@@ -20,5 +20,5 @@ export const payrollAdjustment = async (req: Request, res: Response) => {
 };
 export const markPaid = async (req: Request, res: Response) => {
   const { payrollId, paymentMode, paymentReference, record } = req.body;
-  res.json(await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record));
+  res.json(await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record, (req as any).user?.name));
 };

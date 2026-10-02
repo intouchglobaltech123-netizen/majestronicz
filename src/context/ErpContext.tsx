@@ -4063,42 +4063,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMode: 'Cash' | 'Bank Transfer',
     paymentReference?: string
   ) => {
-    const now = new Date().toISOString();
-    // Optimistic upsert: computed rows (id "calc-…") have no persisted record
-    // yet, so match by employee+month and create one if missing — otherwise the
-    // status never flips to Paid and the Pay button stays clickable.
-    setPayrollRecords((prev) => {
-      const idx = prev.findIndex(
-        (p) => p.id === record.id || (p.employeeId === record.employeeId && p.month === record.month)
-      );
-      const paid: PayrollRecord = {
-        ...record,
-        status: 'Paid',
-        paidAt: now,
-        paymentMode,
-        paymentReference,
-        updatedAt: now,
-      };
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...prev[idx], ...paid };
-        return next;
-      }
-      return [paid, ...prev];
-    });
-    toast.success('Payroll disbursement marked as Paid', {
-      description: `Mode: ${paymentMode} ${paymentReference ? `(${paymentReference})` : ''}`,
-    });
-    // Await so the caller's submit-guard stays locked until the server responds
-    // (backend upserts by employee+month and returns authoritative records).
-    await persist(
-      apiPost('/api/hrm/payroll-paid', {
+    // Server first (E2E5-12): Mark Paid now also books the salary as money out
+    // (a Payment row on today's cash day), which the server can refuse — e.g.
+    // today's register is closed. Only show Paid once the server agreed.
+    try {
+      const snap = await apiPost<any>('/api/hrm/payroll-paid', {
         payrollId: record.id,
         paymentMode,
         paymentReference,
         record,
-      })
-    );
+      });
+      applySnapshot(snap);
+      toast.success('Payroll disbursement marked as Paid', {
+        description: `Mode: ${paymentMode} ${paymentReference ? `(${paymentReference})` : ''}`,
+      });
+    } catch (e: any) {
+      toast.error('Could not mark payroll as paid', { description: e?.message ?? 'Backend error' });
+    }
   };
 
   const resetToDemoData = async () => {

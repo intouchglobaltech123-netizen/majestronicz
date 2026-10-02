@@ -22,7 +22,7 @@ import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
-import { recordPayment, listPayments, deletePayment, recordPendingOrderAdvance, clearPendingOrderAdvance, applyVendorAdvance } from '../services/payment.service.js';
+import { recordPayment, listPayments, deletePayment, maskStaffPayments, recordPendingOrderAdvance, clearPendingOrderAdvance, applyVendorAdvance } from '../services/payment.service.js';
 import { registersWithLiveOpenings } from '../services/cash.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
@@ -453,7 +453,7 @@ router.get('/payments', requireCapability('payment:write'), asyncHandler(async (
   const user = (req as any).user;
   const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
   const rows: any[] = await listPayments({ partyType, partyId, type });
-  res.json(branch ? rows.filter((p) => p.branchId == null || String(p.branchId) === branch) : rows);
+  res.json(maskStaffPayments(branch ? rows.filter((p) => p.branchId == null || String(p.branchId) === branch) : rows, user));
 }));
 router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const user = (req as any).user;

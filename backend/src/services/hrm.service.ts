@@ -4,6 +4,8 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { hashPin } from '../lib/auth.js';
+import { istToday, assertDayOpen } from '../lib/businessDate.js';
+import { nextReceiptNumber } from './payment.service.js';
 
 const snap = async (tx: any) => ({
   attendanceRecords: await tx.attendanceRecord.findMany(),
@@ -249,7 +251,7 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
   });
 }
 
-export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any) {
+export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any, actorName?: string) {
   // E2E7-6: a call without a payrollId used to fall through to a legacy
   // `updateMany({ where: { id: undefined } })`, which Prisma reads as "no
   // filter" — every payroll row became Paid and paid rows lost their payment
@@ -330,6 +332,41 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
       // No such payroll row and no computed figures to create one from.
       throw new AppError('NOT_FOUND', 'Payroll row not found.', 404);
     }
-    return snap(tx);
+    await recordSalaryPayment(tx, existing?.id, record, paymentMode, paymentReference, ts, actorName);
+    return { ...(await snap(tx)), payments: await tx.payment.findMany() };
+  });
+}
+
+/**
+ * E2E5-12: a salary paid is money out. Mark Paid writes a Payment 'out' row
+ * (partyType 'staff') on TODAY's IST date at the employee's branch, so it
+ * reaches the drawer (when paid in cash), the Payments Log, the Expense Report
+ * and the P&L like any other payment. Today's cash day must be open — a closed
+ * day's figures never change (same rule as refunds and vendor payments).
+ */
+async function recordSalaryPayment(tx: any, existingId: string | undefined, record: any, paymentMode: string, paymentReference: string | undefined, ts: string, actorName?: string) {
+  const row = existingId
+    ? await tx.payrollRecord.findUnique({ where: { id: existingId } })
+    : await tx.payrollRecord.findFirst({ where: { employeeId: record?.employeeId, month: record?.month } });
+  if (!row) return;
+  const amount = Math.round((Number(row.finalPayable) || 0) * 100) / 100;
+  if (amount <= 0) return;
+  const emp = await tx.employee.findUnique({ where: { id: row.employeeId } });
+  const branchId = emp?.branchId || row.branchId;
+  if (!branchId) return;
+  const date = istToday();
+  await assertDayOpen(tx, branchId, date, 'pay a salary');
+  await tx.payment.create({
+    data: {
+      id: rid('pay'),
+      receiptNumber: await nextReceiptNumber(tx, 'out', date),
+      type: 'out', partyType: 'staff', partyId: row.employeeId, partyName: row.employeeName || emp?.name || 'Staff',
+      branchId, date, amount,
+      paymentMode: /cash/i.test(paymentMode) ? 'Cash' : paymentMode,
+      reference: paymentReference || null,
+      notes: `Salary for ${row.month}`,
+      allocations: [{ refId: row.id, refNumber: row.month, amount }] as any,
+      createdById: null, createdByName: actorName ?? null, createdAt: ts,
+    },
   });
 }

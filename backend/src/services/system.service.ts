@@ -1,4 +1,5 @@
 import { registersWithLiveOpenings } from './cash.service.js';
+import { maskStaffPayments } from './payment.service.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { SessionUser, roleCan } from '../lib/auth.js';
@@ -40,7 +41,7 @@ function scopeBootstrap(data: any, user: SessionUser) {
     cashRegisters: byBranch(data.cashRegisters),
     recurringExpenses: byBranch(data.recurringExpenses),
     purchaseOrders: byBranch(data.purchaseOrders),
-    payments: byBranch(data.payments),
+    payments: Array.isArray(data.payments) ? maskStaffPayments(byBranch(data.payments), user) : data.payments,
     employees,
   };
 }

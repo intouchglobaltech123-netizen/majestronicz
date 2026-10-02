@@ -217,6 +217,31 @@ function expandReturnedUnits(returns: any[]): Map<string, number> {
 
 /** Create or edit an invoice: customer link/update + stock decrement, atomic.
  * New sales get a server-authoritative, collision-free invoice number. */
+/**
+ * Freeze each line's purchase cost AT THE TIME OF SALE into `unitCost` (cost of
+ * one unit of the line; a combo is the sum of its parts). Profit reports cost a
+ * sale at this figure, so a later change to an item's purchase price no longer
+ * rewrites past days' profit (E2E5-5). On an edit, a line that is still the same
+ * item keeps the cost it was sold at. Typed (non-catalogue) lines cost 0.
+ * Older bills have no `unitCost`; the reports fall back to the current cost.
+ */
+async function snapshotLineCosts(tx: any, lines: any[], previous: any[]): Promise<void> {
+  const items = await tx.item.findMany({ select: { id: true, purchasePrice: true } });
+  const cost = new Map<string, number>(items.map((i: any) => [i.id, Number(i.purchasePrice) || 0]));
+  const before = new Map<string, any>(previous.map((l: any) => [l.id, l]));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  for (const li of lines) {
+    const old = before.get(li.id);
+    const same = old && old.unitCost != null && (old.itemId || '') === (li.itemId || '') && (old.comboId || '') === (li.comboId || '');
+    if (same) { li.unitCost = old.unitCost; continue; }
+    if (li.isCombo) {
+      li.unitCost = r2(((li.comboComponents as any[]) || []).reduce((t, c) => t + (Number(c.quantity) || 0) * (cost.get(c.itemId) || 0), 0));
+    } else {
+      li.unitCost = li.itemId && cost.has(li.itemId) ? cost.get(li.itemId)! : 0;
+    }
+  }
+}
+
 export function createSale(inv: any, reqUser?: any) {
   if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && inv.branchId !== reqUser.assignedBranchId) {
     throw new AppError('FORBIDDEN', `You are only authorized to bill for branch ${reqUser.assignedBranchId}`, 403);
@@ -569,6 +594,8 @@ export function createSale(inv: any, reqUser?: any) {
     }
     await ledger.flush(tx);
     if (saleLogs.length) await tx.stockAdjustmentLog.createMany({ data: saleLogs });
+
+    await snapshotLineCosts(tx, inv.items as any[], (oldInvoice?.items as any[]) || []);
 
     const { id, ...rest } = inv;
     // New sales use create with the freshly-minted unique id (never overwrite an

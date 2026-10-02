@@ -223,6 +223,10 @@ export interface InvoiceLineItem {
   isCombo?: boolean;
   comboId?: string;
   comboComponents?: ComboComponent[];
+  // Server-set at sale time: purchase cost of ONE unit of this line (a combo is
+  // the sum of its parts). Profit costs a sale at this figure; older bills
+  // without it fall back to the item's current cost (E2E5-5).
+  unitCost?: number | null;
 }
 
 export interface ComboComponent {
@@ -1303,7 +1307,8 @@ export interface Payment {
   id: string;
   receiptNumber: string;
   type: 'in' | 'out';
-  partyType: 'customer' | 'vendor';
+  // 'staff' = a salary paid when payroll is marked Paid (E2E5-12).
+  partyType: 'customer' | 'vendor' | 'staff';
   partyId?: string | null;
   partyName: string;
   branchId: string;

@@ -517,6 +517,18 @@ export async function applyVendorAdvance(
   });
 }
 
+/**
+ * Salary rows (partyType 'staff') stay in the ledger for everyone who sees the
+ * drawer — the cash left it — but who was paid what is payroll data, which only
+ * a payroll admin may read (SEC3-1). Others see the amount as "Salary payment".
+ */
+export function maskStaffPayments<T extends { partyType?: string | null }>(rows: T[], user?: { role?: string } | null): T[] {
+  if (!user || roleCan(user.role as any, 'payroll:admin')) return rows;
+  return rows.map((p: any) => (p?.partyType === 'staff'
+    ? { ...p, partyId: null, partyName: 'Salary payment', reference: null, notes: 'Salary', allocations: [] }
+    : p));
+}
+
 export async function listPayments(filter?: { partyType?: string; partyId?: string; type?: string }) {
   const where: any = {};
   if (filter?.partyType) where.partyType = filter.partyType;
@@ -539,6 +551,11 @@ async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
     // a vendor payment is purchase only.
     if (payment.type === 'in' && reqUser && !roleCan(reqUser.role, 'cash:write')) {
       throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to delete customer receipts.`, 403);
+    }
+    // A salary payment is the record of a Paid payroll row (E2E5-12): removing it
+    // here would put the cash back in the drawer while payroll still says Paid.
+    if (payment.partyType === 'staff') {
+      throw new AppError('PAYROLL_PAYMENT', 'This is a salary payment. It is part of the payroll record and cannot be deleted here.', 409);
     }
     const isCustomerRefund = payment.type === 'out' && payment.partyType === 'customer';
     if (payment.type === 'out' && !isCustomerRefund && reqUser && !roleCan(reqUser.role, 'purchase:write')) {

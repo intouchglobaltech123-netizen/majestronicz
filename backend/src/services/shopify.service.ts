@@ -373,6 +373,8 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         unitPrice: price,
         discountType: '%', discountValue: 0, discountAmount: 0,
         taxRate: 0, taxableAmount: taxable, cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: taxable,
+        // Purchase cost at the time of sale, for profit reports (E2E5-5).
+        unitCost: match ? Number(match.purchasePrice) || 0 : 0,
       };
     });
     const subtotal = r2(invLines.reduce((s: number, l: any) => s + l.taxableAmount, 0));
