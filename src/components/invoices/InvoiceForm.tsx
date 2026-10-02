@@ -186,6 +186,20 @@ export const InvoiceForm: React.FC<Props> = ({
     return null;
   }, [customers, customerId, customerPhone, customerName]);
 
+  // SAL4-14 / E2E6-8: a line copied from ANOTHER document (duplicate, or a quote
+  // converted to a bill) is charged today's catalogue GST rate at the bill's
+  // branch, and gets its item code from the item master when the old document
+  // stored none. Only an edit of the same document keeps its stored rate.
+  const refreshCopiedLine = (li: { itemId?: string; itemCode?: string; isCombo?: boolean; comboId?: string }, rate: number, branchId: string) => {
+    const master = li.itemId && !li.isCombo ? items.find((i) => i.id === li.itemId) : undefined;
+    const combo = li.isCombo ? combos.find((c) => c.id === (li.comboId || li.itemId)) : undefined;
+    const itemCode = li.itemCode || master?.itemCode || combo?.comboCode || '';
+    const currentRate = master
+      ? effectiveTaxSlab(master.gstTaxSlab, branchStocks.find((bs) => bs.itemId === master.id && bs.branchId === branchId)?.gstTaxSlab)
+      : li.isCombo ? 18 : rate;
+    return { itemCode, rate: currentRate };
+  };
+
   // A new/unknown 10-digit mobile prompts a small "add customer" card.
   const [showNewCustomerPrompt, setShowNewCustomerPrompt] = useState(false);
   // "Skip" on that card bills the number as a walk-in: no customer is created (E2E8-12).
@@ -439,7 +453,8 @@ export const InvoiceForm: React.FC<Props> = ({
       const convertedItems: InvoiceLineItem[] = convertedFromEstimate.items.map((estItem) => {
         const discType = estItem.discountType || '%';
         const discVal = estItem.discount || estItem.discountValue || 0;
-        const rate = estItem.gstRate ?? estItem.taxRate ?? 0;
+        const fresh = refreshCopiedLine(estItem, estItem.gstRate ?? estItem.taxRate ?? 0, convertedFromEstimate.branchId);
+        const rate = fresh.rate;
         const lineTax = calculateLineTax(
           estItem.quantity,
           estItem.unitPrice,
@@ -453,6 +468,7 @@ export const InvoiceForm: React.FC<Props> = ({
           itemId: estItem.itemId,
           itemName: estItem.itemName,
           itemHSN: estItem.itemHSN,
+          itemCode: fresh.itemCode,
           unit: estItem.unit,
           quantity: estItem.quantity,
           unitPrice: estItem.unitPrice,
@@ -517,7 +533,7 @@ export const InvoiceForm: React.FC<Props> = ({
           itemId: estItem.itemId,
           itemName: estItem.itemName,
           itemHSN: estItem.itemHSN,
-          itemCode: estItem.itemCode || '',
+          itemCode: refreshCopiedLine(estItem, rate, initialEstimate.branchId).itemCode,
           unit: estItem.unit,
           quantity: estItem.quantity,
           unitPrice: estItem.unitPrice,
@@ -559,7 +575,8 @@ export const InvoiceForm: React.FC<Props> = ({
       const dupQuoteItems: InvoiceLineItem[] = duplicateSourceEstimate.items.map((estItem) => {
         const discType = estItem.discountType || '%';
         const discVal = estItem.discount || estItem.discountValue || 0;
-        const rate = estItem.gstRate ?? estItem.taxRate ?? 0;
+        const fresh = refreshCopiedLine(estItem, estItem.gstRate ?? estItem.taxRate ?? 0, duplicateSourceEstimate.branchId);
+        const rate = fresh.rate;
         const lineTax = calculateLineTax(
           estItem.quantity,
           estItem.unitPrice,
@@ -573,7 +590,7 @@ export const InvoiceForm: React.FC<Props> = ({
           itemId: estItem.itemId,
           itemName: estItem.itemName,
           itemHSN: estItem.itemHSN,
-          itemCode: estItem.itemCode || '',
+          itemCode: fresh.itemCode,
           unit: estItem.unit,
           quantity: estItem.quantity,
           unitPrice: estItem.unitPrice,
@@ -630,10 +647,17 @@ export const InvoiceForm: React.FC<Props> = ({
       setSourceEnquiryNumber(undefined);
 
       // Clone line items with fresh unique IDs
-      const duplicatedItems: InvoiceLineItem[] = duplicateSourceInvoice.items.map((item) => ({
-        ...item,
-        id: `li-dup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      }));
+      const duplicatedItems: InvoiceLineItem[] = duplicateSourceInvoice.items.map((item) => {
+        const fresh = refreshCopiedLine(item, item.taxRate ?? 0, duplicateSourceInvoice.branchId);
+        const calc = calculateLineTax(item.quantity, item.unitPrice, fresh.rate, duplicateSourceInvoice.withGst, item.discountType || '%', item.discountValue || 0);
+        return {
+          ...item,
+          ...calc,
+          itemCode: fresh.itemCode,
+          taxRate: fresh.rate,
+          id: `li-dup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        };
+      });
       setLineItems(duplicatedItems);
 
       const generated = getNextInvoiceNumber(duplicateSourceInvoice.branchId);
@@ -698,14 +722,27 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // SAL8-5 / E2E8-7: the place of supply follows the buyer's GSTIN state code
   // (its first 2 digits) when the customer has one; it stays editable below.
+  // SAL9-3: when the CUSTOMER changes, the place of supply follows the new
+  // customer — their GSTIN state, or Tamil Nadu when they have none — instead
+  // of keeping the previous customer's state. The first customer seen when an
+  // existing bill/quote opens keeps the stored place of supply.
   const lastGstinRef = useRef<string | undefined>(undefined);
+  const lastCustomerKeyRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    const gstin = selectedCustomerObj?.gstin;
-    if (!gstin || gstin === lastGstinRef.current) return;
+    const key = selectedCustomerObj?.id ?? null;
+    const gstin = selectedCustomerObj?.gstin || undefined;
+    const first = lastCustomerKeyRef.current === undefined;
+    const customerChanged = !first && key !== lastCustomerKeyRef.current;
+    lastCustomerKeyRef.current = key;
+    if (gstin && gstin !== lastGstinRef.current) {
+      lastGstinRef.current = gstin;
+      const pos = supplyFromGstin(gstin);
+      if (pos) setStateOfSupply(pos);
+      return;
+    }
     lastGstinRef.current = gstin;
-    const pos = supplyFromGstin(gstin);
-    if (pos) setStateOfSupply(pos);
-  }, [selectedCustomerObj?.gstin]);
+    if (customerChanged && !gstin) setStateOfSupply('33-Tamil Nadu');
+  }, [selectedCustomerObj?.id, selectedCustomerObj?.gstin]);
   const supplyOptions = useMemo(() => {
     const list = [...INDIAN_STATES];
     for (const [code, name] of Object.entries(GST_STATE_CODES)) {

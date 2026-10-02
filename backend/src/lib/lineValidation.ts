@@ -72,11 +72,15 @@ export function assertLineInputs(doc: any, what: 'bill' | 'quotation' = 'bill'):
  *    (SAL8-9).
  *  - whole-unit items (NOS, PCS, SET…) are sold in whole numbers (SAL2-8).
  */
+/** SAL4-5: a kit (combo) line is charged GST at this rate — the rate the sale
+ *  form puts on every combo line. */
+export const COMBO_GST_RATE = 18;
+
 export async function assertLinesAgainstCatalogue(
   tx: any,
   doc: any,
   branchId: string,
-  opts: { previousItems?: any[] } = {},
+  opts: { previousItems?: any[]; canEditPrice?: boolean; canDiscount?: boolean } = {},
 ): Promise<void> {
   const lines: any[] = (doc.items || []) as any[];
   if (!lines.length) return;
@@ -97,10 +101,67 @@ export async function assertLinesAgainstCatalogue(
     previousRates.set(p.itemId, set);
   }
 
+  // SAL4-5: the role's billing rights (the access matrix, read the same way as
+  // the sale form) — a role without 'Edit item price' can't bill below the
+  // catalogue price, and one without 'Give discounts' can't add a discount
+  // beyond the item's own standard discount. A line already on the stored bill
+  // (edit) keeps its price and discount.
+  const prevLine = new Map<string, any>();
+  for (const p of opts.previousItems || []) if (p?.id) prevLine.set(String(p.id), p);
+  const comboIds = lines.filter((l) => l?.isCombo && l?.comboId).map((l) => String(l.comboId));
+  const combos = comboIds.length && (opts.canEditPrice === false || doc.withGst)
+    ? await tx.comboItem.findMany({ where: { id: { in: comboIds } } }) : [];
+  const comboById = new Map(combos.map((c: any) => [c.id, c]));
+  const prevComboRates = new Set<number>((opts.previousItems || []).filter((p: any) => p?.isCombo).map((p: any) => Number(lineRate(p)) || 0));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const keptFromBill = (li: any, field: 'unitPrice' | 'discount') => {
+    const old = prevLine.get(String(li?.id || ''));
+    if (!old || (old.itemId || '') !== (li.itemId || '')) return false;
+    return field === 'unitPrice'
+      ? Math.abs((Number(old.unitPrice) || 0) - (Number(li.unitPrice) || 0)) < 0.005
+      : (old.discountType || '%') === (li.discountType || '%') && Math.abs((Number(lineDiscount(old)) || 0) - (Number(lineDiscount(li)) || 0)) < 0.0001;
+  };
+  if (opts.canDiscount === false && (Number(doc.overallDiscountValue) || 0) > 0) {
+    throw new AppError('NO_DISCOUNT_RIGHT', 'Your role is not permitted to give discounts on a bill.', 403);
+  }
+
   for (const li of lines) {
     const name = String(li?.itemName || li?.itemCode || 'A line').slice(0, 80);
     const qty = Number(li.quantity);
     const master: any = !li.isCombo && li.itemId ? itemById.get(li.itemId) : null;
+    if (li.isCombo && doc.withGst) {
+      const rate = Number(lineRate(li)) || 0;
+      if (rate !== COMBO_GST_RATE && !prevComboRates.has(rate)) {
+        throw new AppError('BAD_GST', `The kit "${name}" is charged GST at ${COMBO_GST_RATE}%, not ${rate}%.`, 400);
+      }
+    }
+    if (opts.canDiscount === false && (Number(lineDiscount(li)) || 0) > 0 && !keptFromBill(li, 'discount')) {
+      // The item's own standard discount (applied by the form) is allowed.
+      const std = master ? Number(master.discountOnSalePrice) || 0 : 0;
+      const stdPct = !master || std <= 0 ? 0
+        : (master.discountType || '%') === '%' ? Math.min(100, std)
+          : (Number(master.salePrice) || 0) > 0 ? (std / Number(master.salePrice)) * 100 : 0;
+      const pct = (li.discountType || '%') === '%' ? Number(lineDiscount(li)) || 0
+        : ((Number(li.unitPrice) || 0) * qty > 0 ? ((Number(lineDiscount(li)) || 0) / ((Number(li.unitPrice) || 0) * qty)) * 100 : 100);
+      if (pct > stdPct + 0.001) throw new AppError('NO_DISCOUNT_RIGHT', `Your role is not permitted to give a discount on "${name}".`, 403);
+    }
+    if (opts.canEditPrice === false && !keptFromBill(li, 'unitPrice')) {
+      const rate = Number(lineRate(li)) || 0;
+      let floor: number | null = null;
+      if (master) {
+        const sale = Number(master.salePrice) || 0;
+        const wholesale = Number(master.wholesalePrice) || 0;
+        const base = wholesale > 0 ? Math.min(sale, wholesale) : sale;
+        const preOn = master.salePriceTaxMode === 'with' ? base / (1 + rate / 100) : base;
+        floor = doc.withGst ? preOn : preOn * (1 + rate / 100);
+      } else if (li.isCombo && comboById.has(String(li.comboId))) {
+        const cp = Number((comboById.get(String(li.comboId)) as any).comboPrice) || 0;
+        floor = doc.withGst ? cp : cp * (1 + rate / 100);
+      }
+      if (floor != null && (Number(li.unitPrice) || 0) < r2(floor) - 0.01) {
+        throw new AppError('NO_PRICE_RIGHT', `Your role is not permitted to bill "${name}" below its catalogue price (₹${r2(floor)}).`, 403);
+      }
+    }
     if (master) {
       if (master.isArchived && !previousIds.has(master.id)) throw archivedItemError(master.itemName);
       if (doc.withGst) {

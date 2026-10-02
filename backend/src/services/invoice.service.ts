@@ -12,6 +12,7 @@ import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValida
 import { applySupplySplit } from '../lib/supply.js';
 import { isValidBranch } from '../lib/constants.js';
 import { isWholeUnit } from '../lib/units.js';
+import { roleFlags } from '../lib/auth.js';
 import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
@@ -369,7 +370,13 @@ export function createSale(inv: any, reqUser?: any) {
     // and took stock from a branch that doesn't exist.
     if (isNewSale && !isValidBranch(inv.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${String(inv.branchId).slice(0, 40)}`, 400);
     // Catalogue rate, ₹0 free-text lines and whole units (SAL4-5, SAL8-9, SAL2-8).
-    await assertLinesAgainstCatalogue(tx, inv, inv.branchId, { previousItems: (existing?.items as any[]) || [] });
+    const flags = reqUser ? roleFlags(reqUser.role) : null;
+    await assertLinesAgainstCatalogue(tx, inv, inv.branchId, {
+      previousItems: (existing?.items as any[]) || [],
+      // SAL4-5: the billing rights of the access matrix, enforced here too.
+      canEditPrice: flags ? flags.includes('bill.editPrice') : undefined,
+      canDiscount: flags ? flags.includes('bill.giveDiscount') : undefined,
+    });
     if (isNewSale) {
       // SAL8-2: a bill made from a quotation must point at a real, live quote of
       // the same branch — not a made-up id, a cancelled quote or another branch's.
@@ -426,6 +433,20 @@ export function createSale(inv: any, reqUser?: any) {
     // shrinks silently) and gives the excess back as store credit after save.
     let editExcess = 0;
     let creditBackSoFar = 0;
+    // SAL9-2: a bill is collected in Cash, GPay or HDFC, or left owing
+    // (COD-Credit). "Store Credit", "Bitcoin" or anything else is refused — store
+    // credit is applied with a receipt after billing. An edit may keep a mode the
+    // stored bill already had (older data).
+    const allowedModes = new Set<string>(['Cash', 'GPay', 'HDFC', 'COD-Credit']);
+    if (existing) for (const sp of billingSplitsOf(existing)) if (sp?.mode) allowedModes.add(String(sp.mode));
+    const sentModes = [
+      ...(Array.isArray(inv.paymentSplits) ? inv.paymentSplits.filter((sp: any) => sp && (Number(sp.amount) || 0) > 0).map((sp: any) => sp.mode) : []),
+      ...(inv.paymentMode && !(Array.isArray(inv.paymentSplits) && inv.paymentSplits.some((sp: any) => (Number(sp?.amount) || 0) > 0)) ? [inv.paymentMode] : []),
+    ];
+    const badMode = sentModes.find((m: any) => !allowedModes.has(String(m)));
+    if (badMode !== undefined) {
+      throw new AppError('BAD_MODE', `"${String(badMode).slice(0, 30)}" is not a payment mode for a bill. Use Cash, GPay, HDFC or Credit (owed).`, 400);
+    }
     if (isNewSale) {
       reconcileInvoicePayment(inv);
     } else {

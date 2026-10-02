@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  post, get, del, ok, expectStatus, near, uid, createItem, stockOf, line, comboLine, createCombo, saleBody, sell,
+  post, get, put, del, ok, expectStatus, near, uid, createItem, stockOf, line, comboLine, createCombo, saleBody, sell,
   mustSell, getInvoice, resave, returnLine, receive, freshDay, utcToday, together, paymentsFor,
   serviceLine, randomPhone, istToday, addDays, sql, ledgerOf,
 } from './lib.mjs';
@@ -643,5 +643,49 @@ describe('reverse return (SAL3-2)', () => {
     assert.equal(back.date, istToday());
     near(back.amount, refund.amount);
     near((await getInvoice(inv.id)).balanceDue, 0, 'nothing owed');
+  });
+});
+
+describe('round 9: sales', () => {
+  test('SAL9-2 a bill accepts only Cash, GPay, HDFC or COD-Credit as payment modes', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    for (const mode of ['Store Credit', 'Bitcoin']) {
+      const res = await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1)], splits: [{ mode, amount: 1180 }] }));
+      expectStatus(res, 400, mode);
+    }
+    const mixed = await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1)], splits: [{ mode: 'Cash', amount: 500 }, { mode: 'Bitcoin', amount: 680 }] }));
+    expectStatus(mixed, 400, 'Cash + Bitcoin');
+    ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1)], splits: [{ mode: 'GPay', amount: 500 }, { mode: 'COD-Credit', amount: 680 }] })), 'GPay + credit');
+  });
+
+  test('SAL4-5 a role without "edit price" / "give discount" rights cannot bill below catalogue or with a discount', async () => {
+    const matrix = ok(await get('/api/access-matrix')).matrix;
+    const restricted = JSON.parse(JSON.stringify(matrix));
+    restricted.Billing.flags = restricted.Billing.flags.filter((f) => f !== 'bill.editPrice' && f !== 'bill.giveDiscount');
+    ok(await put('/api/access-matrix', restricted), 'take the rights away from Billing');
+    try {
+      const date = await freshDay('erode-hq');
+      const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+      expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { price: 900 })] }), 'Billing'), 403, 'below catalogue');
+      expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { discountValue: 10 })] }), 'Billing'), 403, 'line discount');
+      expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1)], overallDiscountValue: 5 }), 'Billing'), 403, 'overall discount');
+      const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }), 'Billing');
+      assert.ok(inv, 'catalogue price, no discount is fine');
+      ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { price: 1100 })] }), 'Billing'), 'above catalogue is fine');
+      // The CEO keeps every right.
+      ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { price: 900, discountValue: 5 })] })), 'CEO');
+    } finally {
+      ok(await put('/api/access-matrix', matrix), 'restore');
+    }
+  });
+
+  test('SAL4-5 a kit line is charged the kit GST rate (18%)', async () => {
+    const date = await freshDay('erode-hq');
+    const a = await createItem({ stock: { 'erode-hq': 10 } });
+    const combo = await createCombo([{ item: a, qty: 1 }], 2000);
+    const bad = { ...comboLine(combo, 1), taxRate: 0 };
+    expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [bad] })), 400, 'kit at 0%');
+    ok(await post('/api/tx/sale', saleBody({ date, lines: [comboLine(combo, 1)] })), 'kit at 18%');
   });
 });

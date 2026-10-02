@@ -253,6 +253,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  // SAL4-10: with thousands of bills, filter on a debounced copy of the search
+  // and render one page of rows at a time — the whole ledger re-rendered on
+  // every keystroke (55 s to open with 5,000 bills, minutes to search).
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+  const LEDGER_PAGE = 100;
+  const [ledgerPage, setLedgerPage] = useState(0);
   // Date-range / mode / status filtering now lives in the Reports section.
   // The ledger keeps only a quick search; branch follows the global top-bar toggle.
   const [branchFilter, setBranchFilter] = useState<'ALL' | BranchId>(() =>
@@ -296,13 +306,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       // reporting still lives in the Reports section.
 
       // Search filter (Invoice No, Customer, Phone, Items)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesCustomer = inv.customerName.toLowerCase().includes(q);
+      if (debouncedSearch.trim()) {
+        const q = debouncedSearch.toLowerCase().trim();
+        const matchesCustomer = (inv.customerName || '').toLowerCase().includes(q);
         const matchesNumber = inv.invoiceNumber.toLowerCase().includes(q);
         const matchesPhone = inv.customerPhone && inv.customerPhone.includes(q);
         const matchesItem = inv.items.some(
-          (it) => it.itemName.toLowerCase().includes(q) || (it.itemCode && it.itemCode.toLowerCase().includes(q))
+          (it) => (it.itemName || '').toLowerCase().includes(q) || (it.itemCode && it.itemCode.toLowerCase().includes(q))
         );
         if (!matchesCustomer && !matchesNumber && !matchesPhone && !matchesItem) {
           return false;
@@ -314,7 +324,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       const d = (b.date || '').localeCompare(a.date || '');
       return d !== 0 ? d : (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [invoices, branchFilter, isAllBranches, currentBranch, searchQuery]);
+  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch]);
+  // Back to the first page whenever the list itself changes shape.
+  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch]);
+  const ledgerPages = Math.max(1, Math.ceil(filteredInvoices.length / LEDGER_PAGE));
+  const safeLedgerPage = Math.min(ledgerPage, ledgerPages - 1);
+  const pagedInvoices = useMemo(
+    () => filteredInvoices.slice(safeLedgerPage * LEDGER_PAGE, (safeLedgerPage + 1) * LEDGER_PAGE),
+    [filteredInvoices, safeLedgerPage],
+  );
 
   // ---- Quotation lifecycle (SAL8-3): Open → Converted (a live bill was made
   // from it) or Cancelled (with a reason). Converted is stored by the server and
@@ -529,7 +547,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   ? 'Processed sales returns, credit note history & returned inventory'
                   : activeTab === 'draft-sales' || activeTab === 'draft-quotes'
                   ? 'In-progress drafts saved in this browser'
-                  : "Today's tax invoices — search any past bill, or use Reports for a date range"}
+                  : 'All tax invoices, newest first — search any bill, or use Reports for a date range'}
               </p>
             </div>
         </div>
@@ -957,6 +975,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               <input
                 type="text"
                 placeholder="Search sale by Customer, Invoice No, Phone, or Item..."
+                aria-label="Search sales"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-blue-600"
@@ -1033,7 +1052,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                       </td>
                     </tr>
                   ) : (
-                    filteredInvoices.map((inv) => {
+                    pagedInvoices.map((inv) => {
                       const status = getSaleStatus(inv);
                       const isVoided = !!inv.isVoided;
                       const hasReturns = (inv.returns && inv.returns.length > 0) || (inv.totalReturnedAmount || 0) > 0;
@@ -1274,6 +1293,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   )}
                 </tbody>
               </table>
+              {ledgerPages > 1 && (
+                <nav aria-label="Sales ledger pages" className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-200 bg-slate-50 text-xs">
+                  <span className="text-slate-600 font-mono">
+                    {safeLedgerPage * LEDGER_PAGE + 1}–{Math.min(filteredInvoices.length, (safeLedgerPage + 1) * LEDGER_PAGE)} of {filteredInvoices.length}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" disabled={safeLedgerPage === 0} onClick={() => setLedgerPage(safeLedgerPage - 1)}
+                      className="px-3 py-1 border border-slate-300 bg-white font-bold text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">Previous</button>
+                    <span className="text-slate-600 font-mono">Page {safeLedgerPage + 1} / {ledgerPages}</span>
+                    <button type="button" disabled={safeLedgerPage >= ledgerPages - 1} onClick={() => setLedgerPage(safeLedgerPage + 1)}
+                      className="px-3 py-1 border border-slate-300 bg-white font-bold text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">Next</button>
+                  </div>
+                </nav>
+              )}
             </div>
           </div>
         </div>
