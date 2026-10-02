@@ -53,6 +53,8 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     selectedPurchaseOrderForDetail,
     setSelectedPurchaseOrderForDetail,
     updatePendingOrder,
+    recordPendingAdvance,
+    clearPendingAdvance,
     canCancelEnquiry,
     canConvertEnquiry,
     canEditRestockDate,
@@ -137,23 +139,15 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     setIsEditingExpectedDate(false);
   };
 
-  const handleRecordAdvance = () => {
+  const handleRecordAdvance = async () => {
     const amt = Math.max(0, Number(advanceInput) || 0);
     if (amt <= 0) return;
-    updatePendingOrder(pendingOrder.id, {
-      advanceAmount: (pendingOrder.advanceAmount || 0) + amt,
-      advanceMode: advanceModeInput,
-      advancePaidAt: new Date().toISOString(),
-    });
-    setAdvanceInput('');
+    if (await recordPendingAdvance(pendingOrder.id, amt, advanceModeInput)) setAdvanceInput('');
   };
 
   const handleClearAdvance = () => {
-    updatePendingOrder(pendingOrder.id, {
-      advanceAmount: 0,
-      advanceMode: undefined,
-      advancePaidAt: undefined,
-    });
+    if (!confirm('Give the advance back to the customer? Its receipt will be removed.')) return;
+    void clearPendingAdvance(pendingOrder.id);
   };
 
   const handleJumpToEnquiry = () => {
@@ -393,8 +387,6 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                     <option>Cash</option>
                     <option>GPay</option>
                     <option>HDFC</option>
-                    <option>Card</option>
-                    <option>Bank Transfer</option>
                   </select>
                   <button
                     type="button"

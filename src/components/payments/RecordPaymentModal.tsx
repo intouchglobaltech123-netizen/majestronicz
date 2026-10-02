@@ -104,8 +104,21 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const overCredit = mode === 'Store Credit' && amountNum > creditAvailable + 0.01;
 
+  // What really happens to money beyond the selected bills (CRM4-4 / CRM7-3): a
+  // named customer's extra is kept as their store credit; without a customer the
+  // server refuses it; a vendor payment records only what it applies.
+  const isCustomerIn = type === 'in' && partyType === 'customer';
+  const extraNeedsCustomer = isCustomerIn && !partyId && allocations.length > 0 && unallocated > 0.009 && mode !== 'Store Credit';
+  const extraLabel = isCustomerIn
+    ? mode === 'Store Credit'
+      ? `${formatCurrency(unallocated)} not used`
+      : partyId
+        ? `${formatCurrency(unallocated)} kept as store credit`
+        : `${formatCurrency(unallocated)} over — no customer to hold it`
+    : `${formatCurrency(unallocated)} not applied`;
+
   const submit = async () => {
-    if (amountNum <= 0 || saving || overCredit) return;
+    if (amountNum <= 0 || saving || overCredit || extraNeedsCustomer) return;
     setSaving(true);
     const res = await recordPayment({
       type, partyType, partyId, partyName, branchId,
@@ -250,7 +263,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-t border-slate-300 text-[11px] font-bold font-mono">
                 <span className="text-slate-700">Applied {formatCurrency(allocatedTotal)}</span>
                 <span className={cn(unallocated > 0 ? 'text-red-700' : unallocated < 0 ? 'text-rose-700' : 'text-slate-500')}>
-                  {unallocated > 0 ? `${formatCurrency(unallocated)} as advance` : unallocated < 0 ? `Over by ${formatCurrency(-unallocated)}` : 'Fully applied'}
+                  {unallocated > 0 ? extraLabel : unallocated < 0 ? `Over by ${formatCurrency(-unallocated)}` : 'Fully applied'}
                 </span>
               </div>
             </div>
@@ -276,7 +289,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </button>
             <button
               onClick={submit}
-              disabled={amountNum <= 0 || unallocated < 0 || saving || overCredit}
+              disabled={amountNum <= 0 || unallocated < 0 || saving || overCredit || extraNeedsCustomer}
               className={cn('px-4 py-1.5 rounded-none text-white text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer uppercase', isIn ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800')}
             >
               {saving ? <Wallet className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />}

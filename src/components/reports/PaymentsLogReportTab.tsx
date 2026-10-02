@@ -77,6 +77,9 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
     payments.forEach((p: any) => {
       const amount = Number(p.amount) || 0;
       if (!amount) return;
+      // A 'Store Credit' receipt spends money already received (an advance or an
+      // over-payment logged when it came in) — listing it again double-counts it.
+      if (p.type === 'in' && /store\s*credit/i.test(p.paymentMode || '')) return;
       const type =
         p.type === 'in' ? 'Customer receipt' : p.partyType === 'customer' ? 'Sale refund' : 'Vendor payment';
       out.push({
@@ -92,8 +95,15 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
     });
 
     // Advance payments on pending orders (money IN)
+    // Only LEGACY advances (taken before advances became real receipts) — a
+    // current advance is a Payment row above, and listing both double-counts it
+    // (CRM2-8).
+    const advanceRefs = new Set(
+      payments.filter((p: any) => p.type === 'in' && String(p.notes || '').startsWith('Advance on pending order')).map((p: any) => p.reference),
+    );
     pendingOrders.forEach((po: any) => {
       if (!po.advanceAmount || po.advanceAmount <= 0) return;
+      if (advanceRefs.has(po.orderNumber)) return;
       out.push({
         date: (po.advancePaidAt || po.createdAt || '').slice(0, 10), direction: 'IN', type: 'Advance',
         party: po.customerName, mode: po.advanceMode || 'Cash', amount: po.advanceAmount,

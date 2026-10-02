@@ -99,6 +99,8 @@ export const InvoiceForm: React.FC<Props> = ({
     items,
     combos,
     employees,
+    pendingOrders,
+    payments,
   } = useErp();
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
@@ -1102,6 +1104,29 @@ export const InvoiceForm: React.FC<Props> = ({
     });
   }, [totals.grandTotal]);
 
+  // CRM2-8: an advance already received on this enquiry's pending order. It is
+  // settled automatically against the bill's unpaid (COD-Credit) part on save, so
+  // the cashier collects only the balance now.
+  const pendingAdvance = useMemo(() => {
+    if (!sourceEnquiryId || documentType !== 'Invoice' || initialInvoice) return 0;
+    const numbers = new Set(pendingOrders.filter((o) => o.enquiryId === sourceEnquiryId).map((o) => o.orderNumber));
+    let taken = 0;
+    let applied = 0;
+    for (const p of payments) {
+      if (p.type !== 'in' || !p.reference || !numbers.has(p.reference)) continue;
+      const n = String(p.notes || '');
+      if (n.startsWith('Advance on pending order')) taken += Number(p.amount) || 0;
+      else if (n.startsWith('Advance applied from pending order')) applied += Number(p.amount) || 0;
+    }
+    return Math.max(0, Math.round((taken - applied) * 100) / 100);
+  }, [sourceEnquiryId, documentType, initialInvoice, pendingOrders, payments]);
+  const applyPendingAdvanceToSplits = () => {
+    const grand = totals.grandTotal;
+    const adv = Math.min(pendingAdvance, grand);
+    const rest = Math.round((grand - adv) * 100) / 100;
+    setPaymentSplits(rest > 0 ? [{ mode: 'Cash', amount: rest }, { mode: 'COD-Credit', amount: adv }] : [{ mode: 'COD-Credit', amount: adv }]);
+  };
+
   // Total allocated across payment splits
   const totalAllocated = useMemo(() => {
     if (paymentSplits.length === 1) {
@@ -1503,6 +1528,18 @@ export const InvoiceForm: React.FC<Props> = ({
           <span className="text-[11px] text-purple-600 font-semibold">
             Fresh sequence #{invoiceNumber}
           </span>
+        </div>
+      )}
+
+      {pendingAdvance > 0 && (
+        <div className="bg-emerald-50 border border-emerald-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950" data-testid="pending-advance-banner">
+          <span>
+            <span className="font-bold">Advance ₹{pendingAdvance.toLocaleString('en-IN')} already received</span> on this order. Keep it as the
+            COD-Credit (unpaid) part — it is settled from the advance when you save, so collect only the balance now.
+          </span>
+          <button type="button" onClick={applyPendingAdvanceToSplits} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold border border-emerald-700 cursor-pointer">
+            Use advance
+          </button>
         </div>
       )}
 

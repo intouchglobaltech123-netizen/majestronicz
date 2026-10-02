@@ -1485,23 +1485,28 @@ export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean 
 };
 
 /**
- * Helper to get payment splits for an invoice, supporting backwards compatibility
- * for legacy single-mode invoices.
+ * The payment split of a bill AS IT WAS AT BILLING — what was collected in each
+ * mode on the bill's own day plus the 'COD-Credit' part left owing. Mirrors the
+ * backend lib/billingSplit.ts billingSplitsOf exactly, so the screen and the
+ * server count the same billing-day cash (E2E8-6).
+ *
+ * Legacy shape: a bill with no stored split that was part-paid keeps its
+ * part-payment in `partialAmount`; that is what was
+ * collected at billing — in cash on a 'COD-Credit' bill. Receipts never change
+ * it (they are Payment rows on their own dates), so the bill's day never moves.
  */
 export const getInvoicePaymentSplits = (
   inv: Pick<Invoice, 'paymentSplits' | 'paymentMode' | 'grandTotal' | 'isPartialPayment' | 'partialAmount' | 'balanceDue'>
 ): PaymentSplit[] => {
-  if (inv.paymentSplits && inv.paymentSplits.length > 0) {
-    return inv.paymentSplits;
-  }
-  // Backwards compatibility migration for legacy single-mode invoices with partial payment
-  if (inv.isPartialPayment && inv.partialAmount && inv.balanceDue) {
-    return [
-      { mode: inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: inv.partialAmount },
-      { mode: 'COD-Credit', amount: inv.balanceDue },
-    ];
-  }
-  return [{ mode: inv.paymentMode || 'Cash', amount: inv.grandTotal || 0 }];
+  const grand = Number(inv.grandTotal) || 0;
+  const partial = Math.min(grand, Math.max(0, Number(inv.partialAmount) || 0));
+  const legacyPartial = (): PaymentSplit[] => [
+    { mode: !inv.paymentMode || inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: partial },
+    { mode: 'COD-Credit', amount: Math.round((grand - partial) * 100) / 100 },
+  ];
+  if (inv.paymentSplits && inv.paymentSplits.length > 0) return inv.paymentSplits;
+  if (inv.isPartialPayment && partial > 0) return legacyPartial();
+  return [{ mode: inv.paymentMode || 'Cash', amount: grand }];
 };
 
 export const getCustomerOutstandingSummary = (

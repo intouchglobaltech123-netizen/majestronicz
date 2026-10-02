@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Invoice } from '../../types';
+import { Invoice, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 import {
@@ -36,7 +36,13 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const [customReason, setCustomReason] = useState('');
   const [notes, setNotes] = useState('');
   // How the refund was paid back — a Cash refund leaves the cash drawer today; GPay/Card does not.
-  const [refundMode, setRefundMode] = useState('Cash');
+  // CASH8-6: default to how the bill itself was paid (its first collected mode),
+  // not always Cash.
+  const billRefundMode = (inv: Invoice | null | undefined): string => {
+    const m = inv ? getInvoicePaymentSplits(inv).find((s) => s.mode !== 'COD-Credit' && (Number(s.amount) || 0) > 0)?.mode : undefined;
+    return m && ['Cash', 'GPay', 'HDFC'].includes(m) ? m : 'Cash';
+  };
+  const [refundMode, setRefundMode] = useState<string>(() => billRefundMode(invoice));
 
   // Reset state when invoice changes
   useEffect(() => {
@@ -45,6 +51,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       setReason(COMMON_REASONS[0]);
       setCustomReason('');
       setNotes('');
+      setRefundMode(billRefundMode(invoice));
     }
   }, [invoice]);
 
@@ -163,7 +170,8 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         comboComponents: l.comboComponents,
       }));
 
-    // A damaged write-off refunds nothing to the customer, so no refund mode needed.
+    // Damaged goods are written off from STOCK, but the customer is still owed
+    // their money — the refund mode applies to every return (CASH7-7 / E2E8-11).
     processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode);
     onClose();
   };
@@ -395,9 +403,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </div>
 
             {/* How the refund was paid back — recorded on the ledger; a Cash
-                refund leaves the drawer today (SAL6-1). Not shown for a damaged
-                write-off (nothing is refunded). */}
-            {!/damag/i.test(reason) && (
+                refund leaves the drawer today (SAL6-1). Shown for damaged returns
+                too: the goods are written off, but the customer is refunded the
+                same way (CASH7-7 / E2E8-11). */}
+            {(
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Refund paid by</label>
                 <select

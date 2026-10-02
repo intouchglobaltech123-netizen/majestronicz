@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance } from '../../types';
+import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -25,6 +25,18 @@ import {
 } from 'lucide-react';
 import { InvoicePdfModal } from '../invoices/InvoicePdfModal';
 import { RecordPaymentModal } from '../payments/RecordPaymentModal';
+
+interface StatementRow {
+  key: string;
+  date: string;
+  sort: string;
+  kind: string;
+  ref: string;
+  detail: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
 
 interface CustomerDetailModalProps {
   customer: Customer | null;
@@ -88,6 +100,58 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       return false;
     });
   }, [payments, currentCustomer]);
+
+  // CRM8-5: the customer's statement — bills, money paid at billing, receipts,
+  // returns, refunds and store-credit adjustments, oldest first, with a running
+  // balance (positive = the customer owes us, negative = we hold their money).
+  // Store-credit receipts only move credit onto a bill, so they are not new money
+  // and are left out; manual credit grants/corrections are shown.
+  const statement = useMemo(() => {
+    if (!currentCustomer) return { rows: [] as StatementRow[], balance: 0 };
+    const rows: Omit<StatementRow, 'balance'>[] = [];
+    const billIds = new Set<string>();
+    for (const inv of customerInvoices) {
+      if (inv.isVoided) continue;
+      billIds.add(inv.id);
+      const collected = getInvoicePaymentSplits(inv)
+        .filter((sp) => sp.mode !== 'COD-Credit')
+        .reduce((t, sp) => t + (Number(sp.amount) || 0), 0);
+      rows.push({ key: `b-${inv.id}`, date: inv.date, sort: `${inv.date}${inv.time || ''}0`, kind: 'Bill', ref: inv.invoiceNumber, detail: inv.items.length + ' item(s)', debit: inv.grandTotal || 0, credit: 0 });
+      if (collected > 0.005) {
+        const modes = getInvoicePaymentSplits(inv).filter((sp) => sp.mode !== 'COD-Credit' && sp.amount > 0).map((sp) => sp.mode).join(' + ');
+        rows.push({ key: `c-${inv.id}`, date: inv.date, sort: `${inv.date}${inv.time || ''}1`, kind: 'Paid at billing', ref: inv.invoiceNumber, detail: modes, debit: 0, credit: collected });
+      }
+      for (const r of inv.returns || []) {
+        const d = String(r.returnedAt || inv.date).slice(0, 10);
+        rows.push({ key: `r-${r.id}`, date: d, sort: `${r.returnedAt || d}2`, kind: 'Return', ref: inv.invoiceNumber, detail: `${r.returnedQuantity} × ${r.itemName}`, debit: 0, credit: Number(r.refundAmount) || 0 });
+      }
+    }
+    for (const p of payments) {
+      if (p.partyType !== 'customer') continue;
+      const onBill = (p.allocations || []).some((a) => billIds.has(a.refId));
+      const mine = (p.partyId && p.partyId === currentCustomer.id) || onBill;
+      if (!mine) continue;
+      if (p.type === 'in') {
+        if (/store\s*credit/i.test(p.paymentMode || '')) continue;
+        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}${p.createdAt || ''}3`, kind: 'Receipt', ref: p.receiptNumber, detail: p.paymentMode, debit: 0, credit: Number(p.amount) || 0 });
+      } else {
+        rows.push({ key: `p-${p.id}`, date: p.date, sort: `${p.date}${p.createdAt || ''}4`, kind: 'Refund', ref: p.receiptNumber, detail: p.paymentMode, debit: Number(p.amount) || 0, credit: 0 });
+      }
+    }
+    for (const h of currentCustomer.creditHistory || []) {
+      if (h.type !== 'adjust' || (h as any).refId) continue; // receipt-linked entries are already in the receipt
+      const d = String(h.date || '').slice(0, 10);
+      const amt = Number(h.amount) || 0;
+      rows.push({ key: `s-${h.id}`, date: d, sort: `${h.date}5`, kind: 'Credit adjusted', ref: '', detail: h.reason || '', debit: amt < 0 ? -amt : 0, credit: amt > 0 ? amt : 0 });
+    }
+    rows.sort((a, b) => a.sort.localeCompare(b.sort));
+    let bal = 0;
+    const withBal = rows.map((r) => {
+      bal = Math.round((bal + r.debit - r.credit) * 100) / 100;
+      return { ...r, balance: bal };
+    });
+    return { rows: withBal, balance: bal };
+  }, [currentCustomer, customerInvoices, payments]);
 
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'unpaid'>('all');
 
@@ -580,6 +644,48 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     <span>Create First Bill</span>
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Customer statement (CRM8-5) */}
+            {statement.rows.length > 0 && (
+              <div className="pt-2" data-testid="customer-statement">
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-slate-600" />
+                  <span>Statement</span>
+                  <span className="ml-auto text-[11px] font-bold font-mono text-slate-600">
+                    Owes {formatCurrency(outstandingSummary.totalOutstanding)} · Store credit {formatCurrency(currentCustomer.creditBalance || 0)} ·{' '}
+                    {statement.balance >= 0 ? `Net due ${formatCurrency(statement.balance)}` : `Net in credit ${formatCurrency(-statement.balance)}`}
+                  </span>
+                </h3>
+                <div className="border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider">
+                      <tr>
+                        <th className="text-left px-3 py-1.5">Date</th>
+                        <th className="text-left px-3 py-1.5">Entry</th>
+                        <th className="text-left px-3 py-1.5">Ref</th>
+                        <th className="text-right px-3 py-1.5">Charged</th>
+                        <th className="text-right px-3 py-1.5">Paid / credited</th>
+                        <th className="text-right px-3 py-1.5">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-mono">
+                      {statement.rows.map((r) => (
+                        <tr key={r.key}>
+                          <td className="px-3 py-1.5 whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-1.5 font-sans font-semibold text-slate-800">{r.kind}{r.detail ? <span className="font-normal text-slate-500"> · {r.detail}</span> : null}</td>
+                          <td className="px-3 py-1.5 whitespace-nowrap">{r.ref}</td>
+                          <td className="px-3 py-1.5 text-right">{r.debit ? formatCurrency(r.debit) : ''}</td>
+                          <td className="px-3 py-1.5 text-right text-emerald-700">{r.credit ? formatCurrency(r.credit) : ''}</td>
+                          <td className={cn('px-3 py-1.5 text-right font-bold', r.balance > 0 ? 'text-rose-700' : r.balance < 0 ? 'text-emerald-700' : 'text-slate-500')}>
+                            {r.balance < 0 ? `${formatCurrency(-r.balance)} CR` : formatCurrency(r.balance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

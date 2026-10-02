@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, computeInvoiceCogs, purchaseOrderBalanceDue } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
-import { computeDayCashClosing } from '../../lib/cashClosing';
+import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
@@ -98,29 +98,12 @@ export const DashboardView: React.FC = () => {
       .filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
       .reduce((t, p) => t + purchaseOrderBalanceDue(p), 0);
 
-    // Cash-in-hand: for each in-scope branch, use the SAME shared closing formula
-    // as the cash register (opening + cash sales + cash receipts − vendor cash −
-    // effective cash expenses) on the most recent non-future register, plus today's
-    // cash movements if that register predates today. The old code read a
-    // non-existent `e.amount` field (so expenses never counted) and could pick a
-    // future/invalid register (RPT2-2).
     const branchesInScope = isAllBranches ? BRANCHES.map((b) => b.id) : [currentBranch];
     let cashInHand = 0;
+    // Cash in hand = the drawer at the end of today: the opening of tomorrow under
+    // the ONE carry-forward rule the register and the server use (RPT2-2 / CASH-1).
     for (const bId of branchesInScope) {
-      const regs = cashRegisters
-        .filter((r) => r.branchId === bId && r.date <= today)
-        .sort((a, b) => (a.date < b.date ? 1 : -1));
-      const latest = regs[0];
-      if (latest) {
-        cashInHand += computeDayCashClosing(bId, latest.date, latest.openingAmount || 0, invoices, payments, latest.expenses).closing;
-        if (latest.date < today) {
-          // No register opened today yet: add today's cash movements on top of the
-          // carried-forward closing (opening 0, no expenses → sales + receipts − vendor).
-          cashInHand += computeDayCashClosing(bId, today, 0, invoices, payments, []).closing;
-        }
-      } else {
-        cashInHand += computeDayCashClosing(bId, today, 0, invoices, payments, []).closing;
-      }
+      cashInHand += makeOpeningLookup(bId, cashRegisters, invoices, payments)(dayAfter(today));
     }
 
     return { salesToday, salesYest, salesMonth, salesPrevMonth, countToday, receivables, payables, cashInHand };

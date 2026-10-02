@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString } from '../lib/utils';
-import { computeDayCashClosing } from '../lib/cashClosing';
+import { makeOpeningLookup } from '../lib/cashClosing';
 
 /**
  * Persists a collection to the backend whenever it changes, so Postgres always
@@ -280,6 +280,8 @@ interface ErpContextType {
   saveEnquiry: (enquiry: Enquiry, initialExpectedRestockDate?: string) => void;
   linkItemToEnquiry: (enquiryId: string, item: Item) => void;
   updatePendingOrder: (orderId: string, updates: Partial<PendingOrder>) => void;
+  recordPendingAdvance: (orderId: string, amount: number, mode: string) => Promise<boolean>;
+  clearPendingAdvance: (orderId: string) => Promise<boolean>;
   cancelEnquiry: (enquiryId: string, reason: string) => void;
   cancelPendingOrder: (orderId: string, reason: string) => void;
   convertEnquiryToSale: (enquiryId: string, targetType: 'estimate' | 'invoice') => void;
@@ -977,7 +979,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayments((prev) => [created, ...prev]);
       // Refresh invoices so settled balances reflect immediately.
       void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
-      toast.success(`${input.type === 'in' ? 'Payment received' : 'Payment recorded'} — ${created.receiptNumber}`);
+      const credited = Number((created as any).storeCreditAdded) || 0;
+      toast.success(
+        `${input.type === 'in' ? 'Payment received' : 'Payment recorded'} — ${created.receiptNumber}` +
+          (credited > 0 ? ` · ₹${credited.toLocaleString('en-IN')} kept as store credit` : ''),
+      );
       return created;
     } catch (e: any) {
       toast.error(e?.message || 'Could not record payment');
@@ -2220,27 +2226,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return !!reg?.isClosed;
   };
 
-  const getPreviousDayClosingBalance = (branchId: BranchId, date: string): number => {
-    // Carry forward from the most recent PRIOR day that has a register, closed or
-    // not (CASH-1) — mirrors the backend. Filtering to closed days only meant an
-    // unclosed yesterday didn't carry into today, so today opened at the default.
-    const pastClosed = cashRegisters
-      .filter((r) => r.branchId === branchId && r.date < date)
-      .sort((a, b) => b.date.localeCompare(a.date));
-
-    if (pastClosed.length > 0) {
-      const last = pastClosed[0];
-      // One shared closing formula for every view so the carried-forward opening
-      // matches the register card and the history modal exactly (CASH2-3, CASH-4).
-      return computeDayCashClosing(branchId, last.date, last.openingAmount, invoices, payments, last.expenses).closing;
-    }
-
-    return branchId === 'erode-hq' ? 12000 : 8000;
-  };
+  // ONE carry-forward rule with the server (lib/cashClosing makeOpeningLookup ↔
+  // backend cash.service branchOpenings): register-less days carry, a branch's
+  // first register includes earlier cash, and an OPEN day's opening is always
+  // live — a stale stored figure never sticks (CASH-1 / CASH-5 / CASH8-4).
+  const getPreviousDayClosingBalance = (branchId: BranchId, date: string): number =>
+    makeOpeningLookup(branchId, cashRegisters, invoices, payments)(date);
 
   const getDailyCashRegister = (branchId: BranchId, date: string): DailyCashRegister => {
     const existing = cashRegisters.find((r) => r.branchId === branchId && r.date === date);
-    if (existing) return existing;
+    if (existing) {
+      // Closed / overridden days keep their own stored opening.
+      if (existing.isClosed || existing.isOpeningOverridden) return existing;
+      return { ...existing, openingAmount: getPreviousDayClosingBalance(branchId, date) };
+    }
 
     const opening = getPreviousDayClosingBalance(branchId, date);
     return {
@@ -2944,10 +2943,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnLines: validLines,
         reason,
         notes,
-        refundMode: refundMode || 'Cash',
+        // Empty = the server refunds the way the bill was paid (CASH8-6).
+        refundMode: refundMode || undefined,
         actor: currentUser.name,
       });
       applySaleSnapshot(snap);
+      // The refund (a Payment row) and any credit note live outside the sale
+      // snapshot — refresh so the drawer and the customer's credit show them now.
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
       const totalUnitsReturned = validLines.reduce((sum, l) => sum + l.returnQty, 0);
       const totalRefund = validLines.reduce((sum, l) => sum + l.refundAmount, 0);
       toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, {
@@ -3190,6 +3193,37 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     persist(apiPost('/api/enquiry/pending/update', { orderId, updates }));
     toast.success('Pending order updated');
+  };
+
+  // CRM2-8: an advance is a real receipt (kept as the customer's store credit and
+  // applied to the bill made from the order), never just a number on the order.
+  const syncPendingSelection = (orders: PendingOrder[]) => {
+    setPendingOrders(orders);
+    setSelectedPendingOrderForDetail((prev) => (prev ? orders.find((o) => o.id === prev.id) || prev : prev));
+  };
+  const recordPendingAdvance = async (orderId: string, amount: number, mode: string): Promise<boolean> => {
+    try {
+      const res = await apiPost<any>('/api/payments/advance', { orderId, amount, mode });
+      if (Array.isArray(res.pendingOrders)) syncPendingSelection(res.pendingOrders);
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success(`Advance received — ${res.payment?.receiptNumber || ''}`, { description: 'Kept as the customer\'s store credit until the order is billed.' });
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not record the advance');
+      return false;
+    }
+  };
+  const clearPendingAdvance = async (orderId: string): Promise<boolean> => {
+    try {
+      const res = await apiPost<any>('/api/payments/advance/clear', { orderId });
+      if (Array.isArray(res.pendingOrders)) syncPendingSelection(res.pendingOrders);
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      toast.success('Advance given back');
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not clear the advance');
+      return false;
+    }
   };
 
   const cancelEnquiry = (enquiryId: string, reason: string) => {
@@ -4419,6 +4453,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveEnquiry,
         linkItemToEnquiry,
         updatePendingOrder,
+        recordPendingAdvance,
+        clearPendingAdvance,
         cancelEnquiry,
         cancelPendingOrder,
         convertEnquiryToSale,
