@@ -438,8 +438,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // SEC-6: voiding a bill is a Manager/CEO action.
   const canVoid = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  // RPT10-4: a bill of a month that has ended can't be voided (its sales and GST
-  // are reported) — a return / credit note is used instead. Same rule as the server.
+  // RPT10-4 / FIN-A-3: a bill of a month that has ended can't be voided or edited
+  // (its sales and GST are reported) — a return / credit note is used instead.
+  // Same rule as the server.
   const thisMonthIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7);
   const monthEnded = (inv: Invoice) => String(inv.date || '').slice(0, 7) < thisMonthIST;
 
@@ -450,6 +451,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     }
     if ((invoice.returns || []).some((r) => (r.returnedQuantity || 0) > 0)) {
       toast.error('This bill has returns and cannot be edited.', { description: 'Reverse the return(s) first (Manager/CEO).' });
+      return;
+    }
+    if (monthEnded(invoice)) {
+      toast.error("This bill's month has ended — it can't be edited.", { description: 'Use a return / credit note instead.' }); // FIN-A-3
       return;
     }
     // If this invoice is already open in a tab, focus it instead of duplicating.
@@ -1251,12 +1256,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               )}
 
                               {/* Edit Action — a bill with returns is locked until they are reversed (SAL3-2) */}
+                              {/* FIN-A-3: a bill of an ended month is locked like void/delete (same rule as the server). */}
                               {!isVoided && !hasReturns && (
                                 <button
                                   type="button"
                                   onClick={() => handleEdit(inv)}
-                                  title="Edit Sale"
-                                  className="p-1.5 rounded-lg border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                                  disabled={monthEnded(inv)}
+                                  data-testid="edit-sale"
+                                  title={monthEnded(inv) ? "This bill's month has ended — it can't be edited. Use a return / credit note instead" : 'Edit Sale'}
+                                  className={cn(
+                                    'p-1.5 rounded-lg border transition-colors',
+                                    monthEnded(inv)
+                                      ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                                  )}
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>

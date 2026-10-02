@@ -1311,6 +1311,32 @@ export const InvoiceForm: React.FC<Props> = ({
   }, [initialInvoice]);
   const paidOverNewTotal = documentType === 'Invoice' && initialInvoice
     ? Math.max(0, Math.round((alreadyPaid - totals.grandTotal) * 100) / 100) : 0;
+  // FIN-A-1: store credit given back on THIS bill by an earlier edit below what
+  // was paid (same rule as the server's creditBackForBill). Editing the bill back
+  // up keeps what was collected as it is; that credit is applied back to the new
+  // total and anything left is a due to collect — never "cash" nobody took.
+  const billCreditBack = useMemo(() => {
+    if (!initialInvoice || !selectedCustomerObj) return 0;
+    const id = initialInvoice.id;
+    const t = (selectedCustomerObj.creditHistory || []).reduce((sum, h: any) => {
+      const ref = String(h?.refId || '');
+      return ref === id || h?.billId === id || ref === `fix-overpay:${id}` ? sum + (Number(h.amount) || 0) : sum;
+    }, 0);
+    return Math.max(0, Math.round(t * 100) / 100);
+  }, [initialInvoice, selectedCustomerObj]);
+  const collectedOnBill = useMemo(
+    () => (documentType === 'Invoice' && initialInvoice
+      ? getInvoicePaymentSplits(initialInvoice).filter((s) => s.mode !== 'COD-Credit' && (Number(s.amount) || 0) > 0)
+      : []),
+    [documentType, initialInvoice],
+  );
+  const owingAfterEdit = Math.max(0, Math.round((totals.grandTotal - alreadyPaid) * 100) / 100);
+  const creditAppliedBack = documentType === 'Invoice' && initialInvoice && billCreditBack > 0.009 && paidOverNewTotal <= 0.009
+    ? Math.round(Math.min(billCreditBack, Math.max(0, Number(selectedCustomerObj?.creditBalance) || 0), owingAfterEdit) * 100) / 100 : 0;
+  const leftToCollect = billCreditBack > 0.009 && paidOverNewTotal <= 0.009 ? Math.round((owingAfterEdit - creditAppliedBack) * 100) / 100 : 0;
+  // FIN-E-2: in both cases the server keeps the bill's collected split exactly as
+  // it is, so the form shows that split (read-only) instead of an editable one.
+  const keepsCollectedSplit = documentType === 'Invoice' && !!initialInvoice && (paidOverNewTotal > 0.009 || billCreditBack > 0.009);
 
   // Is payment reconciled exactly to 0 remaining?
   const isPaymentReconciled = useMemo(() => {
@@ -1319,9 +1345,9 @@ export const InvoiceForm: React.FC<Props> = ({
     // E2E10-4: an edit below what was already paid keeps the bill's collected
     // split as it is on the server (the difference becomes store credit), so
     // the split on screen does not have to match the new total.
-    if (paidOverNewTotal > 0) return true;
+    if (paidOverNewTotal > 0 || keepsCollectedSplit) return true;
     return Math.abs(remainingBalance) < 0.01;
-  }, [documentType, paymentSplits.length, remainingBalance, paidOverNewTotal]);
+  }, [documentType, paymentSplits.length, remainingBalance, paidOverNewTotal, keepsCollectedSplit]);
 
   // Split management handlers
   const handleAddSplit = () => {
@@ -1612,7 +1638,11 @@ export const InvoiceForm: React.FC<Props> = ({
       // reconciled payment split), not the provisional client object (SAL4-1).
       const saved = await saveInvoice(inv);
       if (saved && paidOverNewTotal > 0.009 && saved.customerId) {
-        toast.info(`₹${paidOverNewTotal.toLocaleString('en-IN')} already paid is kept as ${saved.customerName || 'the customer'}'s store credit`); // E2E10-4
+        toast.info(`${formatCurrency(paidOverNewTotal)} paid over the new total is kept as ${saved.customerName || 'the customer'}'s store credit`); // E2E10-4
+      } else if (saved && creditAppliedBack > 0.009) {
+        toast.info(`${formatCurrency(creditAppliedBack)} store credit applied back to the bill`, { // FIN-A-1
+          description: leftToCollect > 0.009 ? `${formatCurrency(leftToCollect)} is left to collect — it stays due on the bill.` : undefined,
+        });
       }
       // If the server REFUSED the save, saveInvoice shows the error toast and
       // returns undefined — do NOT open a printable bill off the provisional
@@ -1745,10 +1775,22 @@ export const InvoiceForm: React.FC<Props> = ({
       {paidOverNewTotal > 0.009 && (
         <div className="bg-amber-50 border border-amber-300 px-4 py-2.5 text-xs text-amber-950" data-testid="paid-over-banner">
           {/* E2E10-4 */}
-          <span className="font-bold">₹{paidOverNewTotal.toLocaleString('en-IN')} already paid</span> is more than the new total.{' '}
+          <span className="font-bold">{formatCurrency(alreadyPaid)} paid</span> is <span className="font-bold">{formatCurrency(paidOverNewTotal)} more</span> than the new total.{' '}
           {customerId || customerPhone
             ? "The bill keeps what was collected and the difference is kept as the customer's store credit when you save."
             : 'A walk-in bill has no account to keep it on — add the customer, or record a return (refund) instead.'}
+        </div>
+      )}
+
+      {keepsCollectedSplit && paidOverNewTotal <= 0.009 && (
+        <div className="bg-sky-50 border border-sky-300 px-4 py-2.5 text-xs text-sky-950" data-testid="credit-back-banner">
+          {/* FIN-A-1 */}
+          <span className="font-bold">{formatCurrency(billCreditBack)} store credit</span> was given back on this bill when it was edited below what was paid.
+          {' '}What was collected stays as it is
+          {creditAppliedBack > 0.009 ? <>; <span className="font-bold">{formatCurrency(creditAppliedBack)}</span> of that credit is applied back to the new total</> : null}
+          {leftToCollect > 0.009
+            ? <>; <span className="font-bold">{formatCurrency(leftToCollect)} is left to collect</span> — it stays due on the bill (take it with Record Payment after saving).</>
+            : '.'}
         </div>
       )}
 
@@ -1885,6 +1927,8 @@ export const InvoiceForm: React.FC<Props> = ({
             <input
               type="date"
               value={date}
+              // FIN-A-3: an edited bill stays in the current month (an ended month is reported).
+              min={initialInvoice && documentType === 'Invoice' ? `${getTodayDateString().slice(0, 7)}-01` : undefined}
               onChange={(e) => setDate(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
             />
@@ -2379,8 +2423,36 @@ export const InvoiceForm: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* SINGLE MODE VIEW (Default / Common Case) */}
-              {paymentSplits.length <= 1 ? (
+              {keepsCollectedSplit ? (
+                /* FIN-A-1 / FIN-E-2: the bill keeps what was collected on it */
+                <div className="space-y-2 text-xs" data-testid="kept-split-panel">
+                  <p className="text-[11px] text-slate-500">Collected on this bill — kept as it is when you save:</p>
+                  {collectedOnBill.length ? collectedOnBill.map((sp, i) => (
+                    <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-2">
+                      <span className="font-bold text-slate-700">{sp.mode}</span>
+                      <span className="font-mono font-bold text-slate-900">{formatCurrency(Number(sp.amount) || 0)}</span>
+                    </div>
+                  )) : <div className="bg-slate-50 border border-slate-200 px-3 py-2 text-slate-500">Nothing was collected at billing.</div>}
+                  {paidOverNewTotal > 0.009 && (
+                    <div className="flex items-center justify-between bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900">
+                      <span className="font-bold">Paid over the new total → store credit</span>
+                      <span className="font-mono font-bold">{formatCurrency(paidOverNewTotal)}</span>
+                    </div>
+                  )}
+                  {creditAppliedBack > 0.009 && (
+                    <div className="flex items-center justify-between bg-sky-50 border border-sky-200 px-3 py-2 text-sky-900">
+                      <span className="font-bold">Store credit applied back</span>
+                      <span className="font-mono font-bold">{formatCurrency(creditAppliedBack)}</span>
+                    </div>
+                  )}
+                  {leftToCollect > 0.009 && (
+                    <div className="flex items-center justify-between bg-rose-50 border border-rose-200 px-3 py-2 text-rose-900" data-testid="left-to-collect">
+                      <span className="font-bold">Left to collect (stays due)</span>
+                      <span className="font-mono font-bold">{formatCurrency(leftToCollect)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : paymentSplits.length <= 1 ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
