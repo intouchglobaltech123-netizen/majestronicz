@@ -11,6 +11,7 @@ import {
   Vendor,
   BranchId,
   Item,
+  allowsFractionalQty,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -102,6 +103,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
 
   // Validation
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   // Sync default branch or pre-selected vendor when opening.
   // PUR-4: seed the form ONLY on the closed→open edge. The app runs a 1-second
@@ -275,13 +277,20 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   };
 
   // Parse + validate the qty once the field loses focus (or on submit).
+  // PUR-10: 2.5 of a piece-counted item is NOT silently turned into 2 — the raw
+  // text stays and the line shows a message until it is a whole number.
   const commitLineQty = (index: number) => {
     setLines((prev) => {
       const next = [...prev];
       const raw = next[index].quantityText;
       if (raw == null) return prev;
-      const parsed = parseInt(raw, 10);
-      const safeQty = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+      const msg = qtyProblem(raw, next[index].item?.unit);
+      if (msg) {
+        setFormErrors((e) => ({ ...e, lines: msg }));
+        return prev;
+      }
+      const parsed = Number(raw);
+      const safeQty = !Number.isFinite(parsed) || parsed <= 0 ? 1 : parsed;
       next[index] = {
         ...next[index],
         quantity: safeQty,
@@ -328,6 +337,15 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   // Calculations
   const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
 
+  // A quantity must be a positive number, and a whole number unless the item is
+  // sold by measure (MTR, KGS …) — same rule as the server.
+  const qtyProblem = (raw: string, unit?: string): string | null => {
+    const n = Number(String(raw).trim());
+    if (String(raw).trim() === '' || !Number.isFinite(n) || n <= 0) return 'Enter a quantity greater than 0.';
+    if (!Number.isInteger(n) && !allowsFractionalQty(unit)) return `${n} is not a whole number — ${unit || 'this item'} is counted in whole units.`;
+    return null;
+  };
+
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!selectedVendorId) {
@@ -348,13 +366,17 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     if (validLines.length === 0) {
       errs.lines = 'Please select at least one valid item from the catalog';
     }
+    for (const l of validLines) {
+      const msg = qtyProblem(l.quantityText ?? String(l.quantity), l.item?.unit);
+      if (msg) { errs.lines = `${l.item?.itemName}: ${msg}`; break; }
+    }
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (saving || !validate()) return;
 
     if (!currentVendor) return;
 
@@ -362,8 +384,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       .filter((l): l is typeof l & { item: Item } => l.item !== null)
       .map((l) => {
         // Flush any qty still held as raw text (submit clicked before blur) — PUR-10.
-        const parsedQty = l.quantityText != null ? parseInt(l.quantityText, 10) : l.quantity;
-        const quantityOrdered = isNaN(parsedQty) || parsedQty < 1 ? 1 : parsedQty;
+        const parsedQty = l.quantityText != null ? Number(l.quantityText) : l.quantity;
+        const quantityOrdered = !Number.isFinite(parsedQty) || parsedQty <= 0 ? 1 : parsedQty;
         return {
           id: l.id,
           itemId: l.item.id,
@@ -382,7 +404,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         };
       });
 
-    savePurchaseOrder({
+    setSaving(true);
+    const saved = await savePurchaseOrder({
       poNumber,
       vendorId: currentVendor.id,
       vendorName: currentVendor.vendorName,
@@ -399,8 +422,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       pendingOrderId: linkedPendingOrderId,
       pendingOrderNumber: linkedPendingOrderNumber,
     });
-
-    onClose();
+    setSaving(false);
+    // Close only when the server accepted it — a refusal keeps the form (PUR8-6).
+    if (saved) onClose();
   };
 
   return (

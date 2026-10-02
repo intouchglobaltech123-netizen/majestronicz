@@ -58,10 +58,7 @@ import {
   Vendor,
   CourierPartner,
   PurchaseOrder,
-  PurchaseOrderStatus,
   PurchaseOrderAttachment,
-  POReceiptLineItem,
-  PurchaseOrderReceivingEvent,
   getNextPurchaseOrderSequence,
   Employee,
   GeoLocationCapture,
@@ -426,23 +423,24 @@ interface ErpContextType {
   purchaseOrders: PurchaseOrder[];
   saveVendor: (vendor: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Vendor;
   deleteVendor: (vendorId: string) => void;
-  savePurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => PurchaseOrder;
-  deletePurchaseOrder: (poId: string) => void;
-  cancelPurchaseOrder: (poId: string) => void;
+  savePurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<PurchaseOrder | null>;
+  deletePurchaseOrder: (poId: string) => Promise<boolean>;
+  cancelPurchaseOrder: (poId: string) => Promise<boolean>;
   receivePurchaseOrderStock: (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }[],
     notes?: string,
     payment?: { amount?: number; mode?: string },
     otherCharges?: number,
-  ) => void;
-  recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => void;
-  recordPurchaseBill: (poId: string, bill: { number: string; date: string; taxable: number; gst: number }) => void;
+  ) => Promise<boolean>;
+  recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => Promise<boolean>;
+  applyVendorAdvance: (vendorId: string, poId: string, amount?: number) => Promise<boolean>;
+  recordPurchaseBill: (poId: string, bill: { number: string; date: string; taxable: number; gst: number }) => Promise<boolean>;
   addPurchaseOrderAttachment: (
     poId: string,
     attachment: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
-  ) => void;
-  deletePurchaseOrderAttachment: (poId: string, attachmentId: string) => void;
+  ) => Promise<boolean>;
+  deletePurchaseOrderAttachment: (poId: string, attachmentId: string) => Promise<boolean>;
   getNextPoNumber: (branchId: BranchId) => string;
   canManagePurchases: boolean;
 
@@ -3600,9 +3598,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: vendorData.id,
         updatedAt: now,
       };
+      const before = vendors;
       setVendors((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
-      persist(apiPost('/api/vendors', updated));
-      toast.success(`Vendor "${updated.vendorName}" updated`);
+      apiPost('/api/vendors', updated)
+        .then((snap) => { applySnapshot(snap); toast.success(`Vendor "${updated.vendorName}" updated`); })
+        .catch((e) => { setVendors(before); toast.error('Could not save the supplier', { description: serverMessage(e) }); });
       return updated;
     } else {
       const newVendor: Vendor = {
@@ -3612,8 +3612,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       };
       setVendors((prev) => [newVendor, ...prev]);
-      persist(apiPost('/api/vendors', newVendor));
-      toast.success(`Vendor "${newVendor.vendorName}" registered`);
+      // PUR6-5: a duplicate supplier is refused by the server — undo and say why.
+      apiPost('/api/vendors', newVendor)
+        .then((snap) => { applySnapshot(snap); toast.success(`Vendor "${newVendor.vendorName}" registered`); })
+        .catch((e) => {
+          setVendors((prev) => prev.filter((v) => v.id !== newVendor.id));
+          toast.error('Could not register the supplier', { description: serverMessage(e) });
+        });
       return newVendor;
     }
   };
@@ -3635,409 +3640,170 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return getNextPurchaseOrderSequence(purchaseOrders, branchId);
   };
 
-  const savePurchaseOrder = (poData: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): PurchaseOrder => {
-    const now = new Date().toISOString();
-    if (poData.id) {
-      const updated: PurchaseOrder = {
-        ...(purchaseOrders.find((p) => p.id === poData.id) as PurchaseOrder),
-        ...poData,
-        id: poData.id,
-        updatedAt: now,
-      };
-      setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      if (updated.pendingOrderId) {
-        const pOrderId = updated.pendingOrderId;
-        setPendingOrders((prev) =>
-          prev.map((po) =>
-            po.id === pOrderId
-              ? {
-                  ...po,
-                  linkedPurchaseOrderId: updated.id,
-                  purchaseOrderId: updated.id,
-                  purchaseOrderNumber: updated.poNumber,
-                  updatedAt: now,
-                }
-              : po
-          )
-        );
-      }
-      persist(apiPost('/api/purchase/save', { po: updated, actor: currentUser.name }));
-      toast.success(`Purchase Order ${updated.poNumber} updated`);
-      return updated;
-    } else {
-      const newPo: PurchaseOrder = {
-        ...poData,
-        id: `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setPurchaseOrders((prev) => [newPo, ...prev]);
-      if (newPo.pendingOrderId) {
-        const pOrderId = newPo.pendingOrderId;
-        setPendingOrders((prev) =>
-          prev.map((po) =>
-            po.id === pOrderId
-              ? {
-                  ...po,
-                  linkedPurchaseOrderId: newPo.id,
-                  purchaseOrderId: newPo.id,
-                  purchaseOrderNumber: newPo.poNumber,
-                  updatedAt: now,
-                }
-              : po
-          )
-        );
-        setSelectedPendingOrderForDetail((prev) =>
-          prev && prev.id === pOrderId
-            ? {
-                ...prev,
-                linkedPurchaseOrderId: newPo.id,
-                purchaseOrderId: newPo.id,
-                purchaseOrderNumber: newPo.poNumber,
-                updatedAt: now,
-              }
-            : prev
-        );
-      }
-      persist(apiPost('/api/purchase/save', { po: newPo, actor: currentUser.name }));
-      toast.success(`Purchase Order ${newPo.poNumber} created (${newPo.items.length} items)`);
-      return newPo;
+  // Purchase actions wait for the server and only then update the screen, so a
+  // refused action (cancel a paid PO, pay on a closed day, over-receipt …) is
+  // never shown as done (PUR8-6). The server's own message is shown on refusal.
+  const serverMessage = (e: any): string =>
+    String(e?.message || 'The server refused this action.').replace(/^API \d+[^:]*:\s*/, '');
+  const refreshVendorPayments = () => {
+    if (!hasCap('payment:write')) return;
+    void apiGet<Payment[]>('/api/payments').then((rows) => { if (Array.isArray(rows)) setPayments(rows); }).catch(() => {});
+  };
+  const runPurchase = async (call: () => Promise<any>, failTitle: string): Promise<any | null> => {
+    try {
+      const snap = await call();
+      applySnapshot(snap);
+      setSelectedPurchaseOrderForDetail((cur) => {
+        if (!cur || !Array.isArray(snap?.purchaseOrders)) return cur;
+        return (snap.purchaseOrders as PurchaseOrder[]).find((p) => p.id === cur.id) || cur;
+      });
+      return snap ?? {};
+    } catch (e: any) {
+      console.error(`${failTitle}:`, e);
+      toast.error(failTitle, { description: serverMessage(e) });
+      return null;
     }
   };
 
-  const deletePurchaseOrder = (poId: string) => {
-    const po = purchaseOrders.find((p) => p.id === poId);
-    if (po && (po.status === 'Received' || po.status === 'Partially Received')) {
-      toast.error('Cannot delete a Purchase Order that has received stock. You can cancel it instead.');
-      return;
-    }
-    setPurchaseOrders((prev) => prev.filter((p) => p.id !== poId));
-    persist(apiDelete(`/api/purchase/${poId}`));
-    toast.success(`Purchase Order ${po?.poNumber || poId} deleted`);
-  };
-
-  const cancelPurchaseOrder = (poId: string) => {
-    setPurchaseOrders((prev) =>
-      prev.map((po) => {
-        if (po.id === poId) {
-          return {
-            ...po,
-            status: 'Cancelled',
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return po;
-      })
+  const savePurchaseOrder = async (poData: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<PurchaseOrder | null> => {
+    const isEdit = Boolean(poData.id);
+    const body = isEdit
+      ? { ...(purchaseOrders.find((p) => p.id === poData.id) as PurchaseOrder), ...poData }
+      : poData;
+    const snap = await runPurchase(
+      () => apiPost('/api/purchase/save', { po: body, actor: currentUser.name }),
+      isEdit ? 'Could not update the purchase order' : 'Could not create the purchase order',
     );
-    persist(apiPost(`/api/purchase/${poId}/cancel`, {}));
-    toast.info(`Purchase Order marked Cancelled`);
+    if (!snap) return null;
+    const saved: PurchaseOrder = snap.saved || body;
+    if (saved.pendingOrderId) {
+      const link = { linkedPurchaseOrderId: saved.id, purchaseOrderId: saved.id, purchaseOrderNumber: saved.poNumber };
+      setSelectedPendingOrderForDetail((prev) => (prev && prev.id === saved.pendingOrderId ? { ...prev, ...link } : prev));
+    }
+    toast.success(isEdit ? `Purchase Order ${saved.poNumber} updated` : `Purchase Order ${saved.poNumber} created (${saved.items.length} items)`);
+    return saved;
   };
 
-  const receivePurchaseOrderStock = (
+  const deletePurchaseOrder = async (poId: string): Promise<boolean> => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    const snap = await runPurchase(() => apiDelete(`/api/purchase/${poId}`), 'Could not delete the purchase order');
+    if (!snap) return false;
+    toast.success(`Purchase Order ${po?.poNumber || poId} deleted`);
+    return true;
+  };
+
+  const cancelPurchaseOrder = async (poId: string): Promise<boolean> => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    const snap = await runPurchase(() => apiPost(`/api/purchase/${poId}/cancel`, {}), 'Could not cancel the purchase order');
+    if (!snap) return false;
+    toast.info(`Purchase Order ${po?.poNumber || ''} cancelled`.trim());
+    return true;
+  };
+
+  const receivePurchaseOrderStock = async (
     poId: string,
-    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; taxPercent?: number }[],
+    receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }[],
     notes?: string,
     payment?: { amount?: number; mode?: string },
     otherCharges?: number,
-  ) => {
+  ): Promise<boolean> => {
     const po = purchaseOrders.find((p) => p.id === poId);
     if (!po) {
       toast.error('Purchase order not found');
-      return;
+      return false;
     }
-    // Snapshot of the pre-receipt state so we can roll back if the server refuses
-    // the receipt — otherwise the PO wrongly stayed "Received" and stock stayed up
-    // even though nothing was saved (E2E-5 / SAL2-5).
-    const prevPOs = purchaseOrders;
-    const prevStocks = branchStocks;
-    const prevItems = items;
-
-    const validReceipts = receipts.filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0);
+    // PUR4-3: a delivery where nothing usable arrived (0 good + N missing, or all
+    // damaged) is still a receipt — the server settles those units.
+    const validReceipts = receipts.filter(
+      (r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0,
+    );
     if (validReceipts.length === 0) {
-      toast.error('No items to receive (quantity must be greater than 0)');
-      return;
+      toast.error('Nothing to receive — enter an inward, damaged or missing quantity.');
+      return false;
     }
-
-    // 1. Update PO items receivedQuantity + confirm the purchase price captured at
-    //    receiving (refresh the line amount so the PO total reflects the real cost).
-    const updatedLines = po.items.map((line) => {
-      const rec = validReceipts.find((r) => r.itemId === line.itemId);
-      if (!rec) return line;
-      const nextPrice =
-        rec.purchasePrice != null && rec.purchasePrice >= 0 ? rec.purchasePrice : line.purchasePrice || 0;
-      return {
-        ...line,
-        receivedQuantity: (line.receivedQuantity || 0) + rec.quantityReceived,
-        purchasePrice: nextPrice,
-        amount: Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100,
-      };
-    });
-    const newTotalAmount = updatedLines.reduce((s, l) => s + (l.amount || 0), 0);
-
-    // 2. Build structured receiving event log
-    const receiptEventLines: POReceiptLineItem[] = validReceipts.map((rec) => {
-      const line = po.items.find((l) => l.itemId === rec.itemId);
-      const prevReceived = line?.receivedQuantity || 0;
-      return {
-        itemId: rec.itemId,
-        itemName: line?.itemName || rec.itemId,
-        itemCode: line?.itemCode || '',
-        quantityOrdered: line?.quantityOrdered || 0,
-        quantityReceivedThisEvent: rec.quantityReceived,
-        totalReceivedSoFar: prevReceived + rec.quantityReceived,
-        location: rec.location?.trim() || undefined,
-      };
-    });
-
-    const newReceivingEvent: PurchaseOrderReceivingEvent = {
-      id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: getTodayDateString(),
-      timestamp: new Date().toISOString(),
-      receivedBy: currentUser.name || currentUser.role,
-      notes: notes?.trim() || undefined,
-      lines: receiptEventLines,
-    };
-
-    // Determine status: are all items fully received?
-    const allFullyReceived = updatedLines.every((l) => (l.receivedQuantity || 0) >= l.quantityOrdered);
-    const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0);
-    const newStatus: PurchaseOrderStatus = allFullyReceived
-      ? 'Received'
-      : anyReceived
-      ? 'Partially Received'
-      : po.status;
-
-    // Quality check: damaged/rejected units raise a vendor debit note.
-    const existingNotes = po.debitNotes || [];
-    const damagedReceipts = validReceipts.filter((r) => (r.damagedQuantity || 0) > 0);
-    let debitNotes = existingNotes;
-    if (damagedReceipts.length > 0) {
-      const dnLines = damagedReceipts.map((rec) => {
-        const line = updatedLines.find((l) => l.itemId === rec.itemId);
-        const unitPrice = line?.purchasePrice || 0;
-        const dq = rec.damagedQuantity || 0;
-        return {
-          itemId: rec.itemId,
-          itemName: line?.itemName || rec.itemId,
-          itemCode: line?.itemCode,
-          damagedQuantity: dq,
-          unitPrice,
-          amount: Math.round(unitPrice * dq * 100) / 100,
-        };
-      });
-      const dnTotal = Math.round(dnLines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
-      debitNotes = [
-        {
-          id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
-          date: getTodayDateString(),
-          createdBy: currentUser.name || currentUser.role,
-          lines: dnLines,
-          totalAmount: dnTotal,
-          notes: notes?.trim() || undefined,
-        },
-        ...existingNotes,
-      ];
-    }
-
-    const payNow = Math.max(0, Number(payment?.amount) || 0);
-    const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
-    const payments = [...(po.payments || [])];
-    if (payNow > 0) {
-      payments.unshift({
-        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        date: getTodayDateString(),
-        amount: payNow,
-        mode: payment?.mode || 'Cash',
-        by: currentUser.name || currentUser.role,
-      });
-    }
-
     const extraCharge = Math.max(0, Number(otherCharges) || 0);
-    const updatedPo: PurchaseOrder = {
-      ...po,
-      items: updatedLines,
-      status: newStatus,
-      totalAmount: newTotalAmount,
-      otherCharges: Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100,
-      amountPaid: newAmountPaid,
-      receivingHistory: [newReceivingEvent, ...(po.receivingHistory || [])],
-      debitNotes,
-      payments,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? updatedPo : p)));
-
-    // Sync selected PO for detail if open
-    setSelectedPurchaseOrderForDetail((current) => {
-      if (!current || current.id !== poId) return current;
-      return updatedPo;
-    });
-
-    // 3. Increment physical stock in branchStocks for po.branchId
-    // Reflect the confirmed purchase price on the item master + re-price from margin band.
+    const snap = await runPurchase(
+      () => apiPost('/api/purchase/receive', { poId, receipts: validReceipts, notes, payment, actor: currentUser.name, otherCharges: extraCharge }),
+      'Could not receive stock',
+    );
+    if (!snap) return false;
+    // Reflect the confirmed purchase price on the item master + re-price from the
+    // margin band, as the server just did (its receipt snapshot has no items).
     setItems((prev) =>
       prev.map((it) => {
-        const rec = validReceipts.find((r) => r.itemId === it.id && r.purchasePrice != null && (r.purchasePrice as number) >= 0);
+        const rec = validReceipts.find((r) => r.itemId === it.id && (r.purchasePrice || 0) > 0 && r.quantityReceived > 0);
         if (!rec) return it;
         const sp = computeMarginSalePrice(rec.purchasePrice as number, it.marginCategory);
-        return {
-          ...it,
-          purchasePrice: rec.purchasePrice as number,
-          ...(sp != null ? { salePrice: sp } : {}),
-          updatedAt: new Date().toISOString(),
-        };
+        return { ...it, purchasePrice: rec.purchasePrice as number, ...(sp != null ? { salePrice: sp } : {}), updatedAt: new Date().toISOString() };
       })
     );
-
-    setBranchStocks((prevStocks) => {
-      const nextStocks = [...prevStocks];
-      validReceipts.forEach((rec) => {
-        const stockIndex = nextStocks.findIndex(
-          (s) => s.itemId === rec.itemId && s.branchId === po.branchId
-        );
-        if (stockIndex >= 0) {
-          nextStocks[stockIndex] = {
-            ...nextStocks[stockIndex],
-            quantity: nextStocks[stockIndex].quantity + rec.quantityReceived,
-            ...(rec.location ? { location: rec.location.trim() } : {}),
-            updatedAt: new Date().toISOString(),
-          };
-        } else {
-          nextStocks.push({
-            itemId: rec.itemId,
-            branchId: po.branchId,
-            quantity: rec.quantityReceived,
-            location: rec.location ? rec.location.trim() : '',
-            minStockAlert: 5,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      });
-      return nextStocks;
+    if ((Number(payment?.amount) || 0) > 0) refreshVendorPayments();
+    const good = validReceipts.reduce((s, r) => s + (r.quantityReceived || 0), 0);
+    const dmg = validReceipts.reduce((s, r) => s + (r.damagedQuantity || 0), 0);
+    const missing = validReceipts.reduce((s, r) => s + (r.missingQuantity || 0), 0);
+    toast.success(`Received ${good} unit${good === 1 ? '' : 's'} into ${po.branchId.toUpperCase()} stock`, {
+      description: dmg || missing ? `${dmg ? `${dmg} damaged` : ''}${dmg && missing ? ', ' : ''}${missing ? `${missing} missing` : ''} — debit note raised.` : 'Physical stock updated.',
     });
-
-    const totalQty = validReceipts.reduce((sum, r) => sum + r.quantityReceived, 0);
-    apiPost('/api/purchase/receive', { poId, receipts, notes, payment, actor: currentUser.name, otherCharges: extraCharge })
-      .then((snap) => {
-        applySnapshot(snap);
-        // Only confirm AFTER the server accepts — the success toast no longer fires
-        // on a refused receipt.
-        toast.success(`Received ${totalQty} units into ${po.branchId.toUpperCase()} stock`, {
-          description: 'Physical stock updated.',
-        });
-      })
-      .catch((e: any) => {
-        // Server refused (e.g. over-receipt, closed day): undo the optimistic update.
-        setPurchaseOrders(prevPOs);
-        setBranchStocks(prevStocks);
-        setItems(prevItems);
-        setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? prevPOs.find((p) => p.id === poId) || cur : cur));
-        toast.error('Could not receive stock', { description: e?.message ?? 'The server refused this receipt.' });
-      });
+    return true;
   };
 
-  const recordPurchaseBill = (
+  const recordPurchaseBill = async (
     poId: string,
     bill: { number: string; date: string; taxable: number; gst: number }
-  ) => {
-    const po = purchaseOrders.find((p) => p.id === poId);
-    if (!po) { toast.error('Purchase order not found'); return; }
-    const updatedPo: PurchaseOrder = {
-      ...po,
-      supplierBillNumber: bill.number.trim() || undefined,
-      supplierBillDate: bill.date.trim() || undefined,
-      supplierBillTaxable: Number(bill.taxable) || 0,
-      supplierBillGst: Number(bill.gst) || 0,
-      updatedAt: new Date().toISOString(),
-    };
-    setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? updatedPo : p)));
-    setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? updatedPo : cur));
-    persist(apiPost('/api/purchase/bill', { poId, bill }));
+  ): Promise<boolean> => {
+    const snap = await runPurchase(() => apiPost('/api/purchase/bill', { poId, bill }), 'Could not save the supplier bill');
+    if (!snap) return false;
     toast.success('Supplier bill saved — input tax credit updated');
+    return true;
   };
 
-  const recordPurchaseOrderPayment = (poId: string, amount: number, mode: string) => {
+  const recordPurchaseOrderPayment = async (poId: string, amount: number, mode: string): Promise<boolean> => {
     const po = purchaseOrders.find((p) => p.id === poId);
-    if (!po) { toast.error('Purchase order not found'); return; }
-    const pay = Math.max(0, Number(amount) || 0);
-    if (pay <= 0) { toast.error('Enter a payment amount greater than 0'); return; }
-    const entry = {
-      id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: getTodayDateString(),
-      amount: pay, mode: mode || 'Cash', by: currentUser.name || currentUser.role,
-    };
-    const updatedPo: PurchaseOrder = {
-      ...po,
-      amountPaid: Math.round(((po.amountPaid || 0) + pay) * 100) / 100,
-      payments: [entry, ...(po.payments || [])],
-      updatedAt: new Date().toISOString(),
-    };
-    setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? updatedPo : p)));
-    setSelectedPurchaseOrderForDetail((cur) => (cur && cur.id === poId ? updatedPo : cur));
-    persist(apiPost('/api/purchase/payment', { poId, amount: pay, mode: mode || 'Cash', actor: currentUser.name }));
+    if (!po) { toast.error('Purchase order not found'); return false; }
+    const pay = Math.round(Math.max(0, Number(amount) || 0) * 100) / 100;
+    if (pay <= 0) { toast.error('Enter a payment amount greater than 0'); return false; }
+    const snap = await runPurchase(
+      () => apiPost('/api/purchase/payment', { poId, amount: pay, mode: mode || 'Cash', actor: currentUser.name }),
+      'Could not record the payment',
+    );
+    if (!snap) return false;
+    refreshVendorPayments();
     toast.success(`Recorded ₹${pay.toLocaleString('en-IN')} paid to ${po.vendorName}`);
+    return true;
   };
 
-  const addPurchaseOrderAttachment = (
+  // Apply a supplier's unapplied advance to one of its POs (PUR6-3).
+  const applyVendorAdvance = async (vendorId: string, poId: string, amount?: number): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ applied: number }>('/api/payments/vendor-advance/apply', { vendorId, poId, amount });
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      refreshVendorPayments();
+      toast.success(`Applied ₹${(res?.applied || 0).toLocaleString('en-IN')} of advance to the PO`);
+      return true;
+    } catch (e: any) {
+      toast.error('Could not apply the advance', { description: serverMessage(e) });
+      return false;
+    }
+  };
+
+  const addPurchaseOrderAttachment = async (
     poId: string,
     attachmentData: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
-  ) => {
-    const newAttachment: PurchaseOrderAttachment = {
-      ...attachmentData,
-      id: `po-att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      uploadedAt: new Date().toISOString(),
-      uploadedBy: currentUser.name || currentUser.role,
-    };
-
-    setPurchaseOrders((prev) =>
-      prev.map((po) => {
-        if (po.id !== poId) return po;
-        return {
-          ...po,
-          attachments: [newAttachment, ...(po.attachments || [])],
-          updatedAt: new Date().toISOString(),
-        };
-      })
+  ): Promise<boolean> => {
+    const snap = await runPurchase(
+      () => apiPost('/api/purchase/attachment', { poId, attachment: attachmentData, actor: currentUser.name }),
+      'Could not attach the file',
     );
-
-    setSelectedPurchaseOrderForDetail((current) => {
-      if (!current || current.id !== poId) return current;
-      return {
-        ...current,
-        attachments: [newAttachment, ...(current.attachments || [])],
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    persist(apiPost('/api/purchase/attachment', { poId, attachment: attachmentData, actor: currentUser.name }));
+    if (!snap) return false;
     toast.success(`Attached "${attachmentData.name}" to PO`);
+    return true;
   };
 
-  const deletePurchaseOrderAttachment = (poId: string, attachmentId: string) => {
-    setPurchaseOrders((prev) =>
-      prev.map((po) => {
-        if (po.id !== poId) return po;
-        return {
-          ...po,
-          attachments: (po.attachments || []).filter((a) => a.id !== attachmentId),
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
-
-    setSelectedPurchaseOrderForDetail((current) => {
-      if (!current || current.id !== poId) return current;
-      return {
-        ...current,
-        attachments: (current.attachments || []).filter((a) => a.id !== attachmentId),
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    persist(apiPost('/api/purchase/attachment/delete', { poId, attachmentId }));
+  const deletePurchaseOrderAttachment = async (poId: string, attachmentId: string): Promise<boolean> => {
+    const snap = await runPurchase(() => apiPost('/api/purchase/attachment/delete', { poId, attachmentId }), 'Could not remove the attachment');
+    if (!snap) return false;
     toast.info('Vendor bill attachment removed');
+    return true;
   };
 
   // HRM & Attendance Actions
@@ -4456,6 +4222,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cancelPurchaseOrder,
         receivePurchaseOrderStock,
         recordPurchaseOrderPayment,
+        applyVendorAdvance,
         recordPurchaseBill,
         addPurchaseOrderAttachment,
         deletePurchaseOrderAttachment,

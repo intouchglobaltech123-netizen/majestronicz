@@ -10,16 +10,16 @@ import {
   HandCoins,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Vendor, purchaseOrderBalanceDue } from '../../types';
+import { Vendor, purchaseOrderBalanceDue, purchaseOrderOrderedTotal, poLineOpen, vendorPayables, totalVendorPayable } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
-import { VendorCreditModal, vendorCreditOnPo } from './VendorCreditModal';
+import { VendorCreditModal } from './VendorCreditModal';
 import { SupplierPayablesView } from './SupplierPayablesView';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
-  const { purchaseOrders, vendors, canManagePurchases, activeSubTab } = useErp();
+  const { purchaseOrders: allPurchaseOrders, payments, vendors, canManagePurchases, activeSubTab, currentBranch, isAllBranches } = useErp();
 
   const [isPoFormOpen, setIsPoFormOpen] = useState(false);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
@@ -44,35 +44,37 @@ export const PurchaseManagementView: React.FC = () => {
 
   const todayStr = getTodayDateString();
 
-  // KPI Calculations
+  // KPI Calculations — scoped to the top-bar branch like every other screen
+  // (PUR5-6: the To Pay card used to add up all branches).
+  const inScope = (branchId: string) => isAllBranches || branchId === currentBranch;
+  const purchaseOrders = allPurchaseOrders.filter((p) => inScope(p.branchId));
   const activeOrders = purchaseOrders.filter(
     (p) => p.status === 'Ordered' || p.status === 'Partially Received'
   );
-  const activeOrdersValue = activeOrders.reduce((sum, p) => sum + p.totalAmount, 0);
+  const activeOrdersValue = activeOrders.reduce((sum, p) => sum + purchaseOrderOrderedTotal(p), 0);
 
   const overdueOrders = activeOrders.filter((p) => p.expectedDeliveryDate < todayStr);
 
-  const pendingUnitsInward = activeOrders.reduce((sum, p) => {
-    const totalOrdered = p.items.reduce((s, it) => s + it.quantityOrdered, 0);
-    const totalReceived = p.items.reduce((s, it) => s + (it.receivedQuantity || 0), 0);
-    return sum + Math.max(0, totalOrdered - totalReceived);
-  }, 0);
+  // Units still expected (damaged / missing units are settled, not pending).
+  const pendingUnitsInward = activeOrders.reduce(
+    (sum, p) => sum + p.items.reduce((s, it) => s + poLineOpen(it), 0),
+    0,
+  );
 
-  // Money owed to suppliers, and this month's purchase spend.
-  // Remaining owed on a PO — shared, tax-inclusive helper (PUR4-1).
-  const poRemaining = (p: (typeof purchaseOrders)[number]): number => purchaseOrderBalanceDue(p);
-  const duePos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && poRemaining(p) > 0.5);
-  const totalPayable = duePos.reduce((sum, p) => sum + poRemaining(p), 0);
+  // Money owed to suppliers — the one PO formula, each vendor netted against the
+  // advances it holds (PUR8-1 / PUR6-3), so this matches To Pay and Parties.
+  const payables = vendorPayables(purchaseOrders, payments, inScope);
+  const totalPayable = totalVendorPayable(payables);
+  const duePos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && purchaseOrderBalanceDue(p) > 0.5);
 
-  // Vendor credit = amount the shop advance-paid for units that arrived damaged
-  // (billed back to the vendor), i.e. paid beyond the value of goods kept. The
-  // vendor owes this back.
-  const creditPos = purchaseOrders.filter((p) => p.status !== 'Cancelled' && vendorCreditOnPo(p) > 0.5);
-  const totalVendorCredit = creditPos.reduce((sum, p) => sum + vendorCreditOnPo(p), 0);
+  // Advances held by suppliers: paid ahead of delivery on a PO, or paid and not
+  // yet applied to any PO.
+  const totalVendorCredit = Math.round([...payables.values()].reduce((t, v) => t + v.advance, 0) * 100) / 100;
+  const creditVendors = [...payables.values()].filter((v) => v.advance > 0.5).length;
   const thisMonth = todayStr.slice(0, 7);
   const monthSpend = purchaseOrders
     .filter((p) => p.status !== 'Cancelled' && (p.date || '').startsWith(thisMonth))
-    .reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+    .reduce((sum, p) => sum + purchaseOrderOrderedTotal(p), 0);
 
   const handleOpenGeneralPo = () => {
     setSelectedVendorForPo(null);
@@ -156,12 +158,12 @@ export const PurchaseManagementView: React.FC = () => {
             <HandCoins className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Vendor Credit</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Vendor Advances</p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold truncate font-mono mt-0.5 text-emerald-700">{formatCurrency(totalVendorCredit)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {creditPos.length > 0
-                ? `Damaged / missing billed back across ${creditPos.length} PO${creditPos.length === 1 ? '' : 's'} — tap for detail`
-                : 'Value of damaged / missing goods billed back to vendors'}
+              {creditVendors > 0
+                ? `Advances held by ${creditVendors} supplier${creditVendors === 1 ? '' : 's'} — tap for detail`
+                : 'Paid ahead of delivery / not yet applied to a PO'}
             </p>
           </div>
         </button>
@@ -174,7 +176,7 @@ export const PurchaseManagementView: React.FC = () => {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Purchases This Month</p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">{formatCurrency(monthSpend)}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Ordered value this month</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Ordered value this month (incl. GST)</p>
           </div>
         </div>
 
@@ -188,10 +190,10 @@ export const PurchaseManagementView: React.FC = () => {
               Open Purchase Orders
             </p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
-              {pendingUnitsInward.toLocaleString('en-IN')} <span className="text-sm font-bold text-slate-500">units</span>
+              {activeOrders.length} <span className="text-sm font-bold text-slate-500">order{activeOrders.length === 1 ? '' : 's'}</span>
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {activeOrders.length} active order{activeOrders.length === 1 ? '' : 's'} · {formatCurrency(activeOrdersValue)}
+              {pendingUnitsInward.toLocaleString('en-IN')} units pending · {formatCurrency(activeOrdersValue)}
             </p>
           </div>
         </div>
@@ -234,7 +236,7 @@ export const PurchaseManagementView: React.FC = () => {
               Units Inward Pending
             </p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
-              {pendingUnitsInward} units
+              {pendingUnitsInward.toLocaleString('en-IN')} units
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Awaiting physical delivery & check

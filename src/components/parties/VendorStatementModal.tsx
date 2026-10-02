@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, Phone, MapPin, Hash, Wallet, ShoppingBag, Trash2, Edit2 } from 'lucide-react';
-import { Vendor, purchaseOrderBalanceDue } from '../../types';
+import { Vendor, purchaseOrderBalanceDue, purchaseOrderGrandOwed, paymentUnapplied } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { useErp } from '../../context/ErpContext';
 import { RecordPaymentModal } from '../payments/RecordPaymentModal';
@@ -14,14 +14,13 @@ interface Props {
 
 /** Supplier statement — purchase bills (POs), payments made, and payable balance. */
 export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose, onEditVendor }) => {
-  const { purchaseOrders, payments, canRecordPayment, deletePayment, currentBranch, isAllBranches } = useErp();
+  const { purchaseOrders, payments, canRecordPayment, canManagePurchases, deletePayment, applyVendorAdvance, currentBranch, isAllBranches } = useErp();
   const [isPayOpen, setIsPayOpen] = useState(false);
 
-  // Debit notes billed back to the supplier reduce what we still owe on a PO.
-  const poDebit = (po: { debitNotes?: { totalAmount: number }[] }): number =>
-    (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  // Remaining owed on a PO — shared, tax-inclusive helper so the statement,
-  // the PO detail screen and the backend payment guard all agree (PUR4-1).
+  // PUR5-9 / PUR8-1: every row is on ONE basis — owed for the goods received
+  // (incl. GST + charges) − paid = balance — the same formula the server uses
+  // for payment caps. Debit notes are documents, not a second deduction.
+  const poOwed = purchaseOrderGrandOwed;
   const poBalance = purchaseOrderBalanceDue;
 
   const vendorPOs = useMemo(
@@ -55,7 +54,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
     [vendorPOs]
   );
 
-  const totalPayable = unpaidPOs.reduce((t, o) => t + o.balanceDue, 0);
+  const dueTotal = unpaidPOs.reduce((t, o) => t + o.balanceDue, 0);
 
   const vendorPayments = useMemo(
     () =>
@@ -67,6 +66,26 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
         : [],
     [payments, vendor, isAllBranches, currentBranch]
   );
+
+  // Statement totals: owed − paid on the POs, then the vendor's unapplied
+  // payments (advances) netted to give what is really still to pay (PUR6-3).
+  const owedTotal = vendorPOs.reduce((t, po) => t + poOwed(po), 0);
+  const paidTotal = vendorPOs.reduce((t, po) => t + (po.amountPaid || 0), 0);
+  const unappliedByBranch = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of vendorPayments) {
+      const u = paymentUnapplied(p);
+      if (u > 0.005) m.set(p.branchId, (m.get(p.branchId) || 0) + u);
+    }
+    return m;
+  }, [vendorPayments]);
+  const unappliedTotal = [...unappliedByBranch.values()].reduce((t, v) => t + v, 0);
+  const net = Math.round((owedTotal - paidTotal - unappliedTotal) * 100) / 100;
+  const totalPayable = Math.max(0, net);
+  // A payment voucher is booked to one branch drawer — offer the bills of one
+  // branch (the selected one, or the oldest unpaid bill's branch on "All").
+  const payBranch = !isAllBranches ? currentBranch : (vendorPOs.filter((po) => poBalance(po) > 0.5).sort((a, b) => (a.date < b.date ? -1 : 1))[0]?.branchId || 'erode-hq');
+  const payOutstanding = unpaidPOs.filter((o) => vendorPOs.find((po) => po.id === o.refId)?.branchId === payBranch);
 
   if (!isOpen || !vendor) return null;
 
@@ -110,7 +129,11 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
             <p className={`text-xl sm:text-2xl font-bold font-mono ${totalPayable > 0 ? 'text-rose-800' : 'text-emerald-700'}`}>
               {totalPayable > 0 ? formatCurrency(totalPayable) : 'Settled'}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{unpaidPOs.length} unpaid bill(s)</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {unpaidPOs.length} unpaid bill(s)
+              {unappliedTotal > 0.005 ? ` · ${formatCurrency(dueTotal)} due − ${formatCurrency(unappliedTotal)} advance` : ''}
+              {net < -0.5 ? ` · supplier holds ${formatCurrency(-net)} of ours` : ''}
+            </p>
           </div>
           {canRecordPayment && totalPayable > 0 && (
             <button
@@ -131,7 +154,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Purchase Bills (POs)</p>
               {outstandingPOs.length > 0 && (
                 <span className="text-[11px] font-bold text-rose-700">
-                  {outstandingPOs.length} unpaid · {formatCurrency(totalPayable)} owed
+                  {outstandingPOs.length} unpaid · {formatCurrency(dueTotal)} owed
                 </span>
               )}
             </div>
@@ -144,45 +167,63 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
                       <th className="py-2 px-3">PO No</th>
                       <th className="py-2 px-3">Date</th>
-                      <th className="py-2 px-3 text-right">Total</th>
+                      <th className="py-2 px-3 text-right" title="Goods received in good condition, incl. GST + charges">Owed (received)</th>
                       <th className="py-2 px-3 text-right">Paid</th>
                       <th className="py-2 px-3 text-right">Balance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {vendorPOs.map((po) => {
-                      const debit = poDebit(po);
+                      const owed = poOwed(po);
+                      const diff = Math.round((owed - (po.amountPaid || 0)) * 100) / 100;
                       const bal = poBalance(po);
+                      const advanceHere = unappliedByBranch.get(po.branchId) || 0;
                       return (
                         <tr key={po.id} className={`hover:bg-slate-50/70 ${bal > 0.5 ? 'bg-rose-50/30' : ''}`}>
-                          <td className="py-2 px-3 font-mono font-bold text-blue-700">{po.poNumber}</td>
-                          <td className="py-2 px-3 text-slate-600">{po.date}</td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-800">{formatCurrency(po.totalAmount || 0)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-emerald-700">
-                            {formatCurrency(po.amountPaid || 0)}
-                            {debit > 0 && (
-                              <div className="text-[10px] font-medium text-slate-400" title="Debit note billed back to the supplier">
-                                −{formatCurrency(debit)} debit
-                              </div>
-                            )}
+                          <td className="py-2 px-3 font-mono font-bold text-blue-700">
+                            {po.poNumber}
+                            {po.status !== 'Received' && <div className="text-[10px] font-sans font-medium text-slate-400">{po.status}</div>}
                           </td>
-                          <td className={`py-2 px-3 text-right font-mono font-bold ${bal > 0.5 ? 'text-rose-700' : 'text-slate-400'}`}>
-                            {bal > 0.5 ? formatCurrency(bal) : '—'}
+                          <td className="py-2 px-3 text-slate-600">{po.date}</td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-800">{formatCurrency(owed)}</td>
+                          <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatCurrency(po.amountPaid || 0)}</td>
+                          <td className={`py-2 px-3 text-right font-mono font-bold ${diff > 0.5 ? 'text-rose-700' : diff < -0.5 ? 'text-indigo-700' : 'text-slate-400'}`}>
+                            {diff > 0.5 ? formatCurrency(diff) : diff < -0.5 ? `−${formatCurrency(-diff)} adv.` : '—'}
+                            {bal > 0.5 && advanceHere > 0.5 && canManagePurchases && (
+                              <button
+                                type="button"
+                                onClick={() => void applyVendorAdvance(vendor.id, po.id)}
+                                title="Apply this supplier's unapplied advance to this PO"
+                                className="block ml-auto mt-0.5 text-[10px] font-sans font-bold text-indigo-700 hover:underline"
+                              >
+                                Use advance ({formatCurrency(Math.min(advanceHere, bal))})
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  {totalPayable > 0.5 && (
-                    <tfoot>
-                      <tr className="bg-rose-50/60 border-t border-rose-100 text-rose-800 font-bold">
-                        <td className="py-2 px-3 uppercase text-[11px] tracking-wider" colSpan={4}>
-                          Total Remaining ({outstandingPOs.length} PO{outstandingPOs.length === 1 ? '' : 's'})
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(totalPayable)}</td>
+                  <tfoot>
+                    <tr className="bg-slate-50 border-t border-slate-200 text-slate-800 font-bold">
+                      <td className="py-2 px-3 uppercase text-[11px] tracking-wider" colSpan={2}>Total</td>
+                      <td className="py-2 px-3 text-right font-mono">{formatCurrency(owedTotal)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatCurrency(paidTotal)}</td>
+                      <td className="py-2 px-3 text-right font-mono">{formatCurrency(owedTotal - paidTotal)}</td>
+                    </tr>
+                    {unappliedTotal > 0.005 && (
+                      <tr className="text-indigo-700 font-semibold">
+                        <td className="py-1.5 px-3 text-[11px]" colSpan={4}>Less: payments not applied to any PO (advance)</td>
+                        <td className="py-1.5 px-3 text-right font-mono">−{formatCurrency(unappliedTotal)}</td>
                       </tr>
-                    </tfoot>
-                  )}
+                    )}
+                    <tr className={`border-t font-bold ${net > 0.5 ? 'bg-rose-50/60 border-rose-100 text-rose-800' : 'bg-emerald-50/50 border-emerald-100 text-emerald-800'}`}>
+                      <td className="py-2 px-3 uppercase text-[11px] tracking-wider" colSpan={4}>
+                        {net < -0.5 ? 'Advance held by supplier' : 'Net to pay'}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">{formatCurrency(Math.abs(net))}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
@@ -204,7 +245,8 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">
                         {p.reference ? `Ref: ${p.reference}` : ''}
-                        {p.allocations && p.allocations.length ? ` · ${p.allocations.length} bill(s)` : ' · advance'}
+                        {p.allocations && p.allocations.length ? ` · ${p.allocations.map((a) => a.refNumber).filter(Boolean).join(', ') || `${p.allocations.length} bill(s)`}` : ''}
+                        {paymentUnapplied(p) > 0.005 ? ` · ${formatCurrency(paymentUnapplied(p))} advance (unapplied)` : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -242,8 +284,8 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
           partyType="vendor"
           partyId={vendor.id}
           partyName={vendor.vendorName}
-          branchId={currentBranch && currentBranch !== 'all' ? currentBranch : 'erode-hq'}
-          outstanding={unpaidPOs}
+          branchId={payBranch}
+          outstanding={payOutstanding}
         />
       )}
     </div>

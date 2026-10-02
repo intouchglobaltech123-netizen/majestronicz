@@ -526,6 +526,12 @@ export const STANDARD_UNITS = [
   { value: 'ROLL', label: 'ROLL (Rolls)' },
 ];
 
+/** Units sold by measure, where a fractional quantity (2.5 MTR) is real; every
+ *  other unit counts whole pieces. Mirrors backend/src/lib/constants.ts. */
+const MEASURED_UNITS = new Set(['MTR', 'M', 'METER', 'METERS', 'METRE', 'KG', 'KGS', 'G', 'GM', 'GMS', 'LTR', 'L', 'ML', 'FT', 'FEET', 'SQFT', 'SQM', 'CM', 'MM']);
+export const allowsFractionalQty = (unit?: string | null): boolean =>
+  MEASURED_UNITS.has(String(unit || '').trim().toUpperCase());
+
 export const GST_RATES = [
   { rate: 0, label: 'GST @ 0% (Exempt)' },
   { rate: 5, label: 'GST @ 5%' },
@@ -956,6 +962,10 @@ export interface POLineItem {
   taxPercent?: number;
   taxAmount?: number;
   lineTotal?: number; // amount + taxAmount
+  // Running value of the GOOD units received, each receipt at its own price and
+  // GST (server-maintained) — what the vendor is owed for this line.
+  receivedTaxable?: number;
+  receivedTax?: number;
 }
 
 /**
@@ -987,6 +997,8 @@ export interface POReceiptLineItem {
   quantityReceivedThisEvent: number;
   totalReceivedSoFar: number;
   location?: string;
+  damagedQuantity?: number;
+  missingQuantity?: number;
 }
 
 /**
@@ -999,6 +1011,7 @@ export interface PurchaseOrderReceivingEvent {
   receivedBy: string;
   notes?: string;
   lines: POReceiptLineItem[];
+  otherCharges?: number; // packing / freight billed on this receipt
 }
 
 /**
@@ -1044,6 +1057,7 @@ export interface POPayment {
   amount: number;
   mode: string; // Cash / GPay / HDFC / Bank Transfer / Cheque
   by: string;
+  ledgerPaymentId?: string;
 }
 
 /** A debit note raised on the vendor for damaged / rejected goods found at receiving (QC). */
@@ -1054,7 +1068,10 @@ export interface PODebitNoteLine {
   damagedQuantity: number;
   missingQuantity?: number; // units short-shipped / not delivered, also billed back
   unitPrice: number;
-  amount: number; // (damagedQuantity + missingQuantity) * unitPrice
+  taxPercent?: number;
+  taxableValue?: number; // (damaged + missing) x unitPrice
+  taxAmount?: number; // GST on it (input tax reversed)
+  amount: number; // taxableValue + taxAmount (older notes: taxable only)
 }
 export interface PODebitNote {
   id: string;
@@ -1062,7 +1079,9 @@ export interface PODebitNote {
   date: string; // YYYY-MM-DD
   createdBy: string;
   lines: PODebitNoteLine[];
-  totalAmount: number;
+  totalTaxable?: number;
+  totalTax?: number;
+  totalAmount: number; // incl. GST
   notes?: string;
 }
 
@@ -1432,37 +1451,147 @@ export const computeInvoiceCogs = (
 };
 
 /**
- * What a vendor is owed for the goods that ACTUALLY ARRIVED on a PO (incl. GST and
- * any packing/other charges), NOT the full ordered value — you pay for what was
- * received, not what is still on order (PUR5-7). "Arrived" = received + damaged
- * units (damaged were delivered; the debit note below claws their value back);
- * short-shipped/未arrived units are never owed. Single source of truth used by the
- * PO list, vendor statement, parties/vendor KPIs, dashboard, reports and To Pay.
+ * What a vendor is owed on a PO — the ONE formula (PUR8-1), mirrored EXACTLY from
+ * backend/src/lib/poMoney.ts (change both together):
+ *
+ *   owed    = Σ good units × price × (1 + GST at that receipt) + other charges
+ *   balance = max(0, owed − paid)
+ *   advance = max(0, paid − owed)
+ *
+ * Only units that arrived in good condition are owed. Damaged units are billed
+ * back on a debit note that carries their GST, and missing units are never
+ * charged — neither is subtracted again here. Each receipt adds to the line's
+ * receivedTaxable / receivedTax at ITS price and rate (E2E8-5); older lines
+ * without them fall back to good units × the line's price and rate. Used by the
+ * PO list/detail, Receive, To Pay, Parties, Suppliers, statements, dashboard,
+ * reports and notifications.
  */
-export const purchaseOrderGrandOwed = (
-  po: Pick<PurchaseOrder, 'items' | 'otherCharges'>,
-): number => {
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  let taxable = 0;
-  let tax = 0;
-  for (const l of po.items || []) {
-    const arrived = (Number(l.receivedQuantity) || 0) + (Number(l.damagedQuantity) || 0);
-    if (arrived <= 0) continue;
-    const lineTaxable = r2((Number(l.purchasePrice) || 0) * arrived);
-    taxable += lineTaxable;
-    tax += r2(lineTaxable * ((Number(l.taxPercent) || 0) / 100));
+const poR2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const poTax = (taxable: number, pct: number) => Math.round((Number(taxable) || 0) * ((Number(pct) || 0) / 100) * 100) / 100;
+
+/** Units settled on a line (good + damaged + missing). */
+export const poLineSettled = (l: Pick<POLineItem, 'receivedQuantity' | 'damagedQuantity' | 'missingQuantity'>): number =>
+  (Number(l.receivedQuantity) || 0) + (Number(l.damagedQuantity) || 0) + (Number(l.missingQuantity) || 0);
+
+/** Units still expected on a line. */
+export const poLineOpen = (l: POLineItem): number => Math.max(0, (Number(l.quantityOrdered) || 0) - poLineSettled(l));
+
+/** Taxable value and GST of the GOOD units received on a line. */
+export const poLineGoodValue = (l: POLineItem): { taxable: number; tax: number } => {
+  const good = Number(l.receivedQuantity) || 0;
+  if (good <= 0) return { taxable: 0, tax: 0 };
+  if (l.receivedTaxable != null && Number.isFinite(Number(l.receivedTaxable))) {
+    return { taxable: poR2(Number(l.receivedTaxable)), tax: poR2(Number(l.receivedTax) || 0) };
   }
-  return r2(taxable + tax + (Number(po.otherCharges) || 0));
+  const taxable = poR2((Number(l.purchasePrice) || 0) * good);
+  return { taxable, tax: poTax(taxable, Number(l.taxPercent) || 0) };
+};
+
+export const purchaseOrderGrandOwed = (po: Pick<PurchaseOrder, 'items' | 'otherCharges'>): number => {
+  let total = 0;
+  for (const l of po.items || []) {
+    const v = poLineGoodValue(l);
+    total += v.taxable + v.tax;
+  }
+  return poR2(total + (Number(po.otherCharges) || 0));
+};
+
+/** Ordered value incl. GST at the line rates (what the whole order would cost). */
+export const purchaseOrderOrderedTotal = (po: Pick<PurchaseOrder, 'items' | 'totalAmount' | 'totalTax'>): number => {
+  const tax = po.totalTax ?? (po.items || []).reduce((s, l) => s + (Number(l.taxAmount) || 0), 0);
+  return poR2((Number(po.totalAmount) || 0) + (Number(tax) || 0));
+};
+
+/** Value (incl. GST) of units not yet settled — what may still be prepaid. */
+export const purchaseOrderOpenValue = (po: Pick<PurchaseOrder, 'items'>): number => {
+  let total = 0;
+  for (const l of po.items || []) {
+    const open = poLineOpen(l);
+    if (open <= 0) continue;
+    const taxable = poR2((Number(l.purchasePrice) || 0) * open);
+    total += taxable + poTax(taxable, Number(l.taxPercent) || 0);
+  }
+  return poR2(total);
 };
 
 export const purchaseOrderBalanceDue = (
-  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'debitNotes' | 'status' | 'otherCharges'>,
+  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'status' | 'otherCharges'>,
 ): number => {
   if (po.status === 'Cancelled') return 0;
-  const debit = (po.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  const grandOwed = purchaseOrderGrandOwed(po);
-  return Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debit) * 100) / 100);
+  return Math.max(0, poR2(purchaseOrderGrandOwed(po) - (Number(po.amountPaid) || 0)));
 };
+
+/** Paid beyond what has been delivered — an advance the vendor holds. */
+export const purchaseOrderAdvance = (
+  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'status' | 'otherCharges'>,
+): number => {
+  const owed = po.status === 'Cancelled' ? 0 : purchaseOrderGrandOwed(po);
+  return Math.max(0, poR2((Number(po.amountPaid) || 0) - owed));
+};
+
+/** Most that the server accepts as a payment on this PO (owed + still expected − paid). */
+export const purchaseOrderPayCap = (
+  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'status' | 'otherCharges'>,
+): number => {
+  if (po.status === 'Cancelled') return 0;
+  return Math.max(0, poR2(purchaseOrderGrandOwed(po) + purchaseOrderOpenValue(po) - (Number(po.amountPaid) || 0)));
+};
+
+/** Part of a vendor payment not applied to any PO — the supplier's advance. */
+export const paymentUnapplied = (p: Pick<Payment, 'amount' | 'allocations'>): number =>
+  Math.max(0, poR2((Number(p.amount) || 0) - (p.allocations || []).reduce((s, a) => s + (Number(a.amount) || 0), 0)));
+
+export interface VendorPayableSummary {
+  owed: number;     // Σ owed on the vendor's POs (received goods incl. GST + charges)
+  paid: number;     // Σ paid on those POs
+  due: number;      // Σ per-PO balances
+  advance: number;  // Σ per-PO over-payments + unapplied vendor payments
+  unapplied: number; // the part of the advance that can be applied to another PO
+  net: number;      // due − advance: what is really owed (negative = vendor owes us)
+}
+
+/**
+ * Per-vendor payables, netting advances (PUR6-3 / PUR8-4). `inScope` limits the
+ * POs and payments (e.g. to the selected branch). Keyed by vendorId (or name for
+ * legacy rows without one).
+ */
+export const vendorPayables = (
+  purchaseOrders: PurchaseOrder[],
+  payments: Payment[],
+  inScope: (branchId: string) => boolean = () => true,
+): Map<string, VendorPayableSummary> => {
+  const map = new Map<string, VendorPayableSummary>();
+  const get = (k: string) => {
+    let v = map.get(k);
+    if (!v) { v = { owed: 0, paid: 0, due: 0, advance: 0, unapplied: 0, net: 0 }; map.set(k, v); }
+    return v;
+  };
+  for (const po of purchaseOrders) {
+    if (po.status === 'Cancelled' || !inScope(po.branchId)) continue;
+    const s = get(po.vendorId || po.vendorName);
+    s.owed += purchaseOrderGrandOwed(po);
+    s.paid += Number(po.amountPaid) || 0;
+    s.due += purchaseOrderBalanceDue(po);
+    s.advance += purchaseOrderAdvance(po);
+  }
+  for (const p of payments) {
+    if (p.type !== 'out' || p.partyType !== 'vendor' || !inScope(p.branchId)) continue;
+    const u = paymentUnapplied(p);
+    if (u <= 0) continue;
+    const s = get(p.partyId || p.partyName);
+    s.advance += u;
+    s.unapplied += u;
+  }
+  for (const s of map.values()) {
+    s.owed = poR2(s.owed); s.paid = poR2(s.paid); s.due = poR2(s.due);
+    s.advance = poR2(s.advance); s.unapplied = poR2(s.unapplied); s.net = poR2(s.due - s.advance);
+  }
+  return map;
+};
+
+/** Total really owed to suppliers (each vendor netted, never below zero). */
+export const totalVendorPayable = (m: Map<string, VendorPayableSummary>): number =>
+  poR2([...m.values()].reduce((t, s) => t + Math.max(0, s.net), 0));
 
 /**
  * Normalize an Indian phone number for equality checks: strip non-digits, a
