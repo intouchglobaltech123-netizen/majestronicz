@@ -588,3 +588,15 @@ table tbody tr:hover {
   zoom: 1 !important;
   width: auto !important;
 }
+
+/* PLT3-4: slate-400 grey on a white screen is 2.6:1 — too faint for the labels,
+   hints and figures it is used for. On the light content area and white panels
+   it takes the slate-500 shade (4.8:1); dark panels (sidebar, dark cards) keep
+   the light grey, which reads well on them. Printed documents are unaffected
+   (they are black on white). */
+:where(main, .bg-white, .bg-slate-50) {
+  --color-slate-400: oklch(55.4% 0.046 257.417);
+}
+:where(.bg-slate-700, .bg-slate-800, .bg-slate-900, .bg-slate-950, aside) {
+  --color-slate-400: oklch(70.4% 0.04 256.788);
+}

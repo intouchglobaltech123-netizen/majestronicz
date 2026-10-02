@@ -412,6 +412,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 </span>
                 <input
                   type="date"
+                  aria-label="Register date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="text-xs font-bold font-mono bg-slate-50 border border-slate-300 rounded-none px-3 py-1.5 focus:outline-none focus:border-red-600"
@@ -457,6 +458,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 </span>
               ) : (
                 <select
+                  aria-label="Branch drawer"
                   value={activeBranchId}
                   onChange={(e) => setActiveBranchId(e.target.value as BranchId)}
                   className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-none px-3 py-1.5 focus:outline-none focus:border-red-600 cursor-pointer"

@@ -39,12 +39,12 @@ export const ListExportBar: React.FC<Props> = ({ build, withDateRange = true, cl
         <div className="flex items-center gap-1.5 text-xs text-slate-600">
           <Calendar className="h-3.5 w-3.5 text-slate-400" />
           <input
-            type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+            type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date"
             className="px-2 py-1 rounded-none border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:border-red-600"
           />
           <span className="text-slate-400">to</span>
           <input
-            type="date" value={to} onChange={(e) => setTo(e.target.value)}
+            type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date"
             className="px-2 py-1 rounded-none border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:border-red-600"
           />
         </div>

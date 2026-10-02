@@ -169,10 +169,11 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           {/* Amount + mode */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Amount (₹)</label>
+              <label htmlFor="rp-amount" className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Amount (₹)</label>
               <div className="relative">
                 <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                 <input
+                  id="rp-amount"
                   type="number" min={0} value={amount} autoFocus
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 rounded-none bg-white border border-slate-300 text-sm font-bold font-mono tabular-nums text-slate-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600"
@@ -201,15 +202,17 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Date</label>
+              <label htmlFor="rp-date" className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Date</label>
               <input
+                id="rp-date"
                 type="date" value={date} onChange={(e) => setDate(e.target.value)}
                 className="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Reference # (optional)</label>
+              <label htmlFor="rp-reference" className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Reference # (optional)</label>
               <input
+                id="rp-reference"
                 type="text" value={reference} onChange={(e) => setReference(e.target.value)}
                 placeholder="UPI ref / cheque no."
                 className="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-600"
@@ -248,6 +251,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                           <input
                             type="number" min={0} max={o.balanceDue}
                             value={manual[o.refId] ?? ''}
+                            aria-label={`Amount applied to ${o.refNumber || 'this bill'}`}
                             onChange={(e) => setManual((m) => ({ ...m, [o.refId]: e.target.value }))}
                             placeholder="0"
                             className="w-24 px-2 py-1 rounded-none bg-white border border-slate-300 text-xs font-mono font-bold text-right text-slate-900 focus:outline-none focus:border-red-600"
@@ -273,8 +277,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           )}
 
           <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Notes (optional)</label>
+            <label htmlFor="rp-notes" className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 block">Notes (optional)</label>
             <input
+              id="rp-notes"
               type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-none bg-white border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-600"
             />

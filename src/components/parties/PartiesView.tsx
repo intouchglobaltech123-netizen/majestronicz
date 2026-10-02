@@ -633,6 +633,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
               <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                 <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
                 <select
+                  aria-label="Sort customers by"
                   value={customerSortBy}
                   onChange={(e) => setCustomerSortBy(e.target.value as any)}
                   className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-blue-600"

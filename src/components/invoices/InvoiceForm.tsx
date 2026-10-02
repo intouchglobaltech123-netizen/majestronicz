@@ -2086,6 +2086,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         step={lineIsWholeUnit(item) ? '1' : '0.01'}
                         value={item.quantity}
                         data-testid="line-qty"
+                        aria-label={`Quantity, line ${idx + 1}`}
                         aria-invalid={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity))}
                         title={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? `${(item.unit || '').toUpperCase()} is counted in whole numbers` : undefined}
                         onChange={(e) => updateLineItem(item.id, { quantity: Number(e.target.value) })}
@@ -2106,6 +2107,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         type="text"
                         value={item.unit}
                         onChange={(e) => updateLineItem(item.id, { unit: e.target.value.toUpperCase() })}
+                        aria-label={`Unit, line ${idx + 1}`}
                         className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 uppercase focus:outline-none focus:border-blue-600 font-mono"
                       />
                     </td>
@@ -2113,6 +2115,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     {/* Price/Unit (Pre-tax, Editable Override) */}
                     <td className="py-2.5 px-3">
                       <input
+                        aria-label={`Price per unit, line ${idx + 1}`}
                         type="number"
                         min="0"
                         step="0.01"
@@ -2133,6 +2136,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
                         <input
+                          aria-label={`Discount, line ${idx + 1}`}
                           type="number"
                           min="0"
                           step="0.1"
@@ -2188,6 +2192,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     {/* Delete Row */}
                     <td className="py-2.5 px-3 text-center">
                       <button
+                        aria-label={`Delete line ${idx + 1}`}
                         type="button"
                         onClick={() => removeLineItem(item.id)}
                         className="p-1 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors"
@@ -2503,6 +2508,7 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
             <textarea
               rows={3}
+              aria-label="Terms and conditions"
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
               className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600 font-mono"
