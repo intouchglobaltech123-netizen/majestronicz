@@ -6,7 +6,7 @@ import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { GSTIN_RE } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
+import { archivedItemError, assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
 import { istToday, istTime } from '../lib/businessDate.js';
 import { isWholeUnit } from '../lib/units.js';
@@ -288,8 +288,11 @@ export function saveCombo(data: any) {
   const str = (v: any) => (v === undefined ? undefined : v === null ? null : String(v));
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const ts = nowIso();
-    const found = await tx.item.findMany({ where: { id: { in: components.map((c: any) => c.itemId) } }, select: { id: true } });
+    const found = await tx.item.findMany({ where: { id: { in: components.map((c: any) => c.itemId) } }, select: { id: true, itemName: true, isArchived: true } });
     if (found.length !== components.length) throw new AppError('UNKNOWN_COMPONENT', 'A combo component is not an item in the catalog.', 400);
+    // An archived item can't be put in a combo (archiving needs it out of every combo).
+    const archived = found.find((f: any) => f.isArchived);
+    if (archived) throw archivedItemError(archived.itemName);
     // Allow-listed fields only — never the raw body.
     const fields: Record<string, any> = { comboName, comboPrice, components };
     for (const k of ['category', 'subcategory', 'description', 'imageUrl'] as const) {

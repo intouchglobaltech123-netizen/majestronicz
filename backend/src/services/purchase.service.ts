@@ -8,6 +8,7 @@ import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { allowsFractionalQty } from '../lib/units.js';
+import { archivedItemError } from '../lib/lineValidation.js';
 import { lineSettled, lineGoodValue, poPayCap } from '../lib/poMoney.js';
 
 const poSnapshot = async (tx: any) => ({
@@ -38,7 +39,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     if (!lineItems.length) throw new AppError('NO_ITEMS', 'A purchase order needs at least one line item.', 400);
     const itemIds = lineItems.map((l: any) => l?.itemId).filter(Boolean);
     const knownItems = new Map<string, any>(
-      (await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, unit: true, itemName: true } })).map((i: any) => [i.id, i]),
+      (await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, unit: true, itemName: true, isArchived: true } })).map((i: any) => [i.id, i]),
     );
     for (const l of lineItems) {
       if (!l?.itemId || !knownItems.has(l.itemId)) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
@@ -76,6 +77,12 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     };
     const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
+    // An archived item can't be ordered again; a line it already had stays editable.
+    const prevItemIds = new Set(((existingPo?.items as any[]) || []).map((l: any) => l?.itemId));
+    for (const l of lineItems) {
+      const it = knownItems.get(l.itemId);
+      if (it?.isArchived && !prevItemIds.has(l.itemId)) throw archivedItemError(it.itemName);
+    }
     if (existingPo) {
       // SEC5-2: the guard at the top ran against the request's poData.branchId.
       // On an edit, authorize against the STORED PO's branch and keep the branch

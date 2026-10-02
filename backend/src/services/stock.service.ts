@@ -5,6 +5,7 @@ import { branchName, branchLocation, isValidBranch } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { stockQty } from '../lib/units.js';
+import { archivedItemError } from '../lib/lineValidation.js';
 import { nextPersistent } from '../lib/sequences.js';
 
 const stockSnapshot = async (tx: any) => ({
@@ -93,6 +94,7 @@ export function transferStockBatch(
       if (!row.itemId || row.quantity <= 0) throw new AppError('BAD_LINE', 'Each line needs an item and quantity > 0');
       const item = await tx.item.findUnique({ where: { id: row.itemId } });
       if (!item) throw new AppError('NOT_FOUND', `Item not found: ${row.itemId}`, 404);
+      if (item.isArchived) throw archivedItemError(item.itemName);
       // Whole units for whole-unit items, sane size (INV-23).
       row.quantity = stockQty(row.quantity, item.unit, `Transfer quantity for ${item.itemName}`);
       const fromRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId: row.itemId, branchId: fromBranch } } });
@@ -289,6 +291,7 @@ export function transferStock(
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    if (item.isArchived) throw archivedItemError(item.itemName);
     // A real number, whole for whole-unit items (INV-23).
     quantity = stockQty(quantity, item.unit, 'Transfer quantity');
     if (quantity <= 0) throw new AppError('BAD_QTY', 'Transfer quantity must be greater than 0', 400);

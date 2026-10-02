@@ -16,6 +16,14 @@ const lineRate = (li: any) => li.taxRate ?? li.gstRate ?? 0;
 const lineDiscount = (li: any) => li.discountValue ?? li.discount ?? 0;
 
 /**
+ * Archived items (Item.isArchived) are kept for history only: no new sale,
+ * quote, PO line, combo part or transfer may use them. Returns, voids and
+ * edits of documents that already carried the item keep working.
+ */
+export const archivedItemError = (name: string) =>
+  new AppError('ITEM_ARCHIVED', `"${String(name || 'This item').slice(0, 80)}" is archived. Restore it in the item master before using it again.`, 400);
+
+/**
  * Plain input checks that need no database: every number is a real number,
  * prices are not negative, discounts stay within 100%, quantities are positive
  * and GST is a valid slab. Throws a 400 on the first problem.
@@ -80,8 +88,10 @@ export async function assertLinesAgainstCatalogue(
     : [];
   const overrideById = new Map(overrides.map((o: any) => [o.itemId, o.gstTaxSlab]));
   const previousRates = new Map<string, Set<number>>();
+  const previousIds = new Set<string>();
   for (const p of opts.previousItems || []) {
     if (!p?.itemId) continue;
+    previousIds.add(p.itemId);
     const set = previousRates.get(p.itemId) || new Set<number>();
     set.add(Number(lineRate(p)) || 0);
     previousRates.set(p.itemId, set);
@@ -92,6 +102,7 @@ export async function assertLinesAgainstCatalogue(
     const qty = Number(li.quantity);
     const master: any = !li.isCombo && li.itemId ? itemById.get(li.itemId) : null;
     if (master) {
+      if (master.isArchived && !previousIds.has(master.id)) throw archivedItemError(master.itemName);
       if (doc.withGst) {
         const rate = Number(lineRate(li)) || 0;
         const catalogue = effectiveTaxSlab(master.gstTaxSlab, overrideById.get(master.id) as any);

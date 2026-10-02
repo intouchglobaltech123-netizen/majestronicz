@@ -435,3 +435,36 @@ describe('stock quantity rules', () => {
     assert.ok(row && row.adjustedBy && row.adjustedBy !== 'System', `stamped with the logged-in user (got ${row?.adjustedBy})`);
   });
 });
+
+describe('archived items', () => {
+  const archived = (res, what) => {
+    expectStatus(res, 400, what);
+    assert.equal(res.body.error, 'ITEM_ARCHIVED', `${what}: error code`);
+  };
+
+  test('ITEM_ARCHIVED an archived item cannot be sold, quoted, ordered, put in a combo or transferred; returns and voids of old bills still work', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 500, stock: { 'erode-hq': 2 } });
+    const old = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }), 'archive');
+
+    archived((await sell(saleBody({ date, lines: [line(item, 1)] }))).res, 'new sale');
+    archived(await post('/api/catalog/estimate', {
+      id: `est-qa-${uid()}`, branchId: 'erode-hq', date, time: '10:00', customerName: 'QA', withGst: true,
+      items: [{ id: `li-${uid()}`, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1, unitPrice: 500, gstRate: 18 }],
+    }), 'quote');
+    const vendor = ok(await get('/api/vendors'))[0];
+    archived(await post('/api/purchase/save', { po: {
+      vendorId: vendor.id, vendorName: vendor.vendorName, branchId: 'erode-hq', date: '2026-09-15',
+      items: [{ itemId: item.id, itemName: item.itemName, quantityOrdered: 1, purchasePrice: 100, taxPercent: 18 }],
+    }, actor: 'QA' }), 'purchase order');
+    archived(await post('/api/catalog/combo', { comboName: `QA ${uid()}`, comboPrice: 100, components: [{ itemId: item.id, quantity: 1 }] }), 'new combo');
+    archived(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: 1 }), 'transfer');
+    archived(await post('/api/stock/transfer-batch', { items: [{ itemId: item.id, quantity: 1 }], fromBranch: 'erode-hq', toBranch: 'chennai' }), 'batch transfer');
+
+    // The old bill can still be returned and voided.
+    ok(await ret(old.id, [returnLine(item, 1)]), 'return on the old bill');
+    ok(await post('/api/tx/void-invoice', { invoiceId: old.id, reason: 'QA', actor: 'QA' }), 'void the old bill');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 2, 'both units back');
+  });
+});
