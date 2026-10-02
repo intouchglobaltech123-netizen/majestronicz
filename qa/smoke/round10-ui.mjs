@@ -186,6 +186,102 @@ try {
     check('SEC10-5 a new login is held on "Set your PIN", also after reloading the page', first && again, `first ${first}, after reload ${again}`);
     await ctx.close();
   }
+
+  // ---------- E2E10-4 / SAL10-9 / RPT10-4: Sale Invoices screen ----------
+  if (want('E2E10-4')) {
+    const item = await createItem(1000, { 'erode-hq': 10 });
+    const ph = phone();
+    // Part-paid: ₹2,000 cash of ₹2,360, the rest owed.
+    const bill = (await must('POST', '/api/tx/sale', saleBody({ lines: [lineOf(item, 2)], customerName: `QA Edit ${uid()}`, customerPhone: ph, transactionType: 'Credit', splits: [{ mode: 'Cash', amount: 2000 }, { mode: 'COD-Credit', amount: 360 }] }), 'Billing')).savedInvoice;
+    await must('POST', '/api/payments', { type: 'in', partyType: 'customer', partyId: bill.customerId, partyName: bill.customerName, branchId: 'erode-hq', date: istToday(), amount: 100, paymentMode: 'GPay', allocations: [{ refId: bill.id, amount: 100 }] }, 'Billing');
+    const { ctx, page } = await login('CEO');
+    await nav(page, 'Sale Invoices');
+    await page.waitForTimeout(800);
+    // SAL10-9: today's GPay card includes the receipt.
+    const gpay = Number(((await page.locator('div', { has: page.getByText('GPay', { exact: true }) }).filter({ hasText: 'incl. receipts' }).last().innerText()).match(/₹([\d,]+)/)?.[1] || 'NaN').replace(/,/g, ''));
+    check('SAL10-9 the Today GPay card includes a receipt taken today', gpay >= 100, `GPay ₹${gpay}`);
+    await page.getByPlaceholder('Search sale by Customer, Invoice No, Phone, or Item...').fill(bill.invoiceNumber);
+    await page.waitForTimeout(600);
+    await page.locator('tr', { hasText: bill.invoiceNumber }).first().locator('button[title="Edit Sale"]').click();
+    await page.waitForTimeout(1500);
+    const qty = page.locator('table tbody tr').first().locator('input[type="number"]').first();
+    await qty.fill('1'); await page.waitForTimeout(800);
+    const banner = await page.getByTestId('paid-over-banner').count();
+    const saveBtn = page.getByRole('button', { name: /Save Invoice/ }).first();
+    const enabled = await saveBtn.isEnabled();
+    await page.screenshot({ path: path.join(SHOTS, 'r10-edit-below-paid.png') });
+    check('E2E10-4 editing a part-paid bill below what was paid explains the store credit and can be saved', banner > 0 && enabled, `banner ${banner}, save enabled ${enabled}`);
+    if (enabled) {
+      await saveBtn.click(); await page.waitForTimeout(2500);
+      const after = (await api('GET', `/api/invoices/${bill.id}`)).body;
+      const cust = (await api('GET', '/api/customers')).body.find((c) => c.id === bill.customerId);
+      check('E2E10-4 the save keeps the cash and puts the difference on store credit', Math.abs(after.grandTotal - 1180) < 0.01 && Math.abs((cust?.creditBalance || 0) - 920) < 0.02, `total ₹${after.grandTotal}, credit ₹${cust?.creditBalance}`);
+    }
+    await ctx.close();
+  }
+
+  // ---------- PUR10-2: the PO detail breakdown adds up after mixed receipts ----------
+  if (want('PUR10-2')) {
+    const a = await createItem(300, {}, { purchasePrice: 100 });
+    const b = await createItem(300, {}, { purchasePrice: 200 });
+    const vendor = (await api('GET', '/api/vendors')).body[0];
+    const po = (await must('POST', '/api/purchase/save', { po: { vendorId: vendor.id, vendorName: vendor.vendorName, branchId: 'erode-hq', date: istToday(), expectedDeliveryDate: istToday(),
+      items: [{ itemId: a.id, itemName: a.itemName, itemCode: a.itemCode, quantityOrdered: 10, receivedQuantity: 0, purchasePrice: 100, taxPercent: 18 }, { itemId: b.id, itemName: b.itemName, itemCode: b.itemCode, quantityOrdered: 5, receivedQuantity: 0, purchasePrice: 200, taxPercent: 12 }], totalAmount: 0, notes: 'QA' }, actor: 'QA' })).saved;
+    await must('POST', '/api/purchase/receive', { poId: po.id, receipts: [{ itemId: a.id, quantityReceived: 4, damagedQuantity: 1, taxPercent: 5 }, { itemId: b.id, quantityReceived: 2, missingQuantity: 1 }], otherCharges: 50, actor: 'QA' });
+    const { ctx, page } = await login('CEO');
+    await nav(page, 'Purchases');
+    await page.waitForTimeout(800);
+    await page.getByText(po.poNumber).first().click();
+    await page.waitForTimeout(1200);
+    const card = await page.locator('div', { has: page.getByText('Order Value', { exact: true }) }).last().innerText();
+    const nums = (card.match(/₹[\d,]+(\.\d+)?/g) || []).map((x) => Number(x.replace(/[₹,]/g, '')));
+    const [total, goods, gst, charges] = nums;
+    await page.screenshot({ path: path.join(SHOTS, 'r10-po-detail.png') });
+    check('PUR10-2 the PO value equals its goods + GST + charges after mixed receipts', nums.length >= 4 && Math.abs(goods + gst + charges - total) < 0.02, card.replace(/\s+/g, ' '));
+    await ctx.close();
+  }
+
+  // ---------- RPT10-4: a bill of an ended month cannot be voided from the list ----------
+  if (want('RPT10-4')) {
+    const month = istToday().slice(0, 7);
+    const prevDay = new Date(Date.parse(`${month}-01T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    const item = await createItem(1000, { 'erode-hq': 5 });
+    const old = (await must('POST', '/api/tx/sale', saleBody({ date: `${prevDay.slice(0, 7)}-26`, lines: [lineOf(item, 1)] }))).savedInvoice;
+    const { ctx, page } = await login('CEO');
+    await nav(page, 'Sale Invoices');
+    await page.getByPlaceholder('Search sale by Customer, Invoice No, Phone, or Item...').fill(old.invoiceNumber);
+    await page.waitForTimeout(700);
+    const btn = page.locator('tr', { hasText: old.invoiceNumber }).first().locator('button[title*="month has ended"]');
+    check('RPT10-4 the Void button of a bill from an ended month is disabled and says why', (await btn.count()) === 1 && (await btn.isDisabled()));
+    await ctx.close();
+  }
+
+  // ---------- CASH10-1: a day before a closed day is shown locked ----------
+  if (want('CASH10-1')) {
+    // Two fresh past days of Chennai: close the later one, look at the earlier.
+    const regs = (await api('GET', '/api/cash-registers')).body.filter((r) => r.branchId === 'chennai').map((r) => r.date);
+    let d1 = null;
+    for (let k = 0; k < 200 && !d1; k++) {
+      const d = new Date(Date.parse('2019-01-01T00:00:00Z') + Math.floor(Math.random() * 1500) * 86400000).toISOString().slice(0, 10);
+      const d2 = new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+      if (!regs.includes(d) && !regs.includes(d2)) d1 = d;
+    }
+    const d2 = new Date(Date.parse(`${d1}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    await must('POST', '/api/cash/close', { branchId: 'chennai', date: d2 });
+    try {
+      const { ctx, page } = await login('CEO');
+      await nav(page, 'Daily Cash Register');
+      const sel = page.locator('select').filter({ has: page.locator('option[value="chennai"]') }).first();
+      if (await sel.count()) await sel.selectOption('chennai').catch(() => {});
+      await page.getByLabel('Register date').fill(d1);
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: path.join(SHOTS, 'r10-register-locked.png') });
+      check('CASH10-1 a day before a closed day is shown locked (no expense entry)', (await page.getByTestId('locked-by-later-close').count()) === 1);
+      await ctx.close();
+    } finally {
+      await api('POST', '/api/cash/reopen', { branchId: 'chennai', date: d2 });
+    }
+  }
 } finally {
   await browser.close();
 }

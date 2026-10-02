@@ -264,7 +264,7 @@ export const DailyCashRegisterView: React.FC = () => {
             </h1>
             <span
               className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                currentRegister.isClosed
+                currentRegister.isClosed || lockedByLaterClose
                   ? 'bg-slate-100 text-slate-700 border-slate-300'
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}
@@ -273,6 +273,11 @@ export const DailyCashRegisterView: React.FC = () => {
                 <>
                   <Lock className="h-3 w-3" />
                   <span>Day Closed</span>
+                </>
+              ) : lockedByLaterClose ? (
+                <>
+                  <Lock className="h-3 w-3" />
+                  <span>Locked · later day closed</span>
                 </>
               ) : (
                 <>
