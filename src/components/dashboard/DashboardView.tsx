@@ -397,7 +397,7 @@ export const DashboardView: React.FC = () => {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs font-bold text-slate-900 font-mono">{formatCurrency(netRevenue(i))}</p>
-                      {due > 0 ? <p className="text-[11px] font-bold text-amber-600">Due {formatCurrency(due)}</p> : <p className="text-[11px] font-semibold text-emerald-600">Paid</p>}
+                      {due > 0 ? <p className="text-[11px] font-bold text-amber-700">Due {formatCurrency(due)}</p> : <p className="text-[11px] font-semibold text-emerald-700">Paid</p>}
                     </div>
                   </div>
                 );

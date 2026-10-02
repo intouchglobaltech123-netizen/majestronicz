@@ -122,6 +122,7 @@ export const PayrollSummaryView: React.FC = () => {
             </label>
             <input
               type="month"
+              aria-label="Pay period"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-1.5 text-xs font-bold rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"
@@ -134,6 +135,7 @@ export const PayrollSummaryView: React.FC = () => {
                 Branch Scope
               </label>
               <select
+                aria-label="Branch scope"
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
                 className="px-3 py-1.5 text-xs font-medium rounded-none border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-red-600"

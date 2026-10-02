@@ -606,6 +606,13 @@ table tbody tr:hover {
 :where(main, .bg-white, .bg-slate-50) {
   --color-slate-400: oklch(55.4% 0.046 257.417);
 }
+/* PLT3-4: on the tinted panels (slate-100 chips, rose/amber/emerald/blue-50
+   rows) slate-400 and slate-500 small text fall below 4.5:1 — they take the
+   slate-600 shade there. */
+:where(.bg-slate-100, [class*="bg-rose-50"], [class*="bg-amber-50"], [class*="bg-emerald-50"], [class*="bg-blue-50"], [class*="bg-red-50"]) {
+  --color-slate-400: oklch(44.6% 0.043 257.281);
+  --color-slate-500: oklch(44.6% 0.043 257.281);
+}
 :where(.bg-slate-700, .bg-slate-800, .bg-slate-900, .bg-slate-950, aside) {
   --color-slate-400: oklch(70.4% 0.04 256.788);
 }

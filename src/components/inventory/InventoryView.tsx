@@ -478,7 +478,7 @@ export const InventoryView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
             <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Value (Cost)</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Stock Value (Cost)</span>
                 <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><IndianRupee className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.costValue)}</p>
@@ -486,7 +486,7 @@ export const InventoryView: React.FC = () => {
             </div>
             <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Retail Value</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Retail Value</span>
                 <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><TrendingUp className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight">{formatCurrency(metrics.retailValue)}</p>
@@ -494,7 +494,7 @@ export const InventoryView: React.FC = () => {
             </div>
             <div className="p-4 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Potential Margin</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Potential Margin</span>
                 <div className="h-7 w-7 rounded-none bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700"><Percent className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-emerald-800 mt-1 font-mono tracking-tight">{formatCurrency(metrics.potentialMargin)}</p>
@@ -506,11 +506,11 @@ export const InventoryView: React.FC = () => {
                 movementFilter === 'not-moving' ? 'border-red-600 bg-red-50/20' : 'border-slate-300 hover:border-slate-400')}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Locked in Dead Stock</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Locked in Dead Stock</span>
                 <div className="h-7 w-7 rounded-none bg-rose-50 border border-rose-300 flex items-center justify-center text-rose-700"><AlertOctagon className="h-3.5 w-3.5" /></div>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1 font-mono tracking-tight">{formatCurrency(metrics.deadStockValue)}</p>
-              <span className="text-[11px] text-rose-500 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
+              <span className="text-[11px] text-rose-700 mt-0.5 block">{metrics.notMovingCount} non-moving items · tap to filter</span>
             </div>
           </div>
 
@@ -530,11 +530,11 @@ export const InventoryView: React.FC = () => {
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Items</span>
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Total Items</span>
             <Boxes className="h-4 w-4 text-slate-400" />
           </div>
           <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{metrics.totalSkus}</p>
-          <span className="text-[11px] text-slate-400 mt-0.5 block">Cataloged items</span>
+          <span className="text-[11px] text-slate-600 mt-0.5 block">Cataloged items</span>
         </div>
 
         {/* Healthy / In Stock */}
@@ -550,7 +550,7 @@ export const InventoryView: React.FC = () => {
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-emerald-700 mt-1">{metrics.inStock}</p>
-          <span className="text-[11px] text-emerald-600 mt-0.5 block">&gt; Threshold stock</span>
+          <span className="text-[11px] text-emerald-700 mt-0.5 block">&gt; Threshold stock</span>
         </div>
 
         {/* Low Stock */}
@@ -566,7 +566,7 @@ export const InventoryView: React.FC = () => {
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-amber-700 mt-1">{metrics.lowStock}</p>
-          <span className="text-[11px] text-amber-600 mt-0.5 block">&le; Threshold alert</span>
+          <span className="text-[11px] text-amber-700 mt-0.5 block">&le; Threshold alert</span>
         </div>
 
         {/* Out of Stock */}
@@ -608,7 +608,7 @@ export const InventoryView: React.FC = () => {
         {/* Total Physical Units */}
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Units on Hand</span>
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Units on Hand</span>
             <Building className="h-4 w-4 text-blue-600" />
           </div>
           <p className="text-xl sm:text-2xl sm:text-3xl font-bold text-blue-700 mt-1">
@@ -638,6 +638,7 @@ export const InventoryView: React.FC = () => {
         <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
           {/* Category dropdown */}
           <select
+            aria-label="Filter by category"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600"
@@ -948,7 +949,7 @@ export const InventoryView: React.FC = () => {
                           <td className="py-3.5 px-3 text-center bg-blue-50/40">
                             <span className="font-extrabold text-sm text-blue-900">
                               {stockData.currentStock}{' '}
-                              <span className="text-[11px] font-normal text-slate-500">
+                              <span className="text-[11px] font-normal text-slate-600">
                                 {item.unit}
                               </span>
                             </span>
@@ -963,7 +964,7 @@ export const InventoryView: React.FC = () => {
                             )}
                           >
                             {stockData.currentStock}{' '}
-                            <span className="text-[11px] font-normal text-slate-500">{item.unit}</span>
+                            <span className="text-[11px] font-normal text-slate-600">{item.unit}</span>
                           </span>
                         </td>
                       )}
@@ -1159,11 +1160,11 @@ export const InventoryView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Combos</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Total Combos</span>
                 <Layers className="h-4 w-4 text-slate-600" />
               </div>
               <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-slate-900 mt-1">{comboMetrics.totalCombos}</p>
-              <span className="text-[11px] text-slate-400 mt-0.5 block">Configured bundle templates</span>
+              <span className="text-[11px] text-slate-600 mt-0.5 block">Configured bundle templates</span>
             </div>
 
             <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">
@@ -1172,7 +1173,7 @@ export const InventoryView: React.FC = () => {
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               </div>
               <p className="text-xl sm:text-2xl sm:text-3xl font-bold font-mono text-emerald-700 mt-1">{comboMetrics.inStock}</p>
-              <span className="text-[11px] text-emerald-600 mt-0.5 block">Ready to assemble at this branch</span>
+              <span className="text-[11px] text-emerald-700 mt-0.5 block">Ready to assemble at this branch</span>
             </div>
 
             <div className="p-3.5 rounded-none border border-slate-300 bg-white shadow-none">

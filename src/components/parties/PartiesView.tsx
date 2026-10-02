@@ -778,7 +778,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                                 <span>Bulk Partner</span>
                               </span>
                             ) : isEligible ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] animate-pulse">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px]">
                                 <Award className="h-3 w-3 text-amber-600" />
                                 <span>
                                   Reward Ready ({loyaltySettings.discountValue}

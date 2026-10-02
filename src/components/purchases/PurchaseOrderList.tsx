@@ -119,6 +119,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
           {/* Branch Filter */}
           {isAllBranches && (
             <select
+              aria-label="Filter purchase orders by branch"
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
               className="px-3 py-2 text-xs font-semibold rounded-none border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-red-600 cursor-pointer"
@@ -316,7 +317,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                                     Paid {formatCurrency(paid)}
                                   </div>
                                 )}
-                                <div className="text-[10px] font-bold text-rose-600 mt-0.5" title="Amount still to pay the vendor">
+                                <div className="text-[10px] font-bold text-rose-700 mt-0.5" title="Amount still to pay the vendor">
                                   Remaining {formatCurrency(remaining)}
                                 </div>
                               </>
@@ -353,7 +354,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                             <button
                               onClick={() => setSelectedPoForReceive(po)}
                               title="Inward physical stock"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-none transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 shadow-none transition-colors cursor-pointer"
                             >
                               <PackageCheck className="h-3.5 w-3.5" />
                               <span className="hidden md:inline">Receive</span>

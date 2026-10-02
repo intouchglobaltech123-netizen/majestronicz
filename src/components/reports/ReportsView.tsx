@@ -219,6 +219,7 @@ export const ReportsView: React.FC = () => {
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2.5 py-1.5 rounded-none text-xs font-semibold text-slate-700 shrink-0">
                 <Building className="h-3.5 w-3.5 text-slate-600" />
                 <select
+                  aria-label="Report branch"
                   value={branchScope}
                   onChange={(e) => setBranchScope(e.target.value as BranchScope)}
                   className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer text-xs"
@@ -259,6 +260,7 @@ export const ReportsView: React.FC = () => {
                 <span className="text-[11px] uppercase font-bold text-slate-400">From</span>
                 <input
                   type="date"
+                  aria-label="Report from date"
                   value={startDate}
                   onChange={(e) => { setStartDate(e.target.value); setActivePreset('month'); }}
                   className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
@@ -269,6 +271,7 @@ export const ReportsView: React.FC = () => {
                 <span className="text-[11px] uppercase font-bold text-slate-400">To</span>
                 <input
                   type="date"
+                  aria-label="Report to date"
                   value={endDate}
                   onChange={(e) => { setEndDate(e.target.value); setActivePreset('month'); }}
                   className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
