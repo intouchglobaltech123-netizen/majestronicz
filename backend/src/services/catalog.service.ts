@@ -163,16 +163,50 @@ export function deleteChallan(id: string) {
 }
 
 export function saveCombo(data: any) {
+  if (!data || typeof data !== 'object') throw new AppError('BAD_REQUEST', 'Combo details are required.', 400);
+  // INV6-9 / INV3-3: a combo is validated on the server — sales take their parts
+  // from the stored combo, so a stored part of −3 or of an unknown item would move
+  // stock wrongly. Name required, price ≥ 0, at least one part, every part a
+  // real item with a whole quantity > 0 (no item twice).
+  const comboName = typeof data.comboName === 'string' ? data.comboName.trim() : '';
+  if (!comboName) throw new AppError('NAME_REQUIRED', 'Combo name is required.', 400);
+  const comboPrice = Number(data.comboPrice);
+  if (data.comboPrice === null || data.comboPrice === '' || typeof data.comboPrice === 'boolean' || !Number.isFinite(comboPrice) || comboPrice < 0 || comboPrice > 10_000_000) {
+    throw new AppError('BAD_PRICE', 'Combo price must be a number of ₹0 or more.', 400);
+  }
+  if (!Array.isArray(data.components) || !data.components.length) {
+    throw new AppError('NO_COMPONENTS', 'A combo needs at least one component item.', 400);
+  }
+  const seen = new Set<string>();
+  const components = data.components.map((c: any) => {
+    const itemId = typeof c?.itemId === 'string' ? c.itemId : '';
+    const q = Number(c?.quantity);
+    if (!itemId) throw new AppError('BAD_COMPONENT', 'Every combo component needs an item.', 400);
+    if (typeof c?.quantity === 'boolean' || !Number.isInteger(q) || q <= 0 || q > 10_000) {
+      throw new AppError('BAD_COMPONENT_QTY', 'Each component quantity must be a whole number greater than 0.', 400);
+    }
+    if (seen.has(itemId)) throw new AppError('DUP_COMPONENT', 'The same item is listed twice. Combine it into one row.', 400);
+    seen.add(itemId);
+    return { itemId, quantity: q };
+  });
+  const str = (v: any) => (v === undefined ? undefined : v === null ? null : String(v));
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const ts = nowIso();
-    const existing = data.id ? await tx.comboItem.findUnique({ where: { id: data.id } }) : null;
+    const found = await tx.item.findMany({ where: { id: { in: components.map((c: any) => c.itemId) } }, select: { id: true } });
+    if (found.length !== components.length) throw new AppError('UNKNOWN_COMPONENT', 'A combo component is not an item in the catalog.', 400);
+    // Allow-listed fields only — never the raw body.
+    const fields: Record<string, any> = { comboName, comboPrice, components };
+    for (const k of ['category', 'subcategory', 'description', 'imageUrl'] as const) {
+      if (data[k] !== undefined) fields[k] = str(data[k]);
+    }
+    const existing = data.id ? await tx.comboItem.findUnique({ where: { id: String(data.id) } }) : null;
     if (existing) {
-      const { id, ...rest } = data;
-      await tx.comboItem.update({ where: { id }, data: { ...rest, updatedAt: ts } });
+      if (typeof data.comboCode === 'string' && data.comboCode.trim()) fields.comboCode = data.comboCode.trim();
+      await tx.comboItem.update({ where: { id: existing.id }, data: { ...fields, updatedAt: ts } });
     } else {
-      const id = data.id || `combo-${Date.now()}`;
-      const comboCode = data.comboCode || (await nextComboCode(tx));
-      await tx.comboItem.create({ data: { ...data, id, comboCode, createdAt: data.createdAt || ts, updatedAt: ts } });
+      const id = data.id ? String(data.id) : `combo-${Date.now()}`;
+      const comboCode = (typeof data.comboCode === 'string' && data.comboCode.trim()) || (await nextComboCode(tx));
+      await tx.comboItem.create({ data: { ...fields, id, comboCode, createdAt: typeof data.createdAt === 'string' ? data.createdAt : ts, updatedAt: ts } });
     }
     return { combos: await tx.comboItem.findMany() };
   }));
