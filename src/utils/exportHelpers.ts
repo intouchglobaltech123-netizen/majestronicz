@@ -1,4 +1,3 @@
-import jsPDF from 'jspdf';
 import { buildXlsx } from './xlsxWriter';
 
 type Cell = string | number | boolean | null | undefined;
@@ -43,8 +42,10 @@ const isNumericCell = (c: Cell) => typeof c === 'number' || (typeof c === 'strin
  * (so invoice numbers are not cut — V2), headers wrap instead of overlapping,
  * numbers are right-aligned with Indian grouping, and ₹ prints as "Rs.".
  */
-export function exportToPdf(filename: string, headers: string[], rows: Cell[][], title?: string): void {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+export async function exportToPdf(filename: string, headers: string[], rows: Cell[][], title?: string): Promise<void> {
+  // jsPDF loads only when a PDF is exported (PLT-12).
+  const { default: JsPDF } = await import('jspdf');
+  const doc = new JsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 28;

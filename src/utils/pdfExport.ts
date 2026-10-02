@@ -1,9 +1,9 @@
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
 import { toast } from 'sonner';
 // html2canvas-pro (drop-in fork) understands CSS Color 4 functions like oklch()
 // and lab(), which Tailwind v4 emits. The legacy html2canvas 1.4.1 throws
 // "unsupported color function 'oklch'" and aborts the whole export (SAL-3).
-import html2canvas from 'html2canvas-pro';
+// Both libraries are loaded only when a PDF is actually captured (PLT-12).
 
 interface ExportPdfOptions {
   scale?: number;
@@ -21,6 +21,7 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
   }
 
   const scale = options.scale || 2; // Crisp resolution
+  const [{ default: JsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas-pro')]);
 
   // Render the document at a FIXED A4 width during capture. Without this, the
   // element was captured at whatever width the modal happened to be, so the
@@ -74,7 +75,7 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
   const pageHeight = 297;
   const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-  const pdf = new jsPDF({
+  const pdf = new JsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',

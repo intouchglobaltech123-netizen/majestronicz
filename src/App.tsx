@@ -1,25 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
-import { DashboardView } from './components/dashboard/DashboardView';
-import { ItemMasterView } from './components/items/ItemMasterView';
-import { DeliveryChallanView } from './components/challans/DeliveryChallanView';
 import { InvoiceView } from './components/invoices/InvoiceView';
-import { EnquiryView } from './components/enquiries/EnquiryView';
-import { PendingOrdersView } from './components/enquiries/PendingOrdersView';
-import { BarcodeView } from './components/barcodes/BarcodeView';
-import { DailyCashRegisterView } from './components/cashRegister/DailyCashRegisterView';
-import { PurchaseManagementView } from './components/purchases/PurchaseManagementView';
-import { HrmView } from './components/hrm/HrmView';
-import { InventoryView } from './components/inventory/InventoryView';
-import { ReportsView } from './components/reports/ReportsView';
-import { PartiesView } from './components/parties/PartiesView';
-import { ShopifyView } from './components/shopify/ShopifyView';
-import { FlipkartView } from './components/flipkart/FlipkartView';
-import { AccessManagementView } from './components/admin/AccessManagementView';
-import { AiAssistantView } from './components/ai/AiAssistantView';
-import { AppSettingsView } from './components/settings/AppSettingsView';
 import { ThemeSettingsProvider } from './context/ThemeSettingsContext';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
 import { Toaster } from 'sonner';
@@ -27,6 +10,28 @@ import { Minimize2 } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
 import { readScoped, writeScoped } from './lib/userPrefs';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+
+
+// PLT-12: every screen except billing (always mounted) is its own chunk, loaded
+// when it is first opened, so the first load ships far less JavaScript.
+const lazyView = <T extends React.ComponentType<any>>(load: () => Promise<{ default: T }>) => React.lazy(load);
+const DashboardView = lazyView(() => import('./components/dashboard/DashboardView').then((m) => ({ default: m.DashboardView })));
+const ItemMasterView = lazyView(() => import('./components/items/ItemMasterView').then((m) => ({ default: m.ItemMasterView })));
+const DeliveryChallanView = lazyView(() => import('./components/challans/DeliveryChallanView').then((m) => ({ default: m.DeliveryChallanView })));
+const EnquiryView = lazyView(() => import('./components/enquiries/EnquiryView').then((m) => ({ default: m.EnquiryView })));
+const PendingOrdersView = lazyView(() => import('./components/enquiries/PendingOrdersView').then((m) => ({ default: m.PendingOrdersView })));
+const BarcodeView = lazyView(() => import('./components/barcodes/BarcodeView').then((m) => ({ default: m.BarcodeView })));
+const DailyCashRegisterView = lazyView(() => import('./components/cashRegister/DailyCashRegisterView').then((m) => ({ default: m.DailyCashRegisterView })));
+const PurchaseManagementView = lazyView(() => import('./components/purchases/PurchaseManagementView').then((m) => ({ default: m.PurchaseManagementView })));
+const HrmView = lazyView(() => import('./components/hrm/HrmView').then((m) => ({ default: m.HrmView })));
+const InventoryView = lazyView(() => import('./components/inventory/InventoryView').then((m) => ({ default: m.InventoryView })));
+const ReportsView = lazyView(() => import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView })));
+const PartiesView = lazyView(() => import('./components/parties/PartiesView').then((m) => ({ default: m.PartiesView })));
+const ShopifyView = lazyView(() => import('./components/shopify/ShopifyView').then((m) => ({ default: m.ShopifyView })));
+const FlipkartView = lazyView(() => import('./components/flipkart/FlipkartView').then((m) => ({ default: m.FlipkartView })));
+const AccessManagementView = lazyView(() => import('./components/admin/AccessManagementView').then((m) => ({ default: m.AccessManagementView })));
+const AiAssistantView = lazyView(() => import('./components/ai/AiAssistantView').then((m) => ({ default: m.AiAssistantView })));
+const AppSettingsView = lazyView(() => import('./components/settings/AppSettingsView').then((m) => ({ default: m.AppSettingsView })));
 
 const SIDEBAR_COLLAPSED_KEY = 'majestronicz_sidebar_collapsed';
 
@@ -234,6 +239,7 @@ const AppContent: React.FC = () => {
 
           {!isBilling && (
             <ErrorBoundary variant="screen" resetKey={currentView}>
+            <Suspense fallback={<div className="p-6 text-xs font-semibold text-slate-500" role="status">Loading…</div>}>
             {currentView === 'dashboard' ? (
               <DashboardView />
             ) : currentView === 'parties' ? (
@@ -269,6 +275,7 @@ const AppContent: React.FC = () => {
             ) : (
               <ItemMasterView />
             )}
+            </Suspense>
             </ErrorBoundary>
           )}
         </main>
