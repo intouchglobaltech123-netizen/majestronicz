@@ -30,6 +30,12 @@ What the script does (all of it is in the report it writes):
    note" refund rows become store credit for the over-paid part.
 5. Adds one "Opening Stock" history row for each item and branch whose stock
    history doesn't add up to the stock on hand.
+6. **Salaries marked Paid before this release** had no payment row, so they
+   never reached the cash register, the Payments Log or the P&L. The script
+   adds one payment (money out, to the staff member) per Paid payroll row that
+   has none: the row's own amount and payment mode, dated on the India-time day
+   it was marked Paid, at the employee's branch. Its note says "backfilled by
+   fix-existing-bills". Payroll rows paid ₹0 are only listed.
 
 The script never edits a closed day's stored opening. Running it twice changes
 nothing the second time. Each `--apply` run is recorded in the settings table
@@ -65,7 +71,12 @@ nothing the second time. Each `--apply` run is recorded in the settings table
      two reasons. (a) An older build's receipts had moved cash onto that day;
      the script puts the day back to what was really collected on it. (b) A
      back-filled cash refund for an old return falls on that day; the drawer
-     really paid it out, it just was never recorded.
+     really paid it out, it just was never recorded. (c) A salary paid in
+     **cash** on that day is now recorded (bank/UPI salaries don't touch the
+     drawer). If a cash salary was in fact paid from outside the drawer, change
+     that payment's mode after the apply, or remove it from the Payments Log.
+   - `salaries`: every salary payment the script adds (employee, month,
+     amount, mode, date), and any it skipped.
    - `openingGaps`: closed days whose stored opening doesn't follow from the day
      before, because an older build calculated it differently (e.g. it left out
      a ₹5,000 part-payment). They are left as they are. If you want, a Manager
@@ -74,7 +85,8 @@ nothing the second time. Each `--apply` run is recorded in the settings table
      receipts. Nothing is changed. Check them by hand.
 6. **Apply on the copy and check it.**
    `DATABASE_URL="<COPY URL>" npm run fix:existing-bills -- --apply --i-have-a-backup [--overrides that.json]`
-   Then run the same command again. It must report `billsChanged 0`.
+   Then run the same command again. It must report `billsChanged 0` and
+   `salaryPaymentsBackfilled 0`.
    Start this backend against the copy (and the UI against that backend). Look
    at a few dues (Parties, To Collect), the Cash Register for some closed days
    and today, and Stock history.

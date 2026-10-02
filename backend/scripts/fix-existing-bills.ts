@@ -35,6 +35,9 @@
  *      remaining over-payment becomes store credit.
  *   7. Adds one 'Opening Stock' history row per item/branch whose stock history
  *      does not add up to the current stock, dated before its first movement.
+ *   8. Salaries marked Paid by older builds had no Payment 'out' row: one is
+ *      added per such payroll row (its mode and amount, dated on the IST day it
+ *      was paid, at the employee's branch, notes/createdByName mark it backfilled).
  *
  * Idempotent: everything is computed from the data, and every row it adds has a
  * fixed id / reference, so a second run finds nothing to change. Each --apply
@@ -263,7 +266,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
 
   const bills: BillRow[] = [];
   const C0 = new Map<string, number>();
-  const stats = { unassignedReceipts: 0, refundsTrimmed: 0, refundRowsCreated: 0, refundAmountBackfilled: 0, adjustRowsConverted: 0, storeCreditAdded: 0, receiptsToppedUp: 0, openingStockRows: 0, openingStockUnits: 0 };
+  const stats = { unassignedReceipts: 0, refundsTrimmed: 0, refundRowsCreated: 0, refundAmountBackfilled: 0, adjustRowsConverted: 0, storeCreditAdded: 0, receiptsToppedUp: 0, openingStockRows: 0, openingStockUnits: 0, salaryRowsCreated: 0, salaryAmountBackfilled: 0 };
   const extraLog: any[] = [];
 
   // ---- 1. collected at billing ------------------------------------------------
@@ -636,6 +639,44 @@ async function run(tx: any, overrides: Record<string, Override>) {
     stats.openingStockUnits = r2(stats.openingStockUnits + r.quantityChange);
   }
 
+  // ---- 6. salaries paid before salaries were money out ---------------------------
+  // Builds before E2E5-12 marked a payroll row Paid without a Payment 'out' row,
+  // so those salaries never reached the drawer, the Payments Log or the P&L.
+  // One 'out' row per Paid payroll row that has none: the row's own mode and
+  // amount, dated on the IST day it was paid, at the employee's branch.
+  const salaryLog: any[] = [];
+  const staffOuts = (await tx.payment.findMany({ where: { type: 'out', partyType: 'staff' } })) as any[];
+  const paidRows = (await tx.payrollRecord.findMany({ where: { status: 'Paid' } })) as any[];
+  const employees = new Map(((await tx.employee.findMany({ select: { id: true, branchId: true, name: true } })) as any[]).map((e) => [e.id, e]));
+  for (const row of paidRows.sort((a, b) => String(a.paidAt || '').localeCompare(String(b.paidAt || '')))) {
+    if (staffOuts.some((p) => allocTo(p, row.id) > 0)) continue;
+    const id = `pay-fix-salary-${row.id}`.slice(0, 120);
+    if (await tx.payment.findUnique({ where: { id } })) continue;
+    const amount = r2(row.finalPayable);
+    const emp: any = employees.get(row.employeeId);
+    const branchId = emp?.branchId || row.branchId;
+    const entry: any = { payroll: row.id, employee: row.employeeName, month: row.month, amount, mode: row.paymentMode || 'Cash', paidAt: row.paidAt };
+    if (!(amount > 0) || !branchId) {
+      salaryLog.push({ ...entry, note: `REVIEW: ${!(amount > 0) ? 'nothing paid (₹0)' : 'no branch'} — not changed` });
+      continue;
+    }
+    const date = istDateOf(row.paidAt || row.updatedAt || undefined);
+    const mode = /cash/i.test(String(row.paymentMode || 'Cash')) ? 'Cash' : String(row.paymentMode);
+    await tx.payment.create({
+      data: {
+        id, receiptNumber: await nextPayNo(date), type: 'out', partyType: 'staff', partyId: row.employeeId,
+        partyName: row.employeeName || emp?.name || 'Staff', branchId, date, amount, paymentMode: mode,
+        reference: row.paymentReference ?? null,
+        notes: `Salary for ${row.month} — backfilled by ${BY} (paid before salaries were recorded as payments)`,
+        allocations: [{ refId: row.id, refNumber: row.month, amount }],
+        createdById: null, createdByName: BY, createdAt: new Date().toISOString(),
+      },
+    });
+    salaryLog.push({ ...entry, date, branchId, mode });
+    stats.salaryRowsCreated++;
+    stats.salaryAmountBackfilled = r2(stats.salaryAmountBackfilled + amount);
+  }
+
   // ---- report ------------------------------------------------------------------
   const closedAfter = (await registerFigures(tx)).filter((r) => r.isClosed);
   const why = (b: string, d: string) => {
@@ -643,6 +684,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const billsThatDay = bills.filter((x) => x.branchId === b && x.date === d && !eq(x.oldPartialAmount, x.newPartialAmount));
     if (billsThatDay.length) bits.push(`billing-day cash restored on ${billsThatDay.map((x) => x.invoiceNumber).join(', ')}`);
     if (bills.some((x) => x.branchId === b && x.refundsBackfilled > 0)) bits.push('backfilled cash refund(s) for older returns');
+    if (salaryLog.some((x) => x.branchId === b && x.date === d && x.mode === 'Cash')) bits.push('backfilled cash salary payment(s)');
     return bits.join('; ') || 'see bills';
   };
   const closedDays = closedBefore.map((c) => {
@@ -681,13 +723,15 @@ async function run(tx: any, overrides: Record<string, Override>) {
     storeCreditAdded: stats.storeCreditAdded,
     openingStockRowsAdded: stats.openingStockRows,
     openingStockUnitsAdded: stats.openingStockUnits,
+    salaryPaymentsBackfilled: stats.salaryRowsCreated,
+    salaryAmountBackfilled: stats.salaryAmountBackfilled,
     closedDaysWhoseClosingChanges: closedDays.filter((d) => d.why).length,
     closedDaysWithOpeningGap: openingGaps.length,
   };
   const legacyAdvances = (await tx.pendingOrder.findMany()).filter((o: any) => (Number(o.advanceAmount) || 0) > 0 &&
     !payments.some((p) => p.type === 'in' && p.reference === o.orderNumber));
   return {
-    totals, bills, receipts: extraLog, stock: stockLog, closedDays, openingGaps,
+    totals, bills, receipts: extraLog, stock: stockLog, salaries: salaryLog, closedDays, openingGaps,
     legacyPendingOrderAdvances: legacyAdvances.map((o: any) => ({ order: o.orderNumber, customer: o.customerName, amount: o.advanceAmount, status: o.status, note: 'REVIEW: advance recorded before advances became receipts — not changed' })),
   };
 }

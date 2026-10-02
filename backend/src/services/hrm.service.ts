@@ -221,9 +221,22 @@ export async function getSelfToday(employeeId: string) {
   return { record: record || null, today: ist.date };
 }
 
-export function updatePayrollAdjustment(employeeId: string, month: string, adjustment: number, reason: string | undefined, standardHoursPerMonth: number) {
+/**
+ * Payroll writes act on one employee: a branch-locked user (a Manager granted
+ * payroll rights) may only touch their own branch's staff; the CEO acts on all.
+ * Checked against the employee's stored branch, and the payroll row's branch.
+ */
+async function assertPayrollBranch(tx: any, reqUser: any, employeeId: string | undefined, rowBranchId?: string | null) {
+  if (!reqUser || reqUser.role === 'CEO') return;
+  const emp = employeeId ? await tx.employee.findUnique({ where: { id: String(employeeId) }, select: { branchId: true } }) : null;
+  assertBranchAllowed(reqUser, emp?.branchId ?? null);
+  assertBranchAllowed(reqUser, rowBranchId ?? null);
+}
+
+export function updatePayrollAdjustment(employeeId: string, month: string, adjustment: number, reason: string | undefined, standardHoursPerMonth: number, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const existing = await tx.payrollRecord.findFirst({ where: { employeeId, month } });
+    await assertPayrollBranch(tx, reqUser, employeeId, existing?.branchId);
     if (existing) {
       // A disbursed payroll is locked — its paid amount can't be silently edited.
       if (existing.status === 'Paid') {
@@ -251,7 +264,7 @@ export function updatePayrollAdjustment(employeeId: string, month: string, adjus
   });
 }
 
-export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any, actorName?: string) {
+export function markPayrollPaid(payrollId: string, paymentMode: string, paymentReference?: string, record?: any, actorName?: string, reqUser?: any) {
   // E2E7-6: a call without a payrollId used to fall through to a legacy
   // `updateMany({ where: { id: undefined } })`, which Prisma reads as "no
   // filter" — every payroll row became Paid and paid rows lost their payment
@@ -270,6 +283,7 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
     if (!existing && record?.employeeId && record?.month) {
       existing = await tx.payrollRecord.findFirst({ where: { employeeId: record.employeeId, month: record.month } });
     }
+    await assertPayrollBranch(tx, reqUser, existing?.employeeId ?? record?.employeeId, existing?.branchId ?? record?.branchId);
 
     if (existing) {
       // HRM6-2: a disbursed payroll row is final. Without this, re-posting "Mark

@@ -70,8 +70,21 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
     const st = await createItem({ stock: { coimbatore: 4 } });
     sql(`UPDATE "BranchStock" SET quantity = quantity + 3 WHERE "itemId"=${q(st.id)} AND "branchId"='coimbatore'`);
 
+    // F: a salary marked Paid by an older build — no Payment 'out' row. Paid at
+    // 20:00 UTC = 01:30 IST the next day, by bank transfer.
+    let emp;
+    for (let i = 0; !emp && i < 20; i++) {
+      const res = await post('/api/employees', { name: `QA Legacy Staff ${uid()}`, designation: 'QA', branchId: 'coimbatore', monthlySalary: 15000, status: 'Active', joinedDate: '2026-01-01', pin: String(1000 + Math.floor(Math.random() * 9000)) });
+      if (res.status !== 409) emp = ok(res, 'create employee').employee;
+    }
+    const payId = `pay-legacy-${uid()}`;
+    sql(`INSERT INTO "PayrollRecord" ("id","employeeId","employeeName","designation","branchId","month","monthlySalary","standardHoursPerMonth","hourlyRate",
+      "totalDaysPresent","totalHoursWorked","computedPay","manualAdjustment","finalPayable","status","paidAt","paymentMode","paymentReference","updatedAt")
+      VALUES (${q(payId)},${q(emp.id)},${q(emp.name)},'QA','coimbatore','2025-05',15000,208,72.12,26,208,15000,0,14750,'Paid',${q(`${d1}T20:00:00.000Z`)},'Bank Transfer','UTR-QA',${q(`${d1}T20:00:00.000Z`)})`);
+
     const before = { a: await getInvoice(a.id), c: await getInvoice(c.id) };
     const dry = runScript();
+    assert.ok(dry.salaries.some((x) => x.payroll === payId), 'dry run lists the legacy salary');
     assert.equal(dry.mode, 'dry-run');
     const row = (inv) => dry.bills.find((x) => x.invoiceId === inv.id);
     near(row(a).collectedAtBilling, 5000, 'A collected at billing');
@@ -85,6 +98,7 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
     // Nothing written by a dry run.
     near((await getInvoice(a.id)).partialAmount, before.a.partialAmount, 'dry run left A alone');
     assert.equal(sql(`SELECT count(*) FROM "Payment" WHERE "allocations"::text LIKE ${q(`%${c.id}%`)} AND type='out'`)[0][0], '0');
+    assert.equal(sql(`SELECT count(*) FROM "Payment" WHERE "allocations"::text LIKE ${q(`%${payId}%`)}`)[0][0], '0', 'no salary row on a dry run');
 
     const applied = runScript('--apply', '--i-have-a-backup');
     assert.equal(applied.mode, 'apply');
@@ -116,7 +130,17 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
     const ledger = sql(`SELECT coalesce(sum("quantityChange"),0) FROM "StockAdjustmentLog" WHERE "itemId"=${q(st.id)} AND "branchId"='coimbatore'`)[0][0];
     near(ledger, 7, 'stock history adds up to the stock on hand');
 
+    const salary = sql(`SELECT date, amount, "paymentMode", "branchId", "partyType", notes FROM "Payment" WHERE type='out' AND "allocations"::text LIKE ${q(`%${payId}%`)}`);
+    assert.equal(salary.length, 1, 'one salary payment backfilled');
+    assert.equal(salary[0][0], addDayStr(d1), 'dated on the IST day it was paid');
+    near(salary[0][1], 14750);
+    assert.equal(salary[0][2], 'Bank Transfer', 'mode from the payroll row');
+    assert.equal(salary[0][3], 'coimbatore');
+    assert.equal(salary[0][4], 'staff');
+    assert.match(salary[0][5], /backfilled/);
+
     const again = runScript('--apply', '--i-have-a-backup');
+    assert.equal(again.totals.salaryPaymentsBackfilled, 0, 'salary rows are added once');
     assert.equal(again.totals.billsChanged, 0, `second run changed ${again.totals.billsChanged} bill(s): ${again.bills.filter((x) => x.action !== 'no change' && !x.action.startsWith('skip')).map((x) => `${x.invoiceNumber} ${x.action}`).slice(0, 5).join(' | ')}`);
     assert.equal(again.totals.refundRowsCreated, 0);
     assert.equal(again.totals.storeCreditAdded, 0);

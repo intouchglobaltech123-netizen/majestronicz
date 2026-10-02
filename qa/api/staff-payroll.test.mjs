@@ -168,3 +168,35 @@ describe('staff & payroll', () => {
     assert.ok(['in', 'out', 'done'].includes(res.body.action));
   });
 });
+
+describe('payroll branch scope', () => {
+  test('PAYROLL-BRANCH a Manager with payroll rights acts only on their own branch staff; the CEO on all', async () => {
+    const matrix = ok(await get('/api/access-matrix'));
+    const original = JSON.parse(JSON.stringify(matrix));
+    const m = matrix.matrix || matrix;
+    try {
+      // Give the Manager role payroll rights for this test only.
+      m.Manager.caps = [...new Set([...(m.Manager.caps || []), 'payroll:admin'])];
+      ok(await put('/api/access-matrix', m), 'grant payroll:admin to Manager');
+      const { emp: erodeEmp } = await newEmployee('erode-hq');
+      const { emp: cbeEmp } = await newEmployee('coimbatore');
+      const month = '2026-02';
+      const adj = (emp) => ({ employeeId: emp.id, month, adjustment: 300, reason: 'QA', standardHoursPerMonth: 208 });
+
+      expectStatus(await post('/api/hrm/payroll-adjustment', adj(erodeEmp), 'Manager'), 403, 'Coimbatore Manager adjusts Erode pay');
+      const erodeRow = await draftRow(erodeEmp, month); // CEO may
+      expectStatus(await post('/api/hrm/payroll-paid', { payrollId: erodeRow.id, paymentMode: 'Bank', record: { ...erodeRow } }, 'Manager'), 403, 'Coimbatore Manager pays Erode staff');
+      // A computed (not yet stored) row for another branch's employee is refused too.
+      expectStatus(await post('/api/hrm/payroll-paid', { payrollId: `calc-${uid()}`, paymentMode: 'Bank', record: { ...erodeRow, id: undefined, month: '2026-01', branchId: 'coimbatore' } }, 'Manager'), 403, 'forged branch on a computed row');
+      assert.equal(ok(await get('/api/payroll-records')).find((p) => p.id === erodeRow.id).status, 'Draft', 'Erode row untouched');
+
+      const snap = ok(await post('/api/hrm/payroll-adjustment', adj(cbeEmp), 'Manager'), 'own branch adjustment');
+      const cbeRow = snap.payrollRecords.find((p) => p.employeeId === cbeEmp.id && p.month === month);
+      assert.ok(cbeRow, 'own branch row saved');
+      assert.ok(snap.payrollRecords.every((p) => p.branchId === 'coimbatore'), 'the reply carries only Coimbatore payroll');
+      ok(await post('/api/hrm/payroll-paid', { payrollId: cbeRow.id, paymentMode: 'Bank', record: { ...cbeRow } }, 'Manager'), 'own branch Mark Paid');
+    } finally {
+      ok(await put('/api/access-matrix', original.matrix || original), 'restore matrix');
+    }
+  });
+});

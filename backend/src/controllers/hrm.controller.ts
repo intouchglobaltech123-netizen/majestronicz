@@ -17,12 +17,12 @@ export const clockOut = async (req: Request, res: Response) => {
 };
 export const payrollAdjustment = async (req: Request, res: Response) => {
   const { employeeId, month, adjustment, reason, standardHoursPerMonth } = req.body;
-  res.json(await hrm.updatePayrollAdjustment(employeeId, month, adjustment, reason, standardHoursPerMonth));
+  res.json(await hrm.updatePayrollAdjustment(employeeId, month, adjustment, reason, standardHoursPerMonth, (req as any).user));
 };
 export const markPaid = async (req: Request, res: Response) => {
   const { payrollId, paymentMode, paymentReference, record } = req.body;
   const user = (req as any).user;
-  const result: any = await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record, user?.name);
+  const result: any = await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record, user?.name, user);
   const row = (result.payrollRecords || []).find((p: any) => p.id === payrollId || (record?.employeeId && p.employeeId === record.employeeId && p.month === record.month));
   await recordAudit({
     actor: user ? `${user.name} [${user.role}]` : 'unknown', action: 'payroll.paid', entity: 'payroll', entityId: row?.id || String(payrollId || ''),
