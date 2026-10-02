@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, resave,
-  freshDay, thisMonthDay, randomPhone, sql,
+  freshDay, thisMonthDay, randomPhone, sql, returnLine,
 } from './lib.mjs';
 
 async function newEmployee(branchId, extra = {}) {
@@ -185,5 +185,38 @@ describe('round 11: access matrix', () => {
     } finally {
       ok(await put('/api/access-matrix', before), 'restore');
     }
+  });
+});
+
+describe('round 11: returns', () => {
+  test('FIN-E-5 the reverse-return audit shows money as ₹1,793.60', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1519.99, stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const ret = (await getInvoice(inv.id)).returns.at(-1);
+    ok(await post('/api/tx/reverse-return', { invoiceId: inv.id, returnId: ret.id }));
+    const rows = ok(await get(`/api/audit?entity=invoice&entityId=${encodeURIComponent(inv.id)}`));
+    const row = rows.find((a) => a.action === 'sale.return-reverse');
+    assert.ok(row, 'audit row');
+    assert.match(row.summary, /· ₹1,793\.59 · .*refund ₹1,793\.59 removed/, row.summary);
+  });
+});
+
+describe('round 11: enquiries', () => {
+  test('ACT-1 an enquiry\'s createdAt is the server\'s clock; editing an enquiry saves (no 400)', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const id = `enq-qa-${Date.now()}`;
+    const enquiry = { id, customerName: 'QA Enq', customerPhone: randomPhone(), itemId: item.id, itemName: item.itemName, unit: 'PCS', quantity: 1,
+      branchId: 'erode-hq', date: today, time: '10:30', createdAt: '2019-01-01T00:00:00.000Z' };
+    const snap = ok(await post('/api/enquiry/save', { enquiry }, 'Sales'));
+    const saved = snap.enquiries.find((e) => e.id === id);
+    assert.ok(Date.now() - Date.parse(saved.createdAt) < 10 * 60 * 1000, `createdAt ${saved.createdAt}`);
+    const edited = ok(await post('/api/enquiry/save', { enquiry: { ...saved, notes: 'QA edited', status: undefined } }, 'Sales'), 'edit');
+    const after = edited.enquiries.find((e) => e.id === id);
+    assert.equal(after.notes, 'QA edited');
+    assert.equal(after.status, saved.status);
+    assert.equal(after.createdAt, saved.createdAt);
   });
 });
