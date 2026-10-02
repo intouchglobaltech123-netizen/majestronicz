@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
-import { gstCollected } from '../../lib/reportMath';
+import { gstCollected, periodSales } from '../../lib/reportMath';
 
 const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 import {
@@ -141,7 +141,8 @@ export const ReportsView: React.FC = () => {
     const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
     const scoped = invoices.filter((i) => !i.isVoided && inScope(i.branchId));
     const periodInv = scoped.filter((i) => inRange(i.date || ''));
-    const sales = periodInv.reduce((t, i) => t + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)), 0);
+    // RPT10-1: the Sales register's own period figure (returns in the period they happen).
+    const sales = periodSales(scoped, (d) => !!d && inRange(d)).net;
     // The ONE 'GST collected' figure (net of returns and bill discount, IGST
     // included) — the same as the Sales register and the GST tab (RPT5-1).
     // RPT9-1 / E2E9-12: the same period figure as the GST tab (returns in the

@@ -3,7 +3,7 @@ import { useErp } from '../../context/ErpContext';
 import { BRANCHES, BranchId, Invoice, computeInvoiceFinance, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
-import { computeProfit, productSales } from '../../lib/reportMath';
+import { computeProfit, productSales, periodSales, salesByDay } from '../../lib/reportMath';
 import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
@@ -86,8 +86,10 @@ export const DashboardView: React.FC = () => {
 
   // ---- Money & business KPIs ----
   const money = useMemo(() => {
-    const dayTotal = (d: string) => scopedSales.filter((i) => i.date === d).reduce((t, i) => t + netRevenue(i), 0);
-    const monthTotal = (m: string) => scopedSales.filter((i) => (i.date || '').startsWith(m)).reduce((t, i) => t + netRevenue(i), 0);
+    // RPT10-1: the Sales register's period rule — bills on their date, returns
+    // (credit notes) on the day they happened.
+    const dayTotal = (d: string) => periodSales(scopedSales, (x) => x === d).net;
+    const monthTotal = (m: string) => periodSales(scopedSales, (x) => (x || '').startsWith(m)).net;
     const salesToday = dayTotal(today);
     const salesYest = dayTotal(yesterday);
     const salesMonth = monthTotal(thisMonth);
@@ -148,9 +150,10 @@ export const DashboardView: React.FC = () => {
   // ---- Sales trend (selectable window) ----
   const trend = useMemo(() => {
     const days: { date: string; label: string; total: number }[] = [];
+    const byDay = salesByDay(scopedSales); // RPT10-1
     for (let i = trendDays - 1; i >= 0; i--) {
       const d = getTodayDateString(new Date(Date.now() - i * 864e5));
-      const total = scopedSales.filter((x) => x.date === d).reduce((t, x) => t + netRevenue(x), 0);
+      const total = Math.round((byDay.get(d) || 0) * 100) / 100;
       days.push({ date: d, label: d.slice(5), total });
     }
     const max = Math.max(1, ...days.map((d) => d.total));
@@ -173,7 +176,7 @@ export const DashboardView: React.FC = () => {
   // bill-level discount (the Sales register's own maths, src/lib/reportMath
   // productSales); a product returned in full (0 left) is not listed.
   const topProducts = useMemo(() => {
-    const sales = productSales(scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)));
+    const sales = productSales(scopedSales, (d) => (d || '').startsWith(thisMonth)); // RPT10-1
     const rows = sales
       .filter((p) => p.quantity > 0.0005 || p.revenue > 0.005)
       .map((p) => ({
@@ -522,7 +525,7 @@ export const DashboardView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {BRANCHES.map((b) => {
-                  const bSales = invoices.filter((i) => !i.isVoided && i.branchId === b.id && (i.date || '').startsWith(thisMonth)).reduce((t, i) => t + netRevenue(i), 0);
+                  const bSales = periodSales(invoices, (d) => (d || '').startsWith(thisMonth), (x) => x === b.id).net; // RPT10-1
                   const bRecv = invoices.filter((i) => !i.isVoided && i.branchId === b.id).reduce((t, i) => t + invoiceDue(i), 0);
                   const bStock = items.reduce((t, item) => t + (branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id)?.quantity ?? 0) * (item.purchasePrice || 0), 0);
                   return (

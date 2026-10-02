@@ -280,3 +280,29 @@ describe('round 10: returns and reports', () => {
     assert.ok(all.returnSummary.cashRefund > 0);
   });
 });
+
+describe('round 10: report period rule and retry (unit)', async () => {
+  const { importTs } = await import('./lib-ts.mjs');
+  const rm = await importTs('src/lib/reportMath.ts');
+  const retry = await importTs('backend/src/lib/retry.ts');
+
+  test('RPT10-1 sales of a period: bills in full in their month, returns as credit notes in the month they happened', () => {
+    const bill = (id, date, total, returns = []) => ({ id, branchId: 'erode-hq', date, grandTotal: total, withGst: true, items: [], returns });
+    const sep = bill('a', '2026-09-20', 1180, [{ refundAmount: 590, returnedAt: '2026-10-01T05:00:00.000Z' }]);
+    const oct = bill('b', '2026-10-01', 2360);
+    const inSep = (d) => d.startsWith('2026-09');
+    const inOct = (d) => d.startsWith('2026-10');
+    assert.deepEqual(rm.periodSales([sep, oct], inSep), { gross: 1180, returns: 0, net: 1180, bills: 1 }, 'September keeps its bill');
+    assert.deepEqual(rm.periodSales([sep, oct], inOct), { gross: 2360, returns: 590, net: 1770, bills: 1 }, 'October carries the credit note');
+    const days = rm.salesByDay([sep, oct]);
+    assert.equal(days.get('2026-10-01'), 2360 - 590);
+  });
+
+  test('PUR10-3 a deadlock (40P01) or serialization failure from a raw query is retried, other errors are not', () => {
+    assert.equal(retry.isRetryableTxError({ code: 'P2010', meta: { code: '40P01' }, message: 'deadlock detected' }), true);
+    assert.equal(retry.isRetryableTxError({ code: 'P2034' }), true);
+    assert.equal(retry.isRetryableTxError({ message: 'ERROR: could not serialize access due to concurrent update' }), true);
+    assert.equal(retry.isRetryableTxError({ code: 'P2025' }), false);
+    assert.equal(retry.isRetryableTxError(new Error('boom')), false);
+  });
+});

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES } from '../../types';
-import { gstCollected, productSales } from '../../lib/reportMath';
+import { gstCollected, productSales, periodSales } from '../../lib/reportMath';
 import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
@@ -59,29 +59,32 @@ export const SalesReportTab: React.FC<Props> = ({
   // Dashboard and the Payments Log (RPT5-1 / RPT8-1 / RPT-1 / RPT5-3 / SAL6-2).
   const { payments } = useErp();
   const summary = useMemo(() => {
-    let totalGross = 0;
-    let totalReturns = 0;
     let loyaltyRewardCount = 0;
     let loyaltyDiscountGivenTotal = 0;
+    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
+    const inRange = (d: string) => !!d && (!startDate || d >= startDate) && (!endDate || d <= endDate);
+    // RPT10-1: one period rule with GST and P&L — bills of the period in full,
+    // returns as credit notes in the period they happened (any bill's).
+    const scoped = invoices.filter((inv) => !inv.isVoided && inScope(inv.branchId));
+    const period = periodSales(scoped, inRange);
+    const totalGross = period.gross;
+    const totalReturns = period.returns;
 
     filteredInvoices.forEach((inv) => {
-      totalGross += inv.grandTotal;
-      totalReturns += inv.totalReturnedAmount || 0;
       if (inv.isLoyaltyRewardApplied) {
         loyaltyRewardCount++;
         loyaltyDiscountGivenTotal += (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0);
       }
     });
 
-    // GST collected: net of returns and the bill discount, IGST included.
-    const gst = gstCollected(filteredInvoices);
+    // GST collected: net of returns and the bill discount, IGST included — the
+    // GST tab's own period figure (returns in the month they happen).
+    const gst = gstCollected(scoped, undefined, inRange);
     // Money collected in the period by the mode it came in: bills' at-billing
     // splits plus receipts on their own date and mode.
-    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
-    const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
     const modes = collectionsByMode(invoices, payments, inRange, inScope);
-    // Units and revenue per product, net of returns and the bill discount.
-    const allItems = productSales(filteredInvoices).filter((p) => p.quantity > 0.0005 || p.revenue > 0.005); // RPT9-3: fully returned items are not "top"
+    // Units and revenue per product, net of the period's returns and the bill discount.
+    const allItems = productSales(scoped, inRange).filter((p) => p.quantity > 0.0005 || p.revenue > 0.005); // RPT9-3: fully returned items are not "top"
     const topByQty = [...allItems].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
     const topByRevenue = [...allItems].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 
@@ -123,7 +126,7 @@ export const SalesReportTab: React.FC<Props> = ({
     rows.push(['--- SUMMARY BREAKDOWN ---']);
     rows.push(['Total Invoices', summary.invoiceCount]);
     rows.push(['Total Gross Sales (Rs)', money(summary.totalGross)]);
-    rows.push(['Less: Returns (Rs)', money(summary.totalReturns)]);
+    rows.push(['Less: Returns in the period (credit notes) (Rs)', money(summary.totalReturns)]);
     rows.push(['Net Sales (Rs)', money(summary.netSales)]);
     rows.push(['GST Collected (Rs)', money(summary.gst.tax)]);
     rows.push(['  of which CGST (Rs)', money(summary.gst.cgst)]);
@@ -169,7 +172,7 @@ export const SalesReportTab: React.FC<Props> = ({
         <ReportExportButtons onExport={handleExport} />
       </div>
 
-      {filteredInvoices.length === 0 ? (
+      {filteredInvoices.length === 0 && !(summary.totalReturns > 0) ? (
         <div className="p-12 text-center bg-white rounded-none border border-slate-300 shadow-none">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700">No sales invoices found for this range</h3>
@@ -186,7 +189,7 @@ export const SalesReportTab: React.FC<Props> = ({
             <span className="font-sans text-[11px] text-slate-500">gross</span>
             <span className="text-rose-600 font-bold">−</span>
             <span className="font-bold text-rose-700">{rs(summary.totalReturns)}</span>
-            <span className="font-sans text-[11px] text-slate-500">returns</span>
+            <span className="font-sans text-[11px] text-slate-500" title="Returns made in this period (credit notes), on bills of any date — the same rule as GST and P&L">returns in the period</span>
             <span className="text-slate-400 font-bold">=</span>
             <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-none">{rs(summary.netSales)}</span>
             <span className="font-sans text-[11px] text-slate-500">net sales</span>

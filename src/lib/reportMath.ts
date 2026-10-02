@@ -351,14 +351,52 @@ export function computeProfit(args: {
 
 /** Units sold and revenue per product, net of returns and of the bill-level
  *  discount (RPT-1 / RPT5-3). Revenue is what the customer paid incl. GST. */
-export function productSales(invoices: Invoice[]): {
+/**
+ * RPT10-1: a period's SALES on the same rule as GST and P&L (RPT9-1): every bill
+ * counts in full in the period of its own date, and every return counts as a
+ * credit note in the period of the day it happened. `gross` = bills dated in the
+ * period, `returns` = returns made in the period (on bills of any date),
+ * `net` = gross − returns. Used by the Sales register, the Reports header and
+ * the Dashboard so they all show one figure.
+ */
+export function periodSales(
+  invoices: Invoice[],
+  inRange: (day: string) => boolean,
+  inScope: (branchId: string) => boolean = () => true,
+): { gross: number; returns: number; net: number; bills: number } {
+  let gross = 0, returns = 0, bills = 0;
+  for (const inv of invoices || []) {
+    if (inv.isVoided || !inScope(inv.branchId)) continue;
+    if (inRange(inv.date || '')) { gross += num(inv.grandTotal); bills += 1; }
+    for (const r of inv.returns || []) if (inRange(returnDay(r, inv.date || ''))) returns += num(r.refundAmount);
+  }
+  return { gross: r2(gross), returns: r2(returns), net: r2(gross - returns), bills };
+}
+
+/** RPT10-1: net sales per day (bills on their date, returns on theirs). */
+export function salesByDay(invoices: Invoice[], inScope: (branchId: string) => boolean = () => true): Map<string, number> {
+  const m = new Map<string, number>();
+  const add = (d: string, v: number) => m.set(d, (m.get(d) || 0) + v);
+  for (const inv of invoices || []) {
+    if (inv.isVoided || !inScope(inv.branchId)) continue;
+    add(inv.date || '', num(inv.grandTotal));
+    for (const r of inv.returns || []) add(returnDay(r, inv.date || ''), -num(r.refundAmount));
+  }
+  return m;
+}
+
+/** Units and revenue per product. With `inRange`, on the period rule (RPT10-1):
+ *  bills of the period in full, minus units returned in the period. */
+export function productSales(invoices: Invoice[], inRange?: (day: string) => boolean): {
   key: string; itemId?: string; itemName: string; itemCode: string; isCombo: boolean; quantity: number; revenue: number;
 }[] {
   const map = new Map<string, { key: string; itemId?: string; itemName: string; itemCode: string; isCombo: boolean; quantity: number; revenue: number }>();
   const costOf = () => 0;
   for (const inv of invoices) {
     if (inv.isVoided) continue;
-    for (const lf of invoiceFigures(inv, costOf).lines) {
+    const fig = inRange ? periodInvoiceFigures(inv, costOf, inRange) : invoiceFigures(inv, costOf);
+    if (!fig) continue;
+    for (const lf of fig.lines) {
       const li = lf.line;
       const isCombo = Boolean(li.isCombo || li.comboId);
       const key = li.itemId || li.comboId || li.itemName;

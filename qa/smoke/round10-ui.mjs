@@ -129,6 +129,40 @@ try {
     check('SAL10-3 GST off keeps the total of a line with a ₹ standard discount', Math.abs(on - off) < 0.02 && Math.abs(on - back) < 0.02, `on ₹${on}, off ₹${off}, on again ₹${back}`);
     await ctx.close();
   }
+
+  // ---------- RPT10-1: one period rule for the Sales register, the header and the Dashboard ----------
+  if (want('RPT10-1')) {
+    const money = (t) => Number(String(t || '').replace(/[^\d.-]/g, ''));
+    const { ctx, page } = await login('CEO');
+    const read = async (from, to) => {
+      await nav(page, 'Sales Register');
+      await page.getByLabel('Report from date').fill(from);
+      await page.getByLabel('Report to date').fill(to);
+      await page.waitForTimeout(800);
+      const header = money(await page.locator('div', { has: page.getByText('Sales (Period)', { exact: true }) }).last().locator('p').first().innerText());
+      const recon = await page.locator('div', { hasText: 'Sales reconciliation:' }).last().innerText();
+      const net = money(recon.split('=').pop());
+      return { header, net };
+    };
+    const month = istToday().slice(0, 7);
+    const prev = new Date(Date.parse(`${month}-01T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    const prevFrom = `${prev.slice(0, 7)}-01`;
+    const item = await createItem(1000, { 'erode-hq': 5 });
+    const old = (await must('POST', '/api/tx/sale', saleBody({ date: `${prev.slice(0, 7)}-25`, lines: [lineOf(item, 2)] }))).savedInvoice;
+    await must('POST', '/api/tx/sale', saleBody({ lines: [lineOf(item, 1)] })); // a bill this month too
+    await page.reload(); await page.waitForTimeout(2500);
+    const before = { prev: await read(prevFrom, prev), now: await read(`${month}-01`, istToday()) };
+    await must('POST', '/api/tx/sale-return', { invoiceId: old.id, returnLines: [{ itemId: item.id, returnQty: 1 }], reason: 'QA', refundMode: 'Cash' });
+    await page.waitForTimeout(2500); // live update
+    let after;
+    try { after = { prev: await read(prevFrom, prev), now: await read(`${month}-01`, istToday()) }; } catch (e) { await page.screenshot({ path: path.join(SHOTS, 'r10-sales-register-fail.png') }); throw e; }
+    await page.screenshot({ path: path.join(SHOTS, 'r10-sales-register.png') });
+    check('RPT10-1 the header "Sales (Period)" equals the Sales register net', after.now.header === after.now.net && after.prev.header === after.prev.net, JSON.stringify(after));
+    check('RPT10-1 a return today on last month\'s bill lowers this month, not last month', after.prev.net === before.prev.net && Math.abs(before.now.net - after.now.net - 1180) <= 1, JSON.stringify({ before, after }));
+    await nav(page, 'Dashboard');
+    await page.waitForTimeout(1200);
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }
