@@ -20,8 +20,14 @@ What the script does (all of it is in the report it writes):
    earliest evidence: the stored payment split; else the audit trail's first
    saved copy of the bill; else an **exact replay** of what each older build
    did to the bill on every receipt and return, which must end on the bill's
-   stored figures. If the history can't be replayed to exactly one answer, the
-   bill is **not changed** and is listed as `REVIEW` (see step 4).
+   stored figures. The replay tries every amount from ₹0 to the bill total
+   that could matter (every figure the bill's receipts and returns give, a
+   grid across the whole range, and ₹0.02 either side of each hit). It is
+   accepted only when exactly **one** amount replays. If several amounts
+   replay, or a whole range does (the older builds' updates wiped out every
+   trace of it — e.g. a return that zeroed the bill's part-payment), or none
+   does, the bill is **not changed** and is listed as `REVIEW` with the
+   amounts that fit (see step 4).
 2. Freezes that as the bill's payment split. Sets the bill's "owed at billing"
    and recalculates the due exactly as the app does: owed at billing − receipts
    − returns + refunds + store credit already given back on the bill.
@@ -43,8 +49,11 @@ What the script does (all of it is in the report it writes):
    a refund, not as a credit note — becomes **store credit**. If the bill has
    no customer account, the script links it to the customer with the same
    phone number (creating the account if there is none), exactly as saving the
-   bill would. If an older build paid back **more** than was over-paid, the bill
-   is left unchanged and listed as `REVIEW`.
+   bill would. It does this the first time the bill needs to hold credit (the
+   unapplied part of a receipt in step 3, a credit note in step 5, or an
+   over-payment here), so one `--apply` gives every such bill all its credit.
+   If an older build paid back **more** than was over-paid, the bill is left
+   unchanged and listed as `REVIEW`.
 7. Adds one "Opening Stock" history row for each item and branch whose stock
    history doesn't add up to the stock on hand.
 8. **Salaries marked Paid before this release** had no payment row, so they
@@ -66,8 +75,20 @@ What the script does (all of it is in the report it writes):
 
 The script never edits a closed day's stored opening. Running it twice changes
 nothing the second time. Each `--apply` run is recorded in the settings table
-(`migration:fix-existing-bills`); until that record exists the app refuses to
-reverse an older return whose refund isn't recorded yet.
+(`migration:fix-existing-bills`, with the bills still under `REVIEW`); until
+that record exists the app refuses to reverse an older return whose refund
+isn't recorded yet.
+
+**Running it again after the new backend has been used** is safe and changes
+nothing: it prints `Already applied (first run …)` and, at the end, `Already
+migrated; nothing to do`. Every bill made or changed in the app since the first
+`--apply` (the bill, a receipt or refund on it, a return or a store-credit entry
+for it is dated after that run) is the app's and is left exactly as it is
+(`skip (kept by the app since the fix)` in the report), and so are receipts
+taken since. Bills that were still under `REVIEW` are the exception: give their
+amount in `--overrides` and the next `--apply` settles them. A database that was
+freshly seeded by this release is already in the corrected shape; the script
+says so and leaves its bills alone.
 
 On 20,000 bills and 20,000 receipts it takes about 10 seconds against a local
 copy (it prints a progress line as it goes); over the internet to Railway allow
@@ -103,9 +124,15 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
    It exits with code 3 while anything needs a decision, 0 when nothing does.
    Put your decisions in one JSON file and pass it as `--overrides that.json`
    from now on:
-   - **"history replays exactly from more than one amount"** or **"does not
-     replay"**: find out what was collected when the bill was made (the paper
-     bill, that day's cash count) and add `{ "MZERD26-27/7311": 5000 }`.
+   - **"history replays exactly from more than one amount (₹a, ₹b)"**, **"the
+     stored figures come out the same whatever was collected at billing within
+     ₹a–₹b"** or **"does not replay"**: the data cannot tell what was collected
+     when the bill was made. Find out from the paper bill or that day's cash
+     count and add `{ "MZERD26-27/7311": 5000 }`. The listed amounts are only
+     the ones that fit the stored figures — do not pick one of them without
+     that evidence. (Example: seed bill 7308 after two receipts, a return and a
+     receipt of ₹5,000 under the build before last: due 0 for any amount from
+     ₹12 to ₹5,524 — it was ₹5,000.)
    - **"an older build paid back ₹X but only ₹Y was over-paid"**: if that cash
      never left the drawer, add `{ "<bill no>": { "trimRefunds": true } }` (the
      older refund rows are cut to the over-paid part); if it did, add
@@ -137,10 +164,39 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
      If a change is not fully explained by these, the line ends with
      `REVIEW: ₹… of the change is not explained` — stop and ask.
    - `salaries`: every salary payment the script adds, and any it skipped.
-   - `openingGaps`: closed days whose stored opening doesn't follow from the day
-     before, because an older build calculated it differently. They are left as
-     they are. If you want, a Manager can override the opening of the first
-     **open** day after them.
+   - `openingGaps`: closed days whose stored opening is not what the day before
+     carries forward (the previous register day's closing, after the fix, plus
+     the cash of any days in between that have no register). Closed days keep
+     their stored opening, so each gap is listed, never changed. The causes:
+     (a) **the script's own corrections on an earlier day** — a backfilled cash
+     salary or refund, billing-day cash restored, an Adjust row removed or a
+     refund cut on that earlier day changes its closing, while the next closed
+     day keeps the opening it stored back then (e.g. a ₹24,000 salary
+     backfilled on 24 Sep shows as a −₹24,000 gap on 25 Sep);
+     (b) **refunds backfilled on days that have no register** — an older return
+     made on a day nobody opened the cash register (e.g. 7311's ₹988 refund on
+     8 Sep) counts in the cash carried forward to the next register day, whose
+     stored opening never included it;
+     (c) **an older build calculated openings differently** — e.g. it left out a
+     legacy part-payment taken in cash (E2E8-6), or the demo data's stored
+     openings;
+     (d) an opening typed in by hand (opening override) or entries made on a
+     past date after the following day was closed.
+     A gap does not change any figure by itself. If the cash in the drawer
+     today agrees with the app, nothing needs doing; if it doesn't, a Manager
+     can override the opening of the first **open** day after the gap.
+   - `openDays`: register days that were **never closed** (often days staff
+     forgot to close). The new build shows such a day's opening **live** — the
+     previous register day's closing plus the cash of register-less days in
+     between — not the figure an older build stored when the register was
+     opened, so after the upgrade these days can show a different opening and
+     closing than before, including the script's corrections on earlier days.
+     The report lists each one with its stored opening, the opening the app
+     will show, and (`changedByFix`) whether the fix itself moves it. Review
+     them on the copy (step 7, Cash Register, each listed day): if a day's
+     figures are right, close it; if the drawer really held something else
+     that day, a Manager overrides that day's opening (an overridden opening
+     is kept, like a closed day's).
    - `legacyPendingOrderAdvances`: advances taken before advances became real
      receipts. Nothing is changed. Check them by hand.
 6. **Apply.**
@@ -148,7 +204,9 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
    It runs in one transaction: all or nothing.
 7. **Verify with a dry run.** Run the step-5 command again. It must report
    `billsChanged 0`, `refundRowsCreated 0`, `storeCreditAdded 0`,
-   `salaryPaymentsBackfilled 0` and `lineCostsBackfilled 0`.
+   `salaryPaymentsBackfilled 0` and `lineCostsBackfilled 0`, and end with
+   `Already migrated; nothing to do`. (Before the new backend runs, this second
+   run re-checks every bill from scratch.)
    On the copy, also start this backend against it (and the UI against that
    backend) and look at a few dues (Parties, To Collect), the Cash Register for
    some closed days and today, and Stock history.
@@ -164,28 +222,88 @@ left it.
 
 ## Rolling back
 
-The previous build starts with `prisma db push --skip-generate` (without
-`--accept-data-loss`). Against the upgraded database that push tries to remove
-the columns this release added:
+Rolling back means going back to the previous build (the one in production
+before this release). The previous build starts with `prisma db push
+--skip-generate` (without `--accept-data-loss`), which compares the database
+with its own schema. This release added one table and some columns (from
+`git diff <previous build> <this release> -- backend/prisma/schema.prisma`):
 
-- while all of them are still empty it **drops them without asking** and starts;
-- as soon as any of them holds data it **refuses, and the backend does not
-  start**. This release fills one of them (the audit trail's branch) on every
-  logged action, so once the new backend has been used, expect a refusal.
+| Where | Added |
+| --- | --- |
+| new table `PoAttachment` | supplier-bill files attached to purchase orders (`id`, `poId`, `name`, `mimeType`, `bytes`, `dataUrl`, `uploadedAt`, `uploadedBy`, index on `poId`) |
+| `Item` | `isArchived`, `archivedAt`, `archivedBy` |
+| `Estimate` | `stateOfSupply` |
+| `PurchaseOrder` | `supplierBills` |
+| `User` | `tokensValidAfter` |
+| `AuditLog` | `branchId` (filled on every logged action) |
 
-The previous build also does not understand the corrected data (it rewrites
-the part-payment again on the next receipt). So:
+The previous build refuses to start while any of these holds data, and it does
+not understand the corrected data either (it rewrites the part-payment on the
+next receipt). Choose one of:
 
-- **Restore the backup from step 2** (`pg_restore --clean --if-exists --no-owner`
-  into the Railway database), then redeploy the previous build. It is the
-  **only** backup the previous build can use — a backup taken after step 3
-  already holds the corrected data. Restoring it loses everything entered after
-  it was taken.
-- **Or keep the data:** add the new columns to the previous build's
-  `backend/prisma/schema.prisma` (as optional fields, exactly as in this
-  release), then redeploy it. It ignores them, but it will rewrite
-  part-payments on new receipts again; when you upgrade again, run the script
-  again.
+### A. Restore the step-2 backup (everything entered since is lost)
+
+It is the **only** backup the previous build can use — a backup taken after
+step 3 already holds the corrected data.
+
+1. Stop the backend (Railway: remove the active deployment).
+2. Restore into an **empty** database. `pg_restore --clean` alone is not
+   enough: it only replaces what is in the backup, so the `PoAttachment` table
+   (not in the backup) stays behind and the previous build refuses to start
+   (`You are about to drop the PoAttachment table, which is not empty`).
+   Either empty the database first:
+
+   ```
+   psql "<DATABASE_URL>" -c 'DROP SCHEMA public CASCADE;' -c 'CREATE SCHEMA public;'
+   pg_restore --no-owner --no-privileges -d "<DATABASE_URL>" majestronicz-before-upgrade.dump
+   ```
+
+   or (if you cannot drop the schema) restore with `--clean` and then remove
+   every table this release added:
+
+   ```
+   pg_restore --clean --if-exists --no-owner --no-privileges -d "<DATABASE_URL>" majestronicz-before-upgrade.dump
+   psql "<DATABASE_URL>" -c 'DROP TABLE IF EXISTS "PoAttachment";'
+   ```
+
+   (`--clean` re-creates every table that is in the backup, so the columns
+   added to existing tables go with it.) A brand-new Railway Postgres restored
+   from the backup works too — then point the backend's `DATABASE_URL` at it.
+3. Check: from the previous build's `backend/`,
+   `DATABASE_URL="<DATABASE_URL>" npx prisma db push --skip-generate` must say
+   `The database is already in sync with the Prisma schema`.
+4. Redeploy the previous build and its UI.
+
+### B. Keep the data entered on this release
+
+1. Stop the backend.
+2. In the previous build's `backend/prisma/schema.prisma` add everything in
+   the table above, exactly as in this release: the six columns as optional
+   fields (`isArchived Boolean?`, `archivedAt String?`, `archivedBy String?`,
+   `stateOfSupply String?`, `supplierBills Json?`, `tokensValidAfter Float?`,
+   `branchId String?`) and the whole `model PoAttachment { … }` block. Check
+   with `npx prisma migrate diff --from-schema-datamodel <this release's
+   schema.prisma> --to-schema-datamodel prisma/schema.prisma` — it must print
+   an empty migration — and `DATABASE_URL="<DATABASE_URL>" npx prisma db push
+   --skip-generate` must say the database is already in sync.
+3. Redeploy that build. What to expect on it:
+   - **Supplier-bill files uploaded on this release can't be opened**: this
+     release keeps them in `PoAttachment`, which the previous build never
+     reads, so their POs list the file name with no file. Files uploaded on
+     the previous build still open. Download any you need before rolling back
+     (or roll forward again — they are all still there).
+   - The previous build ignores the new columns: archived items show as
+     active again, and a PO's list of several supplier bills shows only the
+     totals kept on the PO.
+   - It rewrites part-payments on new receipts and returns again. When you
+     upgrade again: take a new backup, remove the record of the earlier run
+     (`psql "<DATABASE_URL>" -c "DELETE FROM \"AppConfig\" WHERE key='migration:fix-existing-bills'"`
+     — otherwise the script takes the bills the previous build changed for
+     bills of this release and leaves them alone), and repeat steps 3–7.
+     A bill whose return was reversed on this release (the refund collected
+     back) can then come up as "an older build paid back ₹X but only ₹Y was
+     over-paid": if this release showed that bill with a due, that due is the
+     difference — use `keepRefunds`.
 
 Never add `--accept-data-loss` to the start-up command just to make a rollback
 start. It deletes those columns and their data without asking.
