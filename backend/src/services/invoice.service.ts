@@ -236,7 +236,9 @@ export function createSale(inv: any, reqUser?: any) {
     throw new AppError('BAD_REQUEST', 'A sale needs its line items.', 400);
   }
   // CASH8-7: a bill must carry a real date that is not in the future (IST).
-  assertBusinessDate(inv.date, 'A sale');
+  // An edit sent without a date keeps the stored bill's own date (SEC7-1,
+  // filled in inside the transaction below).
+  if (inv.date || !inv.id) assertBusinessDate(inv.date, 'A sale');
   recomputeInvoiceMoney(inv); // server-authoritative totals
   // Salesperson incentive: store the ₹ computed from the authoritative grand total.
   if (inv.salespersonId && Number(inv.incentivePercent) > 0) {
