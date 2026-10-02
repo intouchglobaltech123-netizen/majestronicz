@@ -20,7 +20,7 @@ import {
   BRANCHES,
   BranchScope,
 } from '../../types';
-import { purchaseOrderBalanceDue, purchaseOrderAdvance, purchaseOrderOrderedTotal } from '../../types';
+import { purchaseOrderBalanceDue, purchaseOrderAdvance, purchaseOrderTotalValue } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
@@ -293,8 +293,9 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
                       {/* Total + vendor payment status */}
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                        {/* PUR6-4: the order total incl. GST, on the same basis as Remaining. */}
-                        <span title={`${formatCurrency(po.totalAmount)} goods + GST`}>{formatCurrency(purchaseOrderOrderedTotal(po))}</span>
+                        {/* PUR6-4 / PUR9-5: received goods at their receipt rates + units still
+                            expected + packing/other charges — the same basis as Remaining. */}
+                        <span title={`Received at receipt rates + still expected + charges${po.otherCharges ? ` (incl. ₹${po.otherCharges} charges)` : ''}`}>{formatCurrency(purchaseOrderTotalValue(po))}</span>
                         {(() => {
                           if (po.status === 'Cancelled') return null;
                           const paid = po.amountPaid || 0;

@@ -32,6 +32,16 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
   const { pendingOrders, setSelectedPendingOrderForDetail } = useErp();
   const [copied, setCopied] = useState(false);
 
+  // PUR9-9: Esc closes the preview, like the bill and challan previews.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !purchaseOrder) return null;
 
   const linkedPendingOrder =
@@ -64,7 +74,9 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
   const lineTax = (l: PurchaseOrder['items'][number]) =>
     l.taxAmount ?? Math.round((l.amount || 0) * ((l.taxPercent || 0) / 100) * 100) / 100;
   const poTax = Math.round(purchaseOrder.items.reduce((s, l) => s + lineTax(l), 0) * 100) / 100;
-  const poGrand = purchaseOrderOrderedTotal({ ...purchaseOrder, totalTax: poTax });
+  // PUR9-5: packing / other charges billed on receipts are part of the total.
+  const poCharges = Math.round((Number(purchaseOrder.otherCharges) || 0) * 100) / 100;
+  const poGrand = Math.round((purchaseOrderOrderedTotal({ ...purchaseOrder, totalTax: poTax }) + poCharges) * 100) / 100;
 
   // Download this PO's line items as a real Excel workbook (.xlsx) with numeric
   // cells — the button said Excel but saved a CSV (V10).
@@ -369,6 +381,12 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                 <span className="text-slate-600">GST</span>
                 <span className="font-mono text-slate-900">{formatCurrency(poTax)}</span>
               </div>
+              {poCharges > 0 && (
+                <div className="flex justify-between py-1.5 border-b border-slate-200 font-medium">
+                  <span className="text-slate-600">Packing / other charges</span>
+                  <span className="font-mono text-slate-900">{formatCurrency(poCharges)}</span>
+                </div>
+              )}
               <div className="flex justify-between py-2 border-b-2 border-slate-900 font-bold text-sm">
                 <span className="text-slate-900 uppercase">Total Order Value (incl. GST)</span>
                 <span className="font-mono text-slate-900 text-base">

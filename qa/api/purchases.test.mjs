@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, near, createItem, stockOf, createPO, getPO, anyVendor, together, paymentsFor,
-  uid, randomPhone, addDays, sql,
+  uid, randomPhone, addDays, sql, saleBody, line,
 } from './lib.mjs';
 
 /** A fresh supplier, so advances / payables of other tests can't interfere. */
@@ -415,7 +415,14 @@ describe('purchases', () => {
   test('PUR6-5 a duplicate supplier (same GSTIN, or same name and phone) is refused', async () => {
     const letters = 'ABCDEFGHIJ';
     const pan = Array.from({ length: 5 }, () => letters[Math.floor(Math.random() * 10)]).join('');
-    const gstin = `33${pan}${String(1000 + Math.floor(Math.random() * 9000))}A1Z5`;
+    const base = `33${pan}${String(1000 + Math.floor(Math.random() * 9000))}A1Z`;
+    const CH = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let sum = 0;
+    for (let i = 0; i < 14; i++) { const v = CH.indexOf(base[i]) * (i % 2 ? 2 : 1); sum += Math.floor(v / 36) + (v % 36); }
+    const gstin = base + CH[(36 - (sum % 36)) % 36];
+    // PUR6-5: a GSTIN whose check digit is wrong is refused.
+    const wrong = base + CH[(36 - (sum % 36) + 1) % 36];
+    expectStatus(await post('/api/vendors', { vendorName: `QA Bad GSTIN ${uid()}`, contactNo: randomPhone(), address: '', gstin: wrong }), 400, 'wrong check digit');
     const v = await newVendor({ gstin });
     expectStatus(await post('/api/vendors', { vendorName: `Other ${uid()}`, contactNo: randomPhone(), address: '', gstin }), 409, 'same GSTIN');
     expectStatus(await post('/api/vendors', { vendorName: v.vendorName.toUpperCase(), contactNo: `+91 ${v.contactNo}`, address: '' }), 409, 'same name + phone');
@@ -443,11 +450,11 @@ describe('several supplier bills per PO', () => {
     expectStatus(await post('/api/purchase/bill', { poId: po.id, bill: { number: `X-${uid()}`, date: '2026-09-20', taxable: 1, gst: 0, attachmentId: 'att-nope' } }), 400);
     // Edit the second bill, then remove the first.
     const second = after.supplierBills[1];
-    ok(await post('/api/purchase/bill', { poId: po.id, bill: { id: second.id, number: n2, date: '2026-09-21', taxable: 500, gst: 90 } }), 'edit keeps its own number');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { id: second.id, number: n2, date: '2026-09-21', taxable: 350, gst: 63 } }), 'edit keeps its own number');
     ok(await post('/api/purchase/bill/delete', { poId: po.id, billId: after.supplierBills[0].id }), 'remove first');
     after = await getPO(po.id);
-    assert.deepEqual(after.supplierBills.map((b) => [b.number, b.date, b.gst]), [[n2, '2026-09-21', 90]]);
-    near(after.supplierBillGst, 90);
+    assert.deepEqual(after.supplierBills.map((b) => [b.number, b.date, b.gst]), [[n2, '2026-09-21', 63]]);
+    near(after.supplierBillGst, 63);
   });
 
   test('E2E5-11 the same supplier bill number cannot be recorded twice for one vendor', async () => {
@@ -469,7 +476,7 @@ describe('several supplier bills per PO', () => {
   test('E2E5-11 an older PO with only the single-bill fields still reads as one bill and gains a second', async () => {
     const vendor = await newVendor();
     const item = await createItem();
-    const po = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    const po = await createPO([{ item, qty: 3, price: 100 }], { vendor }); // worth 300: room for both bills (PUR9-7)
     const old = `OLD-${uid()}`;
     if (!sql('SELECT 1')) return; // needs DATABASE_URL to fake the older row
     sql(`UPDATE "PurchaseOrder" SET "supplierBillNumber"='${old}', "supplierBillDate"='2026-09-10', "supplierBillTaxable"=200, "supplierBillGst"=36, "supplierBills"=NULL WHERE id='${po.id}'`);
@@ -550,4 +557,58 @@ describe('round 9: purchases', () => {
     expectStatus(await vendorPay(vendor, 100, [{ refId: po.id, amount: 0 }]), 400, 'zero row');
     near((await getPO(po.id)).amountPaid || 0, 0);
   });
+
+  test('E2E9-4 receiving goods at 0% GST never changes the GST the branch charges on sales', async () => {
+    const item = await createItem({ price: 1000, gst: 18, purchasePrice: 500, stock: {} });
+    const po = await createPO([{ item, qty: 3, price: 500, tax: 0 }]);
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 3, taxPercent: 0 }]), 'receive at 0%');
+    const date = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const sale = (rate) => post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { taxRate: rate })] }));
+    expectStatus(await sale(0), 400, 'billing at the purchase rate (0%)');
+    const okSale = ok(await sale(18), 'billing at the catalogue 18%');
+    near(okSale.savedInvoice.totalTax, 180);
+  });
+
+  test('PUR9-4 an overpayment left on a finished PO becomes the supplier\'s advance and can be applied to another PO', async () => {
+    const vendor = await newVendor();
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const po = await createPO([{ item, qty: 2, price: 100, tax: 0 }], { vendor });
+    ok(await vendorPay(vendor, 200, [{ refId: po.id, amount: 200 }]), 'prepay both units');
+    expectStatus(await post('/api/payments/vendor-advance/release', { poId: po.id }), [400, 409], 'nothing to release while units are expected');
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 1, damagedQuantity: 1 }]), '1 good, 1 damaged');
+    const res = ok(await post('/api/payments/vendor-advance/release', { poId: po.id }), 'release');
+    near(res.moved, 100);
+    near((await getPO(po.id)).amountPaid, 100, 'the PO keeps what it owes');
+    const po2 = await createPO([{ item, qty: 1, price: 100, tax: 0 }], { vendor });
+    ok(await receiveAll(po2, [{ itemId: item.id, quantityReceived: 1 }]), 'receive PO 2');
+    ok(await post('/api/payments/vendor-advance/apply', { vendorId: vendor.id, poId: po2.id }), 'apply the advance to PO 2');
+    near((await getPO(po2.id)).amountPaid, 100);
+  });
+
+  test('PUR9-6 a PO is not future-dated, delivery not before the order, and names come from the masters', async () => {
+    const item = await createItem();
+    const tomorrow = addDays(new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10), 1);
+    const v = await anyVendor();
+    const save = (extra, lineExtra = {}) => post('/api/purchase/save', { po: {
+      vendorId: v.id, vendorName: 'Fake Vendor', vendorGstin: '99FAKE', branchId: 'erode-hq', date: '2026-09-15', expectedDeliveryDate: '2026-09-30',
+      items: [{ itemId: item.id, itemName: 'Free gold', itemCode: 'X', quantityOrdered: 1, receivedQuantity: 0, purchasePrice: 10, taxPercent: 18, ...lineExtra }], totalAmount: 0, ...extra,
+    }, actor: 'QA' });
+    expectStatus(await save({ date: tomorrow, expectedDeliveryDate: tomorrow }), 400, 'future PO date');
+    expectStatus(await save({ expectedDeliveryDate: '2026-09-01' }), 400, 'delivery before order');
+    const saved = ok(await save({})).saved;
+    assert.equal(saved.items[0].itemName, item.itemName, 'line name from the item master');
+    assert.equal(saved.vendorName, v.vendorName, 'supplier name from the master');
+    assert.notEqual(saved.vendorGstin, '99FAKE');
+  });
+
+  test('PUR9-7 / PUR3-8 supplier bills on a PO cannot exceed the goods it covers; none on a cancelled PO', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 2, price: 100, tax: 18 }]);
+    expectStatus(await post('/api/purchase/bill', { poId: po.id, bill: { number: `B-${uid()}`, date: '2026-09-16', taxable: 5000, gst: 900 } }), 400, 'bill far above the PO');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: `B-${uid()}`, date: '2026-09-16', taxable: 200, gst: 36 } }), 'bill for the goods');
+    const po2 = await createPO([{ item, qty: 1, price: 100, tax: 18 }]);
+    ok(await post(`/api/purchase/${po2.id}/cancel`, { actor: 'QA' }), 'cancel');
+    expectStatus(await post('/api/purchase/bill', { poId: po2.id, bill: { number: `B-${uid()}`, date: '2026-09-16', taxable: 100, gst: 18 } }), 409, 'bill on a cancelled PO');
+  });
 });
+

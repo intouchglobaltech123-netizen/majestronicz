@@ -187,7 +187,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   const vendorCodeForItem = (item: Item | null | undefined, vendorId: string): string | undefined => {
     if (!item) return undefined;
     const match = item.vendors?.find((v) => v.vendorId === vendorId)?.vendorCode;
-    return (match || item.vendorCode || undefined) as string | undefined;
+    // INV4-11: the item's primary code belongs to its PRIMARY vendor — never
+    // show it on a PO to another supplier.
+    const primary = !item.vendorId || item.vendorId === vendorId ? item.vendorCode : undefined;
+    return (match || primary || undefined) as string | undefined;
   };
 
   // When the vendor changes, re-resolve every line's code for the new vendor and
@@ -297,6 +300,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       }
       const parsed = Number(raw);
       const safeQty = !Number.isFinite(parsed) || parsed <= 0 ? 1 : parsed;
+      // PUR9-8: the quantity is fixed now — drop its error banner (unless
+      // another line still has a bad quantity).
+      const othersBad = next.some((l, k) => k !== index && l.quantityText != null && qtyProblem(l.quantityText, l.item?.unit));
+      if (!othersBad) setFormErrors((e) => { const { lines: _l, ...rest } = e as any; return rest; });
       next[index] = {
         ...next[index],
         quantity: safeQty,

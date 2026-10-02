@@ -41,6 +41,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
   if (poData.expectedDeliveryDate != null && poData.expectedDeliveryDate !== '' && !isValidYmd(poData.expectedDeliveryDate)) {
     throw new AppError('BAD_DATE', 'Expected delivery date must be a real date (YYYY-MM-DD).', 400);
   }
+
   // Serializable + retry so a concurrent Edit-Prices and receive on the same PO
   // can't lose one another's write (E2E-5).
   return serializableTx(async (tx: any) => {
@@ -51,7 +52,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     if (!lineItems.length) throw new AppError('NO_ITEMS', 'A purchase order needs at least one line item.', 400);
     const itemIds = lineItems.map((l: any) => l?.itemId).filter(Boolean);
     const knownItems = new Map<string, any>(
-      (await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, unit: true, itemName: true, isArchived: true } })).map((i: any) => [i.id, i]),
+      (await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, unit: true, itemName: true, itemCode: true, isArchived: true } })).map((i: any) => [i.id, i]),
     );
     for (const l of lineItems) {
       if (!l?.itemId || !knownItems.has(l.itemId)) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
@@ -66,8 +67,20 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       if (l.taxPercent != null && !isValidTaxPercent(l.taxPercent)) throw new AppError('BAD_TAX', 'Tax % must be between 0 and 100.', 400);
     }
     // The vendor must exist.
-    const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true, vendorName: true } });
+    const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true, vendorName: true, gstin: true, contactNo: true, address: true } });
     if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
+    // PUR9-6: names, codes and the supplier's GSTIN come from the masters, not
+    // the request (a PO line could be saved as "Free gold" for a real item id).
+    for (const l of lineItems) {
+      const it = knownItems.get(l.itemId);
+      if (!it) continue;
+      l.itemName = it.itemName;
+      if (it.itemCode) l.itemCode = it.itemCode;
+      if (it.unit) l.unit = it.unit;
+    }
+    poData.vendorName = vendor.vendorName;
+    poData.vendorGstin = vendor.gstin ?? null;
+    if (vendor.contactNo) poData.vendorContact = vendor.contactNo;
     let saved: any;
     // These are owned by dedicated flows (receive / pay / cancel / record-bill /
     // attachments) and the server — never taken from a general PO save, or a PO
@@ -89,6 +102,15 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     };
     const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
+    // PUR9-6: an order is placed today or earlier, and delivery can't be expected
+    // before the order date (an older PO's unchanged dates are left alone).
+    if ((!existingPo || existingPo.date !== poData.date) && poData.date > istToday()) {
+      throw new AppError('BAD_DATE', 'The PO date cannot be in the future.', 400);
+    }
+    if (poData.expectedDeliveryDate && poData.expectedDeliveryDate < poData.date &&
+      (!existingPo || existingPo.date !== poData.date || existingPo.expectedDeliveryDate !== poData.expectedDeliveryDate)) {
+      throw new AppError('BAD_DATE', 'The expected delivery date cannot be before the PO date.', 400);
+    }
     // An archived item can't be ordered again; a line it already had stays editable.
     const prevItemIds = new Set(((existingPo?.items as any[]) || []).map((l: any) => l?.itemId));
     for (const l of lineItems) {
@@ -563,14 +585,13 @@ export function receivePurchaseOrderStock(
         create: {
           itemId: rec.itemId, branchId: po.branchId, quantity: good,
           location: rec.location?.trim() || '', minStockAlert: 5, updatedAt: ts,
-          // The rate confirmed on the supplier's bill becomes this branch's
-          // rate for the item (the receiver corrected it for a reason).
-          ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
+          // E2E9-4: the GST on the SUPPLIER's bill is a purchase rate — it never
+          // changes the rate this branch charges its customers (a 0% receipt
+          // made later sales bill at 0%). The sale rate stays the catalogue's.
         },
         update: {
           quantity: prevQty + good,
           ...(rec.location ? { location: rec.location.trim() } : {}),
-          ...(rec.taxPercent != null ? { gstTaxSlab: Number(rec.taxPercent) } : {}),
           updatedAt: ts,
         },
       });
@@ -715,10 +736,27 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     if (attachmentId && !((po.attachments as any[]) || []).some((a: any) => a?.id === attachmentId)) {
       throw new AppError('BAD_ATTACHMENT', 'The attached file is not on this purchase order.', 400);
     }
+    // PUR3-8: a cancelled PO bought nothing — no ITC can be claimed on it.
+    if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'A cancelled purchase order cannot carry a supplier bill.', 409);
     const bills = supplierBillsOf(po).map((b) => ({ ...b }));
     const editId = bill?.id ? String(bill.id) : '';
     const at = editId ? bills.findIndex((b) => b.id === editId) : -1;
     if (editId && at < 0) throw new AppError('NOT_FOUND', 'That supplier bill is not on this purchase order.', 404);
+    // PUR9-7: the bills on a PO can't claim more than the goods it covers —
+    // units received good or damaged (a damaged unit is billed, then
+    // debit-noted) and units still expected, at their price and GST, plus the
+    // packing / other charges. Missing units were never supplied.
+    // (The GST on each bill is already capped at 28% of its taxable value; a PO
+    // line's own rate may be unset, so it is not a GST ceiling.)
+    let capTaxable = Number(po.otherCharges) || 0;
+    for (const l of (po.items as any[]) || []) {
+      const open = Math.max(0, (Number(l.quantityOrdered) || 0) - lineSettled(l));
+      capTaxable += lineGoodValue(l).taxable + Math.round(((Number(l.damagedQuantity) || 0) + open) * (Number(l.purchasePrice) || 0) * 100) / 100;
+    }
+    const billedTaxable = bills.filter((_, k) => k !== at).reduce((t, b) => t + (Number(b.taxable) || 0), 0) + taxable;
+    if (billedTaxable > capTaxable * 1.01 + 1) {
+      throw new AppError('BILL_ABOVE_GOODS', `The supplier bills on this PO add up to a taxable ₹${Math.round(billedTaxable * 100) / 100}, more than the goods it covers (₹${Math.round(capTaxable * 100) / 100}). Check the bill.`, 400);
+    }
     // The same supplier bill can't be claimed twice (double ITC).
     const key = billNumberKey(number);
     const others = await tx.purchaseOrder.findMany({ where: { vendorId: po.vendorId, NOT: { status: 'Cancelled' } } });

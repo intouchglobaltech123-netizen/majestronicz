@@ -12,11 +12,12 @@ import { BranchStock, Item } from '../types';
 
 export function effectiveTaxSlab(
   itemSlab: number | null | undefined,
-  branchOverride?: number | null,
+  _branchOverride?: number | null,
 ): number {
-  if (branchOverride != null && Number.isFinite(Number(branchOverride))) {
-    return Number(branchOverride);
-  }
+  // E2E9-4: the SALE rate is the catalogue rate. A branch row's gstTaxSlab was
+  // only ever written by a purchase receipt (the supplier's bill rate) — a 0%
+  // receipt made the branch bill its customers at 0%. That purchase rate is no
+  // longer written, and an older one is ignored for sales.
   const slab = Number(itemSlab);
   return Number.isFinite(slab) ? slab : 0;
 }

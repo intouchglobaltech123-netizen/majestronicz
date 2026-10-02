@@ -10,7 +10,7 @@ import {
   HandCoins,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Vendor, purchaseOrderBalanceDue, purchaseOrderOrderedTotal, poLineOpen, vendorPayables, totalVendorPayable } from '../../types';
+import { Vendor, purchaseOrderBalanceDue, purchaseOrderTotalValue, purchaseOrderOpenValue, poLineOpen, vendorPayables, totalVendorPayable } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
 import { VendorMasterModal } from './VendorMasterModal';
@@ -51,7 +51,8 @@ export const PurchaseManagementView: React.FC = () => {
   const activeOrders = purchaseOrders.filter(
     (p) => p.status === 'Ordered' || p.status === 'Partially Received'
   );
-  const activeOrdersValue = activeOrders.reduce((sum, p) => sum + purchaseOrderOrderedTotal(p), 0);
+  // PUR9-10: the value of what is still to ARRIVE (not the whole orders' value).
+  const activeOrdersValue = activeOrders.reduce((sum, p) => sum + purchaseOrderOpenValue(p), 0);
 
   const overdueOrders = activeOrders.filter((p) => p.expectedDeliveryDate < todayStr);
 
@@ -74,7 +75,7 @@ export const PurchaseManagementView: React.FC = () => {
   const thisMonth = todayStr.slice(0, 7);
   const monthSpend = purchaseOrders
     .filter((p) => p.status !== 'Cancelled' && (p.date || '').startsWith(thisMonth))
-    .reduce((sum, p) => sum + purchaseOrderOrderedTotal(p), 0);
+    .reduce((sum, p) => sum + purchaseOrderTotalValue(p), 0);
 
   const handleOpenGeneralPo = () => {
     setSelectedVendorForPo(null);
@@ -193,7 +194,7 @@ export const PurchaseManagementView: React.FC = () => {
               {activeOrders.length} <span className="text-sm font-bold text-slate-500">order{activeOrders.length === 1 ? '' : 's'}</span>
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {pendingUnitsInward.toLocaleString('en-IN')} units pending · {formatCurrency(activeOrdersValue)}
+              {pendingUnitsInward.toLocaleString('en-IN')} units pending · {formatCurrency(activeOrdersValue)} still to arrive
             </p>
           </div>
         </div>

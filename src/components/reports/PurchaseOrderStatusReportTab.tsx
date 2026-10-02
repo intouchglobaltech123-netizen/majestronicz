@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, PurchaseOrderStatus } from '../../types';
+import { BranchScope, BRANCHES, PurchaseOrderStatus, purchaseOrderTotalValue, purchaseOrderGrandOwed } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -62,17 +62,15 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
       // Cancelled orders still show in the status counts but must NOT inflate the
       // ordered/received value or the fulfillment denominator.
       const countsTowardValue = po.status !== 'Cancelled';
-      if (countsTowardValue) totalValueOrdered += po.totalAmount;
+      // E2E9-10: valued like the PO screens — goods received at the price and GST
+      // of THEIR receipt (a later receipt at another price never re-values them),
+      // units still expected at the line's price, plus charges.
+      if (countsTowardValue) totalValueOrdered += purchaseOrderTotalValue(po);
 
-      // Calculate received value from line items
       let poReceivedVal = 0;
       if (countsTowardValue) {
-        po.items.forEach((item) => {
-          const qtyReceived = item.receivedQuantity || 0;
-          const lineReceived = qtyReceived * item.purchasePrice;
-          poReceivedVal += lineReceived;
-          totalValueReceived += lineReceived;
-        });
+        poReceivedVal = purchaseOrderGrandOwed(po);
+        totalValueReceived += poReceivedVal;
       }
 
       // Check if overdue: expectedDeliveryDate < today and status is Ordered or Partially Received
@@ -139,7 +137,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
         bObj?.name || po.branchId,
         po.vendorName,
         po.expectedDeliveryDate || '—',
-        po.totalAmount.toFixed(2),
+        Math.round(purchaseOrderTotalValue(po) * 100) / 100,
         po.status,
         po.items.length,
         isOverdue ? 'YES' : 'NO',
@@ -150,8 +148,9 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
     rows.push([]);
     rows.push(['--- PO PERFORMANCE SUMMARY ---']);
     rows.push(['Total POs Placed', metrics.totalCount]);
-    rows.push(['Total Value Ordered (₹)', metrics.totalValueOrdered.toFixed(2)]);
-    rows.push(['Total Value Received (₹)', metrics.totalValueReceived.toFixed(2)]);
+    // RPT4-4: numbers, not text.
+    rows.push(['Total Value Ordered (₹)', Math.round(metrics.totalValueOrdered * 100) / 100]);
+    rows.push(['Total Value Received (₹)', Math.round(metrics.totalValueReceived * 100) / 100]);
     rows.push(['Fulfillment Completion (%)', `${metrics.completionRate.toFixed(1)}%`]);
     rows.push(['Overdue POs Count', metrics.overdueList.length]);
 
@@ -169,7 +168,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
           bObj?.name || po.branchId,
           po.expectedDeliveryDate,
           days,
-          po.totalAmount.toFixed(2),
+          Math.round(purchaseOrderTotalValue(po) * 100) / 100,
           po.status,
         ]);
       });
@@ -360,7 +359,7 @@ export const PurchaseOrderStatusReportTab: React.FC<Props> = ({
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-right font-bold font-mono tabular-nums text-slate-900">
-                            ₹{po.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            ₹{purchaseOrderTotalValue(po).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                           </td>
                           <td className="py-2.5 px-3 text-center">
                             <span

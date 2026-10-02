@@ -56,15 +56,21 @@ async function handle<T>(res: Response): Promise<T> {
     onUnauthorized?.();
   }
   if (!res.ok) {
-    let detail = '';
+    let message = '';
+    let code = '';
     try {
       const body = await res.json();
-      // Prefer the human-readable message; fall back to the error code.
-      detail = body?.message ? `: ${body.message}` : body?.error ? `: ${body.error}` : '';
+      message = typeof body?.message === 'string' ? body.message : '';
+      code = typeof body?.error === 'string' ? body.error : '';
     } catch {
       /* ignore parse errors */
     }
-    throw new Error(`API ${res.status} ${res.statusText}${detail}`);
+    // PUR9-9: the error text is the server's own sentence (it is what the toast
+    // shows) — never "API 409 Conflict: …". The status and code ride along.
+    const err: Error & { status?: number; code?: string } = new Error(message || `The server refused this (${res.status}${code ? ` ${code}` : ''}).`);
+    err.status = res.status;
+    err.code = code;
+    throw err;
   }
   return res.json() as Promise<T>;
 }

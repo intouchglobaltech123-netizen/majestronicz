@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, supplierBillsOf } from '../../types';
+import { BranchScope } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
-import { periodInvoiceFigures, returnDay } from '../../lib/reportMath';
+import { periodInvoiceFigures, returnDay, inputTaxCredit } from '../../lib/reportMath';
 import { FileSpreadsheet, Landmark, Percent, Hash, Users, Calculator } from 'lucide-react';
 
 interface Props {
@@ -48,23 +48,16 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
   const { invoices, customers, purchaseOrders } = useErp();
   const [view, setView] = useState<'rate' | 'hsn' | 'b2b' | '3b'>('rate');
 
-  // Input Tax Credit from supplier bills entered on POs (date-filtered by bill date).
-  const itc = useMemo(() => {
-    let total = 0;
-    for (const po of purchaseOrders) {
-      if (po.status === 'Cancelled') continue;
-      if (branchScope !== 'all' && po.branchId !== branchScope) continue;
-      for (const b of supplierBillsOf(po)) {
-        const g = Number(b.gst) || 0;
-        if (g <= 0) continue;
-        const d = b.date || po.date;
-        if (startDate && d < startDate) continue;
-        if (endDate && d > endDate) continue;
-        total += g;
-      }
-    }
-    return Math.round(total * 100) / 100;
-  }, [purchaseOrders, startDate, endDate, branchScope]);
+  // Input Tax Credit — the SAME function as the ITC register (PUR3-8 / E2E-4):
+  // supplier bills less the GST reversed on damaged units' debit notes.
+  const itc = useMemo(
+    () => inputTaxCredit(
+      purchaseOrders,
+      (d) => !!d && (!startDate || d >= startDate) && (!endDate || d <= endDate),
+      (b) => branchScope === 'all' || b === branchScope,
+    ).net,
+    [purchaseOrders, startDate, endDate, branchScope],
+  );
 
   // Resolve a buyer's GSTIN from the customer master (invoices don't store it directly).
   const buyerGstin = (inv: any): string => {
@@ -167,6 +160,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
         ['Outward taxable supplies (output tax)', r2(totals.taxable), r2(totals.cgst), r2(totals.sgst), r2(totals.igst), r2(totals.total)],
         ['Less: Input Tax Credit (from purchase bills)', '', '', '', '', r2(itc)],
         ['Net Tax Payable', '', '', '', '', Math.max(0, r2(totals.total - itc))],
+        ['ITC carried forward (excess credit)', '', '', '', '', Math.max(0, r2(itc - totals.total))],
       ];
     }
     if (format === 'excel') exportToExcel(filename, headers, rows);
@@ -393,6 +387,17 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
                   <td className="py-3 px-4 text-right">—</td>
                   <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(Math.max(0, totals.total - itc))}</td>
                 </tr>
+                {/* PUR3-9: credit beyond the output tax is not lost — it carries forward. */}
+                {itc - totals.total > 0.005 && (
+                  <tr className="text-indigo-800 font-semibold">
+                    <td className="py-3 px-4 font-sans">ITC carried forward to the next period</td>
+                    <td className="py-3 px-4 text-right">—</td>
+                    <td className="py-3 px-4 text-right">—</td>
+                    <td className="py-3 px-4 text-right">—</td>
+                    <td className="py-3 px-4 text-right">—</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(itc - totals.total)}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           )}

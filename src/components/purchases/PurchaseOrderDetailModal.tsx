@@ -30,8 +30,9 @@ import {
   purchaseOrderGrandOwed,
   purchaseOrderBalanceDue,
   purchaseOrderAdvance,
+  purchaseOrderOpenValue,
   purchaseOrderPayCap,
-  purchaseOrderOrderedTotal,
+  purchaseOrderTotalValue,
   SupplierBill,
   supplierBillsOf,
 } from '../../types';
@@ -97,6 +98,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 }) => {
   const {
     canManagePurchases,
+    releasePoOverpayment,
     cancelPurchaseOrder,
     addPurchaseOrderAttachment,
     deletePurchaseOrderAttachment,
@@ -202,7 +204,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const poTotalTax =
     purchaseOrder.totalTax ??
     purchaseOrder.items.reduce((sum, l) => sum + (l.taxAmount || 0), 0);
-  const poGrandTotal = purchaseOrderOrderedTotal(purchaseOrder);
+  // PUR9-5: received at receipt rates + still expected + charges.
+  const poGrandTotal = purchaseOrderTotalValue(purchaseOrder);
 
   // File Upload Handler (PDF or Image, base64 stopgap)
   const handleFileUpload = async (files: FileList | null) => {
@@ -854,9 +857,28 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         </div>
                       </div>
                       {advance > 0.005 && (
-                        <p className="text-[11px] font-semibold text-indigo-700">
-                          {formatCurrency(advance)} paid ahead of delivery — held as an advance with the supplier.
-                        </p>
+                        purchaseOrder.status !== 'Cancelled' && purchaseOrderOpenValue(purchaseOrder) > 0.005 ? (
+                          <p className="text-[11px] font-semibold text-indigo-700">
+                            {formatCurrency(advance)} paid ahead of delivery — held as an advance with the supplier.
+                          </p>
+                        ) : (
+                          // PUR9-4: nothing more is coming on this PO — the overpayment
+                          // can become the supplier's advance (to apply to another PO).
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-[11px] font-semibold text-indigo-700">
+                              {formatCurrency(advance)} paid beyond what this PO owes.
+                            </p>
+                            {canManagePurchases && (
+                              <button
+                                type="button"
+                                onClick={() => void releasePoOverpayment(purchaseOrder.id)}
+                                className="px-2.5 py-1 text-[11px] font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 cursor-pointer"
+                              >
+                                Move to supplier advance
+                              </button>
+                            )}
+                          </div>
+                        )
                       )}
 
                       {/* Record a payment — PUR2-9: not on a cancelled PO, and never

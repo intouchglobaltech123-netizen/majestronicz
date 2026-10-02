@@ -236,7 +236,9 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       'Movement',
     ];
 
-    const rows = valuationData.itemRows.map((r) => [
+    // RPT2-6 / RPT4-4: money cells are NUMBERS, so a spreadsheet can add them up.
+    const n2 = (v: number) => Math.round((Number(v) || 0) * 100) / 100;
+    const rows: (string | number)[][] = valuationData.itemRows.map((r) => [
       r.item.itemName,
       r.item.itemCode,
       r.item.category,
@@ -244,13 +246,13 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       r.quantity,
       r.threshold,
       r.status,
-      r.unitCost.toFixed(2),
-      r.unitSale.toFixed(2),
-      r.totalCost.toFixed(2),
-      r.totalRetail.toFixed(2),
-      r.potentialProfit.toFixed(2),
+      n2(r.unitCost),
+      n2(r.unitSale),
+      n2(r.totalCost),
+      n2(r.totalRetail),
+      n2(r.potentialProfit),
       r.unitsSold,
-      r.monthlyRate.toFixed(1),
+      Math.round(r.monthlyRate * 10) / 10,
       MOVEMENT_META[r.movement].label,
     ]);
 
@@ -258,9 +260,9 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     rows.push([]);
     rows.push(['--- VALUATION SUMMARY ---']);
     rows.push(['Total Physical Units', valuationData.activeUnits]);
-    rows.push(['Total Cost Valuation (₹)', valuationData.activePurchaseValue.toFixed(2)]);
-    rows.push(['Total Retail Valuation (₹)', valuationData.activeRetailValue.toFixed(2)]);
-    rows.push(['Potential Margin (₹)', valuationData.activeMargin.toFixed(2)]);
+    rows.push(['Total Cost Valuation (₹)', n2(valuationData.activePurchaseValue)]);
+    rows.push(['Total Retail Valuation (₹)', n2(valuationData.activeRetailValue)]);
+    rows.push(['Potential Margin (₹)', n2(valuationData.activeMargin)]);
     rows.push(['Low Stock Items Count', valuationData.activeLowStock]);
     rows.push(['Out of Stock Items Count', valuationData.activeOutOfStock]);
     rows.push([`Fast moving (>=10/mo, last ${VELOCITY_WINDOW_DAYS}d)`, valuationData.movementCounts.fast]);

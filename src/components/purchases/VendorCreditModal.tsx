@@ -111,7 +111,7 @@ export const VendorCreditModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       <tr key={p.id}>
                         <td className="py-2 px-4">
                           <span className="font-mono font-semibold text-slate-800">{p.receiptNumber}</span>
-                          <span className="text-[11px] text-slate-400 block">{p.date} · not applied to a PO — use it from the supplier statement</span>
+                          <span className="text-[11px] text-slate-400 block">{p.date} · supplier advance (not yet applied to a PO) — apply it from the supplier statement</span>
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-400">—</td>
                         <td className="py-2 px-3 text-right font-mono text-slate-600">{formatCurrency(p.amount)}</td>

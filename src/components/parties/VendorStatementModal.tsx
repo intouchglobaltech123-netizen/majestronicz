@@ -213,7 +213,7 @@ export const VendorStatementModal: React.FC<Props> = ({ vendor, isOpen, onClose,
                     </tr>
                     {unappliedTotal > 0.005 && (
                       <tr className="text-indigo-700 font-semibold">
-                        <td className="py-1.5 px-3 text-[11px]" colSpan={4}>Less: payments not applied to any PO (advance)</td>
+                        <td className="py-1.5 px-3 text-[11px]" colSpan={4}>Less: supplier advance (paid, not yet applied to a PO)</td>
                         <td className="py-1.5 px-3 text-right font-mono">−{formatCurrency(unappliedTotal)}</td>
                       </tr>
                     )}

@@ -9,7 +9,7 @@ import { nextPersistent } from '../lib/sequences.js';
 import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customerCredit.service.js';
 import { collectedAtBilling } from '../lib/billingSplit.js';
 import { istToday, assertBusinessDate } from '../lib/businessDate.js';
-import { poPayCap, poBalance, unappliedOf } from '../lib/poMoney.js';
+import { poPayCap, poBalance, unappliedOf, poAdvance, poOpenValue } from '../lib/poMoney.js';
 
 /**
  * Party ledger / payments service.
@@ -585,6 +585,55 @@ export async function applyVendorAdvance(
       data: { amountPaid: round2((po.amountPaid || 0) + total), payments: [...entries, ...((po.payments as any[]) || [])], updatedAt: ts },
     });
     return { ok: true, applied: total, poId: po.id };
+  });
+}
+
+/**
+ * PUR9-4: money paid on a PO beyond what it finally owes (e.g. prepaid, then
+ * units came damaged or the PO was cancelled) used to sit on that PO for good.
+ * Once nothing more is expected on the PO, the excess is taken off the PO's
+ * payment rows (newest first) and becomes the supplier's advance at that
+ * branch, which can then be applied to another PO. No cash moves.
+ */
+export async function releasePoOverpayment(input: { poId?: string }, actor?: { name?: string }, reqUser?: any) {
+  if (reqUser && !roleCan(reqUser.role, 'purchase:write')) {
+    throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to pay vendors.`, 403);
+  }
+  return serializableTx(async (tx) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: String(input.poId || '') } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId);
+    if (po.status !== 'Cancelled' && poOpenValue(po) > 0.005) {
+      throw new AppError('PO_OPEN', 'Units are still expected on this purchase order — a payment beyond what has arrived is its advance until then.', 409);
+    }
+    let excess = poAdvance(po);
+    if (excess <= 0.005) throw new AppError('NOTHING_TO_RELEASE', 'Nothing has been paid on this purchase order beyond what it owes.', 400);
+    const rows = (await tx.payment.findMany({ where: { type: 'out', partyType: 'vendor' }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] }))
+      .filter((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === po.id));
+    const ts = nowIso();
+    let moved = 0;
+    for (const p of rows) {
+      if (excess <= 0.005) break;
+      const allocs = (p.allocations as any[]).map((a) => ({ ...a }));
+      for (const a of allocs) {
+        if (a.refId !== po.id || excess <= 0.005) continue;
+        const take = round2(Math.min(Number(a.amount) || 0, excess));
+        a.amount = round2((Number(a.amount) || 0) - take);
+        excess = round2(excess - take);
+        moved = round2(moved + take);
+      }
+      await tx.payment.update({ where: { id: p.id }, data: { allocations: allocs.filter((a) => a.refId !== po.id || (Number(a.amount) || 0) > 0.005) as any, updatedAt: ts } });
+    }
+    if (moved <= 0.005) throw new AppError('NOTHING_TO_RELEASE', 'The payments on this PO were recorded by an older build without ledger rows and cannot be moved.', 409);
+    await tx.purchaseOrder.update({
+      where: { id: po.id },
+      data: {
+        amountPaid: round2((Number(po.amountPaid) || 0) - moved),
+        payments: [{ id: rid('pay'), date: istToday(), amount: -moved, mode: 'Moved to supplier advance', by: actor?.name || 'System' }, ...((po.payments as any[]) || [])],
+        updatedAt: ts,
+      },
+    });
+    return { ok: true, moved, poId: po.id };
   });
 }
 

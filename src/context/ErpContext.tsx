@@ -443,6 +443,8 @@ interface ErpContextType {
   ) => Promise<boolean>;
   recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => Promise<boolean>;
   applyVendorAdvance: (vendorId: string, poId: string, amount?: number) => Promise<boolean>;
+  /** PUR9-4: move what a finished PO was overpaid into the supplier's advance. */
+  releasePoOverpayment: (poId: string) => Promise<boolean>;
   recordPurchaseBill: (poId: string, bill: { id?: string; number: string; date: string; taxable: number; gst: number; attachmentId?: string | null }) => Promise<boolean>;
   deletePurchaseBill: (poId: string, billId: string) => Promise<boolean>;
   addPurchaseOrderAttachment: (
@@ -3673,6 +3675,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const releasePoOverpayment = async (poId: string): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ moved: number }>('/api/payments/vendor-advance/release', { poId });
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      refreshVendorPayments();
+      toast.success(`₹${(res?.moved || 0).toLocaleString('en-IN')} moved to the supplier's advance`);
+      return true;
+    } catch (e: any) {
+      toast.error('Could not move the overpayment', { description: serverMessage(e) });
+      return false;
+    }
+  };
+
   const addPurchaseOrderAttachment = async (
     poId: string,
     attachmentData: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
@@ -4093,6 +4108,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         receivePurchaseOrderStock,
         recordPurchaseOrderPayment,
         applyVendorAdvance,
+        releasePoOverpayment,
         recordPurchaseBill,
         deletePurchaseBill,
         addPurchaseOrderAttachment,

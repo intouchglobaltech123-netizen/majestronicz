@@ -1,4 +1,6 @@
 import {
+  PurchaseOrder,
+  supplierBillsOf,
   Invoice,
   InvoiceLineItem,
   Item,
@@ -368,4 +370,57 @@ export function productSales(invoices: Invoice[]): {
     }
   }
   return [...map.values()].map((p) => ({ ...p, quantity: Math.round(p.quantity * 1000) / 1000, revenue: r2(p.revenue) }));
+}
+
+export interface ItcRow { kind: 'bill' | 'reversal'; date: string; number: string; vendor: string; gstin: string; poNumber: string; branchId: string; taxable: number; gst: number }
+
+/**
+ * THE input tax credit of a period (PUR3-8 / E2E-4): the GST on supplier bills
+ * entered on purchase orders, dated by the bill, LESS the GST on damaged units
+ * billed back to the supplier on a debit note (the input tax on goods that were
+ * rejected is reversed), dated by the note — only on POs that carry a supplier
+ * bill (no ITC was claimed otherwise). Missing units were never supplied, so a
+ * bill does not include them and nothing is reversed for them. Shared by the
+ * Input Tax Credit register and GSTR-3B, so the two always agree.
+ */
+export function inputTaxCredit(
+  purchaseOrders: PurchaseOrder[],
+  inRange: (day: string) => boolean,
+  inScope: (branchId: string) => boolean,
+): { rows: ItcRow[]; billGst: number; billTaxable: number; reversedGst: number; reversedTaxable: number; net: number; missingBills: number } {
+  const rows: ItcRow[] = [];
+  let billGst = 0, billTaxable = 0, reversedGst = 0, reversedTaxable = 0, missingBills = 0;
+  for (const po of purchaseOrders || []) {
+    if (po.status === 'Cancelled' || !inScope(po.branchId)) continue;
+    const bills = supplierBillsOf(po);
+    if (!bills.length) {
+      if (po.status === 'Received' || po.status === 'Partially Received') missingBills += 1;
+      continue;
+    }
+    for (const b of bills) {
+      const d = b.date || po.date;
+      if (!inRange(d)) continue;
+      const t = num(b.taxable), g = num(b.gst);
+      rows.push({ kind: 'bill', date: d, number: b.number || '—', vendor: po.vendorName, gstin: po.vendorGstin || '', poNumber: po.poNumber, branchId: po.branchId, taxable: t, gst: g });
+      billTaxable += t; billGst += g;
+    }
+    for (const dn of po.debitNotes || []) {
+      if (!inRange(dn.date)) continue;
+      let t = 0, g = 0;
+      for (const l of dn.lines || []) {
+        const dmg = num(l.damagedQuantity), miss = num(l.missingQuantity);
+        const share = dmg + miss > 0 ? dmg / (dmg + miss) : 0;
+        t += num(l.taxableValue) * share;
+        g += num(l.taxAmount) * share;
+      }
+      if (g <= 0.004 && t <= 0.004) continue;
+      rows.push({ kind: 'reversal', date: dn.date, number: dn.noteNumber, vendor: po.vendorName, gstin: po.vendorGstin || '', poNumber: po.poNumber, branchId: po.branchId, taxable: -r2(t), gst: -r2(g) });
+      reversedTaxable += t; reversedGst += g;
+    }
+  }
+  rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return {
+    rows, billGst: r2(billGst), billTaxable: r2(billTaxable), reversedGst: r2(reversedGst), reversedTaxable: r2(reversedTaxable),
+    net: r2(billGst - reversedGst), missingBills,
+  };
 }

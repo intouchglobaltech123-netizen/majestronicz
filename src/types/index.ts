@@ -1530,6 +1530,16 @@ export const purchaseOrderOrderedTotal = (po: Pick<PurchaseOrder, 'items' | 'tot
   return poR2((Number(po.totalAmount) || 0) + (Number(tax) || 0));
 };
 
+/**
+ * PUR9-5 / PUR6-4: what a PO is worth — the GOOD units received at the price and
+ * GST of the receipt that brought them in, the units still expected at the
+ * line's price and rate, and the packing / other charges billed on receipts.
+ * (Damaged and missing units are never billed.) Before anything is received
+ * this is the ordered value incl. GST.
+ */
+export const purchaseOrderTotalValue = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'status'>): number =>
+  po.status === 'Cancelled' ? purchaseOrderGrandOwed(po) : poR2(purchaseOrderGrandOwed(po) + purchaseOrderOpenValue(po));
+
 /** Value (incl. GST) of units not yet settled — what may still be prepaid. */
 export const purchaseOrderOpenValue = (po: Pick<PurchaseOrder, 'items'>): number => {
   let total = 0;

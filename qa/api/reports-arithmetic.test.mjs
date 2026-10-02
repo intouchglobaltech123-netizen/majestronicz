@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, put, get, api, ok, expectStatus, near, r2, uid, createItem, createCombo, comboLine, line, serviceLine, saleBody, mustSell, sell,
-  getInvoice, receive, returnLine, freshDay, freshDays, randomPhone, istToday, login,
+  getInvoice, receive, returnLine, freshDay, freshDays, randomPhone, istToday, login, createPO, getPO,
 } from './lib.mjs';
 import { importTs } from './lib-ts.mjs';
 
@@ -283,7 +283,8 @@ describe('profit, GST and money reports (phase 6)', () => {
     const [date, later] = await freshDays('erode-hq', 2); // a receipt can't predate its bill (CRM9-8)
     const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [serviceLine(1, 1000, 18)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
     ok(await receive(inv, 1180, { mode: 'GPay', date: later }));
-    const payments = ok(await get('/api/payments'));
+    // Only this bill's receipts: other tests may book money on the same random day.
+    const payments = ok(await get('/api/payments')).filter((p) => (p.allocations || []).some((a) => a.refId === inv.id));
     const bills = [await getInvoice(inv.id)];
     const onBillDay = pm.collectionsByMode(bills, payments, (d) => d === date, () => true);
     near(onBillDay.total, 0, 'nothing collected on the bill day');
@@ -401,6 +402,19 @@ describe('customers and register helpers (phase 6)', () => {
     near(ra.quantity, 3, '4 sold − 1 returned');
     near(ra.revenue, 3 * 1180 * 0.9, 'after the 10% bill discount');
     near(rows.find((r) => r.itemId === b.id).quantity, 0, 'fully returned → 0 (screens leave it out)');
+  });
+
+  test('E2E-4 / PUR3-8 one ITC figure: supplier bills less the GST reversed on damaged units\' debit notes', async () => {
+    const item = await createItem({ price: 3000, gst: 12, purchasePrice: 1000, stock: {} });
+    const po = await createPO([{ item, qty: 2, price: 1000, tax: 12 }]);
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 1, damagedQuantity: 1, taxPercent: 12 }], actor: 'QA' }), 'receive 1 good, 1 damaged');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: `ITC-${uid()}`, date: istToday(), taxable: 2000, gst: 240 } }), 'supplier bill for both units');
+    const saved = await getPO(po.id);
+    const itc = rm.inputTaxCredit([saved], (d) => d === istToday(), () => true);
+    near(itc.billGst, 240);
+    near(itc.reversedGst, 120, 'the damaged unit\'s GST is reversed');
+    near(itc.net, 120, 'ITC = 240 − 120');
+    assert.ok(itc.rows.some((r) => r.kind === 'reversal' && r.gst < 0), 'the debit note is a row of the register');
   });
 });
 

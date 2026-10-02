@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, supplierBillsOf } from '../../types';
+import { BranchScope, BRANCHES } from '../../types';
+import { inputTaxCredit } from '../../lib/reportMath';
 import { formatCurrency } from '../../lib/utils';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
@@ -17,43 +18,30 @@ interface Props {
 export const InputTaxCreditReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
   const { purchaseOrders } = useErp();
 
+  // The ONE ITC function shared with GSTR-3B (PUR3-8 / E2E-4): supplier bills
+  // less the GST reversed on damaged units billed back on debit notes.
   const { rows, totals, missingBills } = useMemo(() => {
-    const rows: {
-      billDate: string; billNo: string; vendor: string; gstin: string;
-      poNumber: string; taxable: number; gst: number;
-    }[] = [];
-    let taxable = 0, gst = 0, missingBills = 0;
-    for (const po of purchaseOrders) {
-      if (po.status === 'Cancelled') continue;
-      if (branchScope !== 'all' && po.branchId !== branchScope) continue;
-      const bills = supplierBillsOf(po);
-      if (!bills.length) {
-        // Received POs that still have no supplier bill (no ITC possible yet).
-        if (po.status === 'Received' || po.status === 'Partially Received') missingBills += 1;
-        continue;
-      }
-      // One row per supplier bill (a PO delivered in parts has several, E2E5-11).
-      for (const b of bills) {
-        const d = b.date || po.date;
-        if (startDate && d < startDate) continue;
-        if (endDate && d > endDate) continue;
-        const t = Number(b.taxable) || 0;
-        const g = Number(b.gst) || 0;
-        rows.push({
-          billDate: d, billNo: b.number || '—', vendor: po.vendorName,
-          gstin: po.vendorGstin || '', poNumber: po.poNumber, taxable: t, gst: g,
-        });
-        taxable += t; gst += g;
-      }
-    }
-    rows.sort((a, b) => (a.billDate < b.billDate ? 1 : -1));
-    return { rows, totals: { taxable, gst, count: rows.length }, missingBills };
+    const itc = inputTaxCredit(
+      purchaseOrders,
+      (d) => !!d && (!startDate || d >= startDate) && (!endDate || d <= endDate),
+      (b) => branchScope === 'all' || b === branchScope,
+    );
+    const rows = itc.rows.map((r) => ({
+      billDate: r.date, billNo: r.kind === 'reversal' ? `${r.number} (debit note)` : r.number, vendor: r.vendor,
+      gstin: r.gstin, poNumber: r.poNumber, taxable: r.taxable, gst: r.gst,
+    }));
+    return {
+      rows,
+      totals: { taxable: itc.billTaxable - itc.reversedTaxable, gst: itc.net, count: itc.rows.filter((r) => r.kind === 'bill').length, reversed: itc.reversedGst },
+      missingBills: itc.missingBills,
+    };
   }, [purchaseOrders, startDate, endDate, branchScope]);
 
   const handleExport = (fmt: ExportFormat) => {
     const headers = ['Bill Date', 'Bill No', 'Vendor', 'Vendor GSTIN', 'PO No', 'Taxable (₹)', 'GST / ITC (₹)'];
-    const data = rows.map((r) => [r.billDate, r.billNo, r.vendor, r.gstin, r.poNumber, r.taxable.toFixed(2), r.gst.toFixed(2)]);
-    data.push(['', '', '', '', 'TOTAL', totals.taxable.toFixed(2), totals.gst.toFixed(2)]);
+    const n2 = (v: number) => Math.round(v * 100) / 100;
+    const data: (string | number)[][] = rows.map((r) => [r.billDate, r.billNo, r.vendor, r.gstin, r.poNumber, n2(r.taxable), n2(r.gst)]);
+    data.push(['', '', '', '', 'TOTAL', n2(totals.taxable), n2(totals.gst)]);
     const name = `input-tax-credit_${startDate}_to_${endDate}`;
     if (fmt === 'csv') exportToCsv(name, headers, data);
     else if (fmt === 'excel') exportToExcel(name, headers, data);
@@ -76,7 +64,7 @@ export const InputTaxCreditReportTab: React.FC<Props> = ({ startDate, endDate, b
         {[
           { label: 'Bills', value: String(totals.count), tone: 'text-slate-900' },
           { label: 'Taxable Value', value: formatCurrency(totals.taxable), tone: 'text-slate-900' },
-          { label: 'Input Tax Credit', value: formatCurrency(totals.gst), tone: 'text-emerald-700' },
+          { label: totals.reversed > 0 ? `Input Tax Credit (after ₹${totals.reversed.toLocaleString('en-IN')} reversed)` : 'Input Tax Credit', value: formatCurrency(totals.gst), tone: 'text-emerald-700' },
         ].map((m) => (
           <div key={m.label} className="bg-white border border-slate-300 p-3 shadow-xs">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</div>

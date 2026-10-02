@@ -6,7 +6,7 @@ import { requireCapability, requireAuth, requireManagerOrCEO, sessionIsLive } fr
 import { issueToken, verifyToken, hashPin, Capability } from '../lib/auth.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { verifyGstin, gstinProviderConfigured, GSTIN_RE } from '../services/gstin.service.js';
+import { verifyGstin, gstinProviderConfigured, GSTIN_RE, gstinChecksumValid } from '../services/gstin.service.js';
 import { nowIso } from '../lib/stockLedger.js';
 import { cleanRecurringFields } from '../lib/validate.js';
 import invoiceRoutes from './invoice.routes.js';
@@ -22,7 +22,7 @@ import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
-import { recordPayment, listPayments, deletePayment, maskStaffPayments, recordPendingOrderAdvance, clearPendingOrderAdvance, applyVendorAdvance } from '../services/payment.service.js';
+import { recordPayment, listPayments, deletePayment, maskStaffPayments, recordPendingOrderAdvance, clearPendingOrderAdvance, applyVendorAdvance, releasePoOverpayment } from '../services/payment.service.js';
 import { registersWithLiveOpenings } from '../services/cash.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
@@ -243,6 +243,15 @@ router.post('/vendors', requireCapability('purchase:write'), asyncHandler(async 
   if (!String(b.vendorName || '').trim()) throw new AppError('NAME_REQUIRED', 'Vendor name is required', 400);
   if (b.gstin && !GSTIN_RE.test(String(b.gstin).trim().toUpperCase())) throw new AppError('BAD_GSTIN', 'Enter a valid GSTIN or leave it blank', 400);
   const id = String(b.id || `vnd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  // PUR6-5: the last character is a check digit — a mistyped GSTIN fails it. A
+  // GSTIN already on the supplier (older data) is not re-judged on other edits.
+  const newGstin = b.gstin ? String(b.gstin).trim().toUpperCase() : '';
+  if (newGstin) {
+    const stored = await prisma.vendor.findUnique({ where: { id }, select: { gstin: true } });
+    if ((stored?.gstin || '').toUpperCase() !== newGstin && !gstinChecksumValid(newGstin)) {
+      throw new AppError('INVALID_GSTIN', `GSTIN ${newGstin} fails its check digit — please re-check it, or leave it blank.`, 400);
+    }
+  }
   const data = {
     vendorName: String(b.vendorName).trim(),
     contactNo: String(b.contactNo || ''),
@@ -533,6 +542,15 @@ router.post('/payments/vendor-advance/apply', requireCapability('purchase:write'
   await recordAudit({ actor: actorOf(req), action: 'payment.applyAdvance', entity: 'purchaseOrder', entityId: result.poId,
     summary: `Applied ₹${result.applied} vendor advance to PO` });
   broadcastChange('POST /api/payments/vendor-advance/apply');
+  res.json(result);
+}));
+// PUR9-4: a PO's overpayment becomes the supplier's advance.
+router.post('/payments/vendor-advance/release', requireCapability('purchase:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const result = await releasePoOverpayment(req.body || {}, { name: user?.name }, user);
+  await recordAudit({ actor: actorOf(req), action: 'payment.releaseOverpayment', entity: 'purchaseOrder', entityId: result.poId,
+    summary: `Moved ₹${result.moved} overpaid on the PO to the supplier's advance` });
+  broadcastChange('POST /api/payments/vendor-advance/release');
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {
