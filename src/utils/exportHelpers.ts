@@ -27,44 +27,91 @@ export function exportToExcel(filename: string, headers: string[], rows: Cell[][
   );
 }
 
+/** jsPDF's built-in fonts have no ₹ glyph (it printed as garbage — RPT2-8):
+ *  write "Rs." instead, and drop any other character the font can't draw. */
+const pdfText = (c: Cell): string =>
+  String(c ?? '')
+    .replace(/₹\s?/g, 'Rs. ')
+    .replace(/[−–—]/g, '-')
+    .replace(/[^\x20-\x7E\u00A0-\u00FF]/g, '');
+
+const isNumericCell = (c: Cell) => typeof c === 'number' || (typeof c === 'string' && /^-?[\d,]+(\.\d+)?%?$/.test(c.trim()));
+
 /**
- * Export a simple tabular PDF via jsPDF (already a dependency). Landscape A4,
- * auto-paginates, truncates over-long cells to keep columns readable.
+ * Export a tabular PDF via jsPDF (already a dependency). Landscape A4, paginated
+ * with the header repeated on every page. Column widths follow their content
+ * (so invoice numbers are not cut — V2), headers wrap instead of overlapping,
+ * numbers are right-aligned with Indian grouping, and ₹ prints as "Rs.".
  */
 export function exportToPdf(filename: string, headers: string[], rows: Cell[][], title?: string): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 28;
+  const usable = pageW - margin * 2;
+  const pad = 3;
+  const fontSize = headers.length > 14 ? 6.5 : headers.length > 10 ? 7 : 8;
   let y = 40;
 
   if (title) {
     doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text(title, margin, y); y += 8;
+    doc.text(pdfText(title), margin, y); y += 8;
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(120);
     doc.text(new Date().toLocaleString('en-IN'), margin, y + 8); y += 22;
     doc.setTextColor(0);
   }
 
   const cols = Math.max(1, headers.length);
-  const colW = (pageW - margin * 2) / cols;
-  const maxChars = Math.max(6, Math.floor(colW / 4.2));
-  const fit = (c: Cell) => {
-    const t = String(c ?? '');
-    return t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t;
+  const show = (c: Cell): string => {
+    if (typeof c === 'number' && Number.isFinite(c)) {
+      return c.toLocaleString('en-IN', { minimumFractionDigits: Number.isInteger(c) ? 0 : 2, maximumFractionDigits: 2 });
+    }
+    return pdfText(c);
+  };
+  // Width each column by its widest content (header words count once), then
+  // scale to the page.
+  doc.setFontSize(fontSize);
+  doc.setFont('helvetica', 'normal');
+  const want = Array.from({ length: cols }, (_, i) => {
+    const headerWord = Math.max(...pdfText(headers[i]).split(/\s+/).map((w) => doc.getTextWidth(w)), 20);
+    const body = rows.reduce((m, r) => Math.max(m, Math.min(220, doc.getTextWidth(show(r[i])))), 0);
+    return Math.max(headerWord, body) + pad * 2;
+  });
+  const total = want.reduce((t, w) => t + w, 0);
+  const widths = want.map((w) => (w / total) * usable);
+  const xs = widths.map((_, i) => margin + widths.slice(0, i).reduce((t, w) => t + w, 0));
+  const fit = (t: string, w: number) => {
+    if (doc.getTextWidth(t) <= w) return t;
+    let s = t;
+    while (s.length > 1 && doc.getTextWidth(s + '...') > w) s = s.slice(0, -1);
+    return s + '...';
   };
 
-  const drawRow = (cells: Cell[], bold: boolean) => {
-    doc.setFontSize(8);
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
-    cells.forEach((c, i) => doc.text(fit(c), margin + i * colW + 2, y));
-    y += 13;
-    if (y > pageH - 24) { doc.addPage(); y = 40; }
+  const drawHeader = () => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', 'bold');
+    const wrapped = headers.map((h, i) => doc.splitTextToSize(pdfText(h), widths[i] - pad * 2) as string[]);
+    const lines = Math.max(...wrapped.map((w) => w.length));
+    wrapped.forEach((w, i) => w.forEach((t, k) => doc.text(t, xs[i] + pad, y + k * (fontSize + 2))));
+    y += lines * (fontSize + 2) + 2;
+    doc.setDrawColor(200); doc.line(margin, y - fontSize, pageW - margin, y - fontSize);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
   };
 
-  drawRow(headers, true);
-  doc.setDrawColor(200); doc.line(margin, y - 9, pageW - margin, y - 9);
-  rows.forEach((r) => drawRow(r, false));
+  drawHeader();
+  rows.forEach((r) => {
+    if (y > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
+    const label = String(r[0] ?? '');
+    doc.setFont('helvetica', /^(TOTAL|---)/.test(label) ? 'bold' : 'normal');
+    r.forEach((c, i) => {
+      if (i >= cols) return;
+      const t = fit(show(c), widths[i] - pad * 2);
+      if (isNumericCell(c)) doc.text(t, xs[i] + widths[i] - pad, y, { align: 'right' });
+      else doc.text(t, xs[i] + pad, y);
+    });
+    y += fontSize + 5;
+  });
 
   doc.save(`${baseName(filename)}.pdf`);
 }

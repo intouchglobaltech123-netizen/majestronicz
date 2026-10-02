@@ -17,7 +17,10 @@ export const exportToCsv = (
       // genuine numbers. A negative number like -53998.00 is data, not a formula,
       // and must not be turned into the text "'-53998.00" (RPT2-6).
       const isNumeric = typeof cell === 'number' || /^-?\d+(\.\d+)?$/.test(str.trim());
-      if (!isNumeric && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+      // A section label such as "--- SUMMARY BREAKDOWN ---" (letters, digits,
+      // spaces and & only between the dashes) is not a formula either (RPT2-6).
+      const isSectionLabel = /^-{3} [A-Z0-9 &/()]+ -{3}$/.test(str.trim());
+      if (!isNumeric && !isSectionLabel && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
       if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
         return `"${str.replace(/"/g, '""')}"`;
       }

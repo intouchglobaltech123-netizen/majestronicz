@@ -84,8 +84,9 @@ function colName(i: number): string {
   return s;
 }
 
-/** Columns that hold identifiers, not amounts — keep them as text. */
-const TEXT_HEADER = /phone|mobile|gstin|code|no\b|number|pin|hsn|date|id\b/i;
+/** Columns that hold identifiers, not amounts — keep them as text. Whole words
+ *  only: "Consolidated" is not a date and "Shipping" is not a PIN (RPT4-4). */
+const TEXT_HEADER = /\b(phone|mobile|gstin|code|no|number|pin|hsn|date|id)\b/i;
 
 export function buildXlsx(headers: string[], rows: Cell[][], sheetName = 'Sheet1'): Uint8Array {
   const textCol = headers.map((h) => TEXT_HEADER.test(String(h)));
