@@ -4,7 +4,7 @@ import { PurchaseOrder, COMPANY_PROFILE, BRANCHES, purchaseOrderOrderedTotal } f
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
 import { numberToWordsIndian } from '../../lib/numberToWords';
-import { exportToCsv } from '../../utils/csvExport';
+import { exportToExcel } from '../../utils/exportHelpers';
 import {
   X,
   Printer,
@@ -66,16 +66,18 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
   const poTax = Math.round(purchaseOrder.items.reduce((s, l) => s + lineTax(l), 0) * 100) / 100;
   const poGrand = purchaseOrderOrderedTotal({ ...purchaseOrder, totalTax: poTax });
 
-  // Download this PO's line items as an Excel-compatible sheet.
+  // Download this PO's line items as a real Excel workbook (.xlsx) with numeric
+  // cells — the button said Excel but saved a CSV (V10).
   const handleExportExcel = () => {
-    const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (₹)', 'Taxable (₹)', 'GST %', 'GST (₹)', 'Amount (₹)'];
-    const rows = purchaseOrder.items.map((l, i) => [
+    const n = (v: number) => Math.round((Number(v) || 0) * 100) / 100;
+    const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (Rs)', 'Taxable (Rs)', 'GST %', 'GST (Rs)', 'Amount (Rs)'];
+    const rows: (string | number)[][] = purchaseOrder.items.map((l, i) => [
       i + 1, l.itemName, l.itemCode, l.vendorSku || '', l.itemHSN || '', l.unit,
-      l.quantityOrdered, l.receivedQuantity || 0, (l.purchasePrice || 0).toFixed(2), (l.amount || 0).toFixed(2),
-      l.taxPercent || 0, lineTax(l).toFixed(2), ((l.amount || 0) + lineTax(l)).toFixed(2),
+      l.quantityOrdered, l.receivedQuantity || 0, n(l.purchasePrice || 0), n(l.amount || 0),
+      l.taxPercent || 0, n(lineTax(l)), n((l.amount || 0) + lineTax(l)),
     ]);
-    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', (purchaseOrder.totalAmount || 0).toFixed(2), '', poTax.toFixed(2), poGrand.toFixed(2)]);
-    exportToCsv(`${purchaseOrder.poNumber}`, headers, rows);
+    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', n(purchaseOrder.totalAmount || 0), '', n(poTax), n(poGrand)]);
+    exportToExcel(`${purchaseOrder.poNumber}`, headers, rows);
   };
 
   const handleShareWhatsApp = () => {

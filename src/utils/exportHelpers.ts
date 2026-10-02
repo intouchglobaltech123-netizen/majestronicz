@@ -71,14 +71,28 @@ export function exportToPdf(filename: string, headers: string[], rows: Cell[][],
   // Width each column by its widest content (header words count once), then
   // scale to the page.
   doc.setFontSize(fontSize);
+  doc.setFont('helvetica', 'bold');
+  const headerWords = headers.map((h) => Math.max(...pdfText(h).split(/\s+/).map((w) => doc.getTextWidth(w)), 20));
   doc.setFont('helvetica', 'normal');
+  // A row with text only in its first cell is a section label: it spans the page.
+  const isLabelRow = (r: Cell[]) => r.length > 0 && r.slice(1).every((c) => c === '' || c == null);
   const want = Array.from({ length: cols }, (_, i) => {
-    const headerWord = Math.max(...pdfText(headers[i]).split(/\s+/).map((w) => doc.getTextWidth(w)), 20);
-    const body = rows.reduce((m, r) => Math.max(m, Math.min(220, doc.getTextWidth(show(r[i])))), 0);
+    const headerWord = headerWords[i];
+    const body = rows.filter((r) => !isLabelRow(r)).reduce((m, r) => Math.max(m, Math.min(220, doc.getTextWidth(show(r[i])))), 0);
     return Math.max(headerWord, body) + pad * 2;
   });
+  // Too wide for the page: keep every column at least as wide as its longest
+  // header word and take the room from the long text columns.
+  const base = headerWords.map((w) => w + pad * 2);
   const total = want.reduce((t, w) => t + w, 0);
-  const widths = want.map((w) => (w / total) * usable);
+  const baseSum = base.reduce((t, w) => t + w, 0);
+  const extra = want.map((w, i) => Math.max(0, w - base[i]));
+  const extraSum = extra.reduce((t, w) => t + w, 0);
+  const widths = total <= usable
+    ? want.map((w) => (w / total) * usable)
+    : baseSum < usable && extraSum > 0
+      ? base.map((b, i) => b + (extra[i] / extraSum) * (usable - baseSum))
+      : want.map((w) => (w / total) * usable);
   const xs = widths.map((_, i) => margin + widths.slice(0, i).reduce((t, w) => t + w, 0));
   const fit = (t: string, w: number) => {
     if (doc.getTextWidth(t) <= w) return t;
@@ -104,6 +118,11 @@ export function exportToPdf(filename: string, headers: string[], rows: Cell[][],
     if (y > pageH - 24) { doc.addPage(); y = 40; drawHeader(); }
     const label = String(r[0] ?? '');
     doc.setFont('helvetica', /^(TOTAL|---)/.test(label) ? 'bold' : 'normal');
+    if (isLabelRow(r)) {
+      if (label) doc.text(fit(pdfText(label), usable), margin + pad, y);
+      y += fontSize + 5;
+      return;
+    }
     r.forEach((c, i) => {
       if (i >= cols) return;
       const t = fit(show(c), widths[i] - pad * 2);
