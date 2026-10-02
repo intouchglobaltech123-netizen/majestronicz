@@ -1601,6 +1601,10 @@ export const normalizePhone = (raw?: string): string => {
 
 export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean => {
   if (inv.customerId && inv.customerId === customer.id) return true;
+  // A bill linked to a customer account belongs to that account only — matching
+  // it by phone as well could count one bill under two customers (RPT7-1).
+  // Older bills with no customer id are matched by normalised phone.
+  if (inv.customerId) return false;
   const cleanCustomerPhone = normalizePhone(customer.phone);
   const cleanInvPhone = normalizePhone(inv.customerPhone);
   if (cleanCustomerPhone && cleanInvPhone && cleanCustomerPhone === cleanInvPhone) return true;

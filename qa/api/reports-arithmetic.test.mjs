@@ -319,3 +319,40 @@ describe('report exports (phase 6)', () => {
     assert.match(xml, /<c r="E2" t="inlineStr">/, 'date stays text');
   });
 });
+
+describe('customers and register helpers (phase 6)', () => {
+  test('RPT7-1 a bill linked to a customer counts only for that customer; an unlinked bill matches by phone', async () => {
+    const t = await importTs('src/types/index.ts');
+    const a = { id: 'c-a', name: 'A', phone: '9876500001' };
+    const b = { id: 'c-b', name: 'B', phone: '+91 98765 00002' };
+    const bill = (id, customerId, customerPhone, due) => ({ id, invoiceNumber: id, customerId, customerPhone, grandTotal: due, balanceDue: due, totalReturnedAmount: 0 });
+    const invoices = [bill('i1', 'c-a', '9876500002', 100), bill('i2', undefined, '09876500002', 50), bill('i3', undefined, '9000000000', 25)];
+    near(t.getCustomerOutstandingSummary(a, invoices).totalOutstanding, 100, 'A: only its linked bill');
+    near(t.getCustomerOutstandingSummary(b, invoices).totalOutstanding, 50, 'B: unlinked bill by normalised phone, not A\'s bill');
+    const linked = invoices.filter((i) => [a, b].some((c) => t.isInvoiceForCustomer(i, c)));
+    assert.deepEqual(linked.map((i) => i.id), ['i1', 'i2'], 'i3 is unlinked and shown on its own row');
+  });
+
+  test('CASH-8 a due-day-31 template falls due on the last day of a shorter month', async () => {
+    const t = await importTs('src/types/index.ts');
+    assert.equal(t.dueDayInMonth({ dueDay: 31 }, '2026-09'), 30);
+    assert.equal(t.dueDayInMonth({ dueDay: 31 }, '2027-02'), 28);
+    assert.equal(t.dueDayInMonth({ dueDay: 31 }, '2028-02'), 29);
+    assert.equal(t.dueDayInMonth({ dueDay: 5 }, '2026-09'), 5);
+  });
+
+  test('CASH4-4 the closing splits cash paid out into refunds, suppliers and salaries that add up', async () => {
+    const c = await importTs('src/lib/cashClosing.ts');
+    const pay = (type, partyType, amount, mode = 'Cash') => ({ branchId: 'b', date: 'd', type, partyType, amount, paymentMode: mode });
+    const day = c.computeDayCashClosing('b', 'd', 1000, [
+      { branchId: 'b', date: 'd', grandTotal: 500, paymentSplits: [{ mode: 'Cash', amount: 300 }, { mode: 'COD-Credit', amount: 200 }] },
+    ], [pay('in', 'customer', 200), pay('out', 'customer', 50), pay('out', 'vendor', 70), pay('out', 'staff', 80), pay('out', 'vendor', 999, 'GPay')],
+    [{ cashAmount: 10, gpayAmount: 0 }, { cashAmount: 500, approvalStatus: 'pending' }]);
+    near(day.cashSales, 300);
+    near(day.cashRefunds, 50);
+    near(day.cashVendorPaid, 70);
+    near(day.cashSalaries, 80);
+    near(day.cashPaid, 200);
+    near(day.closing, 1000 + 300 + 200 - 50 - 70 - 80 - 10, 'every line in the sum');
+  });
+});

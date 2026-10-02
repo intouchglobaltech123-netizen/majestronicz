@@ -20,7 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables } from '../../types';
+import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables, isInvoiceForCustomer } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -68,7 +68,6 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     loyaltySettings,
     selectedCustomerForDetail,
     setSelectedCustomerForDetail,
-    getCustomerOutstandingBalance,
     setCurrentView,
   } = useErp();
 
@@ -300,8 +299,15 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
   }, [customers, customerLifetimeSpent]);
 
   const customersWithDueCount = useMemo(() => {
-    return customers.filter((c) => getCustomerOutstandingBalance(c) > 0).length;
-  }, [customers, getCustomerOutstandingBalance]);
+    return customers.filter((c) => getCustomerOutstandingSummary(c, scopedInvoices).totalOutstanding > 0).length;
+  }, [customers, scopedInvoices]);
+  // Dues on bills that belong to no customer account (walk-in bills with no
+  // matching phone, or a deleted account) — shown as their own "Unlinked" row
+  // so the rows add up to the header (RPT7-1).
+  const unlinkedBills = useMemo(
+    () => scopedInvoices.filter((i) => !i.isVoided && computeInvoiceFinance(i).due > 0.004 && !customers.some((c) => isInvoiceForCustomer(i, c))),
+    [scopedInvoices, customers],
+  );
 
   const avgPurchases = useMemo(() => {
     if (totalCustomers === 0) return 0;
@@ -487,6 +493,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
               </div>
               <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
                 {customersWithDueCount} customer{customersWithDueCount === 1 ? '' : 's'} with balance due
+                {unlinkedBills.length > 0 && ` + ${unlinkedBills.length} unlinked bill${unlinkedBills.length === 1 ? '' : 's'}`}
               </span>
             </div>
 
@@ -670,7 +677,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                       const isOrg = (cust.customerType || 'Retail') === 'Organization';
                       const isEligible = !isOrg && isLoyaltyMilestoneEligible(cust, loyaltySettings);
                       const progress = getLoyaltyProgress(cust, loyaltySettings);
-                      const bal = getCustomerOutstandingBalance(cust);
+                      // Same scope as the header card (RPT7-1), so the rows add up to it.
+                      const bal = getCustomerOutstandingSummary(cust, scopedInvoices).totalOutstanding;
 
                       return (
                         <tr
@@ -819,6 +827,21 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                         </tr>
                       );
                     })}
+                    {!searchQuery && unlinkedBills.length > 0 && (
+                      <tr className="bg-amber-50/40">
+                        <td className="p-4" colSpan={6}>
+                          <span className="font-bold text-slate-900">Unlinked bills</span>
+                          <span className="text-[11px] text-slate-500 block">
+                            {unlinkedBills.length} bill{unlinkedBills.length === 1 ? '' : 's'} with a balance but no customer account
+                            ({unlinkedBills.slice(0, 3).map((b) => b.invoiceNumber).join(', ')}{unlinkedBills.length > 3 ? ', …' : ''})
+                          </span>
+                        </td>
+                        <td className="p-4 text-right font-mono font-bold text-amber-800">
+                          {formatCurrency(unlinkedBills.reduce((t, b) => t + computeInvoiceFinance(b).due, 0))}
+                        </td>
+                        <td className="p-4" colSpan={2} />
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
