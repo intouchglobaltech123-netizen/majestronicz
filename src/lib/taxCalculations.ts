@@ -75,7 +75,9 @@ export function calculateLineTax(
 export function calculateTaxBreakdown(
   items: Array<{ taxableAmount: number; gstRate?: number; taxRate?: number }>,
   overallDiscountAmount = 0,
-  subtotal = 0
+  subtotal = 0,
+  /** SAL9-7 / E2E9-2: an inter-state bill carries IGST at the full rate. */
+  interState = false,
 ): GstBreakdownRow[] {
   const rateMap = new Map<number, number>();
 
@@ -103,6 +105,10 @@ export function calculateTaxBreakdown(
     // Split by residual (SGST rounded half, CGST the remainder) so SGST+CGST
     // always equals the total tax for this rate — matching the summary panel.
     const totalTax = Math.round(((taxable * rate) / 100) * 100) / 100;
+    if (interState) {
+      rows.push({ taxType: 'IGST', rate, taxableAmount: taxable, taxAmount: totalTax });
+      return;
+    }
     const sgst = Math.round((totalTax / 2) * 100) / 100;
     const cgst = Math.round((totalTax - sgst) * 100) / 100;
 

@@ -28,9 +28,14 @@ export const archivedItemError = (name: string) =>
  * prices are not negative, discounts stay within 100%, quantities are positive
  * and GST is a valid slab. Throws a 400 on the first problem.
  */
+/** SAL9-9: the largest unit price and quantity one line may carry. */
+export const MAX_LINE_PRICE = 10_000_000; // ₹1 crore
+export const MAX_LINE_QTY = 100_000;
+
 export function assertLineInputs(doc: any, what: 'bill' | 'quotation' = 'bill'): void {
   const withGst = !!doc.withGst;
   const num = (v: unknown) => (v === '' || v == null ? 0 : Number(v));
+  let netSum = 0;
   for (const li of (doc.items || []) as any[]) {
     const name = String(li?.itemName || li?.itemCode || 'A line').slice(0, 80);
     const price = num(li.unitPrice);
@@ -50,11 +55,22 @@ export function assertLineInputs(doc: any, what: 'bill' | 'quotation' = 'bill'):
     if ((li.discountType || '%') === '%' && disc > 100) {
       throw new AppError('BAD_DISCOUNT', 'A line discount cannot exceed 100%.', 400);
     }
+    if (price > MAX_LINE_PRICE) throw new AppError('BAD_PRICE', `"${name}": a unit price above ₹1 crore is not accepted.`, 400);
+    if (qty > MAX_LINE_QTY) throw new AppError('INVALID_QTY', `"${name}": a quantity above ${MAX_LINE_QTY.toLocaleString('en-IN')} is not accepted.`, 400);
+    // SAL9-10: a ₹-off larger than the line's value was silently clamped to ₹0.
+    const gross = Math.round(qty * price * 100) / 100;
+    if ((li.discountType || '%') !== '%' && disc > gross + 0.005) {
+      throw new AppError('BAD_DISCOUNT', `"${name}": the discount ₹${disc} is more than the line's value ₹${gross}.`, 400);
+    }
+    netSum += Math.max(0, gross - ((li.discountType || '%') === '%' ? (gross * Math.min(100, disc)) / 100 : disc));
   }
   const overall = num(doc.overallDiscountValue);
   if (!Number.isFinite(overall) || overall < 0) throw new AppError('BAD_DISCOUNT', 'The overall discount must be a number of 0 or more.', 400);
   if ((doc.overallDiscountType || '%') === '%' && overall > 100) {
     throw new AppError('BAD_DISCOUNT', 'The overall discount cannot exceed 100%.', 400);
+  }
+  if ((doc.overallDiscountType || '%') !== '%' && overall > Math.round(netSum * 100) / 100 + 0.01) {
+    throw new AppError('BAD_DISCOUNT', `The overall discount ₹${overall} is more than the ${what}'s value ₹${Math.round(netSum * 100) / 100}.`, 400);
   }
   const ship = num(doc.shippingCharges);
   if (!Number.isFinite(ship) || ship < 0) throw new AppError('BAD_SHIPPING', `Shipping on a ${what} must be a number of 0 or more.`, 400);

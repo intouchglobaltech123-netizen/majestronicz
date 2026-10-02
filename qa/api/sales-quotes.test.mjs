@@ -688,4 +688,39 @@ describe('round 9: sales', () => {
     expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [bad] })), 400, 'kit at 0%');
     ok(await post('/api/tx/sale', saleBody({ date, lines: [comboLine(combo, 1)] })), 'kit at 18%');
   });
+
+  test('SAL9-9 / SAL9-10 absurd prices, quantities and ₹-off discounts above the value are refused', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [serviceLine(1, 2e7)] })), 400, 'price above ₹1 crore');
+    expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [serviceLine(200000, 1)] })), 400, 'qty above 1 lakh');
+    expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { discountType: 'amount', discountValue: 5000 })] })), 400, 'line ₹-off above value');
+    expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1)], overallDiscountType: 'amount', overallDiscountValue: 5000 })), 400, 'bill ₹-off above value');
+    ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { discountType: 'amount', discountValue: 100 })] })), 'a normal ₹-off');
+  });
+
+  test('E2E9-5 a full return of a rounded-off bill returns the whole bill (no paisa left)', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 100.77, gst: 18, stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 1)], roundOffEnabled: true }));
+    near(inv.grandTotal, 119, 'bill rounded up to 119');
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const after = await getInvoice(inv.id);
+    near(after.totalReturnedAmount, 119, 'the whole bill value incl. round-off');
+    near(after.balanceDue, 0);
+  });
+
+  test('E2E9-9 a credit-note return is refused while today\'s cash day is closed', async () => {
+    const date = await freshDay('chennai');
+    const item = await createItem({ stock: { chennai: 5 } });
+    const inv = await mustSell(saleBody({ branchId: 'chennai', date, customerPhone: randomPhone(), lines: [line(item, 2)] }));
+    const today = istToday();
+    ok(await post('/api/cash/close', { branchId: 'chennai', date: today }), 'close today');
+    try {
+      expectStatus(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Adjust to credit note' }), 409, 'credit note on a closed today');
+    } finally {
+      ok(await post('/api/cash/reopen', { branchId: 'chennai', date: today }));
+    }
+  });
 });
+

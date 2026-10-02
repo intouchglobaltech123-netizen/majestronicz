@@ -65,7 +65,7 @@ describe('reports arithmetic', () => {
 
   test('PLT-14 the amount in words is right for large bills', async () => {
     const date = await freshDay('erode-hq');
-    const inv = await mustSell(saleBody({ date, lines: [serviceLine(1, 1234567890, 0)] }));
+    const inv = await mustSell(saleBody({ date, lines: [serviceLine(1000, 1234567.89, 0)] }));
     assert.equal(inv.amountInWords, 'Rupees One Hundred Twenty-Three Crore Forty-Five Lakh Sixty-Seven Thousand Eight Hundred Ninety only');
   });
 

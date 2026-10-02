@@ -451,8 +451,14 @@ export const InvoiceForm: React.FC<Props> = ({
 
       // Map Estimate line items to Invoice line items (preserve per-line discounts)
       const convertedItems: InvoiceLineItem[] = convertedFromEstimate.items.map((estItem) => {
-        const discType = estItem.discountType || '%';
-        const discVal = estItem.discount || estItem.discountValue || 0;
+        let discType = estItem.discountType || '%';
+        let discVal = estItem.discount || estItem.discountValue || 0;
+        // E2E-14: a line with no discount of its own (an order prefill, or a
+        // quote line left at 0) gets the item's standard discount, as when the
+        // item is picked on the form.
+        const stdMaster = !discVal && estItem.itemId && !estItem.isCombo ? items.find((i) => i.id === estItem.itemId) : undefined;
+        const std = stdMaster ? standardDiscountFor(stdMaster, Number(estItem.quantity) || 1) : null;
+        if (std && std.discountValue > 0) { discType = std.discountType; discVal = std.discountValue; }
         const fresh = refreshCopiedLine(estItem, estItem.gstRate ?? estItem.taxRate ?? 0, convertedFromEstimate.branchId);
         const rate = fresh.rate;
         const lineTax = calculateLineTax(
@@ -465,6 +471,7 @@ export const InvoiceForm: React.FC<Props> = ({
         );
         return {
           id: `li-conv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          stdDiscountPerUnit: std?.stdDiscountPerUnit ?? null,
           itemId: estItem.itemId,
           itemName: estItem.itemName,
           itemHSN: estItem.itemHSN,
@@ -776,15 +783,17 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   // E2E-14: the item's standard (catalogue) discount is the line's default
-  // discount. It is stored as a % of the line so it scales with the quantity; an
-  // amount-off is turned into the same share of the item's sale price.
-  const standardDiscountFor = (item: Item): { discountType: DiscountType; discountValue: number } => {
+  // discount. A %-off stays a % of the line. E2E9-1: a ₹-off stays an AMOUNT —
+  // per unit, in the same tax basis as the line's price — and follows the
+  // quantity (it was a 4-decimal % that never came out to the round rupee).
+  const standardDiscountFor = (item: Item, qty = 1): { discountType: DiscountType; discountValue: number; stdDiscountPerUnit: number | null } => {
     const d = Number(item.discountOnSalePrice) || 0;
-    if (d <= 0) return { discountType: '%', discountValue: 0 };
-    if ((item.discountType || '%') === '%') return { discountType: '%', discountValue: Math.min(100, d) };
-    const base = Number(item.salePrice) || 0;
-    if (base <= 0) return { discountType: '%', discountValue: 0 };
-    return { discountType: '%', discountValue: Math.min(100, Math.round((d / base) * 100 * 10000) / 10000) };
+    if (d <= 0) return { discountType: '%', discountValue: 0, stdDiscountPerUnit: null };
+    if ((item.discountType || '%') === '%') return { discountType: '%', discountValue: Math.min(100, d), stdDiscountPerUnit: null };
+    const factor = 1 + taxSlabFor(item) / 100;
+    const inclusive = item.salePriceTaxMode === 'with';
+    const perUnit = Math.round((withGst ? (inclusive ? d / factor : d) : (inclusive ? d : d * factor)) * 100) / 100;
+    return { discountType: 'amount', discountValue: Math.round(perUnit * qty * 100) / 100, stdDiscountPerUnit: perUnit };
   };
 
   // SAL2-8: a catalogue item's own unit decides whether fractions are allowed;
@@ -825,6 +834,7 @@ export const InvoiceForm: React.FC<Props> = ({
         unitPrice: roundedPrice,
         discountType: std.discountType,
         discountValue: std.discountValue,
+        stdDiscountPerUnit: std.stdDiscountPerUnit,
         discountAmount: calculated.discountAmount,
         taxRate: taxSlabFor(selectedItem),
         taxableAmount: calculated.taxableAmount,
@@ -883,6 +893,10 @@ export const InvoiceForm: React.FC<Props> = ({
         if (item.id !== id) return item;
 
         const merged = { ...item, ...updates };
+        // E2E9-1: a hand-set discount replaces the standard one.
+        if ((updates.discountValue !== undefined || updates.discountType !== undefined) && updates.stdDiscountPerUnit === undefined) {
+          merged.stdDiscountPerUnit = null;
+        }
         let qty = Number(merged.quantity) || 0;
 
         // Clamp quantity to available stock so a bill can never be raised for
@@ -900,7 +914,11 @@ export const InvoiceForm: React.FC<Props> = ({
         const price = Number(merged.unitPrice) || 0;
         const rate = Number(merged.taxRate) || 0;
         const dType = merged.discountType || '%';
-        const dVal = Number(merged.discountValue) || 0;
+        let dVal = Number(merged.discountValue) || 0;
+        // E2E9-1: the standard ₹-off follows the quantity.
+        if (dType === 'amount' && merged.stdDiscountPerUnit != null && (updates.quantity !== undefined || updates.stdDiscountPerUnit !== undefined)) {
+          dVal = Math.round(Number(merged.stdDiscountPerUnit) * qty * 100) / 100;
+        }
 
         const calculated = calculateLineTax(qty, price, rate, withGst, dType, dVal);
 
@@ -1173,8 +1191,8 @@ export const InvoiceForm: React.FC<Props> = ({
   // GST rate breakdown
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!withGst) return [];
-    return calculateTaxBreakdown(lineItems, totals.overallDiscountAmount, totals.subtotal);
-  }, [lineItems, withGst, totals.overallDiscountAmount, totals.subtotal]);
+    return calculateTaxBreakdown(lineItems, totals.overallDiscountAmount, totals.subtotal, isInterState);
+  }, [lineItems, withGst, totals.overallDiscountAmount, totals.subtotal, isInterState]);
 
   // Remaining balance due calculation for Partial Payment
   const balanceDue = useMemo(() => {

@@ -844,6 +844,11 @@ export function processReturn(
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
+    // E2E9-9 (client decision): a credit-note return is refused while today's
+    // cash day is closed at the bill's branch, exactly like a cash refund.
+    if (/credit|adjust/i.test(String(refundMode || ''))) {
+      await assertDayOpen(tx, inv.branchId, istToday(), 'record a return (credit note) today');
+    }
     // Resolve every requested line against the BILL's own line and take its
     // identity (name, code, price, tax, combo parts) from there and the item
     // master — never from the request (SAL7-4 / INV8-8; a request that flags a
@@ -982,7 +987,13 @@ export function processReturn(
     // remaining refund and scale this batch's lines proportionally to fit.
     const refundCeiling = Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.totalReturnedAmount) || 0));
     const rawBatchTotal = validLines.reduce((s: number, l: any) => s + rawRefundFor(l), 0);
-    const refundScale = rawBatchTotal > refundCeiling && rawBatchTotal > 0 ? refundCeiling / rawBatchTotal : 1;
+    // E2E9-5: a return that takes back EVERYTHING still on the bill returns the
+    // whole remaining bill value — its round-off and paisa included — so no
+    // ₹0.01 is left owing or unrefunded on a fully returned bill.
+    const takesAll = [...soldByKey.entries()].every(([k, sold]) => (returnedByKey.get(k) || 0) + (batchByKey.get(k) || 0) >= sold - 1e-9)
+      && !(Number(inv.shippingCharges) > 0);
+    const refundScale = rawBatchTotal > 0 && (rawBatchTotal > refundCeiling || (takesAll && Math.abs(rawBatchTotal - refundCeiling) < 1))
+      ? refundCeiling / rawBatchTotal : 1;
     const refundFor = (line: any): number => Math.round(rawRefundFor(line) * refundScale * 100) / 100;
 
     // For a combo, restock from the SOLD line's component list (what the sale
@@ -1045,6 +1056,13 @@ export function processReturn(
     await ledger.flush(tx);
     if (newLogs.length) await tx.stockAdjustmentLog.createMany({ data: newLogs });
 
+    // E2E9-5: the paisa left by per-line rounding goes on the last line, so a
+    // full return equals the remaining bill value exactly.
+    if (takesAll && refundScale !== 1 && returnRecords.length) {
+      const sum = returnRecords.reduce((t, r) => t + r.refundAmount, 0);
+      const last = returnRecords[returnRecords.length - 1];
+      last.refundAmount = Math.round((last.refundAmount + (refundCeiling - sum)) * 100) / 100;
+    }
     const totalRefund = returnRecords.reduce((s, r) => s + r.refundAmount, 0);
     const existingReturns = (inv.returns as any[]) || [];
     // One id for this return batch, so it can be reversed as a unit later (SAL3-2).

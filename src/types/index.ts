@@ -231,6 +231,9 @@ export interface InvoiceLineItem {
   // the sum of its parts). Profit costs a sale at this figure; older bills
   // without it fall back to the item's current cost (E2E5-5).
   unitCost?: number | null;
+  /** E2E9-1: an item's ₹-off standard discount, per unit, so the line's amount
+   *  discount follows its quantity (the form recomputes it on a qty change). */
+  stdDiscountPerUnit?: number | null;
 }
 
 export interface ComboComponent {
