@@ -180,9 +180,13 @@ const AppContent: React.FC = () => {
                 LIVE
               </span>
               <span className="text-slate-600">|</span>
-              <span className="text-slate-200 font-bold truncate">
+              {/* 390 px (V8): a short date that fits instead of a truncated long one. */}
+              <span className="text-slate-200 font-bold truncate hidden sm:inline">
                 {currentTime.toLocaleDateString('en-IN', { weekday: 'long' })},{' '}
                 {currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="text-slate-200 font-bold whitespace-nowrap sm:hidden">
+                {currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
               </span>
               <span className="text-slate-600">|</span>
               <span className="text-amber-400 font-mono font-bold tracking-wider shrink-0">
@@ -196,7 +200,8 @@ const AppContent: React.FC = () => {
               title="Exit Full Screen (Esc)"
             >
               <Minimize2 className="h-3 w-3" />
-              <span>Exit Full Screen (Esc)</span>
+              <span className="hidden sm:inline">Exit Full Screen (Esc)</span>
+              <span className="sm:hidden">Exit</span>
             </button>
           </div>
         )}
@@ -273,8 +278,11 @@ const AppContent: React.FC = () => {
       <GlobalKeyboardShortcuts />
 
       {/* Sonner Toast Notifications */}
+      {/* Top centre, below the top bar (INV4-14): bottom-right toasts sat on top
+          of the modal and sale-form Save buttons. */}
       <Toaster
-        position="bottom-right"
+        position="top-center"
+        offset={60}
         theme="light"
         toastOptions={{
           style: {

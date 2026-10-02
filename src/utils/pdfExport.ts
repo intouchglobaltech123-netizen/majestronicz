@@ -42,6 +42,7 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
   element.style.maxHeight = 'none';
   element.style.overflow = 'visible';
   element.style.flex = 'none';
+  element.classList.add('pdf-capturing');
 
   let canvas: HTMLCanvasElement;
   try {
@@ -63,6 +64,7 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
     element.style.maxHeight = saved.maxHeight;
     element.style.overflow = saved.overflow;
     element.style.flex = saved.flex;
+    element.classList.remove('pdf-capturing');
   }
 
   const imgData = canvas.toDataURL('image/jpeg', 0.98);

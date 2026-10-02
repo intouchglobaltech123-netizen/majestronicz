@@ -384,7 +384,9 @@ samp,
 
 /* Responsive tables (mobile + tablet) */
 @media screen and (max-width: 1024px) {
-  table:not(.no-responsive-scroll) {
+  /* Printable documents keep real tables: their preview zooms to fit instead
+     (SAL4-6 / V8). */
+  table:not(.no-responsive-scroll):not(.doc-fit table) {
     display: block;
     max-width: 100%;
     overflow-x: auto;
@@ -542,6 +544,12 @@ table tbody tr:hover {
     break-inside: avoid;
   }
 
+  /* The on-screen fit-to-width zoom of a document preview never prints. */
+  .doc-fit {
+    zoom: 1 !important;
+    width: auto !important;
+  }
+
   /* Toasts never print (E2E6-10). */
   [data-sonner-toaster] {
     display: none !important;
@@ -573,4 +581,10 @@ table tbody tr:hover {
     size: A4 portrait;
     margin: 8mm;
   }
+}
+
+/* PDF capture (WhatsApp share) renders the document at A4 width, unzoomed. */
+.pdf-capturing .doc-fit {
+  zoom: 1 !important;
+  width: auto !important;
 }

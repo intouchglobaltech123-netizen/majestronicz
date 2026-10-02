@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportElementToPdfFile, printDocument } from '../../utils/pdfExport';
+import { useFitScale } from '../../lib/useFitScale';
 
 interface Props {
   invoice: Invoice | null;
@@ -39,6 +40,9 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const buyerState = gstStateInfo(buyerGstin);
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
+  // The preview zooms to fit narrow screens instead of clipping (V8 / INV4-14).
+  const docRef = React.useRef<HTMLDivElement>(null);
+  const fit = useFitScale(docRef, isOpen && !!invoice);
 
   // Inter-state supply prints IGST; intra-state prints CGST + SGST (SAL8-5).
   const interState = isInterStateSupply(invoice?.stateOfSupply);
@@ -222,7 +226,8 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         </div>
 
         {/* Printable Document Body */}
-        <div id="printable-invoice-doc" className="p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
+        <div id="printable-invoice-doc" ref={docRef} className="p-3 sm:p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
+          <div className="doc-fit" style={fit.style}>
           {/* Voided Alert Banner */}
           {invoice.isVoided && (
             <div className="mb-4 p-3 rounded-none bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center justify-between font-bold print:border-2 print:border-rose-600">
@@ -555,6 +560,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               Partial Paid: {'₹'}{n2(invoice.partialAmount || 0)} &nbsp;|&nbsp; Balance Due: {'₹'}{n2(invoice.balanceDue || 0)}
             </p>
           )}
+          </div>
         </div>
 
         {/* Single Unified Bottom Action Bar (Hidden during Print) */}

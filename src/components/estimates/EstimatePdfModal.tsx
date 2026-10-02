@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { printDocument } from '../../utils/pdfExport';
+import { useFitScale } from '../../lib/useFitScale';
 
 interface Props {
   estimate: Estimate | null;
@@ -26,6 +27,9 @@ interface Props {
 export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose }) => {
   const { items } = useErp();
   const [copied, setCopied] = React.useState(false);
+  // The preview zooms to fit narrow screens instead of clipping (V8 / INV4-14).
+  const docRef = React.useRef<HTMLDivElement>(null);
+  const fit = useFitScale(docRef, isOpen && !!estimate);
 
   // Inter-state quote → IGST; intra-state → SGST + CGST (SAL8-5).
   const interState = isInterStateSupply(estimate?.stateOfSupply);
@@ -106,7 +110,8 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
         </div>
 
         {/* Printable PDF Document Body */}
-        <div id="printable-estimate-doc" className="p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
+        <div id="printable-estimate-doc" ref={docRef} className="p-3 sm:p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
+          <div className="doc-fit" style={fit.style}>
           {/* Header Block with Red Bar Accent */}
           <div className="border border-slate-200 rounded-none overflow-hidden mb-5">
             {/* Top Red Accent Title Strip */}
@@ -438,6 +443,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                 </span>
               </div>
             </div>
+          </div>
           </div>
         </div>
 

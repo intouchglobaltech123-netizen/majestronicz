@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Package, Layers } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
@@ -56,13 +56,33 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   // The dropdown renders in a portal (fixed) so it is never clipped by a scroll
   // or resizable container around the invoice item table.
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  // It stays inside the viewport (V8/V9): shifted left when it would run off the
+  // right edge (390 px phones), and opened upward when there is no room below
+  // (an item row near the bottom of a modal at 1440×900).
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
   const updateMenuPos = () => {
     const el = containerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setMenuPos({ top: r.bottom + 6, left: r.left, width: r.width });
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const menuW = Math.min(menuRef.current?.offsetWidth || 520, vw - 16);
+    const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
+    const MAX = 320;
+    const below = vh - r.bottom - 12;
+    const above = r.top - 12;
+    if (below < 200 && above > below) {
+      setMenuPos({ bottom: vh - r.top + 6, left, width: r.width, maxHeight: Math.min(MAX, above) });
+    } else {
+      setMenuPos({ top: r.bottom + 6, left, width: r.width, maxHeight: Math.min(MAX, Math.max(160, below)) });
+    }
   };
+  // Re-place once the menu has rendered and its real width is known.
+  const menuShown = isOpen && !!menuPos;
+  useLayoutEffect(() => {
+    if (menuShown) updateMenuPos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuShown]);
   useEffect(() => {
     if (!isOpen) return;
     updateMenuPos();
@@ -285,10 +305,10 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
         <div
           ref={menuRef}
           className={cn(
-            'fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-80 flex flex-col',
+            'fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden flex flex-col',
             dropdownWidth
           )}
-          style={{ top: menuPos.top, left: menuPos.left, maxWidth: '95vw' }}
+          style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left, maxHeight: menuPos.maxHeight, maxWidth: 'calc(100vw - 16px)' }}
         >
           {/* Header Row */}
           <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-2 shrink-0">

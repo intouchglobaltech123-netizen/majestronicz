@@ -1742,22 +1742,25 @@ export const InvoiceForm: React.FC<Props> = ({
           </label>
           <label className="flex items-center gap-1.5">
             <span className="uppercase font-bold text-slate-400">{documentType === 'Quotation' ? 'Quote No' : 'Inv No'}</span>
-            <span className="relative">
+            {/* The AUTO tag sits beside the number, never over it (E2E6-10). */}
+            <span className="inline-flex items-stretch">
               <input
                 type="text"
                 value={invoiceNumber}
                 readOnly
+                size={Math.max(12, invoiceNumber.length + 1)}
+                aria-label={documentType === 'Quotation' ? 'Quotation number' : 'Invoice number'}
                 title="Auto-generated number (kept unique per branch & financial year)"
                 className={cn(
-                  'w-36 pr-9 pl-2 py-1 rounded-none text-xs font-mono font-bold focus:outline-none cursor-default',
+                  'w-auto px-2 py-1 rounded-none text-xs font-mono font-bold focus:outline-none cursor-default',
                   documentType === 'Quotation'
                     ? 'bg-purple-50/60 border border-purple-200 text-purple-800 focus:border-purple-600'
                     : 'bg-blue-50/60 border border-blue-200 text-blue-800 focus:border-blue-600'
                 )}
               />
               <span className={cn(
-                'absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase px-1 rounded',
-                documentType === 'Quotation' ? 'text-purple-600 bg-purple-100/70' : 'text-blue-600 bg-blue-100/70'
+                'flex items-center text-[10px] font-bold uppercase px-1.5 border border-l-0',
+                documentType === 'Quotation' ? 'text-purple-700 bg-purple-100/70 border-purple-200' : 'text-blue-700 bg-blue-100/70 border-blue-200'
               )}>Auto</span>
             </span>
           </label>
@@ -1971,6 +1974,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
       {/* LINE ITEMS TABLE CARD */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+        <p className="sm:hidden px-3 pt-2 text-[11px] text-slate-500">Swipe the lines sideways for discount, tax and amount.</p>
         {/* Line Items Table */}
         {/* Resizable item editor — drag the bottom edge to grow/shrink (the product
             search opens in a portal, so it is never clipped by this scroll area). */}
@@ -1979,10 +1983,12 @@ export const InvoiceForm: React.FC<Props> = ({
             <thead>
               <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-3 min-w-[240px]">Item Description / Search Catalog</th>
-                <th className="py-3 px-3 w-28">Location</th>
-                <th className="py-3 px-3 w-20">Qty</th>
-                <th className="py-3 px-3 w-20">Unit</th>
+                {/* 390 px (V8): a narrower item column and no rack column, so Qty and
+                    Price are on screen; the rest scrolls inside this card. */}
+                <th className="py-3 px-2 sm:px-3 min-w-[150px] sm:min-w-[240px]">Item Description / Search Catalog</th>
+                <th className="py-3 px-3 w-28 hidden sm:table-cell">Location</th>
+                <th className="py-3 px-3 w-20 min-w-[68px]">Qty</th>
+                <th className="py-3 px-3 w-20 min-w-[68px]">Unit</th>
                 <th className="py-3 px-3 w-28 text-right">Price/Unit (₹)</th>
                 <th className="py-3 px-3 w-28 text-right">Discount</th>
                 {withGst && (
@@ -2009,7 +2015,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     </td>
 
                     {/* Item Description + Autocomplete Picker */}
-                    <td className="py-2.5 px-3 relative" style={{ zIndex: lineItems.length - idx + 20 }}>
+                    <td className="py-2.5 px-2 sm:px-3 relative" style={{ zIndex: lineItems.length - idx + 20 }}>
                       <ItemSearchDropdown
                         value={item.itemName}
                         autoFocus={focusRowId === item.id}
@@ -2049,7 +2055,7 @@ export const InvoiceForm: React.FC<Props> = ({
                     </td>
 
                     {/* Branch Rack Location */}
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 hidden sm:table-cell">
                       {(() => {
                         const stock = branchStocks.find(
                           (s) => s.itemId === item.itemId && s.branchId === selectedBranch
