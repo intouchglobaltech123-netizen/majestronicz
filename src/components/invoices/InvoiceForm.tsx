@@ -53,6 +53,7 @@ import { toast } from 'sonner';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { PhoneInput } from '../common/PhoneInput';
+import { SALE_SPLIT_MODES, SALE_SPLIT_OPTIONS } from '../../lib/paymentModes';
 
 interface Props {
   onSaved: (invoice: Invoice) => void;
@@ -1218,7 +1219,8 @@ export const InvoiceForm: React.FC<Props> = ({
   const handleAddSplit = () => {
     setPaymentSplits((prev) => {
       const usedModes = new Set(prev.map((s) => s.mode));
-      const allModes: PaymentMode[] = ['Cash', 'GPay', 'HDFC', 'COD-Credit'];
+      // The shared list (src/lib/paymentModes.ts): Cash, GPay, HDFC, then credit.
+      const allModes = SALE_SPLIT_MODES as readonly PaymentMode[];
       const nextMode = allModes.find((m) => !usedModes.has(m)) || 'GPay';
 
       // Allocate remainder to the new split if available
@@ -2249,12 +2251,7 @@ export const InvoiceForm: React.FC<Props> = ({
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <UniversalDropdown
-                        options={[
-                          { value: 'Cash', label: 'Cash' },
-                          { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
-                          { value: 'GPay', label: 'GPay (UPI/QR)' },
-                          { value: 'COD-Credit', label: 'COD-Credit (Pay on Delivery)' },
-                        ]}
+                        options={SALE_SPLIT_OPTIONS}
                         value={paymentSplits[0]?.mode || 'Cash'}
                         onChange={(val) =>
                           setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }])
@@ -2347,12 +2344,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         {/* Payment Mode Selector */}
                         <div className="w-44 sm:w-56 shrink-0">
                           <UniversalDropdown
-                            options={[
-                              { value: 'Cash', label: 'Cash' },
-                              { value: 'HDFC', label: 'HDFC (Bank Transfer)' },
-                              { value: 'GPay', label: 'GPay (UPI/QR)' },
-                              { value: 'COD-Credit', label: 'COD-Credit' },
-                            ]}
+                            options={SALE_SPLIT_OPTIONS}
                             value={split.mode}
                             onChange={(val) => handleUpdateSplitMode(index, val as PaymentMode)}
                           />

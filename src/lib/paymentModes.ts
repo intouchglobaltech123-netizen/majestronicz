@@ -11,6 +11,8 @@ export const SALE_MODES = ['Cash', 'GPay', 'HDFC'] as const;
 export const RECEIPT_MODES = ['Cash', 'GPay', 'HDFC', 'UPI', 'Card', 'Bank Transfer', 'Cheque'] as const;
 export const REFUND_MODES = ['Cash', 'GPay', 'HDFC'] as const;
 export const STORE_CREDIT_MODE = 'Store Credit';
+/** Modes a bill can be split into on the sale form: the collected modes plus the part left owing. */
+export const SALE_SPLIT_MODES = [...SALE_MODES, 'COD-Credit'] as const;
 
 export const PAYMENT_MODE_LABEL: Record<string, string> = {
   Cash: 'Cash',
@@ -23,6 +25,9 @@ export const PAYMENT_MODE_LABEL: Record<string, string> = {
   'Store Credit': 'Store Credit',
   'COD-Credit': 'Credit (owed)',
 };
+
+/** Dropdown options for the sale form's payment mode(s). */
+export const SALE_SPLIT_OPTIONS = SALE_SPLIT_MODES.map((m) => ({ value: m, label: PAYMENT_MODE_LABEL[m] || m }));
 
 /** Where the money lands: the drawer, the GPay/UPI account, or the bank. */
 export type ModeGroup = 'Cash' | 'GPay / UPI' | 'Bank / Card' | 'Store Credit' | 'Other';
