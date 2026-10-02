@@ -313,8 +313,9 @@ export async function recordPayment(
       // The unapplied part of a vendor payment is kept as that supplier's advance,
       // so the supplier must be known and the drawer must be a real branch.
       if (!vendorPartyId) throw new AppError('VENDOR_REQUIRED', 'Choose the supplier this payment is for.', 400);
-      const vendor = await tx.vendor.findUnique({ where: { id: vendorPartyId }, select: { id: true } });
+      const vendor = await tx.vendor.findUnique({ where: { id: vendorPartyId }, select: { id: true, vendorName: true } });
       if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
+      input.partyName = vendor.vendorName; // FIN-B-8: the supplier's own name, not the one in the request
       if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', 'Choose a specific branch for this payment.', 400);
     }
     assertBranchAllowed(reqUser, branchId); // a branch-locked user can't bank a receipt to another branch
