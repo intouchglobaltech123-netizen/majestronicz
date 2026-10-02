@@ -251,7 +251,7 @@ try {
     await nav(page, 'Sale Invoices');
     await page.getByPlaceholder('Search sale by Customer, Invoice No, Phone, or Item...').fill(old.invoiceNumber);
     await page.waitForTimeout(700);
-    const btn = page.locator('tr', { hasText: old.invoiceNumber }).first().locator('button[title*="month has ended"]');
+    const btn = page.locator('tr', { hasText: old.invoiceNumber }).first().locator('button[title*="month has ended — use a return"]'); // the Void button (Edit says so too since FIN-A-3)
     check('RPT10-4 the Void button of a bill from an ended month is disabled and says why', (await btn.count()) === 1 && (await btn.isDisabled()));
     await ctx.close();
   }
