@@ -20,6 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
+import { HistoryLoadingHint } from '../common/HistoryLoadingHint';
 import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables, isInvoiceForCustomer, customerSalesSummary } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
@@ -350,6 +351,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
               : activeTab === 'all'
               ? 'Unified parties ledger — combined receivables (To Collect) & payables (To Pay).'
               : 'Configure tier milestones, reward thresholds, and customer loyalty perks.'}
+            {(activeTab === 'customers' || activeTab === 'all') && <HistoryLoadingHint />}
           </p>
         </div>
 

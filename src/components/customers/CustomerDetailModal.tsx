@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance, isInvoiceForCustomer, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
+import { HistoryLoadingHint } from '../common/HistoryLoadingHint';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, istStamp } from '../../lib/utils';
 import {
@@ -648,7 +649,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <div className="pt-2" data-testid="customer-statement">
                 <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
                   <FileText className="h-4 w-4 text-slate-600" />
-                  <span>Statement</span>
+                  <span>Statement<HistoryLoadingHint className="text-amber-700 text-[11px] font-semibold" /></span>
                   <span className="ml-auto text-[11px] font-bold font-mono text-slate-600">
                     Owes {formatCurrency(outstandingSummary.totalOutstanding)} · Store credit {formatCurrency(currentCustomer.creditBalance || 0)} ·{' '}
                     {statement.balance >= 0 ? `Net due ${formatCurrency(statement.balance)}` : `Net in credit ${formatCurrency(-statement.balance)}`}

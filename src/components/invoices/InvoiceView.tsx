@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
+import { HistoryLoadingHint } from '../common/HistoryLoadingHint';
 import { Invoice, Estimate, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -566,6 +567,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   : activeTab === 'draft-sales' || activeTab === 'draft-quotes'
                   ? 'In-progress drafts saved in this browser'
                   : 'All tax invoices, newest first — search any bill, or use Reports for a date range'}
+                {activeTab !== 'new' && <HistoryLoadingHint />}
               </p>
             </div>
         </div>
