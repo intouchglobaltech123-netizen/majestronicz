@@ -77,11 +77,15 @@ export const BranchPnlReportTab: React.FC<Props> = ({
     };
   };
 
+  // FIN-A-4: a period whose returns outweigh its sales has NEGATIVE revenue (and
+  // COGS) — that is activity too, not an empty period.
+  const nonZero = (v: unknown) => Math.abs(Number(v) || 0) > 0.009;
   const hasAnyActivity =
-    pnlData.consolidated.revenue > 0 ||
-    pnlData.consolidated.cogs > 0 ||
-    pnlData.consolidated.totalExpenses > 0 ||
-    pnlData.consolidated.payroll > 0;
+    nonZero(pnlData.consolidated.revenue) ||
+    nonZero(pnlData.consolidated.cogs) ||
+    nonZero(pnlData.consolidated.totalExpenses) ||
+    nonZero(pnlData.consolidated.payroll) ||
+    nonZero(pnlData.consolidated.netProfit);
 
   const handleExport = (format: ExportFormat = 'csv') => {
     if (!hasAnyActivity) return;
