@@ -98,7 +98,9 @@ export async function updateAccessMatrix(input: AccessMatrix): Promise<AccessMat
     // Whitelist against known views/caps to prevent junk.
     const views = (incoming.views || []).filter((v) => ALL_VIEWS.includes(v));
     const caps = (incoming.caps || []).filter((c) => ALL_CAPS.includes(c as Capability)) as Capability[];
-    const flags = (incoming.flags || []).filter((f) => ALL_FLAGS.includes(f));
+    // FIN-A-8: a role sent without "flags" keeps its current billing flags
+    // (an older client sent views + caps only and wiped Billing's flags).
+    const flags = (incoming.flags ?? current[role]?.flags ?? []).filter((f) => ALL_FLAGS.includes(f));
     clean[role] = { views, caps, flags };
   }
   // CEO always retains everything (cannot be locked out).

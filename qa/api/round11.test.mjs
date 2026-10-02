@@ -172,3 +172,18 @@ describe('round 11: report arithmetic (unit)', async () => {
     }
   });
 });
+
+describe('round 11: access matrix', () => {
+  test('FIN-A-8 a role sent without flags keeps its current billing flags', async () => {
+    const before = ok(await get('/api/access-matrix')).matrix;
+    assert.ok((before.Billing.flags || []).length > 0, 'Billing has flags to keep');
+    try {
+      ok(await put('/api/access-matrix', { Billing: { views: before.Billing.views, caps: before.Billing.caps } }), 'no flags in the body');
+      assert.deepEqual(ok(await get('/api/access-matrix')).matrix.Billing.flags, before.Billing.flags);
+      ok(await put('/api/access-matrix', { Billing: { ...before.Billing, flags: [] } }), 'flags: [] still clears them');
+      assert.deepEqual(ok(await get('/api/access-matrix')).matrix.Billing.flags, []);
+    } finally {
+      ok(await put('/api/access-matrix', before), 'restore');
+    }
+  });
+});
