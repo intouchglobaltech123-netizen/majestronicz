@@ -20,7 +20,11 @@ const WORD_CLASS: Record<NonNullable<Props['size']>, string> = {
   sm: 'text-sm', md: 'text-base', lg: 'text-xl', xl: 'text-2xl',
 };
 
-const Emblem: React.FC<{ px: number; className?: string }> = ({ px, className }) => (
+const Emblem: React.FC<{ px: number; className?: string }> = ({ px, className }) => {
+  // One gradient id per logo instance (V5): with several logos on a page (the
+  // sidebar plus a printed document) a shared id made browser print draw dots.
+  const gradId = `mz-grad-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  return (
   <svg
     width={px}
     height={px}
@@ -31,12 +35,12 @@ const Emblem: React.FC<{ px: number; className?: string }> = ({ px, className })
     className={cn('shrink-0', className)}
   >
     <defs>
-      <linearGradient id="mz-grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <linearGradient id={gradId} x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
         <stop stopColor="#b91c1c" />
         <stop offset="1" stopColor="#7f1120" />
       </linearGradient>
     </defs>
-    <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#mz-grad)" />
+    <rect x="1" y="1" width="46" height="46" rx="12" fill={`url(#${gradId})`} />
     {/* Crown mark — "majestic" M */}
     <path
       d="M12 32h24l-2.2 5.2a2 2 0 0 1-1.85 1.25H16.05a2 2 0 0 1-1.85-1.25L12 32Z"
@@ -51,7 +55,8 @@ const Emblem: React.FC<{ px: number; className?: string }> = ({ px, className })
     <circle cx="9" cy="14" r="1.6" fill="#fde68a" />
     <circle cx="39" cy="14" r="1.6" fill="#fde68a" />
   </svg>
-);
+  );
+};
 
 const Wordmark: React.FC<{ size: NonNullable<Props['size']> }> = ({ size }) => (
   <span className={cn('font-extrabold tracking-tight leading-none text-slate-900 whitespace-nowrap', WORD_CLASS[size])}>
