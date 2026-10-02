@@ -9,6 +9,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE, gstinChecksumValid } from '../services/gstin.service.js';
 import { nowIso } from '../lib/stockLedger.js';
 import { cleanRecurringFields } from '../lib/validate.js';
+import { isValidBranch } from '../lib/constants.js';
 import invoiceRoutes from './invoice.routes.js';
 import stockRoutes from './stock.routes.js';
 import purchaseRoutes from './purchase.routes.js';
@@ -327,6 +328,32 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
     allowed[k] = v;
   }
   if (!existing && allowed.monthlySalary === undefined) allowed.monthlySalary = 0;
+  // FIN-B-7: the other fields are checked too — a status of "Banana" or a
+  // joined date of "not-a-date" was stored as sent.
+  if (allowed.status !== undefined && !['Active', 'Inactive'].includes(String(allowed.status))) {
+    throw new AppError('BAD_STATUS', 'Status must be Active or Inactive.', 400);
+  }
+  if (!existing && allowed.status === undefined) allowed.status = 'Active';
+  if (allowed.branchId !== undefined && !isValidBranch(String(allowed.branchId))) throw new AppError('BAD_BRANCH', 'Choose a real branch.', 400);
+  if (!existing && allowed.branchId === undefined) throw new AppError('BAD_BRANCH', 'Choose the branch the employee works at.', 400);
+  if (allowed.joinedDate !== undefined && allowed.joinedDate !== '') {
+    const d = String(allowed.joinedDate);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)) || new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) !== d) {
+      throw new AppError('BAD_DATE', 'Joined date must be a real date (YYYY-MM-DD).', 400);
+    }
+  }
+  if (!existing && !allowed.joinedDate) allowed.joinedDate = nowIso().slice(0, 10);
+  if (allowed.phone != null && String(allowed.phone).trim() !== '') {
+    const ph = String(allowed.phone).trim();
+    const digits = ph.replace(/\D/g, '');
+    if (!/^[\d\s+()-]+$/.test(ph) || digits.length < 10 || digits.length > 13) throw new AppError('BAD_PHONE', 'Phone must be a 10-digit mobile number.', 400);
+    allowed.phone = ph;
+  }
+  if (allowed.email != null && String(allowed.email).trim() !== '') {
+    const em = String(allowed.email).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) || em.length > 120) throw new AppError('BAD_EMAIL', 'Enter a valid email address.', 400);
+    allowed.email = em;
+  }
   // The kiosk PIN is stored HASHED, never in plain text (SEC6-2).
   const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: hashPin(String(b.pin)) } : {}) };
   let employee;
