@@ -301,6 +301,19 @@ describe('purchases', () => {
     ok(await post('/api/purchase/save', { po: base }), 'valid PO');
   });
 
+  test('PUR5-2 receiving uses the shared unit rule: 2.5 of a piece item is refused, 2.5 metres of cable is received', async () => {
+    const piece = await createItem();
+    const po = await createPO([{ item: piece, qty: 5, price: 10 }]);
+    expectStatus(await receiveAll(po, [{ itemId: piece.id, quantityReceived: 2.5 }]), 400, 'receive 2.5 PCS');
+    expectStatus(await receiveAll(po, [{ itemId: piece.id, quantityReceived: 2, damagedQuantity: 0.5 }]), 400, 'damaged 0.5 PCS');
+    assert.equal(await stockOf(piece.id, 'erode-hq'), 0, 'nothing received');
+    // The PO line carries no unit of its own — the item master's MTR decides.
+    const cable = await createItem({ unit: 'MTR' });
+    const cablePo = await createPO([{ item: cable, qty: 5, price: 10 }]);
+    ok(await receiveAll(cablePo, [{ itemId: cable.id, quantityReceived: 2.5 }]), 'receive 2.5 MTR');
+    near(await stockOf(cable.id, 'erode-hq'), 2.5, '2.5 m in stock');
+  });
+
   test('PUR8-5 saving a PO with the same item on two lines keeps the received quantities', async () => {
     const item = await createItem();
     const po = await createPO([{ item, qty: 5, price: 100 }, { item, qty: 5, price: 100 }]);

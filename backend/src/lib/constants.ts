@@ -17,11 +17,9 @@ export const branchLocation = (id: string) => BRANCHES.find((b) => b.id === id)?
 /** True only for a real, known branch id — stock must never move to an unknown branch. */
 export const isValidBranch = (id: string): boolean => BRANCHES.some((b) => b.id === id);
 
-/** Units sold by measure, where a fractional quantity (2.5 MTR) is real. Every
- *  other unit (PCS, NOS, SET, BOX…) counts whole pieces (PUR5-2 / PUR-10). */
-const MEASURED_UNITS = new Set(['MTR', 'M', 'METER', 'METERS', 'METRE', 'KG', 'KGS', 'G', 'GM', 'GMS', 'LTR', 'L', 'ML', 'FT', 'FEET', 'SQFT', 'SQM', 'CM', 'MM']);
-export const allowsFractionalQty = (unit?: string | null): boolean =>
-  MEASURED_UNITS.has(String(unit || '').trim().toUpperCase());
+// The whole-unit / measured-unit rule lives in lib/units.ts (one list for the
+// whole server); re-exported here for older imports.
+export { allowsFractionalQty } from './units.js';
 
 // The business-date helpers live in lib/businessDate.ts (IST days); re-exported
 // here so older imports keep working with ONE implementation.

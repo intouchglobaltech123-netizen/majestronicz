@@ -553,11 +553,8 @@ export const STANDARD_UNITS = [
   { value: 'ROLL', label: 'ROLL (Rolls)' },
 ];
 
-/** Units sold by measure, where a fractional quantity (2.5 MTR) is real; every
- *  other unit counts whole pieces. Mirrors backend/src/lib/constants.ts. */
-const MEASURED_UNITS = new Set(['MTR', 'M', 'METER', 'METERS', 'METRE', 'KG', 'KGS', 'G', 'GM', 'GMS', 'LTR', 'L', 'ML', 'FT', 'FEET', 'SQFT', 'SQM', 'CM', 'MM']);
-export const allowsFractionalQty = (unit?: string | null): boolean =>
-  MEASURED_UNITS.has(String(unit || '').trim().toUpperCase());
+// The whole-unit / measured-unit rule lives in lib/units.ts (mirrors the server).
+export { allowsFractionalQty } from '../lib/units';
 
 export const GST_RATES = [
   { rate: 0, label: 'GST @ 0% (Exempt)' },

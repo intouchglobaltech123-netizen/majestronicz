@@ -5,6 +5,7 @@ import { X, Plus, Minus, AlertTriangle, Check, ShieldAlert, ArrowRight, MapPin }
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { UniversalDropdown } from '../common/UniversalDropdown';
+import { allowsFractionalQty } from '../../lib/units';
 
 interface Props {
   isOpen: boolean;
@@ -13,15 +14,9 @@ interface Props {
   targetBranchId?: BranchId;
 }
 
-// Units measured by weight / length / volume can carry fractional quantities.
-// Discrete units (pieces, boxes, numbers, sets, packets) must stay whole numbers.
-const DECIMAL_UNITS = [
-  'KG', 'KGS', 'GM', 'GMS', 'GRAM', 'GRAMS',
-  'MTR', 'MTRS', 'MTS', 'CM', 'FT', 'INCH',
-  'LTR', 'LTRS', 'LITRE', 'LITRES', 'ML',
-];
-const unitAllowsDecimals = (unit?: string): boolean =>
-  !!unit && DECIMAL_UNITS.includes(unit.trim().toUpperCase());
+// Measured units (MTR, KGS, LTR…) can carry fractional quantities; counted units
+// (PCS, NOS, SET, BOX…) stay whole — the shared rule in lib/units.ts.
+const unitAllowsDecimals = allowsFractionalQty;
 
 // Parse a quantity input respecting the unit's decimal rule: whole-number units
 // are rounded to the nearest integer (never silently truncated); decimal-capable
