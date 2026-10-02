@@ -416,6 +416,20 @@ describe('quotes and bills (round 8)', () => {
     expectStatus(await post(`/api/catalog/estimate/${q.id}/cancel`, { reason: 'QA' }), 200, 'an Open quote can be cancelled again');
   });
 
+  test('SAL9-14 a quotation cannot be cancelled without a reason', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const q = await createQuote(item, 1, 'erode-hq', date);
+    for (const reason of [undefined, '', '   ']) {
+      expectStatus(await post(`/api/catalog/estimate/${q.id}/cancel`, reason === undefined ? {} : { reason }), 400, `reason ${JSON.stringify(reason)}`);
+    }
+    assert.equal((await estimates()).find((e) => e.id === q.id).status, 'Open', 'still open');
+    ok(await post(`/api/catalog/estimate/${q.id}/cancel`, { reason: '  Customer bought elsewhere ' }), 'cancel with a reason');
+    const after = (await estimates()).find((e) => e.id === q.id);
+    assert.equal(after.status, 'Cancelled');
+    assert.equal(after.cancelReason, 'Customer bought elsewhere');
+  });
+
   test('SAL8-8 quotes get the invoice checks: GST slab, price, discount', async () => {
     const item = await createItem();
     for (const [what, over, lineOver] of [

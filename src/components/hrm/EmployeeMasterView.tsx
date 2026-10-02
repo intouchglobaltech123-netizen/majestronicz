@@ -18,6 +18,7 @@ import { useErp } from '../../context/ErpContext';
 import { EmployeeModal } from './EmployeeModal';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { formatCurrency } from '../../lib/utils';
+import { isActiveEmployee } from '../../lib/payroll';
 
 interface EmployeeMasterViewProps {
   onQuickClockIn?: (employeeId: string) => void;
@@ -202,17 +203,17 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
                       <td className="py-3.5 px-3 text-center">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-none text-xs font-semibold border ${
-                            emp.status === 'Active'
+                            isActiveEmployee(emp)
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                               : 'bg-slate-100 text-slate-500 border-slate-300'
                           }`}
                         >
-                          {emp.status === 'Active' ? (
+                          {isActiveEmployee(emp) ? (
                             <CheckCircle2 className="h-3 w-3" />
                           ) : (
                             <XCircle className="h-3 w-3" />
                           )}
-                          <span>{emp.status}</span>
+                          <span>{isActiveEmployee(emp) ? 'Active' : 'Inactive'}</span>
                         </span>
                       </td>
 

@@ -12,6 +12,7 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES } from '../../types';
 import { hasCoords, mapsLink } from '../../lib/geo';
+import { isActiveEmployee } from '../../lib/payroll';
 
 /** Today's IST date (YYYY-MM-DD) — matches how the backend stamps attendance. */
 function istToday(): string {
@@ -36,7 +37,7 @@ export const TodayAttendanceBoard: React.FC = () => {
   const today = istToday();
 
   const staff = useMemo(() => {
-    const active = employees.filter((e) => e.status === 'Active');
+    const active = employees.filter(isActiveEmployee);
     return active.filter((e) => {
       if (currentUser.role === 'Manager') {
         return e.branchId === (currentUser.assignedBranchId || 'coimbatore');

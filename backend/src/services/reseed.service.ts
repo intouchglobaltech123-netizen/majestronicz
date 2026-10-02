@@ -11,6 +11,9 @@ import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constan
 import { buildDefaultMatrix } from '../lib/auth.js';
 import { buildOpeningStockRows } from '../lib/openingStock.js';
 import { provisionUserEmployees } from './user.service.js';
+import { cleanPhone } from '../lib/stockLedger.js';
+import { istDateOf } from '../lib/businessDate.js';
+import { legacyRefundId } from '../lib/returnRefunds.js';
 
 /**
  * Resets the database to the demo dataset. Shared by the CLI seed script and
@@ -73,9 +76,12 @@ export async function reseedDatabase() {
 
   await prisma.stockAdjustmentLog.createMany({ data: demoLogs as any });
   if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
-  await prisma.estimate.createMany({ data: INITIAL_ESTIMATES as any });
+  // Quotations carry their lifecycle status (SAL9-14): none of the demo ones became a bill.
+  await prisma.estimate.createMany({ data: (INITIAL_ESTIMATES as any[]).map((e) => ({ status: 'Open', ...e })) as any });
   await prisma.deliveryChallan.createMany({ data: INITIAL_CHALLANS as any });
-  await prisma.invoice.createMany({ data: INITIAL_INVOICES as any });
+  const seeded = seedLedger();
+  await prisma.invoice.createMany({ data: seeded.invoices as any });
+  if (seeded.payments.length) await prisma.payment.createMany({ data: seeded.payments as any });
   await prisma.enquiry.createMany({ data: INITIAL_ENQUIRIES as any });
   await prisma.pendingOrder.createMany({ data: INITIAL_PENDING_ORDERS as any });
   await prisma.followUpReminder.createMany({ data: INITIAL_REMINDERS as any });
@@ -101,6 +107,9 @@ export async function reseedDatabase() {
       { key: 'payrollSettings', value: INITIAL_PAYROLL_SETTINGS as any },
       { key: 'inventorySettings', value: { deadStockThresholdDays: 90 } },
       { key: 'accessMatrix', value: buildDefaultMatrix() as any },
+      // The demo data below is already in the shape the one-time data fix
+      // produces, so a fresh seed needs no fix (UPG9-11 / SAL9-8).
+      { key: 'migration:fix-existing-bills', value: { runs: [], seededAlreadyCorrect: true } as any },
     ],
   });
 
@@ -128,4 +137,84 @@ export async function ensureSeedData(): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+/**
+ * The demo bills as this release records them (UPG9-11), so a fresh seed /
+ * Reset Demo Data needs no run of scripts/fix-existing-bills.ts:
+ *   - each bill is linked to its customer by phone (as a sale save would);
+ *   - the payment split is frozen as collected at billing, with creditOriginal
+ *     and the due worked out from it;
+ *   - each line carries its cost at sale time (`unitCost`, E2E5-5);
+ *   - the older return on 7311 has the cash refund of its over-paid part
+ *     (₹5,000 paid, ₹4,012 returned on ₹8,024 → ₹988 back), under the same id
+ *     the one-time script would give it;
+ *   - each salary marked Paid has its Payment 'out' row.
+ */
+function seedLedger(): { invoices: any[]; payments: any[] } {
+  const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+  const byPhone = new Map((INITIAL_CUSTOMERS as any[]).map((c) => [cleanPhone(c.phone), c]));
+  const cost = new Map((INITIAL_ITEMS as any[]).map((i) => [i.id, Number(i.purchasePrice) || 0]));
+  const payments: any[] = [];
+  let payNo = 0;
+  const nextPay = (date: string) => `PAY-${date.slice(0, 7).replace('-', '')}-${String(++payNo).padStart(4, '0')}`;
+  const invoices = (INITIAL_INVOICES as any[]).map((src) => {
+    const inv: any = JSON.parse(JSON.stringify(src));
+    const G = r2(inv.grandTotal);
+    const cust: any = inv.customerId ? null : byPhone.get(cleanPhone(inv.customerPhone));
+    if (cust) inv.customerId = cust.id;
+    inv.items = (inv.items || []).map((li: any) => ({
+      ...li,
+      unitCost: li.unitCost ?? (li.isCombo
+        ? r2(((li.comboComponents as any[]) || []).reduce((t, c) => t + (Number(c.quantity) || 0) * (cost.get(c.itemId) || 0), 0))
+        : cost.get(li.itemId) ?? 0),
+    }));
+    if (!Array.isArray(inv.paymentSplits) || !inv.paymentSplits.length) {
+      const partial = Number(inv.partialAmount) || 0;
+      const c0 = inv.isPartialPayment && partial > 0 ? Math.min(G, partial) : inv.paymentMode === 'COD-Credit' ? 0 : G;
+      const owed = r2(G - c0);
+      inv.paymentSplits = [
+        ...(c0 > 0 ? [{ mode: !inv.paymentMode || inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: c0 }] : []),
+        ...(owed > 0 ? [{ mode: 'COD-Credit', amount: owed }] : []),
+      ];
+      inv.partialAmount = owed > 0 ? c0 : null;
+      inv.isPartialPayment = owed > 0 && c0 > 0;
+      inv.creditOriginal = owed;
+    }
+    const c0 = r2(G - (Number(inv.creditOriginal) || 0));
+    // Returns made before refunds were recorded were paid back in cash: the
+    // over-paid part of each, on the return day.
+    let returned = 0;
+    let refunded = 0;
+    for (const r of (inv.returns as any[]) || []) {
+      returned = r2(returned + (Number(r.refundAmount) || 0));
+      const back = Math.max(0, r2(c0 - refunded - (G - returned)));
+      if (back <= 0) continue;
+      const date = istDateOf(r.returnedAt);
+      payments.push({
+        id: legacyRefundId(inv.id, r.returnedAt), receiptNumber: nextPay(date), type: 'out', partyType: 'customer',
+        partyId: inv.customerId ?? null, partyName: inv.customerName || 'Customer', branchId: inv.branchId, date, amount: back,
+        paymentMode: 'Cash', reference: inv.invoiceNumber, notes: `Refund on sale #${inv.invoiceNumber} — ${r.reason || 'return'}`,
+        allocations: [{ refId: inv.id, refNumber: inv.invoiceNumber, amount: back }], createdById: null,
+        createdByName: r.processedBy || 'System', createdAt: r.returnedAt,
+      });
+      refunded = r2(refunded + back);
+    }
+    inv.balanceDue = Math.max(0, r2((Number(inv.creditOriginal) || 0) - returned + refunded));
+    return inv;
+  });
+  for (const row of INITIAL_PAYROLL_RECORDS as any[]) {
+    if (row.status !== 'Paid' || !(Number(row.finalPayable) > 0)) continue;
+    const emp: any = (INITIAL_EMPLOYEES as any[]).find((e) => e.id === row.employeeId);
+    const date = istDateOf(row.paidAt || row.updatedAt);
+    const amount = r2(row.finalPayable);
+    payments.push({
+      id: `pay-seed-salary-${row.id}`, receiptNumber: nextPay(date), type: 'out', partyType: 'staff', partyId: row.employeeId,
+      partyName: row.employeeName || emp?.name || 'Staff', branchId: emp?.branchId || row.branchId, date, amount,
+      paymentMode: /cash/i.test(String(row.paymentMode || 'Cash')) ? 'Cash' : String(row.paymentMode), reference: row.paymentReference ?? null,
+      notes: `Salary for ${row.month}`, allocations: [{ refId: row.id, refNumber: row.month, amount }], createdById: null,
+      createdByName: 'System', createdAt: row.paidAt || row.updatedAt,
+    });
+  }
+  return { invoices, payments };
 }

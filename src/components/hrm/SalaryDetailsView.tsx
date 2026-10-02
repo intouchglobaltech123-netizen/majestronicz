@@ -17,6 +17,7 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { Employee, BRANCHES } from '../../types';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
+import { isActiveEmployee } from '../../lib/payroll';
 
 /**
  * Salary Details — per-employee compensation & attendance breakdown.
@@ -240,11 +241,11 @@ const SalaryDetailPanel: React.FC<PanelProps> = ({ employee, attendanceRecords, 
           </div>
         </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-none border ${
-          employee.status === 'Active'
+          isActiveEmployee(employee)
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
             : 'bg-slate-100 text-slate-500 border-slate-300'
         }`}>
-          {employee.status}
+          {isActiveEmployee(employee) ? 'Active' : 'Inactive'}
         </span>
       </div>
 

@@ -17,7 +17,7 @@ import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { EmployeeModal } from './EmployeeModal';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
-import { computePayrollRows } from '../../lib/payroll';
+import { computePayrollRows, isActiveEmployee } from '../../lib/payroll';
 
 export const HrmView: React.FC = () => {
   const {
@@ -53,7 +53,7 @@ export const HrmView: React.FC = () => {
   const currentMonthStr = todayStr.slice(0, 7); // current month, not hard-coded (PLT-5)
 
   // KPI Calculations
-  const activeStaff = employees.filter((e) => e.status === 'Active');
+  const activeStaff = employees.filter(isActiveEmployee);
   const todayCheckIns = attendanceRecords.filter((a) => a.date === todayStr && a.checkInTime);
 
   // Monthly payroll expense — uses the SAME shared computation as the Payroll
