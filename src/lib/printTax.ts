@@ -11,8 +11,9 @@ export function supplyTaxRows(
   overallDiscountAmount: number,
   subtotal: number,
   interState: boolean,
+  billTax?: number,
 ): GstBreakdownRow[] {
-  const rows = calculateTaxBreakdown(items, overallDiscountAmount, subtotal);
+  const rows = calculateTaxBreakdown(items, overallDiscountAmount, subtotal, false, billTax);
   if (!interState) return rows;
   const byRate = new Map<number, GstBreakdownRow>();
   for (const r of rows) {
@@ -45,9 +46,10 @@ export function hsnRateSummary(
   overallDiscountAmount: number,
   subtotal: number,
   interState: boolean,
+  billTax?: number,
 ): HsnRow[] {
   const r2 = (n: number) => Math.round(n * 100) / 100;
-  const rateRows = calculateTaxBreakdown(items as any, overallDiscountAmount, subtotal);
+  const rateRows = calculateTaxBreakdown(items as any, overallDiscountAmount, subtotal, false, billTax);
   const rateTax = new Map<number, number>();
   for (const r of rateRows) rateTax.set(r.rate * 2, r2((rateTax.get(r.rate * 2) || 0) + r.taxAmount));
   const base = subtotal || items.reduce((s, it) => s + (Number(it.taxableAmount) || 0), 0);

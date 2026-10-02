@@ -78,8 +78,13 @@ export function calculateTaxBreakdown(
   subtotal = 0,
   /** SAL9-7 / E2E9-2: an inter-state bill carries IGST at the full rate. */
   interState = false,
+  /** SAL10-2: the bill's stored total tax — the rate rows are made to add up to it. */
+  billTax?: number,
 ): GstBreakdownRow[] {
   const rateMap = new Map<number, number>();
+  // SAL10-2: each rate's tax is the sum of its lines' own (stored) tax, as the
+  // bill's total is — not taxable × rate again, which could differ by paisa.
+  const rateTaxMap = new Map<number, number>();
 
   items.forEach((item) => {
     const rate = Number(item.taxRate ?? item.gstRate ?? 0);
@@ -87,6 +92,8 @@ export function calculateTaxBreakdown(
     if (taxable > 0 && rate > 0) {
       const current = rateMap.get(rate) || 0;
       rateMap.set(rate, current + taxable);
+      const lineTax = Number((item as any).totalTax);
+      rateTaxMap.set(rate, (rateTaxMap.get(rate) || 0) + (Number.isFinite(lineTax) && lineTax > 0 ? lineTax : (taxable * rate) / 100));
     }
   });
 
@@ -98,13 +105,24 @@ export function calculateTaxBreakdown(
 
   const rows: GstBreakdownRow[] = [];
   const sortedRates = Array.from(rateMap.keys()).sort((a, b) => a - b);
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const taxOf = new Map<number, number>(sortedRates.map((rate) => [rate, r2((rateTaxMap.get(rate) || 0) * netRatio)]));
+  // The paisa left between the rate rows and the bill's own tax goes on the
+  // largest rate row, so the printed rows add up to the bill (SAL10-2).
+  if (billTax != null && Number.isFinite(Number(billTax)) && sortedRates.length) {
+    const residue = r2(Number(billTax) - [...taxOf.values()].reduce((t, v) => t + v, 0));
+    if (Math.abs(residue) > 0 && Math.abs(residue) < 1) {
+      const top = sortedRates.reduce((a, b) => ((taxOf.get(b) || 0) > (taxOf.get(a) || 0) ? b : a));
+      taxOf.set(top, r2((taxOf.get(top) || 0) + residue));
+    }
+  }
 
   sortedRates.forEach((rate) => {
     const taxable = Math.round((rateMap.get(rate) || 0) * netRatio * 100) / 100;
     const halfRate = rate / 2;
     // Split by residual (SGST rounded half, CGST the remainder) so SGST+CGST
     // always equals the total tax for this rate — matching the summary panel.
-    const totalTax = Math.round(((taxable * rate) / 100) * 100) / 100;
+    const totalTax = taxOf.get(rate) || 0;
     if (interState) {
       rows.push({ taxType: 'IGST', rate, taxableAmount: taxable, taxAmount: totalTax });
       return;

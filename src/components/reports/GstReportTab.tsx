@@ -132,11 +132,20 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     // Reports header (gstCollected), so the two never differ by a paisa.
     const g = gstCollected(filtered, noCost, inPeriod);
     totals.taxable = g.taxable; totals.cgst = g.cgst; totals.sgst = g.sgst; totals.igst = g.igst; totals.total = g.tax;
+    // RPT10-2 / E2E10-6: each row's tax is rounded ONCE and split once (SGST =
+    // half, CGST = the rest), so CGST + SGST + IGST is exactly the row's total.
+    const splitOnce = <T extends { taxable: number; cgst: number; sgst: number; igst: number; total: number }>(r: T): T => {
+      const total = r2(r.total);
+      const igst = r2(r.igst);
+      const sgst = r2((total - igst) / 2);
+      return { ...r, taxable: r2(r.taxable), total, igst, sgst, cgst: r2(total - igst - sgst) };
+    };
     return {
-      rateRows: [...rateMap.values()].sort((a, b) => a.rate - b.rate),
-      hsnRows: [...hsnMap.values()].sort((a, b) => b.taxable - a.taxable),
-      b2bRows: [...b2bMap.values()].sort((a, b) => b.taxable - a.taxable),
-      b2cs,
+      rateRows: [...rateMap.values()].map(splitOnce).sort((a, b) => a.rate - b.rate),
+      // A HSN sold and fully returned in the same period nets to nothing — not listed.
+      hsnRows: [...hsnMap.values()].filter((h) => Math.abs(h.qty) > 0.0005 || Math.abs(h.taxable) > 0.005).sort((a, b) => b.taxable - a.taxable),
+      b2bRows: [...b2bMap.values()].map(splitOnce).sort((a, b) => b.taxable - a.taxable),
+      b2cs: splitOnce(b2cs),
       totals,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

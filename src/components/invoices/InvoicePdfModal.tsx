@@ -50,7 +50,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   // Tax lines per distinct GST rate (SGST + CGST pairs, or one IGST line)
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!invoice || !invoice.withGst) return [];
-    return supplyTaxRows(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState);
+    return supplyTaxRows(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState, invoice.totalTax);
   }, [invoice, interState]);
 
   // SAL6-10: Esc closes the preview (the close button says so).
@@ -74,7 +74,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const qtyTotalLabel = quantityByUnit(invoice.items);
 
   // HSN/SAC-wise tax summary: one row per HSN + rate (SAL4-8), net of overall discount.
-  const hsnSummary = hsnRateSummary(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState);
+  const hsnSummary = hsnRateSummary(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState, invoice.totalTax);
 
   // Every payment mode of a split bill, not just the first (SAL4-15).
   const paySplits = getInvoicePaymentSplits(invoice).filter((sp) => (Number(sp.amount) || 0) > 0);

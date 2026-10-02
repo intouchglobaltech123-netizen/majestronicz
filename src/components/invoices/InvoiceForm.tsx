@@ -1206,7 +1206,7 @@ export const InvoiceForm: React.FC<Props> = ({
   // GST rate breakdown
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!withGst) return [];
-    return calculateTaxBreakdown(lineItems, totals.overallDiscountAmount, totals.subtotal, isInterState);
+    return calculateTaxBreakdown(lineItems, totals.overallDiscountAmount, totals.subtotal, isInterState, totals.totalTax);
   }, [lineItems, withGst, totals.overallDiscountAmount, totals.subtotal, isInterState]);
 
   // Remaining balance due calculation for Partial Payment

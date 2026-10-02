@@ -206,7 +206,13 @@ export function gstCollected(invoices: Invoice[], costOf: CostOf = () => 0, inRa
     t.taxable += fig.taxable; t.tax += fig.tax; t.cgst += fig.cgst; t.sgst += fig.sgst; t.igst += fig.igst;
     t.invoices += 1;
   }
-  return { taxable: r2(t.taxable), tax: r2(t.tax), cgst: r2(t.cgst), sgst: r2(t.sgst), igst: r2(t.igst), invoices: t.invoices };
+  // RPT10-2: the tax is rounded once and split once (SGST = half, CGST = the
+  // rest), so CGST + SGST (+ IGST) always equals the tax — summing each line's
+  // unrounded halves ran a paisa over.
+  const tax = r2(t.tax);
+  const igst = r2(t.igst);
+  const sgst = r2((tax - igst) / 2);
+  return { taxable: r2(t.taxable), tax, cgst: r2(tax - igst - sgst), sgst, igst, invoices: t.invoices };
 }
 
 /** A register expense that is a real operating expense (approved, not a bank deposit). */

@@ -37,7 +37,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   // Tax breakdown per distinct GST rate using shared tax calculation
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!estimate || !estimate.withGst) return [];
-    return supplyTaxRows(estimate.items, estimate.overallDiscountAmount || 0, estimate.subtotal || 0, interState);
+    return supplyTaxRows(estimate.items, estimate.overallDiscountAmount || 0, estimate.subtotal || 0, interState, estimate.totalTax);
   }, [estimate, interState]);
 
   // SAL6-10: Esc closes the preview (the close button says so).

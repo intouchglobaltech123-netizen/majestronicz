@@ -298,6 +298,18 @@ describe('round 10: report period rule and retry (unit)', async () => {
     assert.equal(days.get('2026-10-01'), 2360 - 590);
   });
 
+  test('RPT10-2 / SAL10-2 CGST + SGST add up to the tax exactly; printed rate rows add up to the bill\'s stored tax', async () => {
+    const lines = [1, 2, 3].map((i) => ({ id: `l${i}`, itemId: `it${i}`, itemName: 'x', quantity: 1, taxRate: 18, taxableAmount: 0.28, totalTax: 0.05, totalAmount: 0.33 }));
+    const inv = { id: 'i1', branchId: 'erode-hq', date: '2026-10-01', withGst: true, stateOfSupply: '33-Tamil Nadu', subtotal: 0.84, totalTax: 0.15, totalCgst: 0.07, totalSgst: 0.08, grandTotal: 0.99, items: lines, returns: [] };
+    const g = rm.gstCollected([inv]);
+    assert.equal(Math.round((g.cgst + g.sgst) * 100), Math.round(g.tax * 100), `cgst ${g.cgst} + sgst ${g.sgst} = tax ${g.tax}`);
+    const tc = await importTs('src/lib/taxCalculations.ts');
+    const big = [{ taxableAmount: 333.33, taxRate: 18, totalTax: 60 }, { taxableAmount: 333.33, taxRate: 18, totalTax: 60 }, { taxableAmount: 101.01, taxRate: 5, totalTax: 5.05 }];
+    const rows = tc.calculateTaxBreakdown(big, 0, 767.67, false, 125.05);
+    const sum = Math.round(rows.reduce((t, r) => t + r.taxAmount, 0) * 100) / 100;
+    assert.equal(sum, 125.05, 'rows add up to the bill tax');
+  });
+
   test('PUR10-3 a deadlock (40P01) or serialization failure from a raw query is retried, other errors are not', () => {
     assert.equal(retry.isRetryableTxError({ code: 'P2010', meta: { code: '40P01' }, message: 'deadlock detected' }), true);
     assert.equal(retry.isRetryableTxError({ code: 'P2034' }), true);
