@@ -510,4 +510,33 @@ describe('round 9: inventory', () => {
     expectStatus(await del(`/api/catalog/challan/${saved.id}`, 'Billing'), 403, 'Billing deletes received');
     assert.ok(ok(await get('/api/challans')).some((c) => c.id === saved.id));
   });
+
+  test('INV4-6 item add/edit refuse a negative threshold or wholesale qty, a discount above 100%, an unknown supplier, a blank unit and a numbers-only name; edits are trimmed', async () => {
+    const base = () => ({ itemName: `QA v ${uid()}`, itemHSN: '85371000', category: 'QA', itemCode: `QA-${uid()}`.toUpperCase(), unit: 'PCS', salePrice: 100, salePriceTaxMode: 'exclusive', wholesalePrice: 100, minWholesaleQty: 1, purchasePrice: 50, gstTaxSlab: 18 });
+    const add = (extra) => post('/api/catalog/item', { item: { ...base(), ...extra }, initialStocks: {} });
+    expectStatus(await add({ reorderThreshold: -5 }), 400, 'threshold -5');
+    expectStatus(await add({ minWholesaleQty: -3 }), 400, 'min wholesale -3');
+    expectStatus(await add({ discountOnSalePrice: 150, discountType: '%' }), 400, 'discount 150%');
+    expectStatus(await add({ vendorId: 'vnd-nope' }), 400, 'unknown supplier');
+    expectStatus(await add({ unit: '' }), 400, 'blank unit');
+    expectStatus(await add({ itemName: '500' }), 400, 'numbers-only name');
+    const item = ok(await add({})).item;
+    ok(await put(`/api/catalog/item/${item.id}`, { item: { itemName: `  ${item.itemName}  ` } }), 'edit with spaces');
+    assert.equal(ok(await get('/api/items')).find((i) => i.id === item.id).itemName, item.itemName, 'stored trimmed');
+    expectStatus(await put(`/api/catalog/item/${item.id}`, { item: { reorderThreshold: -1 } }), 400, 'edit threshold -1');
+  });
+
+  test('INV9-5 two items with the same name added at once: only one is created', async () => {
+    const name = `QA race ${uid()}`;
+    const mk = () => post('/api/catalog/item', { item: { itemName: name, itemHSN: '85371000', category: 'QA', itemCode: `QA-${uid()}${Math.random().toString(36).slice(2, 6)}`.toUpperCase(), unit: 'PCS', salePrice: 10, salePriceTaxMode: 'exclusive', wholesalePrice: 10, minWholesaleQty: 1, purchasePrice: 5, gstTaxSlab: 18 }, initialStocks: {} });
+    const res = await Promise.all([mk(), mk(), mk()]);
+    assert.equal(res.filter((r) => r.status === 200).length, 1, res.map((r) => r.status).join(','));
+    assert.equal(ok(await get('/api/items')).filter((i) => i.itemName === name).length, 1);
+  });
+
+  test('INV9-7 setting a location for an item that does not exist is refused', async () => {
+    expectStatus(await post('/api/stock/location', { itemId: `ghost-${uid()}`, branchId: 'erode-hq', location: 'Rack 9' }), 404);
+    assert.ok(!ok(await get('/api/branch-stock')).some((r) => r.itemId.startsWith('ghost-')));
+  });
 });
+

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
-import { getTodayDateString, formatCurrency } from '../lib/utils';
+import { getTodayDateString, formatCurrency, nameWithRole } from '../lib/utils';
 import { reorderThresholdOf, stockStatusOf, ItemSales90d, StockStatus } from '../lib/stockThreshold';
 import { makeOpeningLookup } from '../lib/cashClosing';
 
@@ -726,6 +726,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Multi-item transfer history + inventory config (hydrated from backend).
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
   const [itemSales90d, setItemSales90d] = useState<ItemSales90d>({});
+  // INV2-10: last sale day per item and branch, from the server (roles without bills).
+  const [itemLastSale, setItemLastSale] = useState<Record<string, Record<string, string>>>({});
   // Party-ledger payments (receipts from customers / payments to vendors).
   const [payments, setPayments] = useState<Payment[]>([]);
   // Login UX + staff accounts.
@@ -815,6 +817,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
     if (Array.isArray(data.payments)) setPayments(data.payments);
     if (data.itemSales90d && typeof data.itemSales90d === 'object') setItemSales90d(data.itemSales90d);
+    if (data.itemLastSale && typeof data.itemLastSale === 'object') setItemLastSale(data.itemLastSale);
     if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
     if (data.accessMatrix && typeof data.accessMatrix === 'object') setAccessMatrix(data.accessMatrix);
     if (Array.isArray(data.categories)) setCategories(data.categories);
@@ -1804,7 +1807,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newQuantity: newQty,
       reason,
       notes: notes?.trim() || undefined,
-      adjustedBy: `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`,
+      adjustedBy: nameWithRole(currentUser.name, currentUser.role),
       timestamp: now,
     };
 
@@ -1887,7 +1890,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     //    the toast names the number it actually saved (E2E7-9 / INV-3).
 
     // 3. Record the in-transit transfer so it shows in history and can be received.
-    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
+    const userLabel = nameWithRole(currentUser.name, currentUser.role);
     const newTransfer: StockTransfer = {
       id: `trf-${Date.now()}`, transferNumber: transferRef, fromBranch, toBranch,
       items: [{ itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, itemHSN: targetItem.itemHSN, quantity, unit: targetItem.unit }],
@@ -1965,7 +1968,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date().toISOString();
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
-    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
+    const userLabel = nameWithRole(currentUser.name, currentUser.role);
 
     // Dispatch debits the source only; the destination is credited when the
     // receiving branch confirms intake (receiveStockTransfer).
@@ -2015,7 +2018,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (transfer.status === 'received') { toast.info('This transfer is already received'); return; }
 
     const now = new Date().toISOString();
-    const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
+    const userLabel = nameWithRole(currentUser.name, currentUser.role);
     const fromBranchName = BRANCHES.find((b) => b.id === transfer.fromBranch)?.name || transfer.fromBranch;
     const toBranchName = BRANCHES.find((b) => b.id === transfer.toBranch)?.name || transfer.toBranch;
 
@@ -2067,6 +2070,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const hasItem = inv.items.some((line) => line.itemId === itemId || (line.isCombo && line.comboComponents?.some((c) => c.itemId === itemId)));
       if (hasItem && inv.date) matchingDates.push(inv.date);
     });
+    // INV2-10: the server's last-sale days cover bills this login doesn't load.
+    const known = itemLastSale[itemId] || {};
+    for (const [b, d] of Object.entries(known)) if (branchScope === 'all' || b === branchScope) matchingDates.push(d);
     if (matchingDates.length === 0) return { lastSaleDate: null, daysSinceLastSale: null, hasSales: false, isDeadStock: true };
     matchingDates.sort((a, b) => b.localeCompare(a));
     const latestDate = matchingDates[0];
@@ -2577,7 +2583,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Could not save the transfer', { description: e?.message ?? 'Backend error' });
     });
 
-  const actorLabel = () => `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
+  const actorLabel = () => nameWithRole(currentUser.name, currentUser.role);
 
   const saveInvoice = async (newInvoice: Invoice) => {
     // Prevent backdating into a closed register

@@ -53,6 +53,29 @@ async function itemSales90d(): Promise<Record<string, Record<string, number>>> {
 }
 
 /**
+ * INV2-10: the last day each item (combo parts included) was sold, per branch —
+ * so a role whose bootstrap carries no bills (Purchase) still sees real stock
+ * movement instead of "Never sold" on every item.
+ */
+async function itemLastSale(): Promise<Record<string, Record<string, string>>> {
+  const invs = await prisma.invoice.findMany({ select: { branchId: true, date: true, items: true, isVoided: true } });
+  const out: Record<string, Record<string, string>> = {};
+  const put = (itemId: string, branchId: string, date: string) => {
+    if (!itemId || !date) return;
+    const row = (out[itemId] ||= {});
+    if (!row[branchId] || row[branchId] < date) row[branchId] = date;
+  };
+  for (const inv of invs) {
+    if (inv.isVoided) continue;
+    for (const li of ((inv.items as any[]) || [])) {
+      if (li?.isCombo) for (const c of (Array.isArray(li.comboComponents) ? li.comboComponents : [])) put(c?.itemId, inv.branchId, inv.date);
+      else put(li?.itemId, inv.branchId, inv.date);
+    }
+  }
+  return out;
+}
+
+/**
  * Stock history and transfers a branch-locked Billing/Purchase user may read:
  * their own branch's movements, and transfers into or out of it (INV7-2 — the
  * Stock Audit Trail and Transfer History screens were empty for them).
@@ -124,13 +147,15 @@ export async function getBootstrap(user?: SessionUser | null) {
   for (const row of configRows) config[row.key] = row.value;
 
   // Base catalog accessible to all authenticated roles
-  const [items, branchStocks, combos, salesByItem] = await Promise.all([
+  const [items, branchStocks, combos, salesByItem, lastSale] = await Promise.all([
     prisma.item.findMany(),
     prisma.branchStock.findMany(),
     prisma.comboItem.findMany(),
     itemSales90d(),
+    itemLastSale(),
   ]);
   config.itemSales90d = salesByItem;
+  config.itemLastSale = lastSale;
 
   // Sales role: Items and Enquiries only
   if (role === 'Sales') {

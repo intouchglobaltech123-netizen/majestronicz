@@ -4,6 +4,7 @@ import { BRANCHES } from '../lib/constants.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { stockQty } from '../lib/units.js';
+import { serializableTx } from '../lib/tx.js';
 
 /** Item names compare case- and space-insensitively ("Omron  relay" = "omron relay"). */
 const nameKey = (n: unknown) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -11,17 +12,63 @@ const HSN_RE = /^\d{4}(\d{2}(\d{2})?)?$/;
 /** Server-managed archive fields — never taken from an add/edit payload. */
 const ARCHIVE_FIELDS = ['isArchived', 'archivedAt', 'archivedBy'];
 
+/**
+ * INV4-6: field checks shared by add and edit (only the fields present are
+ * checked on an edit): a real name (not just digits), a unit, thresholds and
+ * wholesale quantity of 0 or more, a discount within 100% / the sale price,
+ * and a supplier that exists. Text fields are trimmed.
+ */
+async function assertItemFields(tx: any, d: any, isAdd: boolean): Promise<void> {
+  const has = (k: string) => isAdd || d[k] !== undefined;
+  if (has('itemName')) {
+    d.itemName = String(d.itemName ?? '').trim().replace(/\s+/g, ' ');
+    if (!d.itemName) throw new AppError('NAME_REQUIRED', 'Item name is required', 400);
+    if (/^[\d\s.,-]+$/.test(d.itemName)) throw new AppError('BAD_NAME', 'An item name needs letters, not just numbers.', 400);
+    if (d.itemName.length > 200) throw new AppError('BAD_NAME', 'The item name is too long.', 400);
+  }
+  if (typeof d.itemCode === 'string') d.itemCode = d.itemCode.trim();
+  if (has('unit')) {
+    d.unit = String(d.unit ?? '').trim();
+    if (!d.unit) throw new AppError('UNIT_REQUIRED', 'Choose the unit the item is counted in.', 400);
+  }
+  for (const [k, label] of [['reorderThreshold', 'The low-stock threshold'], ['minWholesaleQty', 'The minimum wholesale quantity']] as const) {
+    if (d[k] === undefined || d[k] === null || d[k] === '') continue;
+    const n = Number(d[k]);
+    if (!Number.isFinite(n) || n < 0 || n > 1_000_000) throw new AppError('BAD_NUMBER', `${label} must be a number of 0 or more.`, 400);
+    d[k] = n;
+  }
+  if (d.discountOnSalePrice !== undefined && d.discountOnSalePrice !== null && d.discountOnSalePrice !== '') {
+    const n = Number(d.discountOnSalePrice);
+    if (!Number.isFinite(n) || n < 0) throw new AppError('BAD_DISCOUNT', 'The standard discount must be 0 or more.', 400);
+    const type = d.discountType ?? null;
+    if ((type || '%') === '%' && n > 100) throw new AppError('BAD_DISCOUNT', 'A % discount cannot exceed 100%.', 400);
+    const sale = Number(d.salePrice);
+    if ((type || '%') !== '%' && Number.isFinite(sale) && n > sale) throw new AppError('BAD_DISCOUNT', 'The ₹ discount cannot exceed the sale price.', 400);
+    d.discountOnSalePrice = n;
+  }
+  const vendorIds = [d.vendorId, ...(Array.isArray(d.vendors) ? d.vendors.map((v: any) => v?.vendorId) : [])].filter((v) => typeof v === 'string' && v);
+  if (vendorIds.length) {
+    const found = await tx.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true } });
+    const known = new Set(found.map((v: any) => v.id));
+    const missing = vendorIds.find((v: string) => !known.has(v));
+    if (missing) throw new AppError('BAD_VENDOR', 'A supplier on this item does not exist.', 400);
+  }
+}
+
 /** Create a catalog item + initialize per-branch stock rows (atomic). */
 export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}, reqUser?: any) {
   // A branch-locked user can only set opening stock for their own branch (INV4-5).
   for (const b of BRANCHES) {
     if ((initialStocks[b.id] ?? 0) > 0) assertBranchAllowed(reqUser, b.id);
   }
-  return prisma.$transaction(async (tx: any) => {
+  // INV9-5: serializable + retry, so two adds of the same name at once can't
+  // both pass the uniqueness check.
+  return serializableTx(async (tx: any) => {
     const ts = nowIso();
     const id = itemData.id || `item-${Date.now()}`;
 
     // Server-side validation (VAL-1) — never trust the client.
+    await assertItemFields(tx, itemData, true);
     const name = (itemData.itemName || '').trim();
     if (!name) throw new AppError('NAME_REQUIRED', 'Item name is required', 400);
     const gst = Number(itemData.gstTaxSlab);
@@ -84,9 +131,14 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
  * lets master fields change. Fixes the Edit Item regression from CRUD-1.
  */
 export function updateItem(itemId: string, updates: any) {
-  return prisma.$transaction(async (tx: any) => {
+  return serializableTx(async (tx: any) => {
     const existing = await tx.item.findUnique({ where: { id: itemId } });
     if (!existing) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    await assertItemFields(tx, { salePrice: existing.salePrice, discountType: existing.discountType, ...updates }, false);
+    // INV4-6: the cleaned (trimmed) values are what is saved.
+    if (typeof updates.itemName === 'string') updates.itemName = updates.itemName.trim().replace(/\s+/g, ' ');
+    if (typeof updates.unit === 'string') updates.unit = updates.unit.trim();
+    if (typeof updates.itemCode === 'string') updates.itemCode = updates.itemCode.trim();
 
     // Validate only the fields actually being changed (VAL-1 parity with add).
     if (updates.itemName != null && !String(updates.itemName).trim()) {

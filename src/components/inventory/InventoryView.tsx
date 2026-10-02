@@ -56,6 +56,7 @@ export const InventoryView: React.FC = () => {
     activeSubTab,
     getReorderThreshold,
     canWriteStock,
+    canManagePurchases,
   } = useErp();
 
   // Search and Filters
@@ -394,6 +395,9 @@ export const InventoryView: React.FC = () => {
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
+          {/* INV9-6: only a role that can raise purchase orders gets this button
+              (Billing reached a PO form it could not save). */}
+          {canManagePurchases && (
           <button
             type="button"
             onClick={() => setIsLowStockPoOpen(true)}
@@ -404,6 +408,7 @@ export const InventoryView: React.FC = () => {
             <ShoppingCart className="h-4 w-4 text-amber-700" />
             <span className="text-xs font-semibold">Order Low Stock ({lowStockReorder.length})</span>
           </button>
+          )}
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}

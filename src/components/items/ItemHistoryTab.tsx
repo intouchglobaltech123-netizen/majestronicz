@@ -42,6 +42,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
     getBranchStock,
     setCurrentView,
     currentUser,
+    getReorderThreshold,
   } = useErp();
 
   const isSales = currentUser.role === 'Sales';
@@ -63,10 +64,8 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
 
   // 1. Raw historical datasets for this item
   const allItemPos = useMemo(() => {
-    return purchaseOrders.flatMap((po) => {
-      const line = po.items.find((it) => it.itemId === item.id);
-      if (!line) return [];
-      return [
+    // INV-22: every line of the item on a PO (the same item can sit on two lines).
+    return purchaseOrders.flatMap((po) => po.items.filter((it) => it.itemId === item.id).map((line) => (
         {
           po,
           line,
@@ -79,15 +78,17 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
           totalAmount: line.amount,
           branchId: po.branchId,
           status: po.status,
-        },
-      ];
-    });
+        })));
   }, [purchaseOrders, item.id]);
 
   const allItemSales = useMemo(() => {
-    return invoices.flatMap((inv) => {
-      const line = inv.items.find((it) => it.itemId === item.id);
-      if (!line) return [];
+    // INV-22: every line that sold this item — several lines of one bill, and
+    // combos that contain it (their parts), not only the first line.
+    return invoices.flatMap((inv) => inv.items.flatMap((line) => {
+      const direct = !line.isCombo && line.itemId === item.id;
+      const part = line.isCombo ? (line.comboComponents || []).find((c) => c.itemId === item.id) : undefined;
+      if (!direct && !part) return [];
+      const qty = direct ? line.quantity : (Number(part!.quantity) || 0) * (Number(line.quantity) || 0);
       return [
         {
           invoice: inv,
@@ -95,18 +96,18 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
           date: inv.date,
           time: inv.time,
           invoiceNumber: inv.invoiceNumber,
-          customerName: inv.customerName,
+          customerName: part ? `${inv.customerName} · in kit ${line.itemName}` : inv.customerName,
           customerPhone: inv.customerPhone,
-          quantitySold: line.quantity,
-          priceBilled: line.unitPrice,
-          isPriceOverridden: Math.abs(line.unitPrice - item.salePrice) > 0.01,
-          totalAmount: line.totalAmount,
+          quantitySold: qty,
+          priceBilled: direct ? line.unitPrice : 0,
+          isPriceOverridden: direct && Math.abs(line.unitPrice - item.salePrice) > 0.01,
+          totalAmount: direct ? line.totalAmount : 0,
           branchId: inv.branchId,
           transactionType: inv.transactionType,
           isVoided: Boolean(inv.isVoided),
         },
       ];
-    });
+    }));
   }, [invoices, item.id, item.salePrice]);
 
   const allItemAdjustments = useMemo(() => {
@@ -178,7 +179,7 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       (sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0),
       0
     );
-    const threshold = item.reorderThreshold ?? 10;
+    const threshold = getReorderThreshold(item, 'all'); // INV2-10: the one shared threshold
     let stockStatus: 'in-stock' | 'low-stock' | 'out-of-stock';
     if (combinedStock === 0) {
       stockStatus = 'out-of-stock';

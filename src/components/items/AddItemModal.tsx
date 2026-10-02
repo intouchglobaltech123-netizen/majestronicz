@@ -72,6 +72,18 @@ export const AddItemModal: React.FC<Props> = ({
   const [subcategory, setSubcategory] = useState(() => availableSubcategories[0] || 'General');
   const [marginCategory, setMarginCategory] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
   const [itemCode, setItemCode] = useState('');
+  // INV-1: codes saved in this session (the list refreshes from the server a
+  // moment later) — "Save & New" must not offer the code just used.
+  const usedCodesRef = React.useRef<Set<string>>(new Set());
+  const freshCode = (cat: string, sub: string): string => {
+    let c = generateItemCode(cat, sub);
+    for (let i = 0; i < 1000 && usedCodesRef.current.has(c.toLowerCase()); i++) {
+      const m = /^(.*?)(\d+)$/.exec(c);
+      if (!m) break;
+      c = m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0');
+    }
+    return c;
+  };
   const [isCodeOverridden, setIsCodeOverridden] = useState(false);
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
@@ -110,7 +122,7 @@ export const AddItemModal: React.FC<Props> = ({
   // Auto-generate code when category or subcategory changes (if not manually overridden)
   useEffect(() => {
     if (isOpen && !isCodeOverridden && category && subcategory) {
-      const generated = generateItemCode(category, subcategory);
+      const generated = freshCode(category, subcategory);
       setItemCode(generated);
     }
   }, [isOpen, category, subcategory, isCodeOverridden]);
@@ -130,7 +142,7 @@ export const AddItemModal: React.FC<Props> = ({
     const newSub = subList.includes(subcategory) ? subcategory : (subList[0] || 'General');
     setSubcategory(newSub);
     if (!isCodeOverridden) {
-      const nextCode = generateItemCode(newCat, newSub);
+      const nextCode = freshCode(newCat, newSub);
       setItemCode(nextCode);
     }
   };
@@ -138,7 +150,7 @@ export const AddItemModal: React.FC<Props> = ({
   const handleSubcategoryChange = (newSub: string) => {
     setSubcategory(newSub);
     if (!isCodeOverridden) {
-      const nextCode = generateItemCode(category, newSub);
+      const nextCode = freshCode(category, newSub);
       setItemCode(nextCode);
     }
   };
@@ -154,7 +166,7 @@ export const AddItemModal: React.FC<Props> = ({
   };
 
   const handleAutoGenerateCode = () => {
-    const code = generateItemCode(category, subcategory);
+    const code = freshCode(category, subcategory);
     setItemCode(code);
     setIsCodeOverridden(false);
     toast.info(`Assigned item code: ${code}`);
@@ -194,7 +206,7 @@ export const AddItemModal: React.FC<Props> = ({
     const defaultSub = (subcategoriesByCategory[defaultCat] && subcategoriesByCategory[defaultCat][0]) || 'General';
     setSubcategory(defaultSub);
     setIsCodeOverridden(false);
-    setItemCode(generateItemCode(defaultCat, defaultSub));
+    setItemCode(freshCode(defaultCat, defaultSub));
     setUnit('PCS');
     setImageUrl('');
     setDescription('');
@@ -229,7 +241,7 @@ export const AddItemModal: React.FC<Props> = ({
       return;
     }
 
-    const finalItemCode = itemCode.trim() || generateItemCode(category, subcategory);
+    const finalItemCode = itemCode.trim() || freshCode(category, subcategory);
 
     // #5 Enforce item-code uniqueness — one code can only be created once
     const codeExists = items.some(
@@ -303,6 +315,7 @@ export const AddItemModal: React.FC<Props> = ({
       reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
+    usedCodesRef.current.add(finalItemCode.toLowerCase());
     if (onItemAdded) {
       onItemAdded(savedItem);
     }

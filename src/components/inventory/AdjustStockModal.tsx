@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES, StockAdjustmentReason } from '../../types';
 import { X, Plus, Minus, AlertTriangle, Check, ShieldAlert, ArrowRight, MapPin } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, nameWithRole } from '../../lib/utils';
 import { toast } from 'sonner';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { allowsFractionalQty } from '../../lib/units';
@@ -381,7 +381,7 @@ export const AdjustStockModal: React.FC<Props> = ({
             <ShieldAlert className="h-4 w-4 text-red-700 shrink-0 mt-0.5" />
             <span>
               This operation will permanently log an adjustment attributed to{' '}
-              <strong className="text-slate-800 font-bold">{currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}</strong>{' '}
+              <strong className="text-slate-800 font-bold">{nameWithRole(currentUser.name, currentUser.role)}</strong>{' '}
               with the current timestamp.
             </span>
           </div>

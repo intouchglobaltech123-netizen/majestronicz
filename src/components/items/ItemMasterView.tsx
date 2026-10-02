@@ -51,6 +51,7 @@ export const ItemMasterView: React.FC = () => {
     canManageItems,
     currentUser,
     activeSubTab,
+    getReorderThreshold,
   } = useErp();
 
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'combos'>('products');
@@ -114,7 +115,9 @@ export const ItemMasterView: React.FC = () => {
           item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.itemCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.itemHSN.includes(searchQuery) ||
-          item.category.toLowerCase().includes(searchQuery.toLowerCase());
+          item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          // INV4-17: the suppliers' own product codes find the item too.
+          [item.vendorCode, ...(item.vendors || []).map((v) => v.vendorCode)].some((c) => !!c && String(c).toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesCategory =
           selectedCategory === 'ALL' || item.category === selectedCategory;
@@ -729,7 +732,8 @@ export const ItemMasterView: React.FC = () => {
                                   {qty} {item.unit}
                                 </span>
                                 <span className="text-slate-300 text-xs font-normal">·</span>
-                                {qty > (item.reorderThreshold ?? 10) ? (
+                                {/* INV2-10: the ONE low-stock threshold (as Inventory, Dashboard and the sidebar). */}
+                                {qty > getReorderThreshold(item, isAllBranches ? 'all' : currentBranch) ? (
                                   <span className="text-[11px] font-bold px-1.5 py-0.2 rounded-none bg-emerald-50 text-emerald-800 border border-emerald-300">
                                     In Stock
                                   </span>

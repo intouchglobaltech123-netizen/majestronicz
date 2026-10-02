@@ -420,6 +420,10 @@ export function updateBranchStock(itemId: string, branchId: string, quantity: nu
 export function updateBranchStockLocation(itemId: string, branchId: string, location?: string) {
   if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${branchId}`, 400);
   return serializableTx(async (tx: any) => {
+    // INV9-7: no stock row for an item that doesn't exist.
+    if (!(await tx.item.findUnique({ where: { id: String(itemId || '') }, select: { id: true } }))) {
+      throw new AppError('NOT_FOUND', 'Item not found', 404);
+    }
     const ts = nowIso();
     const trimmed = location?.trim() || null;
     await tx.branchStock.upsert({

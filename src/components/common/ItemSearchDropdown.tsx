@@ -48,7 +48,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   required = false,
   lockOutOfStock = false,
 }) => {
-  const { items: masterItems, branchStocks, combos, getComboAvailability, currentBranch } = useErp();
+  const { items: masterItems, branchStocks, combos, getComboAvailability, currentBranch, getReorderThreshold } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,7 +133,9 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
         (item.itemName && item.itemName.toLowerCase().includes(q)) ||
         (item.itemCode && item.itemCode.toLowerCase().includes(q)) ||
         (item.itemHSN && String(item.itemHSN).includes(q)) ||
-        (item.category && item.category.toLowerCase().includes(q))
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        // INV4-17: a supplier's own code for the item.
+        [item.vendorCode, ...(item.vendors || []).map((v) => v.vendorCode)].some((c) => !!c && String(c).toLowerCase().includes(q))
       );
     }).slice(0, 12);
   }, [masterItems, value]);
@@ -162,7 +164,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
         item,
         stockQty,
         isLocked: lockOutOfStock && isOutOfStock,
-        isLowStock: !isOutOfStock && stockQty <= (item.reorderThreshold ?? 10),
+        isLowStock: !isOutOfStock && stockQty <= getReorderThreshold(item, effectiveBranchId as any), // INV2-10
       };
     });
 

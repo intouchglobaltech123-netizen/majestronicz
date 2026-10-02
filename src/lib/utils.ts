@@ -189,3 +189,10 @@ export async function exitNativeFullscreen(): Promise<boolean> {
   }
   return false;
 }
+
+/** INV-19: "Name (Role)" for logs and labels — a name that already ends in a
+ *  bracketed title ("Karthik Raja (Branch Manager)") is not given a second one. */
+export function nameWithRole(name: string, role: string): string {
+  const n = String(name || '').trim();
+  return /\([^)]*\)\s*$/.test(n) ? n : `${n} (${role})`;
+}
