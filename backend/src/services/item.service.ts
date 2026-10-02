@@ -5,6 +5,12 @@ import { AppError } from '../middleware/errorHandler.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { stockQty } from '../lib/units.js';
 
+/** Item names compare case- and space-insensitively ("Omron  relay" = "omron relay"). */
+const nameKey = (n: unknown) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const HSN_RE = /^\d{4}(\d{2}(\d{2})?)?$/;
+/** Server-managed archive fields — never taken from an add/edit payload. */
+const ARCHIVE_FIELDS = ['isArchived', 'archivedAt', 'archivedBy'];
+
 /** Create a catalog item + initialize per-branch stock rows (atomic). */
 export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}, reqUser?: any) {
   // A branch-locked user can only set opening stock for their own branch (INV4-5).
@@ -23,8 +29,11 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
     if (Number(itemData.salePrice) < 0 || Number(itemData.purchasePrice) < 0 || Number(itemData.wholesalePrice) < 0) {
       throw new AppError('BAD_PRICE', 'Prices cannot be negative', 400);
     }
-    const hsn = (itemData.itemHSN || '').trim();
-    if (hsn && !/^\d{4}(\d{2}(\d{2})?)?$/.test(hsn)) throw new AppError('BAD_HSN', 'HSN must be 4, 6, or 8 digits', 400);
+    // INV-10: HSN is required (a blank one was silently stored as 85371000).
+    const hsn = String(itemData.itemHSN ?? '').trim();
+    if (!hsn) throw new AppError('HSN_REQUIRED', 'HSN code is required (4, 6 or 8 digits).', 400);
+    if (!HSN_RE.test(hsn)) throw new AppError('BAD_HSN', 'HSN must be 4, 6, or 8 digits', 400);
+    itemData.itemHSN = hsn;
     // Case-insensitive item-code uniqueness on the server (INV-2).
     const code = (itemData.itemCode || '').trim();
     if (code) {
@@ -33,6 +42,12 @@ export function addItem(itemData: any, initialStocks: Record<string, number> = {
         throw new AppError('DUP_CODE', `Item code "${code}" already exists`, 409);
       }
     }
+    // INV-2: item names are unique too (case- and space-insensitive).
+    const sameName = await tx.item.findMany({ select: { id: true, itemName: true } });
+    if (sameName.some((i: any) => nameKey(i.itemName) === nameKey(name))) {
+      throw new AppError('DUP_NAME', `An item named "${name}" already exists`, 409);
+    }
+    for (const k of ARCHIVE_FIELDS) delete itemData[k];
     // Opening stock: a real number of 0 or more, whole for whole-unit items (INV-23).
     for (const b of BRANCHES) {
       if (initialStocks[b.id] === undefined || initialStocks[b.id] === null) continue;
@@ -84,9 +99,18 @@ export function updateItem(itemId: string, updates: any) {
     for (const f of ['salePrice', 'purchasePrice', 'wholesalePrice'] as const) {
       if (updates[f] != null && Number(updates[f]) < 0) throw new AppError('BAD_PRICE', 'Prices cannot be negative', 400);
     }
-    if (updates.itemHSN != null) {
-      const hsn = String(updates.itemHSN).trim();
-      if (hsn && !/^\d{4}(\d{2}(\d{2})?)?$/.test(hsn)) throw new AppError('BAD_HSN', 'HSN must be 4, 6, or 8 digits', 400);
+    if (updates.itemHSN !== undefined) {
+      // INV-10: HSN can be corrected but never blanked.
+      const hsn = String(updates.itemHSN ?? '').trim();
+      if (!hsn) throw new AppError('HSN_REQUIRED', 'HSN code is required (4, 6 or 8 digits).', 400);
+      if (!HSN_RE.test(hsn)) throw new AppError('BAD_HSN', 'HSN must be 4, 6, or 8 digits', 400);
+      updates.itemHSN = hsn;
+    }
+    if (updates.itemName != null) {
+      const all = await tx.item.findMany({ select: { id: true, itemName: true } });
+      if (all.some((i: any) => i.id !== itemId && nameKey(i.itemName) === nameKey(updates.itemName))) {
+        throw new AppError('DUP_NAME', `An item named "${String(updates.itemName).trim()}" already exists`, 409);
+      }
     }
     if (updates.itemCode != null) {
       const code = String(updates.itemCode).trim();
@@ -97,14 +121,16 @@ export function updateItem(itemId: string, updates: any) {
       }
     }
 
-    // Never let id/createdAt be overwritten from the client.
+    // Never let id/createdAt (or the archive state) be overwritten from the client.
     const { id: _id, createdAt: _c, ...data } = updates;
+    for (const k of ARCHIVE_FIELDS) delete (data as any)[k];
     await tx.item.update({ where: { id: itemId }, data: { ...data, updatedAt: nowIso() } });
     return { items: await tx.item.findMany(), branchStocks: await tx.branchStock.findMany() };
   });
 }
 
-/** Delete an item and cascade its branch stock + adjustment logs. */
+/** Delete an item that was never used. An item with any stock history is kept
+ *  (archive it instead) so its ledger is never erased (INV5-7). */
 export function deleteItem(itemId: string) {
   return prisma.$transaction(async (tx: any) => {
     // Block deleting an item that is still in use — deleting one with stock, in a
@@ -128,16 +154,58 @@ export function deleteItem(itemId: string) {
         String(t.status || '').toLowerCase() !== 'received' &&
         Array.isArray(t.items) && t.items.some((li: any) => li.itemId === itemId),
     );
-    if (hasStock || inCombo || inPo || inInvoice || inTransit) {
-      throw new AppError('ITEM_IN_USE', 'Cannot delete: this item has stock or is used in a combo, purchase order, or sale. Archive it instead.', 409);
+    // INV5-7: deleting used to erase the item's stock history with it. Any
+    // history row means the item was used — keep it and archive instead.
+    const historyRows = await tx.stockAdjustmentLog.count({ where: { itemId } });
+    if (hasStock || inCombo || inPo || inInvoice || inTransit || historyRows > 0) {
+      throw new AppError('ITEM_IN_USE', 'Cannot delete: this item has stock history or is used in a combo, purchase order, or sale. Archive it instead.', 409);
     }
     await tx.branchStock.deleteMany({ where: { itemId } });
-    await tx.stockAdjustmentLog.deleteMany({ where: { itemId } });
     await tx.item.deleteMany({ where: { id: itemId } });
     return {
       items: await tx.item.findMany(),
       branchStocks: await tx.branchStock.findMany(),
       stockAdjustmentLogs: await tx.stockAdjustmentLog.findMany(),
     };
+  });
+}
+
+/**
+ * Archive (or restore) an item — the alternative to deleting a used item
+ * (INV5-7 / INV-5). An archived item keeps its stock history and old bills, but
+ * is hidden from the sale and purchase pickers and the default item lists. It
+ * must hold no stock (none on hand, none in transit) and sit on no open PO or
+ * combo, or those would keep moving stock of an item nobody can see.
+ */
+export function archiveItem(itemId: string, archive: boolean, actor: string) {
+  return prisma.$transaction(async (tx: any) => {
+    const item = await tx.item.findUnique({ where: { id: itemId } });
+    if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    if (archive) {
+      const [stocks, transfers, pos, combos] = await Promise.all([
+        tx.branchStock.findMany({ where: { itemId } }),
+        tx.stockTransfer.findMany({ where: { status: 'in_transit' } }),
+        tx.purchaseOrder.findMany({ where: { status: { notIn: ['Received', 'Cancelled'] } } }),
+        tx.comboItem.findMany(),
+      ]);
+      if (stocks.some((s: any) => (s.quantity || 0) > 0)) {
+        throw new AppError('ITEM_HAS_STOCK', 'This item still has stock. Sell, transfer or adjust it to zero before archiving.', 409);
+      }
+      if (transfers.some((t: any) => Array.isArray(t.items) && t.items.some((li: any) => li.itemId === itemId))) {
+        throw new AppError('ITEM_IN_TRANSIT', 'This item is on a transfer that has not been received yet.', 409);
+      }
+      if (pos.some((p: any) => Array.isArray(p.items) && p.items.some((li: any) => li.itemId === itemId))) {
+        throw new AppError('ITEM_ON_OPEN_PO', 'This item is on an open purchase order. Receive or cancel it first.', 409);
+      }
+      const combo = combos.find((c: any) => Array.isArray(c.components) && c.components.some((comp: any) => comp.itemId === itemId));
+      if (combo) throw new AppError('ITEM_IN_COMBO', `This item is part of the combo "${combo.comboName}". Remove it from the combo first.`, 409);
+    }
+    await tx.item.update({
+      where: { id: itemId },
+      data: archive
+        ? { isArchived: true, archivedAt: nowIso(), archivedBy: actor, updatedAt: nowIso() }
+        : { isArchived: null, archivedAt: null, archivedBy: null, updatedAt: nowIso() },
+    });
+    return { items: await tx.item.findMany(), branchStocks: await tx.branchStock.findMany() };
   });
 }

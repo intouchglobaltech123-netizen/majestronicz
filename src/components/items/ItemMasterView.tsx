@@ -22,6 +22,8 @@ import {
   History,
   Package,
   PackageCheck,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { AddItemModal } from './AddItemModal';
 import { EditItemModal } from './EditItemModal';
@@ -32,7 +34,8 @@ import { toast } from 'sonner';
 
 export const ItemMasterView: React.FC = () => {
   const {
-    items,
+    allItems,
+    archiveItem,
     vendors,
     getBranchStock,
     getTotalStockAcrossBranches,
@@ -91,6 +94,11 @@ export const ItemMasterView: React.FC = () => {
   const [itemModalTab, setItemModalTab] = useState<'pricing' | 'stock' | 'history'>('pricing');
   const [stockModalItem, setStockModalItem] = useState<Item | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  // INV5-7: archived items are hidden unless asked for.
+  const [showArchived, setShowArchived] = useState(false);
+  const canArchive = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const archivedCount = useMemo(() => allItems.filter((i) => i.isArchived).length, [allItems]);
+  const items = useMemo(() => (showArchived ? allItems : allItems.filter((i) => !i.isArchived)), [allItems, showArchived]);
 
   // Extract unique categories
   const categories = useMemo(() => {
@@ -493,6 +501,18 @@ export const ItemMasterView: React.FC = () => {
             </div>
           </div>
 
+          {/* Archived items toggle (INV5-7) */}
+          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5 accent-red-600"
+              data-testid="show-archived-items"
+            />
+            <span>Show archived items{archivedCount ? ` (${archivedCount})` : ''}</span>
+          </label>
+
           {/* Main Item Master Table */}
           <div className="bg-white border border-slate-300 rounded-none overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -594,6 +614,9 @@ export const ItemMasterView: React.FC = () => {
                                 >
                                   {item.itemName}
                                 </button>
+                                {item.isArchived && (
+                                  <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200">Archived</span>
+                                )}
                                 <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
                                   <span>HSN: {item.itemHSN}</span>
                                   <span>•</span>
@@ -788,6 +811,23 @@ export const ItemMasterView: React.FC = () => {
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>
+
+                                {/* Archive / Restore (Manager/CEO) — keeps the item's history (INV5-7) */}
+                                {canArchive && (
+                                  <button
+                                    onClick={() => {
+                                      if (item.isArchived) {
+                                        void archiveItem(item.id, false);
+                                      } else if (confirm(`Archive "${item.itemName}"? It keeps its stock history but disappears from the sale and purchase pickers.`)) {
+                                        void archiveItem(item.id, true);
+                                      }
+                                    }}
+                                    title={item.isArchived ? 'Restore this archived item' : 'Archive item (keeps its history)'}
+                                    className="p-1.5 rounded-none border transition-colors bg-slate-100 hover:bg-amber-50 hover:text-amber-700 text-slate-600 border-slate-300 cursor-pointer"
+                                  >
+                                    {item.isArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                                  </button>
+                                )}
 
                                 {/* Delete Item Button */}
                                 <button

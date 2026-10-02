@@ -12,6 +12,10 @@ export const updateItem = async (req: Request, res: Response) => {
   const updates = req.body?.item ?? req.body;
   res.json(await item.updateItem(req.params.id, updates));
 };
+export const archiveItem = async (req: Request, res: Response) => {
+  const archive = req.body?.archived !== false;
+  res.json(await item.archiveItem(req.params.id, archive, ((req as any).user?.name as string) || 'System'));
+};
 export const deleteItem = async (req: Request, res: Response) => {
   res.json(await item.deleteItem(req.params.id));
 };

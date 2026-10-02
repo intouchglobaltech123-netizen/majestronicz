@@ -208,6 +208,84 @@ describe('delivery challans', () => {
   });
 });
 
+describe('item master', () => {
+  const itemBody = (extra = {}) => {
+    const code = `QA-${uid()}`.toUpperCase();
+    return {
+      itemName: `QA master ${code}`, itemHSN: '85371000', category: 'QA', itemCode: code, unit: 'PCS',
+      salePrice: 100, salePriceTaxMode: 'exclusive', wholesalePrice: 100, minWholesaleQty: 1, purchasePrice: 60, gstTaxSlab: 18, ...extra,
+    };
+  };
+
+  test('INV5-7 an item with stock history cannot be deleted; it is archived instead and keeps its history', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 4 } });
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: -4, reason: 'Damage' }), 'adjust to zero');
+    const before = (await ledgerOf(item.id)).length;
+    assert.ok(before >= 2, 'opening + adjustment rows');
+    expectStatus(await del(`/api/catalog/item/${item.id}`), 409, 'delete an item with history');
+    assert.equal((await ledgerOf(item.id)).length, before, 'history kept');
+    // Billing and Purchase cannot archive; a Manager/CEO can.
+    expectStatus(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }, 'Billing'), 403, 'Billing archive');
+    const res = ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }), 'CEO archives');
+    const row = res.items.find((i) => i.id === item.id);
+    assert.equal(row.isArchived, true);
+    assert.ok(row.archivedBy && row.archivedAt);
+    assert.equal((await ledgerOf(item.id)).length, before, 'history still kept');
+    // An archive flag sent on a normal edit is ignored; restore works.
+    ok(await put(`/api/catalog/item/${item.id}`, { isArchived: false }), 'edit');
+    assert.equal(ok(await get('/api/items')).find((i) => i.id === item.id).isArchived, true, 'edit cannot unarchive');
+    const back = ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: false }), 'restore');
+    assert.ok(!back.items.find((i) => i.id === item.id).isArchived);
+  });
+
+  test('INV5-7 an item with stock on hand cannot be archived', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 2 } });
+    expectStatus(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }), 409);
+  });
+
+  test('INV5-7 a never-used item can still be deleted', async () => {
+    const item = await createItem({ stock: {} });
+    ok(await del(`/api/catalog/item/${item.id}`), 'delete unused item');
+    assert.ok(!ok(await get('/api/items')).some((i) => i.id === item.id));
+  });
+
+  test('INV4-12 a supplier linked to items cannot be deleted', async () => {
+    const vendor = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, phone: '9876543210' })).vendor;
+    ok(await post('/api/catalog/item', { item: itemBody({ vendorId: vendor.id }), initialStocks: {} }), 'item with vendor');
+    expectStatus(await del(`/api/vendors/${vendor.id}`), 409, 'delete linked vendor');
+    assert.ok(ok(await get('/api/vendors')).some((v) => v.id === vendor.id), 'vendor kept');
+    const listed = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, phone: '9876543211' })).vendor;
+    ok(await post('/api/catalog/item', { item: itemBody({ vendors: [{ vendorId: listed.id }] }), initialStocks: {} }), 'item listing the vendor');
+    expectStatus(await del(`/api/vendors/${listed.id}`), 409, 'delete vendor in an item supplier list');
+  });
+
+  test('INV-2 a duplicate item name is refused (any case or spacing)', async () => {
+    const first = itemBody();
+    ok(await post('/api/catalog/item', { item: first, initialStocks: {} }));
+    const dup = itemBody({ itemName: `  ${first.itemName.toUpperCase().replace(' ', '  ')} ` });
+    expectStatus(await post('/api/catalog/item', { item: dup, initialStocks: {} }), 409, 'duplicate name on add');
+    const other = ok(await post('/api/catalog/item', { item: itemBody(), initialStocks: {} })).item;
+    expectStatus(await put(`/api/catalog/item/${other.id}`, { itemName: first.itemName.toLowerCase() }), 409, 'rename onto an existing name');
+  });
+
+  test('INV-10 an item needs a real HSN code; a blank one is not saved as 85371000', async () => {
+    expectStatus(await post('/api/catalog/item', { item: itemBody({ itemHSN: '' }), initialStocks: {} }), 400, 'blank HSN');
+    expectStatus(await post('/api/catalog/item', { item: itemBody({ itemHSN: undefined }), initialStocks: {} }), 400, 'missing HSN');
+    expectStatus(await post('/api/catalog/item', { item: itemBody({ itemHSN: '853' }), initialStocks: {} }), 400, '3 digits');
+    const item = ok(await post('/api/catalog/item', { item: itemBody({ itemHSN: '8536' }), initialStocks: {} })).item;
+    expectStatus(await put(`/api/catalog/item/${item.id}`, { itemHSN: '' }), 400, 'blanking HSN on edit');
+  });
+
+  test('INV4-1 editing an item can clear its subcategory, description and image', async () => {
+    const item = ok(await post('/api/catalog/item', { item: itemBody({ subcategory: 'Relays', description: 'QA desc', imageUrl: 'https://example.invalid/x.png' }), initialStocks: {} })).item;
+    ok(await put(`/api/catalog/item/${item.id}`, { subcategory: null, description: null, imageUrl: null }), 'clear');
+    const row = ok(await get('/api/items')).find((i) => i.id === item.id);
+    assert.equal(row.subcategory, null);
+    assert.equal(row.description, null);
+    assert.equal(row.imageUrl, null);
+  });
+});
+
 describe('stock quantity rules', () => {
   const adjust = (item, quantityChange, extra = {}, as = 'CEO') =>
     post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange, reason: 'Stock Audit Correction', ...extra }, as);

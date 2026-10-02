@@ -9,6 +9,8 @@ router.post('/item', requireCapability('items:write'), asyncHandler(ctrl.addItem
 // Dedicated item update (replaces the generic PUT /api/items/:id that CRUD-1 removed).
 router.put('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.updateItem));
 router.delete('/item/:id', requireCapability('items:write'), asyncHandler(ctrl.deleteItem));
+// Archive / restore an item (INV5-7) — Manager/CEO.
+router.post('/item/:id/archive', requireCapability('items:write'), requireManagerOrCEO, asyncHandler(ctrl.archiveItem));
 // Estimates / Quotes
 router.post('/estimate', requireCapability('estimate:write'), asyncHandler(ctrl.saveEstimate));
 router.post('/estimate/:id/cancel', requireCapability('estimate:write'), asyncHandler(ctrl.cancelEstimate));

@@ -93,8 +93,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       setItemName(item.itemName);
       setItemHSN(item.itemHSN);
       setCategory(item.category);
-      const subList = subcategoriesByCategory[item.category] || ['General'];
-      setSubcategory(item.subcategory || subList[0] || 'General');
+      // No subcategory stays none — it is not silently set to the first one (INV4-1).
+      setSubcategory(item.subcategory || '');
       setMarginCategory((item.marginCategory as 'A' | 'B' | 'C' | 'D') || '');
       setItemCode(item.itemCode);
       setUnit(item.unit);
@@ -222,15 +222,17 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       itemName: itemName.trim(),
       itemHSN: itemHSN.trim(),
       category,
-      subcategory: subcategory.trim() || undefined,
+      // null (not undefined) so a cleared field is actually CLEARED on the server
+      // (INV4-1) — undefined was dropped from the request and nothing changed.
+      subcategory: subcategory.trim() || null,
       // null (not undefined) so choosing "— None —" actually CLEARS the margin
       // band on the server — otherwise the band could never be removed and kept
       // silently re-pricing the item on every PO receipt (STK-4).
       marginCategory: marginCategory || null,
       itemCode: itemCode.trim(),
       unit,
-      imageUrl: imageUrl.trim() || undefined,
-      description: description.trim() || undefined,
+      imageUrl: imageUrl.trim() || null,
+      description: description.trim() || null,
       salePrice: Number(salePrice) || 0,
       salePriceTaxMode,
       wholesalePrice: Number(wholesalePrice) || 0,
@@ -384,7 +386,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                 label="Subcategory"
                 value={subcategory}
                 onChange={(sub) => setSubcategory(sub)}
-                options={availableSubcategories.map((s) => ({ value: s, label: s }))}
+                options={[{ value: '', label: '— None —' }, ...availableSubcategories.map((s) => ({ value: s, label: s }))]}
                 addNewLabel="+ Add New Subcategory"
                 addNewPlaceholder="e.g. Modbus Gateways"
                 onAddNew={(sub) => {

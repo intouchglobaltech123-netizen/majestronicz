@@ -45,7 +45,7 @@ export const AddItemModal: React.FC<Props> = ({
   requirePositivePrice,
 }) => {
   const {
-    items,
+    allItems: items,
     addItem,
     canManageItems,
     currentUser,
@@ -222,6 +222,13 @@ export const AddItemModal: React.FC<Props> = ({
       return;
     }
 
+    // INV-2: one item per name (case- and space-insensitive), like codes.
+    const nameKey = (n: string) => n.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (items.some((it) => nameKey(it.itemName || '') === nameKey(itemName))) {
+      toast.error(`An item named "${itemName.trim()}" already exists.`);
+      return;
+    }
+
     const finalItemCode = itemCode.trim() || generateItemCode(category, subcategory);
 
     // #5 Enforce item-code uniqueness — one code can only be created once
@@ -246,9 +253,14 @@ export const AddItemModal: React.FC<Props> = ({
       return;
     }
 
-    // HSN, when provided, must be a valid 4/6/8-digit numeric code (INV-10).
+    // HSN is required and must be a valid 4/6/8-digit numeric code (INV-10) —
+    // a blank one is no longer saved as 85371000.
     const hsnTrimmed = itemHSN.trim();
-    if (hsnTrimmed && !/^\d{4}(\d{2}(\d{2})?)?$/.test(hsnTrimmed)) {
+    if (!hsnTrimmed) {
+      toast.error('HSN code is required (4, 6 or 8 digits). Use "Quick HSNs" to pick a common one.');
+      return;
+    }
+    if (!/^\d{4}(\d{2}(\d{2})?)?$/.test(hsnTrimmed)) {
       toast.error('HSN code must be 4, 6, or 8 digits (numbers only).');
       return;
     }
@@ -262,7 +274,7 @@ export const AddItemModal: React.FC<Props> = ({
 
     const savedItem = addItem({
       itemName: itemName.trim(),
-      itemHSN: itemHSN.trim() || '85371000',
+      itemHSN: hsnTrimmed,
       category,
       subcategory: subcategory.trim() || undefined,
       marginCategory: marginCategory || undefined,
@@ -370,7 +382,7 @@ export const AddItemModal: React.FC<Props> = ({
               {/* Item HSN */}
               <div className="space-y-1.5 relative">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">HSN / SAC Code</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">HSN / SAC Code *</label>
                   <button
                     type="button"
                     onClick={() => setShowHsnHelper(!showHsnHelper)}

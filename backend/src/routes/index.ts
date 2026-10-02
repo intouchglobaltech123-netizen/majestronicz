@@ -327,6 +327,14 @@ router.delete('/vendors/:id', requireCapability('purchase:write'), asyncHandler(
   const id = req.params.id;
   const linkedPos = await prisma.purchaseOrder.count({ where: { vendorId: id } });
   if (linkedPos > 0) throw new AppError('VENDOR_IN_USE', 'Cannot delete a supplier that has purchase orders. Archive it instead.', 409);
+  // INV4-12: items still name this vendor (as their main supplier or in their
+  // supplier list) — deleting it would leave them pointing at nothing.
+  const items = await prisma.item.findMany({ select: { itemName: true, vendorId: true, vendors: true } });
+  const linkedItems = items.filter((it: any) =>
+    it.vendorId === id || (Array.isArray(it.vendors) && it.vendors.some((v: any) => v?.vendorId === id)));
+  if (linkedItems.length > 0) {
+    throw new AppError('VENDOR_IN_USE', `Cannot delete a supplier linked to ${linkedItems.length} item(s) (e.g. "${linkedItems[0].itemName}"). Remove it from those items first.`, 409);
+  }
   await prisma.vendor.deleteMany({ where: { id } });
   broadcastChange('DELETE /api/vendors');
   res.json({ ok: true, vendors: await prisma.vendor.findMany() });

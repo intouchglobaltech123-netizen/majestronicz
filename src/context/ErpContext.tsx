@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString } from '../lib/utils';
@@ -356,7 +356,11 @@ interface ErpContextType {
   addPaymentTerm: (term: string, days?: number) => void;
 
   // Items & Master Pricing Data
+  /** Active items only — what every picker and list shows (archived items hidden, INV5-7). */
   items: Item[];
+  /** Every item, archived ones included (Item Master "show archived"). */
+  allItems: Item[];
+  archiveItem: (itemId: string, archived: boolean) => Promise<boolean>;
   addItem: (
     itemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>,
     initialStocks?: Partial<Record<BranchId, number>>,
@@ -366,14 +370,17 @@ interface ErpContextType {
     itemId: string,
     // Vendor fields accept null so they can be explicitly cleared on the server
     // (e.g. removing every vendor from an item); other fields keep their types.
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory'>> & {
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory' | 'subcategory' | 'description' | 'imageUrl'>> & {
       vendorId?: string | null;
       vendorCode?: string | null;
       vendors?: ItemVendor[] | null;
       marginCategory?: MarginCategoryCode | null;
+      subcategory?: string | null;
+      description?: string | null;
+      imageUrl?: string | null;
     }
   ) => void;
-  deleteItem: (itemId: string) => void;
+  deleteItem: (itemId: string) => Promise<void>;
 
   // Combo Items (Bundled offers with live computed availability, no independent stock)
   combos: ComboItem[];
@@ -654,6 +661,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const [items, setItems] = useState<Item[]>([]);
+  // Archived items keep their history but leave the sale/PO pickers and lists (INV5-7).
+  const activeItems = useMemo(() => items.filter((i) => !i.isArchived), [items]);
   const [combos, setCombos] = useState<ComboItem[]>([]);
   const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
   const [stockAdjustmentLogs, setStockAdjustmentLogs] = useState<StockAdjustmentLog[]>([]);
@@ -1458,11 +1467,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateItem = (
     itemId: string,
-    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory'>> & {
+    updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory' | 'subcategory' | 'description' | 'imageUrl'>> & {
       vendorId?: string | null;
       vendorCode?: string | null;
       vendors?: ItemVendor[] | null;
       marginCategory?: MarginCategoryCode | null;
+      subcategory?: string | null;
+      description?: string | null;
+      imageUrl?: string | null;
     }
   ) => {
     // Reject editing an item's code to one already used by another item (INV-2).
@@ -1566,12 +1578,39 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const deleteItem = (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
-    setBranchStocks((prev) => prev.filter((s) => s.itemId !== itemId));
-    setStockAdjustmentLogs((prev) => prev.filter((l) => l.itemId !== itemId));
-    persist(apiDelete(`/api/catalog/item/${itemId}`));
-    toast.success('Item removed from catalog');
+  // Delete only once the server agrees — a used item is refused (its history is
+  // kept, INV5-7) and a Manager/CEO is offered Archive instead.
+  const deleteItem = async (itemId: string) => {
+    try {
+      const snap = await apiDelete<any>(`/api/catalog/item/${itemId}`);
+      applySnapshot(snap);
+      toast.success('Item removed from catalog');
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      const canArchive = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+      if (msg.includes('ITEM_IN_USE') || /archive/i.test(msg)) {
+        toast.error('This item has history and cannot be deleted', {
+          description: canArchive ? 'Archive it instead: it keeps its stock history and leaves the pickers.' : 'Ask a Manager or the CEO to archive it.',
+          ...(canArchive ? { action: { label: 'Archive', onClick: () => { void archiveItem(itemId, true); } } } : {}),
+        });
+      } else {
+        toast.error('Could not delete the item', { description: msg || 'Backend error' });
+      }
+    }
+  };
+
+  const archiveItem = async (itemId: string, archived: boolean): Promise<boolean> => {
+    try {
+      const snap = await apiPost<any>(`/api/catalog/item/${itemId}/archive`, { archived });
+      applySnapshot(snap);
+      toast.success(archived ? 'Item archived' : 'Item restored', {
+        description: archived ? 'Its stock history is kept; it no longer appears in sale or purchase pickers.' : 'It is back in the pickers and lists.',
+      });
+      return true;
+    } catch (e: any) {
+      toast.error(archived ? 'Could not archive the item' : 'Could not restore the item', { description: e?.message ?? 'Backend error' });
+      return false;
+    }
   };
 
   const getNextComboCode = (): string => {
@@ -4422,7 +4461,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canEditSalaries,
         canMarkPayrollPaid,
         canAdjustPayroll,
-        items,
+        items: activeItems,
+        allItems: items,
+        archiveItem,
         addItem,
         updateItem,
         deleteItem,
