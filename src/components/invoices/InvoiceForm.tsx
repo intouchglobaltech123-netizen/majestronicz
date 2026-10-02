@@ -1727,8 +1727,9 @@ export const InvoiceForm: React.FC<Props> = ({
       {pendingAdvance > 0 && (
         <div className="bg-emerald-50 border border-emerald-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950" data-testid="pending-advance-banner">
           <span>
-            <span className="font-bold">Advance ₹{pendingAdvance.toLocaleString('en-IN')} already received</span> on this order. Keep it as the
-            COD-Credit (unpaid) part — it is settled from the advance when you save, so collect only the balance now.
+            {/* CRM10-7: plainer wording */}
+            <span className="font-bold">Advance ₹{pendingAdvance.toLocaleString('en-IN')} already received</span> on this order. Leave that
+            amount as "Credit (owed)" in the payment split — the advance pays it when you save — and collect only the rest now.
           </span>
           <button type="button" onClick={applyPendingAdvanceToSplits} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold border border-emerald-700 cursor-pointer">
             Use advance

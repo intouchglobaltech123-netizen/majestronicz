@@ -449,14 +449,17 @@ export const EnquiryView: React.FC = () => {
                             <span
                               className={cn(
                                 'font-mono font-bold text-xs',
-                                daysOpen > 7
+                                // CRM10-7: a converted / cancelled enquiry is closed — not "overdue" red.
+                                enq.status === 'Converted' || enq.status === 'Cancelled'
+                                  ? 'text-slate-400'
+                                  : daysOpen > 7
                                   ? 'text-red-700'
                                   : daysOpen > 3
                                   ? 'text-amber-700'
                                   : 'text-slate-700'
                               )}
                             >
-                              {daysOpen} {daysOpen === 1 ? 'day' : 'days'}
+                              {enq.status === 'Converted' || enq.status === 'Cancelled' ? enq.status : `${daysOpen} ${daysOpen === 1 ? 'day' : 'days'}`}
                             </span>
                           </td>
 
@@ -645,14 +648,16 @@ export const EnquiryView: React.FC = () => {
                           <span
                             className={cn(
                               'font-mono font-bold text-xs',
-                              daysOpen > 7
+                              enq.status === 'Converted' || enq.status === 'Cancelled'
+                                ? 'text-slate-400'
+                                : daysOpen > 7
                                 ? 'text-red-700'
                                 : daysOpen > 3
                                 ? 'text-amber-700'
                                 : 'text-slate-700'
                             )}
                           >
-                            {daysOpen} {daysOpen === 1 ? 'day' : 'days'}
+                            {enq.status === 'Converted' || enq.status === 'Cancelled' ? enq.status : `${daysOpen} ${daysOpen === 1 ? 'day' : 'days'}`}
                           </span>
                         </td>
 

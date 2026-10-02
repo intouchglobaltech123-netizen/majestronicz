@@ -766,6 +766,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                             ) : (
                               <span className="text-slate-400 font-mono text-xs">₹0</span>
                             )}
+                            {/* CRM10-5: store credit the customer holds, next to what they owe */}
+                            {(Number(cust.creditBalance) || 0) > 0.005 && (
+                              <div className="text-[11px] font-semibold text-emerald-700 mt-0.5" title="Store credit the customer can spend or set against a due">
+                                Store credit {formatCurrency(Number(cust.creditBalance) || 0)}
+                              </div>
+                            )}
                           </td>
 
                           <td className="p-4">

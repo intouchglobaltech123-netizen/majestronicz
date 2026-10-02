@@ -564,3 +564,14 @@ describe('round 10: suppliers and advances', async () => {
     assert.ok(!ok(await get('/api/customers')).some((c) => String(c.phone).endsWith(phone.slice(-10))), 'no customer was created');
   });
 });
+
+describe('round 10: loyalty count', () => {
+  test('CRM-8 the purchase count the screens get is the live bill count, even when the stored counter drifted', async () => {
+    if (!sql('SELECT 1')) return;
+    const date = await thisMonthDay();
+    const inv = await mustSell(saleBody({ date, customerName: 'QA Loyal', customerPhone: randomPhone(), lines: [line(await createItem({ stock: { 'erode-hq': 2 } }), 1)] }));
+    sql(`UPDATE "Customer" SET "purchaseCount"=99 WHERE id='${inv.customerId}'`);
+    const boot = ok(await get('/api/bootstrap'));
+    assert.equal(boot.customers.find((c) => c.id === inv.customerId).purchaseCount, 1);
+  });
+});
