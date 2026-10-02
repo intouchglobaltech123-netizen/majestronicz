@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, del, ok, expectStatus, near, uid, createItem, stockOf, line, comboLine, createCombo, saleBody, sell,
-  mustSell, getInvoice, resave, returnLine, receive, freshDay, freshDays, utcToday, together, paymentsFor,
+  mustSell, getInvoice, resave, returnLine, receive, freshDay, thisMonthDay, freshDays, utcToday, together, paymentsFor,
   serviceLine, randomPhone, istToday, addDays, sql, ledgerOf,
 } from './lib.mjs';
 
@@ -43,7 +43,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL3-1 a voided conversion frees the quote to be converted again', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 20 } });
     const quote = await createQuote(item, 1, 'erode-hq', date);
     const first = await mustSell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: quote.id }));
@@ -132,7 +132,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL5-3 void after a partial return of an item on two lines restores the rest of the stock', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 40 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1), line(item, 1)] }));
     assert.equal(await stockOf(item.id, 'erode-hq'), 38);
@@ -143,7 +143,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL5-3 delete after a partial return of an item on two lines restores the rest of the stock', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 40 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1), line(item, 1)] }));
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
@@ -152,7 +152,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL2-7 deleting a voided bill does not add stock back twice', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 3)] }));
     ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA', actor: 'QA' }));
@@ -199,7 +199,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL5-4 voiding a bill after a cash refund removes the refund row (drawer not left short)', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] })); // paid cash, 2360
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return');
@@ -210,7 +210,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL5-4 deleting a bill after a cash refund removes the refund row', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return');
@@ -352,7 +352,7 @@ describe('sales & quotes', () => {
   });
 
   test('SAL4-9 deleting the newest bill does not let its number be reused', async () => {
-    const date = await freshDay('chennai');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { chennai: 10 } });
     const a = await mustSell(saleBody({ branchId: 'chennai', date, lines: [line(item, 1)] }));
     ok(await del(`/api/tx/invoice/${a.id}`), 'delete newest bill');
@@ -406,7 +406,7 @@ describe('quotes and bills (round 8)', () => {
   });
 
   test('SAL8-10 billing a quote stores it as Converted; voiding the bill reopens it', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 5 } });
     const q = await createQuote(item, 1, 'erode-hq', date);
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1)], sourceEstimateId: q.id }));
@@ -508,7 +508,7 @@ describe('quotes and bills (round 8)', () => {
   });
 
   test('SAL4-9 deleting a bill writes an audit row with its number, amount and branch', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 5 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
     ok(await del(`/api/tx/invoice/${inv.id}`), 'delete');
@@ -737,21 +737,23 @@ describe('round 9: sales', () => {
     }
   });
 
-  test('SAL9-12 a bill whose closed-day refund was taken back by a reversal can still be voided', async () => {
-    if (!sql('SELECT 1')) return; // needs DATABASE_URL to put the refund on a closed day
-    const [d1, d2] = await freshDays('erode-hq', 2);
+  test('SAL9-12 a bill whose past-day refund was taken back by a reversal can still be voided', async () => {
+    if (!sql('SELECT 1')) return; // needs DATABASE_URL to put the refund on an earlier day
+    // RPT10-4: only a bill of the current month can be voided, so the bill is
+    // dated today and its refund is moved to an earlier day (UPG10-4: a refund
+    // on any earlier day is taken back with a receipt today, never deleted).
+    const d1 = await thisMonthDay();
+    const d2 = await freshDay('erode-hq');
     const item = await createItem({ stock: { 'erode-hq': 5 } });
     const inv = await mustSell(saleBody({ date: d1, lines: [line(item, 2)] }));
     ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
     const refund = (await paymentsFor(inv.id)).find((p) => p.type === 'out');
     sql(`UPDATE "Payment" SET "date"='${d2}' WHERE id='${refund.id}'`);
-    ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d2 }), 'the refund day is closed');
     const res = ok(await post('/api/tx/reverse-return', { invoiceId: inv.id, returnId: lastReturn(await getInvoice(inv.id)).id }), 'reverse');
     assert.equal(res.reversed.refund.kind, 'collected', 'taken back with a receipt today');
     ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA' }), 'void is allowed');
     const rows = await paymentsFor(inv.id);
     assert.equal(rows.length, 2, 'the refund and its take-back stay as a pair');
-    ok(await post('/api/cash/reopen', { branchId: 'erode-hq', date: d2 }));
   });
 
   test('SAL9-5 a quote line with two different GST rates is refused; the one rate is stored on both fields', async () => {

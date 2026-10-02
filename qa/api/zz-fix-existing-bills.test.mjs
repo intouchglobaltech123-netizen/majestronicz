@@ -188,9 +188,11 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
 
     // UPG9-10: after the fix, reversing that older return finds the refund it backfilled.
     const rev = ok(await post('/api/tx/reverse-return', { invoiceId: c.id, returnId: (await getInvoice(c.id)).returns[0].id }), 'reverse the older return');
-    assert.equal(rev.reversed.refund?.kind, 'deleted', 'the backfilled refund (an open day) is taken off');
+    // UPG10-4: the refund sits on a past day, so it stays where it was paid and
+    // the customer hands it back today.
+    assert.equal(rev.reversed.refund?.kind, 'collected', 'the backfilled refund (a past day) is taken back today');
     near(rev.reversed.refund.amount, 988);
-    assert.equal(outRows(c).length, 0, 'no refund left on the bill');
+    assert.equal(outRows(c).length, 1, 'the past refund row is kept');
     near((await getInvoice(c.id)).balanceDue, 3024, 'back to owing what was not paid at billing');
   });
 

@@ -7,14 +7,14 @@ import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, invoiceDueRaw, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
-import { legacyRefundId } from '../lib/returnRefunds.js';
+import { legacyRefundId, creditBackForBill } from '../lib/returnRefunds.js';
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
 import { isValidBranch } from '../lib/constants.js';
 import { isWholeUnit } from '../lib/units.js';
 import { roleFlags } from '../lib/auth.js';
-import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
+import { assertBusinessDate, assertDayOpen, closedDayFrom, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -180,10 +180,7 @@ async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
   // closed, deleting the refund would silently change a reconciled day — block the
   // void/delete and tell the user to reopen that day first (SAL8-6).
   for (const p of targets) {
-    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: p.branchId, date: p.date, isClosed: true } });
-    if (closed) {
-      throw new AppError('DAY_CLOSED', `A refund on this bill was paid on ${p.date}, a closed cash day. Reopen that day before voiding/deleting the bill.`, 409);
-    }
+    await assertDayOpen(tx, p.branchId, p.date, `void/delete this bill (a refund on it was paid on ${p.date})`);
   }
   await tx.payment.deleteMany({ where: { id: { in: targets.map((p: any) => p.id) } } });
 }
@@ -319,10 +316,8 @@ export function createSale(inv: any, reqUser?: any) {
     // (the new date here, the old date below) run against that branch — sending
     // another branchId must not dodge a closed day.
     if (stored) inv.branchId = stored.branchId;
-    const reg = await tx.dailyCashRegister.findFirst({
-      where: { branchId: inv.branchId, date: inv.date, isClosed: true },
-    });
-    if (reg) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
+    // CASH10-1: not on a closed day, nor on any day before the latest closed one.
+    await assertDayOpen(tx, inv.branchId, inv.date, stored ? 'edit this bill' : 'save a bill on that date');
 
     // Reject nonsensical line quantities: a zero or negative quantity produced a
     // ₹0 bill and, worse, a negative quantity *added* stock instead of selling it
@@ -364,12 +359,7 @@ export function createSale(inv: any, reqUser?: any) {
       // reconciled day's totals after the fact (the new date's closed-day check
       // above already blocks moving it ONTO a closed day) — CASH-2.
       if (existing.date !== inv.date) {
-        const oldClosed = await tx.dailyCashRegister.findFirst({
-          where: { branchId: existing.branchId, date: existing.date, isClosed: true },
-        });
-        if (oldClosed) {
-          throw new AppError('DAY_CLOSED', `This bill is dated ${existing.date}, a closed cash day. Reopen that day before changing the bill's date.`, 409);
-        }
+        await assertDayOpen(tx, existing.branchId, existing.date, `change the date of this bill (dated ${existing.date})`);
       }
       // SAL3-4: the bill's number belongs to its financial year's series, so a
       // date edit may not move the bill into another financial year.
@@ -628,7 +618,7 @@ export function createSale(inv: any, reqUser?: any) {
     // restock exactly what the sale took.
     const comboMasters = await tx.comboItem.findMany();
     const comboById = new Map(comboMasters.map((c: any) => [c.id, c]));
-    const catalogItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true } });
+    const catalogItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true, isArchived: true } });
     const catalogById = new Map<string, any>(catalogItems.map((i: any) => [i.id, i]));
     // Positive parts only, named from the item master (INV6-8).
     const cleanParts = (comps: any[]): any[] =>
@@ -718,6 +708,7 @@ export function createSale(inv: any, reqUser?: any) {
       const restored = oldDemand.get(itemId)?.qty || 0;
       const net = Math.round((restored - sold) * 100) / 100; // stock change
       if (net === 0) continue;
+      if (net > 0) assertRestockable(catalogById.get(itemId), 'edit the bill'); // INV10-1
       const meta = demand.get(itemId) || oldDemand.get(itemId)!;
       const newQty = ledger.qty(itemId);
       saleLogs.push({
@@ -772,6 +763,54 @@ export function createSale(inv: any, reqUser?: any) {
   });
 }
 
+/**
+ * INV10-1: an archived item is hidden from the stock screens, so units put back
+ * on it (a return, void, delete or a bill edit that lowers its quantity) would
+ * vanish from Inventory and Valuation. Those actions are refused until the item
+ * is restored in the item master.
+ */
+function assertRestockable(item: any, verb: string): void {
+  if (item?.isArchived) {
+    throw new AppError('ITEM_ARCHIVED', `"${String(item.itemName || 'This item').slice(0, 80)}" is archived, so its units can't be put back into stock. Restore the item first (Items → Archived → Restore), then ${verb}.`, 409);
+  }
+}
+
+/**
+ * CRM10-1: store credit given back AGAINST a bill (a credit-note return, the
+ * excess of an edit below what was paid, the one-time script's rows) belongs to
+ * that bill. When the bill is voided or deleted the sale is undone in full, so
+ * the credit is taken back too — refused when the customer already spent it.
+ */
+async function takeBackBillCredit(tx: any, inv: any, verb: 'void' | 'delete', actor?: string): Promise<number> {
+  if (!inv?.customerId) return 0;
+  const cust = await tx.customer.findUnique({ where: { id: inv.customerId } });
+  if (!cust) return 0;
+  const credit = creditBackForBill(cust.creditHistory, inv);
+  if (credit <= 0.005) return 0;
+  const balance = round2(Math.max(0, Number(cust.creditBalance) || 0));
+  if (balance + 0.005 < credit) {
+    throw new AppError('CREDIT_SPENT', `₹${credit.toFixed(2)} of store credit was given on bill ${inv.invoiceNumber} and the customer has already used some of it (₹${balance.toFixed(2)} left). The bill can't be ${verb === 'void' ? 'voided' : 'deleted'} — record a return instead.`, 409);
+  }
+  await applyCreditDelta(tx, inv.customerId, -credit, {
+    type: 'adjust', reason: `Bill ${inv.invoiceNumber} ${verb === 'void' ? 'voided' : 'deleted'} — store credit given on it taken back`,
+    refId: inv.id, refNumber: inv.invoiceNumber ?? undefined, by: actor,
+  });
+  return credit;
+}
+
+/**
+ * RPT10-4 (client decision): once a bill's month has ended, its sales and GST
+ * are reported (GSTR-1/3B, P&L). Voiding or deleting it would silently rewrite
+ * that month, so both are refused for every role, CEO included — goods coming
+ * back are recorded as a return (credit note) in the current month instead.
+ */
+function assertMonthOpen(inv: any, verb: 'void' | 'delete'): void {
+  const month = String(inv?.date || '').slice(0, 7);
+  if (month && month < istToday().slice(0, 7)) {
+    throw new AppError('MONTH_CLOSED', `Bill ${inv.invoiceNumber} is dated ${inv.date}, in a month that has ended — it can't be ${verb === 'void' ? 'voided' : 'deleted'} because that month's sales and GST are already reported. Use a return / credit note instead.`, 409);
+  }
+}
+
 /** Void an invoice: restore remaining stock, log, mark voided, decrement customer. */
 export function voidInvoice(invoiceId: string, reason: string, actor: string, reqUser?: any) {
   if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'Which bill is being voided? invoiceId is required.', 400); // SAL7-4
@@ -780,10 +819,12 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('ALREADY_VOIDED', 'Sale already voided', 409);
+    assertMonthOpen(inv, 'void');
     if (await invoiceHasReceipts(tx, invoiceId, { ignoreTakeBacks: true })) {
       throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first, or issue a return instead of voiding.', 409); // CRM6-4
     }
     await assertDayOpen(tx, inv.branchId, inv.date, 'void this bill'); // CASH-2
+    await takeBackBillCredit(tx, inv, 'void', actor); // CRM10-1
 
     const ts = nowIso();
     const items = await tx.item.findMany();
@@ -799,6 +840,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     for (const [itemId, soldQty] of sold.entries()) {
       const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
       if (restore <= 0) continue;
+      assertRestockable(itemById.get(itemId), 'void the bill'); // INV10-1
       const { prevQty, newQty } = ledger.apply(itemId, restore);
       const ci: any = itemById.get(itemId);
       newLogs.push({
@@ -858,11 +900,10 @@ export function processReturn(
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
-    // E2E9-9 (client decision): a credit-note return is refused while today's
-    // cash day is closed at the bill's branch, exactly like a cash refund.
-    if (/credit|adjust/i.test(String(refundMode || ''))) {
-      await assertDayOpen(tx, inv.branchId, istToday(), 'record a return (credit note) today');
-    }
+    // E2E9-9 / CASH10-1: a return is booked TODAY (its refund, credit note or
+    // due reduction), so it is refused while today's cash day is closed at the
+    // bill's branch.
+    await assertDayOpen(tx, inv.branchId, istToday(), 'record a return today');
     // Resolve every requested line against the BILL's own line and take its
     // identity (name, code, price, tax, combo parts) from there and the item
     // master — never from the request (SAL7-4 / INV8-8; a request that flags a
@@ -1026,6 +1067,7 @@ export function processReturn(
         for (const comp of parts) {
           // Damaged returns restore 0 units (write-off); others restock normally.
           const qtyToRestore = isDamaged ? 0 : Number(comp.quantity) * line.returnQty;
+          if (qtyToRestore > 0) assertRestockable(itemById.get(comp.itemId), 'record the return'); // INV10-1
           const { prevQty, newQty } = ledger.apply(comp.itemId, qtyToRestore);
           const ci: any = itemById.get(comp.itemId);
           newLogs.push({
@@ -1051,6 +1093,7 @@ export function processReturn(
         const isCatalogItem = itemById.has(line.itemId);
         const qtyToRestore = isDamaged || !isCatalogItem ? 0 : line.returnQty;
         if (isCatalogItem) {
+          if (qtyToRestore > 0) assertRestockable(itemById.get(line.itemId), 'record the return'); // INV10-1
           const { prevQty, newQty } = ledger.apply(line.itemId, qtyToRestore);
           newLogs.push({
             id: rid('adj'), itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode,
@@ -1134,12 +1177,7 @@ export function processReturn(
       // The refund is a cash payout dated TODAY. If today's drawer is already
       // closed, paying it out would change a reconciled day — block it (the caller
       // can reopen today or choose 'Adjust to credit note'). CASH-2 / SAL4-12.
-      const closedToday = await tx.dailyCashRegister.findFirst({
-        where: { branchId: inv.branchId, date: today, isClosed: true },
-      });
-      if (closedToday) {
-        throw new AppError('DAY_CLOSED', `Today's cash day (${today}) is closed, so a cash refund can't be paid out. Reopen today's register, or use 'Adjust to credit note'.`, 409);
-      }
+      await assertDayOpen(tx, inv.branchId, today, 'pay out a cash refund today (or use \'Adjust to credit note\')');
       const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
       const rows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
       let maxNo = 0;
@@ -1205,10 +1243,13 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (inv) {
       assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
+      assertMonthOpen(inv, 'delete');
       if (await invoiceHasReceipts(tx, invoiceId)) {
         throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first.', 409); // CRM6-4
       }
       await assertDayOpen(tx, inv.branchId, inv.date, 'delete this bill'); // CASH-2
+      // CRM10-1 (nets to ₹0 when a void already took it back).
+      await takeBackBillCredit(tx, inv, 'delete', reqUser?.name);
       const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
       // Only restore stock that is still OUT because of this bill. A voided bill
       // already had its stock restored on void, and a returned bill already
@@ -1226,6 +1267,7 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
         for (const [itemId, soldQty] of sold.entries()) {
           const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
           if (restore <= 0) continue;
+          assertRestockable(itemById.get(itemId), 'delete the bill'); // INV10-1
           const { prevQty, newQty } = ledger.apply(itemId, restore);
           const ci: any = itemById.get(itemId);
           delLogs.push({
@@ -1268,7 +1310,7 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
  * Reverse a return (SAL3-2, client-approved): undo exactly what the return did.
  *  - Stock goes back out for the units that were restocked; damaged units were
  *    written off, so they cause no stock change now either.
- *  - Money: a cash refund 'out' row is deleted when its day is still open,
+ *  - Money: a cash refund 'out' row is deleted when it was paid today (open),
  *    otherwise the customer pays it back as an 'in' row dated TODAY (today must
  *    be open). A credit note is taken back off the customer's store credit —
  *    refused if they already spent it.
@@ -1340,9 +1382,13 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     if (refundPaymentId) {
       const pay = await tx.payment.findUnique({ where: { id: refundPaymentId } });
       if (pay) {
-        const refundDayClosed = await tx.dailyCashRegister.findFirst({ where: { branchId: pay.branchId, date: pay.date, isClosed: true } });
+        // UPG10-4: only a refund paid out TODAY (on an open day) is simply
+        // removed. A refund on any earlier day is history — that day's cash was
+        // counted (and may be carried into a later closed day) — so the customer
+        // hands the money back today instead.
+        const refundDayClosed = pay.date !== today || !!(await closedDayFrom(tx, pay.branchId, pay.date));
         if (!refundDayClosed) {
-          // The refund's day is still open — take the payout off that day.
+          // The refund was paid today and today is open — take the payout off.
           await tx.payment.delete({ where: { id: pay.id } });
           refundReversal = { kind: 'deleted', amount: pay.amount, mode: pay.paymentMode, date: pay.date };
         } else {

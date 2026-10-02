@@ -43,13 +43,37 @@ export function assertBusinessDate(date: unknown, what = 'This entry'): string {
 }
 
 /**
+ * The latest CLOSED cash day of a branch on or after `date` (null when none).
+ * A closed day freezes its opening, which carries every earlier day's cash, so
+ * money booked on ANY day up to the latest closed day would never reach the
+ * cash in hand (CASH10-1 / PUR10-8).
+ */
+export async function closedDayFrom(tx: any, branchId: string, date: string): Promise<string | null> {
+  const row = await tx.dailyCashRegister.findFirst({
+    where: { branchId, date: { gte: date }, isClosed: true },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+  return row?.date ?? null;
+}
+
+/**
  * A closed cash day is final: its totals are derived from the bills and payments
  * dated to it, so any write that would change them must be refused until a
- * Manager/CEO reopens the day (CASH-2 / CASH7-4).
+ * Manager/CEO reopens the day (CASH-2 / CASH7-4). The same holds for every day
+ * BEFORE the branch's latest closed day — the closed day's frozen opening already
+ * carries their cash (CASH10-1): a bill, receipt, refund, expense, vendor payment,
+ * void or delete dated on or before it is refused.
  */
 export async function assertDayOpen(tx: any, branchId: string, date: string, verb: string): Promise<void> {
-  const closed = await tx.dailyCashRegister.findFirst({ where: { branchId, date, isClosed: true } });
-  if (closed) {
+  const closed = await closedDayFrom(tx, branchId, date);
+  if (!closed) return;
+  if (closed === date) {
     throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before you ${verb}.`, 409);
   }
+  throw new AppError(
+    'DAY_CLOSED',
+    `The cash day ${closed} is closed, so ${date} (an earlier day) is closed too — its cash is already carried into ${closed}. Reopen the closed day(s) from ${date} to ${closed} before you ${verb}.`,
+    409,
+  );
 }

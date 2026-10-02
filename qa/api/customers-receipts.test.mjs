@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, receive, resave,
-  freshDay, together, randomPhone, paymentsFor, serviceLine,
+  freshDay, thisMonthDay, together, randomPhone, paymentsFor, serviceLine,
 } from './lib.mjs';
 
 /** A credit (COD) bill of 1,180 on a fresh day; returns the saved invoice. */
@@ -483,7 +483,7 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
 
   test('CRM-8 a customer\'s purchase count is the number of their live bills (sale, void, delete)', async () => {
     const phone = randomPhone();
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await mustSell(saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [serviceLine(1, 100)] }));
     const b = await mustSell(saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [serviceLine(1, 200)] }));
     assert.equal((await customerOf(a.customerId)).purchaseCount, 2);

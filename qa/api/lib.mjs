@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { afterEach } from 'node:test';
 
 export const API = (process.env.QA_API_URL || 'http://127.0.0.1:4008').replace(/\/$/, '');
 
@@ -48,8 +49,21 @@ export async function api(method, path, { as = 'CEO', body, headers = {} } = {})
   const text = await res.text();
   let parsed = text;
   try { parsed = text ? JSON.parse(text) : null; } catch { /* keep text */ }
+  if (method === 'POST' && path === '/api/cash/close' && res.status === 200 && body?.branchId && body?.date) {
+    closedByTest.push({ branchId: body.branchId, date: body.date });
+  }
   return { status: res.status, body: parsed, headers: res.headers };
 }
+
+// CASH10-1: a closed day locks every earlier day of its branch, so a day a test
+// closed is reopened after that test — later tests use random earlier dates.
+const closedByTest = [];
+afterEach(async () => {
+  while (closedByTest.length) {
+    const d = closedByTest.pop();
+    await api('POST', '/api/cash/reopen', { as: 'CEO', body: d });
+  }
+});
 
 export const get = (path, as = 'CEO') => api('GET', path, { as });
 export const post = (path, body, as = 'CEO') => api('POST', path, { as, body });
@@ -96,10 +110,28 @@ export const istToday = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOStri
 export const utcToday = istToday;
 
 /**
+ * CASH10-1: money can't be booked on or before a branch's latest CLOSED cash
+ * day. The demo data (and earlier test files) leave closed days behind, which
+ * would lock every random past test date, so each test process first reopens
+ * the closed days left over. Tests that close a day reopen it when done.
+ */
+let reopened = null;
+export function reopenClosedDays() {
+  reopened ||= (async () => {
+    const regs = ok(await get('/api/cash-registers'), 'list registers');
+    for (const r of regs.filter((x) => x.isClosed)) {
+      ok(await post('/api/cash/reopen', { branchId: r.branchId, date: r.date }), `reopen ${r.branchId} ${r.date}`);
+    }
+  })();
+  return reopened;
+}
+
+/**
  * A random past date (2016-2024) with no cash register for `branchId` on that
  * day or the following `span - 1` days, so each test gets its own clean days.
  */
 export async function freshDays(branchId, span = 1) {
+  await reopenClosedDays();
   const regs = ok(await get('/api/cash-registers'), 'list registers');
   const used = new Set(regs.filter((r) => r.branchId === branchId).map((r) => r.date));
   const start = Date.parse('2016-01-01T00:00:00Z');
@@ -111,6 +143,9 @@ export async function freshDays(branchId, span = 1) {
   throw new Error('could not find free test dates');
 }
 export const freshDay = async (branchId) => (await freshDays(branchId, 1))[0];
+/** RPT10-4: a bill can only be voided or deleted in its own month, so tests that
+ *  void/delete date their bills TODAY (IST). */
+export const thisMonthDay = async () => { await reopenClosedDays(); return istToday(); };
 
 // ---------------------------------------------------------------- items & stock
 

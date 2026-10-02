@@ -9,7 +9,7 @@ import { nextPersistent } from '../lib/sequences.js';
 import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customerCredit.service.js';
 import { collectedAtBilling } from '../lib/billingSplit.js';
 import { creditBackForBill, overCollectedOf, billDueRaw } from '../lib/returnRefunds.js';
-import { istToday, assertBusinessDate } from '../lib/businessDate.js';
+import { istToday, assertBusinessDate, assertDayOpen } from '../lib/businessDate.js';
 import { poPayCap, poBalance, unappliedOf, poAdvance, poOpenValue } from '../lib/poMoney.js';
 
 /**
@@ -310,8 +310,8 @@ export async function recordPayment(
     assertBranchAllowed(reqUser, branchId); // a branch-locked user can't bank a receipt to another branch
     // A receipt/payment dated to a day whose drawer is already closed would
     // change that reconciled day's cash total after the fact (CASH-2).
-    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId, date, isClosed: true } });
-    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before recording this payment.`, 409);
+    // CASH10-1 / PUR10-8: nor to any day before the branch's latest closed day.
+    await assertDayOpen(tx, branchId, date, 'record this payment');
 
     const receiptNumber = await nextReceiptNumber(tx, input.type, date);
     const paymentId = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -694,8 +694,7 @@ async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
       }
     }
     // Deleting a payment dated to a closed day would change that day's cash (CASH-2).
-    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: payment.branchId, date: payment.date, isClosed: true } });
-    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${payment.date} is closed. Reopen it before deleting this payment.`, 409);
+    await assertDayOpen(tx, payment.branchId, payment.date, 'delete this payment'); // CASH10-1
     const allocations: Allocation[] = Array.isArray(payment.allocations) ? (payment.allocations as any) : [];
     // Anchor each bill's owed-at-billing credit from the state BEFORE the receipt
     // is removed, so deleting it brings the right debt back (and never double-

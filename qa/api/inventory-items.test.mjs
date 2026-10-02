@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, del, ok, expectStatus, uid, createItem, createCombo, stockOf, ledgerOf, line, comboLine, saleBody,
-  sell, mustSell, getInvoice, resave, returnLine, freshDay, addDays, istToday, register,
+  sell, mustSell, getInvoice, resave, returnLine, freshDay, thisMonthDay, addDays, istToday, register,
 } from './lib.mjs';
 
 const ret = (invoiceId, returnLines, as = 'CEO') =>
@@ -33,7 +33,7 @@ describe('combos and returns', () => {
   });
 
   test('INV8-2 a combo return stores the sold parts, so a later void restores each unit once', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await createItem({ stock: { 'erode-hq': 20 } });
     const b = await createItem({ stock: { 'erode-hq': 20 } });
     const combo = await createCombo([{ item: a, qty: 2 }, { item: b, qty: 1 }]);
@@ -52,7 +52,7 @@ describe('combos and returns', () => {
   });
 
   test('INV8-2 deleting a bill after a combo return restores each unit once', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await createItem({ stock: { 'erode-hq': 20 } });
     const combo = await createCombo([{ item: a, qty: 3 }]);
     const inv = await mustSell(saleBody({ date, lines: [comboLine(combo, 2)] }));
@@ -63,7 +63,7 @@ describe('combos and returns', () => {
   });
 
   test('SAL3-2 reversing a combo return takes back exactly the parts it restocked', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await createItem({ stock: { 'erode-hq': 20 } });
     const b = await createItem({ stock: { 'erode-hq': 20 } });
     const c = await createItem({ stock: { 'erode-hq': 20 } });
@@ -85,7 +85,7 @@ describe('combos and returns', () => {
   });
 
   test('SAL3-2 reversing a damaged combo return changes no stock', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await createItem({ stock: { 'erode-hq': 20 } });
     const combo = await createCombo([{ item: a, qty: 3 }]);
     const inv = await mustSell(saleBody({ date, lines: [comboLine(combo, 2)] }));
@@ -130,7 +130,7 @@ describe('combos and returns', () => {
   });
 
   test('INV8-3 editing a bill after its combo changed restores what the bill really took', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const a = await createItem({ stock: { 'erode-hq': 20 } });
     const b = await createItem({ stock: { 'erode-hq': 20 } });
     const combo = await createCombo([{ item: a, qty: 1 }, { item: b, qty: 1 }]);
@@ -442,8 +442,8 @@ describe('archived items', () => {
     assert.equal(res.body.error, 'ITEM_ARCHIVED', `${what}: error code`);
   };
 
-  test('ITEM_ARCHIVED an archived item cannot be sold, quoted, ordered, put in a combo or transferred; returns and voids of old bills still work', async () => {
-    const date = await freshDay('erode-hq');
+  test('ITEM_ARCHIVED an archived item cannot be sold, quoted, ordered, put in a combo or transferred; returns and voids of old bills need it restored first (INV10-1)', async () => {
+    const date = await thisMonthDay();
     const item = await createItem({ price: 500, stock: { 'erode-hq': 2 } });
     const old = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
     ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }), 'archive');
@@ -462,7 +462,17 @@ describe('archived items', () => {
     archived(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: 1 }), 'transfer');
     archived(await post('/api/stock/transfer-batch', { items: [{ itemId: item.id, quantity: 1 }], fromBranch: 'erode-hq', toBranch: 'chennai' }), 'batch transfer');
 
-    // The old bill can still be returned and voided.
+    // INV10-1: putting units back on an archived (hidden) item is refused until
+    // the item is restored; then the old bill can be returned and voided.
+    const refused = await ret(old.id, [returnLine(item, 1)]);
+    expectStatus(refused, 409, 'return onto an archived item');
+    assert.equal(refused.body.error, 'ITEM_ARCHIVED');
+    assert.match(refused.body.message, /Restore the item first/);
+    expectStatus(await post('/api/tx/void-invoice', { invoiceId: old.id, reason: 'QA', actor: 'QA' }), 409, 'void onto an archived item');
+    expectStatus(await del(`/api/tx/invoice/${old.id}`), 409, 'delete onto an archived item');
+    expectStatus(await resave(await getInvoice(old.id), { items: [line(item, 1)] }), [400, 409], 'edit lowering an archived line');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 0, 'nothing put back while archived');
+    ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: false }), 'restore');
     ok(await ret(old.id, [returnLine(item, 1)]), 'return on the old bill');
     ok(await post('/api/tx/void-invoice', { invoiceId: old.id, reason: 'QA', actor: 'QA' }), 'void the old bill');
     assert.equal(await stockOf(item.id, 'erode-hq'), 2, 'both units back');

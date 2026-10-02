@@ -436,6 +436,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // SEC-6: voiding a bill is a Manager/CEO action.
   const canVoid = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  // RPT10-4: a bill of a month that has ended can't be voided (its sales and GST
+  // are reported) — a return / credit note is used instead. Same rule as the server.
+  const thisMonthIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7);
+  const monthEnded = (inv: Invoice) => String(inv.date || '').slice(0, 7) < thisMonthIST;
 
   const handleEdit = (invoice: Invoice) => {
     if (invoice.isVoided) {
@@ -1273,11 +1277,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                   setVoidModalInvoice(inv);
                                   setVoidReason('Customer cancellation / Order return');
                                 }}
-                                disabled={isVoided}
-                                title={isVoided ? 'Already voided' : 'Void Sale & Restore Stock'}
+                                disabled={isVoided || monthEnded(inv)}
+                                title={isVoided ? 'Already voided' : monthEnded(inv) ? "This bill's month has ended — use a return / credit note instead" : 'Void Sale & Restore Stock'}
                                 className={cn(
                                   'p-1.5 rounded-lg border transition-colors',
-                                  isVoided
+                                  isVoided || monthEnded(inv)
                                     ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
                                     : 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200'
                                 )}

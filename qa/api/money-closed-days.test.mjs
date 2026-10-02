@@ -150,7 +150,10 @@ describe('one carry-forward for every opening', () => {
     near(await openingOf('coimbatore', d3), before + 1180, 'open later day moved with the earlier change');
     ok(await post('/api/cash/close', { branchId: 'coimbatore', date: d3, actor: 'QA' }));
     const frozen = await openingOf('coimbatore', d3);
-    await mustSell(saleBody({ branchId: 'coimbatore', date: d2, lines: [line(item, 1)] }));
+    // CASH10-1: d2 is before the closed d3 — a sale there is refused (its cash
+    // would never reach the frozen opening).
+    const late = await sell(saleBody({ branchId: 'coimbatore', date: d2, lines: [line(item, 1)] }));
+    expectStatus(late.res, 409, 'sale before a closed day');
     near(await openingOf('coimbatore', d3), frozen, 'closed day opening unchanged');
     ok(await post('/api/cash/reopen', { branchId: 'coimbatore', date: d3 }));
   });

@@ -48,6 +48,7 @@ export const DailyCashRegisterView: React.FC = () => {
     canManageItems,
     recurringExpenses,
     activeSubTab,
+    isDayClosed,
   } = useErp();
 
   // Dynamic system dates. Recompute on an interval so a drawer left open past
@@ -133,6 +134,9 @@ export const DailyCashRegisterView: React.FC = () => {
   const currentRegister = useMemo(() => {
     return getDailyCashRegister(activeBranchId, selectedDate);
   }, [getDailyCashRegister, activeBranchId, selectedDate, cashRegisters]);
+  // CASH10-1: an open day before a later CLOSED day is locked too — the closed
+  // day's opening already carries its cash.
+  const lockedByLaterClose = !currentRegister.isClosed && isDayClosed(activeBranchId, selectedDate);
 
   // Invoices for selected branch and date (excluding voided sales)
   const dayInvoices = useMemo(() => {
@@ -497,7 +501,7 @@ export const DailyCashRegisterView: React.FC = () => {
         totalDayRevenue={salesBreakdown.totalRevenue}
         bankDigitalTotal={salesBreakdown.hdfc + salesBreakdown.gpay}
         creditTotal={salesBreakdown.codCredit}
-        isClosed={currentRegister.isClosed}
+        isClosed={currentRegister.isClosed || lockedByLaterClose}
         canOverrideOpening={canOverrideOpening}
         onOpenOverrideModal={() => setIsOverrideModalOpen(true)}
         branchName={activeBranchObj.name}
@@ -519,7 +523,7 @@ export const DailyCashRegisterView: React.FC = () => {
         <div className="lg:col-span-5">
           <DailyCashExpensesTable
             expenses={currentRegister.expenses}
-            isClosed={currentRegister.isClosed}
+            isClosed={currentRegister.isClosed || lockedByLaterClose}
             drawerCash={closingBalance}
             onAddExpense={(expense) =>
               addCashExpense(activeBranchId, selectedDate, expense)
@@ -534,6 +538,16 @@ export const DailyCashRegisterView: React.FC = () => {
           />
         </div>
       </div>
+
+      {lockedByLaterClose && (
+        <div className="p-4 rounded-none bg-amber-50 border border-amber-300 flex items-center gap-2 text-xs text-amber-900" data-testid="locked-by-later-close">
+          <Lock className="h-4 w-4 shrink-0" />
+          <span>
+            A later cash day of this branch is closed, so this day is locked too — its cash is already carried into
+            that closed day. Reopen the later closed day(s) to change anything here.
+          </span>
+        </div>
+      )}
 
       {/* Closed Day Information Box */}
       {currentRegister.isClosed && (

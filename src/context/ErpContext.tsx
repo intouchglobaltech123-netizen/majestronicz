@@ -2251,10 +2251,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Daily Cash Register Engine
-  const isDayClosed = (branchId: BranchId, date: string): boolean => {
-    const reg = cashRegisters.find((r) => r.branchId === branchId && r.date === date);
-    return !!reg?.isClosed;
-  };
+  // CASH10-1: a day is closed when it, or any LATER day of the branch, is closed —
+  // the latest closed day's frozen opening already carries every earlier day's
+  // cash (same rule as the server's assertDayOpen).
+  const isDayClosed = (branchId: BranchId, date: string): boolean =>
+    cashRegisters.some((r) => r.branchId === branchId && r.isClosed && r.date >= date);
 
   // ONE carry-forward rule with the server (lib/cashClosing makeOpeningLookup ↔
   // backend cash.service branchOpenings): register-less days carry, a branch's

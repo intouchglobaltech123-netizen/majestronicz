@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   API, api, post, put, get, del, ok, expectStatus, uid, login, createItem, line, saleBody, mustSell, sell,
-  freshDay, createPO, signToken, createStaff, loginPin, receive, randomPhone, HOME,
+  freshDay, freshDays, createPO, signToken, createStaff, loginPin, receive, randomPhone, HOME,
 } from './lib.mjs';
 
 describe('auth & roles', () => {
@@ -271,9 +271,11 @@ describe('auth & roles', () => {
   });
 
   test('SEC7-1 editing a bill without a date keeps its own date (no spurious day-closed)', async () => {
-    const [d1, d2] = await (async () => [await freshDay('erode-hq'), await freshDay('erode-hq')])();
+    // d2 (closed below) is the day BEFORE the bill's day d1 (CASH10-1 locks
+    // every day up to the latest closed one).
+    const [d2, d1] = await freshDays('erode-hq', 2);
     const inv = await mustSell(saleBody({ date: d1, lines: [line(await createItem({ stock: { 'erode-hq': 5 } }), 1)] }));
-    // Close a DIFFERENT day of the same branch.
+    // Close a DIFFERENT (earlier) day of the same branch.
     ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d2, notes: 'QA', actor: 'QA' }), 'close other day');
     const edit = { ...inv };
     delete edit.date;

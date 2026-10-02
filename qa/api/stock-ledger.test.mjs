@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, createItem, stockOf, ledgerOf, line, saleBody, mustSell, getInvoice, resave,
-  returnLine, freshDay, createPO,
+  returnLine, freshDay, thisMonthDay, createPO,
 } from './lib.mjs';
 
 const sumChanges = (rows) => rows.reduce((t, r) => t + (Number(r.quantityChange) || 0), 0);
@@ -18,7 +18,7 @@ async function assertReconciles(item, branchId, opening, what) {
 
 describe('stock & ledger', () => {
   test('INV2-4 sales, receipts, returns and voids all write stock history that adds up', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 30 } });
     const sale = await mustSell(saleBody({ date, lines: [line(item, 4)] }));
     const po = await createPO([{ item, qty: 6, price: 100 }]);
@@ -47,7 +47,7 @@ describe('stock & ledger', () => {
   });
 
   test('INV2-4 deleting a live bill writes stock history that adds up', async () => {
-    const date = await freshDay('erode-hq');
+    const date = await thisMonthDay();
     const item = await createItem({ stock: { 'erode-hq': 20 } });
     const inv = await mustSell(saleBody({ date, lines: [line(item, 5)] }));
     ok(await del(`/api/tx/invoice/${inv.id}`));

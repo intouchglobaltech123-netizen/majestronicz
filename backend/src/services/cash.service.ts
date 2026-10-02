@@ -4,7 +4,7 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { cashAtBilling } from '../lib/billingSplit.js';
-import { assertBusinessDate } from '../lib/businessDate.js';
+import { assertBusinessDate, assertDayOpen } from '../lib/businessDate.js';
 
 const snap = async (tx: any) => ({
   cashRegisters: await registersWithLiveOpenings(tx),
@@ -149,8 +149,8 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
   // An expense needs a real date that is not in the future (IST) — VAL-1 / CASH6-2.
   assertBusinessDate(date, 'An expense');
   return serializableTx(async (tx: any) => {
+    await assertDayOpen(tx, branchId, date, 'add an expense'); // CASH10-1: also any day before a closed one
     const reg = await ensureRegister(tx, branchId, date);
-    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cash register for this day is closed', 409);
     // Amounts can't be negative, and at least one must be positive (CASH2-5/VAL-1).
     const cashAmt = Number(expense.cashAmount) || 0;
     const gpayAmt = Number(expense.gpayAmount) || 0;
@@ -180,7 +180,7 @@ export function approveExpense(branchId: string, date: string, expenseId: string
     const reg = await loadRegister(tx, branchId, date);
     if (!reg) throw new AppError('NOT_FOUND', 'Cash register not found', 404);
     // A closed day's totals are final — no approving/rejecting into it (CASH2-5).
-    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Cannot change approvals on a closed day', 409);
+    await assertDayOpen(tx, branchId, date, 'approve or reject an expense'); // CASH10-1
     if (decision !== 'approved' && decision !== 'rejected') {
       throw new AppError('BAD_REQUEST', "Decision must be 'approved' or 'rejected'", 400);
     }
@@ -204,7 +204,7 @@ export function deleteExpense(branchId: string, date: string, expenseId: string)
   return serializableTx(async (tx: any) => {
     const reg = await loadRegister(tx, branchId, date);
     if (!reg) return snap(tx);
-    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
+    await assertDayOpen(tx, branchId, date, 'delete an expense'); // CASH10-1
     await tx.dailyCashRegister.update({
       where: { id: reg.id }, data: { expenses: (reg.expenses as any[]).filter((e) => e.id !== expenseId) },
     });
@@ -237,8 +237,8 @@ export function overrideOpening(branchId: string, date: string, amount: unknown,
   const why = String(reason ?? '').trim();
   if (!why) throw new AppError('REASON_REQUIRED', 'A reason is required to override the opening balance.', 400);
   return serializableTx(async (tx: any) => {
+    await assertDayOpen(tx, branchId, date, 'override the opening balance'); // CASH10-1
     const reg = await ensureRegister(tx, branchId, date);
-    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
     await tx.dailyCashRegister.update({
       where: { id: reg.id }, data: { openingAmount: round2(amt), isOpeningOverridden: true, overrideReason: why },
     });
@@ -310,8 +310,8 @@ export function approveRecurring(templateId: string, branchId: string, date: str
     // the approver happens to be viewing — otherwise e.g. Coimbatore rent lands in
     // the Erode register (CASH-6).
     const targetBranch = template.branchId || branchId;
+    await assertDayOpen(tx, targetBranch, date, 'approve this recurring expense'); // CASH10-1
     const reg = await ensureRegister(tx, targetBranch, date);
-    if (reg.isClosed) throw new AppError('DAY_CLOSED', 'Register is closed', 409);
 
     const expenseId = rid('exp-rec');
     const newExpense = {

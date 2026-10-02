@@ -1,5 +1,5 @@
 import { prisma } from '../db.js';
-import { istToday, isValidYmd } from '../lib/businessDate.js';
+import { istToday, isValidYmd, assertDayOpen } from '../lib/businessDate.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
@@ -513,8 +513,7 @@ export function receivePurchaseOrderStock(
     let ledgerId: string | null = null;
     if (payNow > 0) {
       // A vendor payment at receiving hits the drawer today — refuse it on a closed day (CASH-2).
-      const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: po.branchId, date: today, isClosed: true } });
-      if (closed) throw new AppError('DAY_CLOSED', `The cash day ${today} is closed. Reopen it before paying this vendor.`, 409);
+      await assertDayOpen(tx, po.branchId, today, 'pay this vendor');
       ledgerId = rid('pay');
       payments.unshift({ id: rid('pay'), date: today, amount: payNow, mode: payment?.mode || 'Cash', by: actor, ledgerPaymentId: ledgerId });
     }
@@ -832,8 +831,7 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     // A vendor payment hits the drawer of the PO's branch today — if that day is
     // already closed, it would change a reconciled day (the Parties screen already
     // refuses this; the PO page must too). (CASH-2)
-    const closed = await tx.dailyCashRegister.findFirst({ where: { branchId: po.branchId, date: today, isClosed: true } });
-    if (closed) throw new AppError('DAY_CLOSED', `The cash day ${today} is closed. Reopen it before paying this vendor.`, 409);
+    await assertDayOpen(tx, po.branchId, today, 'pay this vendor');
     // Link the PO-embedded entry to its ledger row so deleting the payment can
     // remove BOTH (otherwise the deleted payment lingered in the PO history).
     const ledgerId = rid('pay');
