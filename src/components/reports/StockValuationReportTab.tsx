@@ -164,9 +164,13 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
         ? Object.values(branchValuations).reduce((sum, b) => sum + b.totalUnits, 0)
         : branchValuations[branchScope].totalUnits;
 
+    // One LOW alert rule for "All branches" here and on the Dashboard: an item is
+    // checked at EACH branch against that branch's threshold and the counts are
+    // added up — an item low at two branches is two alerts (the branch table
+    // below adds up to the same figure). Out of stock stays "none left anywhere".
     const activeLowStock =
       branchScope === 'all'
-        ? itemRows.filter((r) => r.status === 'low-stock').length
+        ? Object.values(branchValuations).reduce((sum, b) => sum + b.lowStockCount, 0)
         : branchValuations[branchScope].lowStockCount;
 
     const activeOutOfStock =
@@ -341,7 +345,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
           <div className="flex items-center gap-2 mt-1">
             <span className="text-sm font-extrabold text-amber-700 flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
-              {valuationData.activeLowStock} Low
+              <span title={branchScope === 'all' ? 'Counted per branch: an item low at two branches counts twice' : undefined}>{valuationData.activeLowStock} Low</span>
             </span>
             <span className="text-slate-300">•</span>
             <span className="text-sm font-extrabold text-rose-700 flex items-center gap-1">

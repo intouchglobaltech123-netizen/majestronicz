@@ -8,6 +8,7 @@ import {
   BRANCHES,
   MARGIN_CATEGORIES,
   computeMarginSalePrice,
+  BranchScope,
 } from '../../types';
 import { ItemVendorsEditor, normalizeItemVendors } from './ItemVendorsEditor';
 import {
@@ -51,6 +52,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
     addGstSlab,
     hasFlag,
     vendors,
+    getReorderThreshold,
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'pricing' | 'stock' | 'history'>(
@@ -728,7 +730,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       {BRANCHES.map((b) => {
                         const stock = getBranchStock(item.id, b.id);
                         const qty = stock?.quantity ?? 0;
-                        const threshold = Number(reorderThreshold) || (item.reorderThreshold ?? 10);
+                        // INV2-10: the one low-stock rule (90-day sales + 10, else the
+                        // item's own threshold) for this branch, as on every other screen.
+                        const threshold = getReorderThreshold({ ...item, reorderThreshold: Number(reorderThreshold) || item.reorderThreshold }, b.id as BranchScope);
                         return (
                           <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3 px-4 font-bold text-slate-900">
@@ -793,7 +797,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                         <td className="py-3 px-4 text-center">
                           {(() => {
                             const totalQty = BRANCHES.reduce((sum, b) => sum + (getBranchStock(item.id, b.id)?.quantity ?? 0), 0);
-                            const threshold = Number(reorderThreshold) || (item.reorderThreshold ?? 10);
+                            const threshold = getReorderThreshold({ ...item, reorderThreshold: Number(reorderThreshold) || item.reorderThreshold }, 'all'); // INV2-10
                             if (totalQty === 0) {
                               return <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-rose-50 text-rose-700 border border-rose-200">Out of Stock</span>;
                             } else if (totalQty <= threshold) {

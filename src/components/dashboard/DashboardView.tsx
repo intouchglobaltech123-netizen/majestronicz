@@ -132,16 +132,19 @@ export const DashboardView: React.FC = () => {
   // ---- Inventory health ----
   const inv = useMemo(() => {
     let stockValue = 0, lowStock = 0, deadStock = 0;
+    const scopes = (isAllBranches ? BRANCHES.map((b) => b.id) : [currentBranch]) as BranchId[];
     items.forEach((item) => {
       // The shared low-stock threshold, same as Inventory and the sidebar (INV2-10).
-      const threshold = getReorderThreshold(item, isAllBranches ? 'all' : currentBranch);
-      const qty = isAllBranches
-        ? branchStocks.filter((s) => s.itemId === item.id).reduce((s2, s) => s2 + s.quantity, 0)
-        : branchStocks.find((s) => s.itemId === item.id && s.branchId === currentBranch)?.quantity ?? 0;
-      stockValue += qty * (item.purchasePrice || 0);
-      // Count "low" only for items that still have stock; a zero-stock item is
-      // "out", not "low" — matching the Inventory view so the counts agree (INV-18).
-      if (qty > 0 && qty <= threshold) lowStock++;
+      // "All branches": each branch against its own threshold, added up — the
+      // Stock Valuation report's rule (an item low at two branches is two alerts).
+      for (const b of scopes) {
+        const threshold = getReorderThreshold(item, b);
+        const qty = branchStocks.find((s) => s.itemId === item.id && s.branchId === b)?.quantity ?? 0;
+        stockValue += qty * (item.purchasePrice || 0);
+        // Count "low" only for items that still have stock; a zero-stock item is
+        // "out", not "low" — matching the Inventory view so the counts agree (INV-18).
+        if (qty > 0 && qty <= threshold) lowStock++;
+      }
       if (getItemLastSaleInfo(item.id, isAllBranches ? 'all' : currentBranch).isDeadStock) deadStock++;
     });
     return { stockValue, lowStock, deadStock, totalItems: items.length };
