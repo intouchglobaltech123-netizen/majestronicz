@@ -68,6 +68,8 @@ Run against a freshly seeded database. Tests use random past dates for cash days
 | `api/reports-arithmetic.test.mjs` | GST split, discount before GST, grand total identity, amount in words, splits and dues add up, IGST, invalid values; the screens' own report maths (profit at sale-time cost, write-offs, payroll, one GST figure, collections by receipt mode, Payments Log refunds, exports), imported from `src/` through `api/lib-ts.mjs` |
 | `api/staff-payroll.test.mjs` | Mark Paid (incl. at once), payroll locks, clock-in/out, kiosk PIN lockout and branch check |
 | `api/inventory-items.test.mjs` | Combo sales/returns/edits use stored parts, combo API validation, challans follow transfers (numbers, receive, locks), item archive, unique names, required HSN, linked vendors, stock history reads per branch, shared 90-day sales figures, quantity rules |
+| `api/round10.test.mjs` | Round-10 fixes: nothing booked on or before the latest closed day, ended months can't be voided/deleted, store credit taken back on void/delete, archived items, sale replies and live-sync deltas, six cashiers at once, the recent-window bootstrap and history pages, billing rights on bills and quotes, refunds on discounted bills, payment-mode allow-list, purchases concurrency, salary/PIN protection, validation of items, payroll and staff accounts |
+| `smoke/round10-ui.mjs` | Optional browser checks of the round-10 screens (live sync, GST-off totals, one sales period rule, Set-your-PIN, today's money cards, edit below paid, PO value breakdown, ended-month Void, locked register day) |
 | `smoke/inventory-ui.mjs` | Optional browser checks of the challan, transfer, archive, combo-saving, low-stock badge and Purchase inventory screens (run by hand, like smoke.mjs) |
 | `smoke/barcode-pages.mjs` | Optional: prints every barcode label preset to PDF through the Barcode Generator and counts the pages |
 | `smoke/smoke.mjs` | Logs in as each role and opens every sidebar screen. Fails on page errors, the "Something went wrong" screen, or API responses of 500 and above. It first adds a check-in without a location (HRM6-1). |
@@ -146,6 +148,9 @@ Staff & payroll
 Every other test guards a fix that is already in (a FIXED item, or the fixed part of a partly fixed item). If one of those fails, it is a regression.
 
 ## Notes
+
+- CASH10-1: a closed cash day locks every EARLIER day of its branch, and RPT10-4 refuses voiding or deleting a bill of an ended month. So `lib.mjs` reopens the closed days left over when a test file starts, every day a test closes is reopened after that test, and tests that void or delete bills date them today (`thisMonthDay()`).
+- SEC10-5: a new staff login must set its own PIN first; `createStaff()` does that and returns the new PIN.
 
 - The backend rate-limits failed logins per IP (5 tries). The suite makes one deliberate wrong login, then logs in successfully, which resets the counter.
 - Some locks live in backend memory (kiosk PIN lockout, PIN-change limit). The tests use freshly created staff for these, so re-runs do not collide.
