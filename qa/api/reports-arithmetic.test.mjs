@@ -154,7 +154,9 @@ describe('reports arithmetic', () => {
   test('VAL-1 the salesperson incentive is worked out from the server total, not the browser', async () => {
     const date = await freshDay('erode-hq');
     const body = saleBody({ date, lines: [serviceLine(1, 1000, 18)] });
-    Object.assign(body, { salespersonId: 'emp-001', salespersonName: 'K. Ramachandran', incentivePercent: 2, incentiveAmount: 9999, grandTotal: 1 });
+    // FIN-B-1: the 2% rate comes from the Employee master, not the request.
+    const emp = await newEmployee('erode-hq', 20000, 2);
+    Object.assign(body, { salespersonId: emp.id, salespersonName: emp.name, incentivePercent: 2, incentiveAmount: 9999, grandTotal: 1 });
     const inv = await mustSell(body);
     near(inv.grandTotal, 1180);
     near(inv.incentiveAmount, 23.6);
@@ -162,10 +164,10 @@ describe('reports arithmetic', () => {
 });
 
 /** A fresh employee for payroll tests. */
-async function newEmployee(branchId, salary = 20800) {
+async function newEmployee(branchId, salary = 20800, incentivePercent) {
   for (let i = 0; i < 20; i++) {
     const pin = String(1000 + Math.floor(Math.random() * 9000));
-    const res = await post('/api/employees', { name: `QA Payee ${uid()}`, designation: 'QA Technician', branchId, monthlySalary: salary, status: 'Active', joinedDate: '2026-01-01', pin });
+    const res = await post('/api/employees', { name: `QA Payee ${uid()}`, designation: 'QA Technician', branchId, monthlySalary: salary, status: 'Active', joinedDate: '2026-01-01', pin, ...(incentivePercent != null ? { incentivePercent } : {}) });
     if (res.status === 409) continue;
     return ok(res, 'create employee').employee;
   }

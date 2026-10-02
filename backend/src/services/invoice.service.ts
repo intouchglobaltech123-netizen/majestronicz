@@ -308,6 +308,32 @@ async function snapshotLineCosts(tx: any, lines: any[], previous: any[]): Promis
   }
 }
 
+/**
+ * FIN-B-1: the salesperson's incentive flows into payroll, so the rate is the
+ * one set on the Employee master (Staff Directory), never the client's
+ * incentivePercent, and the salesperson must be an active employee of the
+ * bill's branch. An edit that keeps the bill's salesperson keeps the rate it
+ * was billed at (and may keep someone who has since left).
+ */
+async function applySalesperson(tx: any, inv: any, existing: any): Promise<void> {
+  const spId = inv.salespersonId ? String(inv.salespersonId) : null;
+  if (!spId) {
+    inv.salespersonId = null; inv.salespersonName = null; inv.incentivePercent = null; inv.incentiveAmount = null;
+    return;
+  }
+  const emp = await tx.employee.findUnique({ where: { id: spId }, select: { id: true, name: true, branchId: true, status: true, incentivePercent: true } });
+  const kept = !!existing && existing.salespersonId === spId;
+  if (!emp && !kept) throw new AppError('BAD_SALESPERSON', 'The salesperson on this bill is not in the Staff Directory.', 400);
+  if (!kept && (emp.status !== 'Active' || emp.branchId !== inv.branchId)) {
+    throw new AppError('BAD_SALESPERSON', `${String(emp.name).slice(0, 60)} is not an active employee of this branch and can't be the salesperson on its bill.`, 400);
+  }
+  const rate = kept && existing.incentivePercent != null ? Number(existing.incentivePercent) : Number(emp?.incentivePercent) || 0;
+  inv.salespersonId = spId;
+  inv.salespersonName = emp?.name ?? existing?.salespersonName ?? null;
+  inv.incentivePercent = rate > 0 ? rate : null;
+  inv.incentiveAmount = rate > 0 ? Math.round((inv.grandTotal || 0) * rate) / 100 : null;
+}
+
 /** CRM-8: a customer's purchase count is the number of their LIVE bills (not a
  *  running counter that drifted), so loyalty reads a true count. */
 async function liveBillCount(tx: any, customerId: string, excludeId?: string): Promise<number> {
@@ -333,15 +359,6 @@ export function createSale(inv: any, reqUser?: any) {
   // filled in inside the transaction below).
   if (inv.date || !inv.id) assertBusinessDate(inv.date, 'A sale');
   recomputeInvoiceMoney(inv); // server-authoritative totals
-  // Salesperson incentive: store the ₹ computed from the authoritative grand total.
-  if (inv.salespersonId && Number(inv.incentivePercent) > 0) {
-    inv.incentiveAmount = Math.round((inv.grandTotal || 0) * Number(inv.incentivePercent)) / 100;
-  } else {
-    inv.salespersonId = inv.salespersonId || null;
-    inv.salespersonName = inv.salespersonName || null;
-    inv.incentivePercent = inv.incentivePercent ?? null;
-    inv.incentiveAmount = inv.incentiveAmount ?? null;
-  }
   return lockedTx(async (tx: any) => {
     // SAL10-1: row locks, not Serializable — an edit locks its bill first.
     await lockInvoice(tx, inv.id);
@@ -426,6 +443,7 @@ export function createSale(inv: any, reqUser?: any) {
         throw new AppError('FORBIDDEN', `You are only authorized to edit bills for branch ${reqUser.assignedBranchId}`, 403);
       }
     }
+    await applySalesperson(tx, inv, existing);
     // INV6-4: a new bill must be for a real branch — a bill for 'mars' was saved
     // and took stock from a branch that doesn't exist.
     if (isNewSale && !isValidBranch(inv.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${String(inv.branchId).slice(0, 40)}`, 400);
