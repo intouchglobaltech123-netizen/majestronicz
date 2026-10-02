@@ -33,6 +33,7 @@ import {
   purchaseOrderOpenValue,
   purchaseOrderPayCap,
   purchaseOrderTotalValue,
+  purchaseOrderValueParts,
   SupplierBill,
   supplierBillsOf,
 } from '../../types';
@@ -203,11 +204,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   // GST at the line rates. `totalTax` is absent on orders created before tax was
   // captured, so fall back to summing the lines (purchaseOrderOrderedTotal).
-  const poTotalTax =
-    purchaseOrder.totalTax ??
-    purchaseOrder.items.reduce((sum, l) => sum + (l.taxAmount || 0), 0);
   // PUR9-5: received at receipt rates + still expected + charges.
   const poGrandTotal = purchaseOrderTotalValue(purchaseOrder);
+  // PUR10-2: its parts (goods, GST, charges and each line) add up to it.
+  const poParts = purchaseOrderValueParts(purchaseOrder);
+  const poTotalTax = poParts.tax;
 
   // File Upload Handler (PDF or Image, base64 stopgap)
   const handleFileUpload = async (files: FileList | null) => {
@@ -592,8 +593,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       whether tax was included, so the payable never matched the
                       supplier's bill. */}
                   <span className="text-[11px] text-slate-500 mt-0.5 block font-mono">
-                    {formatCurrency(purchaseOrder.totalAmount)} goods
+                    {formatCurrency(poParts.taxable)} goods
                     {poTotalTax > 0 ? ` + ${formatCurrency(poTotalTax)} GST` : ''}
+                    {poParts.charges > 0 ? ` + ${formatCurrency(poParts.charges)} charges` : ''}
                   </span>
                   <span className="text-[11px] text-slate-500 block">
                     {purchaseOrder.items.length} line {purchaseOrder.items.length === 1 ? 'item' : 'items'}
@@ -1064,7 +1066,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {purchaseOrder.items.map((item) => {
+                      {purchaseOrder.items.map((item, itemIdx) => {
                         const rec = item.receivedQuantity || 0;
                         // Damaged and missing units settle the line too (E2E-5).
                         const pending = poLineOpen(item);
@@ -1128,10 +1130,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               )}
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                              {formatCurrency(item.lineTotal ?? item.amount)}
-                              {item.taxAmount ? (
+                              {/* PUR10-2: good units received + units still expected */}
+                              {formatCurrency(poParts.lines[itemIdx]?.total ?? (item.lineTotal ?? item.amount))}
+                              {poParts.lines[itemIdx]?.tax ? (
                                 <div className="text-[11px] font-normal text-slate-500">
-                                  {formatCurrency(item.amount)} + tax
+                                  {formatCurrency(poParts.lines[itemIdx].taxable)} + {formatCurrency(poParts.lines[itemIdx].tax)} tax
                                 </div>
                               ) : null}
                             </td>
@@ -1173,8 +1176,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         <td className="py-3 px-3" />
                         <td className="py-3 px-4 text-right font-mono text-base text-slate-900">
                           {formatCurrency(poGrandTotal)}
-                          {poTotalTax > 0 && (
-                            <div className="text-[11px] font-normal text-slate-500">{formatCurrency(purchaseOrder.totalAmount)} + {formatCurrency(poTotalTax)} GST</div>
+                          {(poTotalTax > 0 || poParts.charges > 0) && (
+                            <div className="text-[11px] font-normal text-slate-500">{formatCurrency(poParts.taxable)} + {formatCurrency(poTotalTax)} GST{poParts.charges > 0 ? ` + ${formatCurrency(poParts.charges)} charges` : ''}</div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center text-xs text-slate-500">
@@ -1420,10 +1423,10 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               {/* Stopgap Architecture Reminder */}
               <div className="px-4 py-2.5 bg-amber-50/70 border border-amber-200 rounded-none text-xs text-amber-800 flex items-center gap-2">
                 <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                {/* PUR10-4: what really happens to the files */}
                 <span>
-                  <strong>Client Storage Architecture:</strong> Bills are stored client-side in local storage
-                  (Max 2.5MB per PDF, images compressed to 1200px max). Once migrated to backend Postgres, files
-                  will stream directly into S3 object storage.
+                  Vendor bills are kept on the server with this purchase order: PDF or image (JPG, PNG, WEBP, GIF),
+                  up to 5 MB per file and 10 MB per order. Photos are compressed before upload.
                 </span>
               </div>
 
@@ -1447,7 +1450,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     Click to browse or drag & drop vendor bill here
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Supports PDF documents or Scanned Photos (JPG, PNG, WEBP) up to 2.5MB
+                    PDF or scanned photo (JPG, PNG, WEBP, GIF), up to 5 MB per file — 10 MB per order
                   </p>
                 </div>
               )}

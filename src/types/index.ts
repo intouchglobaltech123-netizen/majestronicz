@@ -1547,6 +1547,31 @@ export const purchaseOrderOrderedTotal = (po: Pick<PurchaseOrder, 'items' | 'tot
 export const purchaseOrderTotalValue = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'status'>): number =>
   po.status === 'Cancelled' ? purchaseOrderGrandOwed(po) : poR2(purchaseOrderGrandOwed(po) + purchaseOrderOpenValue(po));
 
+/**
+ * PUR10-2: the parts of purchaseOrderTotalValue, line by line — good units
+ * received (at their receipt's price and GST) plus units still expected (at the
+ * line's price and rate), and the charges — so a PO's printed and on-screen
+ * breakdown always adds up to its total after mixed receipts.
+ */
+export const purchaseOrderValueParts = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'status'>): {
+  lines: { taxable: number; tax: number; total: number }[]; taxable: number; tax: number; charges: number; total: number;
+} => {
+  const cancelled = po.status === 'Cancelled';
+  const lines = (po.items || []).map((l) => {
+    const good = poLineGoodValue(l);
+    const open = cancelled ? 0 : poLineOpen(l);
+    const openTaxable = poR2((Number(l.purchasePrice) || 0) * open);
+    const openTax = poTax(openTaxable, Number(l.taxPercent) || 0);
+    const taxable = poR2(good.taxable + openTaxable);
+    const tax = poR2(good.tax + openTax);
+    return { taxable, tax, total: poR2(taxable + tax) };
+  });
+  const taxable = poR2(lines.reduce((t, l) => t + l.taxable, 0));
+  const tax = poR2(lines.reduce((t, l) => t + l.tax, 0));
+  const charges = poR2(Number(po.otherCharges) || 0);
+  return { lines, taxable, tax, charges, total: poR2(taxable + tax + charges) };
+};
+
 /** Value (incl. GST) of units not yet settled — what may still be prepaid. */
 export const purchaseOrderOpenValue = (po: Pick<PurchaseOrder, 'items'>): number => {
   let total = 0;

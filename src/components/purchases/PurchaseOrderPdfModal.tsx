@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PurchaseOrder, COMPANY_PROFILE, BRANCHES, purchaseOrderOrderedTotal } from '../../types';
+import { PurchaseOrder, COMPANY_PROFILE, BRANCHES, purchaseOrderValueParts } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -70,13 +70,17 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
     }, 50);
   };
 
-  // GST at each line's rate, and the tax-inclusive order total.
-  const lineTax = (l: PurchaseOrder['items'][number]) =>
-    l.taxAmount ?? Math.round((l.amount || 0) * ((l.taxPercent || 0) / 100) * 100) / 100;
-  const poTax = Math.round(purchaseOrder.items.reduce((s, l) => s + lineTax(l), 0) * 100) / 100;
+  // PUR10-2: the same value as the PO screen — good units received at their
+  // receipt's price and GST, units still expected at the line's, and the
+  // charges — so the lines, the GST and the total always add up (before any
+  // receipt this is simply the ordered value).
+  const parts = purchaseOrderValueParts(purchaseOrder);
+  const poTax = parts.tax;
   // PUR9-5: packing / other charges billed on receipts are part of the total.
-  const poCharges = Math.round((Number(purchaseOrder.otherCharges) || 0) * 100) / 100;
-  const poGrand = Math.round((purchaseOrderOrderedTotal({ ...purchaseOrder, totalTax: poTax }) + poCharges) * 100) / 100;
+  const poCharges = parts.charges;
+  const poGrand = parts.total;
+  const lineTaxable = (idx: number) => parts.lines[idx]?.taxable ?? 0;
+  const lineTaxOf = (idx: number) => parts.lines[idx]?.tax ?? 0;
 
   // Download this PO's line items as a real Excel workbook (.xlsx) with numeric
   // cells — the button said Excel but saved a CSV (V10).
@@ -85,10 +89,11 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
     const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (Rs)', 'Taxable (Rs)', 'GST %', 'GST (Rs)', 'Amount (Rs)'];
     const rows: (string | number)[][] = purchaseOrder.items.map((l, i) => [
       i + 1, l.itemName, l.itemCode, l.vendorSku || '', l.itemHSN || '', l.unit,
-      l.quantityOrdered, l.receivedQuantity || 0, n(l.purchasePrice || 0), n(l.amount || 0),
-      l.taxPercent || 0, n(lineTax(l)), n((l.amount || 0) + lineTax(l)),
+      l.quantityOrdered, l.receivedQuantity || 0, n(l.purchasePrice || 0), n(lineTaxable(i)),
+      l.taxPercent || 0, n(lineTaxOf(i)), n(lineTaxable(i) + lineTaxOf(i)),
     ]);
-    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', n(purchaseOrder.totalAmount || 0), '', n(poTax), n(poGrand)]);
+    if (poCharges > 0) rows.push(['', 'Packing / other charges', '', '', '', '', '', '', '', '', '', '', n(poCharges)]);
+    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', n(parts.taxable), '', n(poTax), n(poGrand)]);
     exportToExcel(`${purchaseOrder.poNumber}`, headers, rows);
   };
 
@@ -339,13 +344,18 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                   <td className="py-2.5 px-3 text-center font-bold text-slate-900">{line.quantityOrdered}</td>
                   <td className="py-2.5 px-3 text-center text-slate-600 uppercase">{line.unit}</td>
                   <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(line.purchasePrice)}</td>
-                  <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(line.amount)}</td>
+                  <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(lineTaxable(idx))}</td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    <div>{formatCurrency(lineTax(line))}</div>
+                    <div>{formatCurrency(lineTaxOf(idx))}</div>
                     <div className="text-[10px] text-slate-500">@ {line.taxPercent || 0}%</div>
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                    {formatCurrency((line.amount || 0) + lineTax(line))}
+                    {formatCurrency(lineTaxable(idx) + lineTaxOf(idx))}
+                    {(line.damagedQuantity || line.missingQuantity) ? (
+                      <div className="text-[10px] font-normal text-slate-500">
+                        {[line.damagedQuantity ? `${line.damagedQuantity} damaged` : '', line.missingQuantity ? `${line.missingQuantity} missing` : ''].filter(Boolean).join(' · ')} — not charged
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -375,7 +385,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-200 font-medium">
                 <span className="text-slate-600">Taxable value</span>
-                <span className="font-mono text-slate-900">{formatCurrency(purchaseOrder.totalAmount)}</span>
+                <span className="font-mono text-slate-900">{formatCurrency(parts.taxable)}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-200 font-medium">
                 <span className="text-slate-600">GST</span>
