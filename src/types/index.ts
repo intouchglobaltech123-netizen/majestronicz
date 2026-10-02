@@ -622,8 +622,8 @@ export interface EstimateLineItem {
 }
 
 export interface GstBreakdownRow {
-  taxType: 'SGST' | 'CGST';
-  rate: number; // Half of item's GST rate (e.g. 9 for 18% item)
+  taxType: 'SGST' | 'CGST' | 'IGST';
+  rate: number; // Half of item's GST rate (e.g. 9 for 18% item); the full rate for IGST
   taxableAmount: number;
   taxAmount: number;
 }

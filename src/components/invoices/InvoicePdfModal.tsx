@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES } from '../../types';
+import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES, isInterStateSupply } from '../../types';
 import { cn } from '../../lib/utils';
-import { calculateTaxBreakdown } from '../../lib/taxCalculations';
+import { supplyTaxRows, hsnRateSummary, quantityByUnit, termsLines } from '../../lib/printTax';
 import { numberToWordsIndian } from '../../lib/numberToWords';
 import {
   X,
@@ -40,43 +40,44 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
-  // Compute SGST & CGST breakdown pairs per distinct GST rate
+  // Inter-state supply prints IGST; intra-state prints CGST + SGST (SAL8-5).
+  const interState = isInterStateSupply(invoice?.stateOfSupply);
+
+  // Tax lines per distinct GST rate (SGST + CGST pairs, or one IGST line)
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!invoice || !invoice.withGst) return [];
-    return calculateTaxBreakdown(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0);
-  }, [invoice]);
+    return supplyTaxRows(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState);
+  }, [invoice, interState]);
+
+  // SAL6-10: Esc closes the preview (the close button says so).
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !invoice) return null;
 
-  // Per-line item tax is stored pre overall-discount, while the summary GST is
-  // net of the overall discount. Scale each displayed line tax by this ratio so
-  // the line taxes reconcile with the summary total tax. (Display only.)
-  const netRatio =
-    invoice.subtotal > 0
-      ? (invoice.subtotal - invoice.overallDiscountAmount) / invoice.subtotal
-      : 1;
 
   // Indian-style 2-decimal money formatter (e.g. 5,01,049.28) for the Tally layout.
   const n2 = (v: number) =>
     v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const totalQty = invoice.items.reduce((s, it) => s + (it.quantity || 0), 0);
-  const primaryUnit = invoice.items[0]?.unit || 'nos';
+  // Quantities are totalled per unit, never across units (SAL4-15).
+  const qtyTotalLabel = quantityByUnit(invoice.items);
 
-  // HSN/SAC-wise tax summary (grouped) — CGST/SGST split, net of overall discount.
-  const hsnSummary = (() => {
-    const map = new Map<string, { hsn: string; rate: number; taxable: number; cgst: number; sgst: number }>();
-    for (const it of invoice.items) {
-      const hsn = it.itemHSN || '—';
-      const cur = map.get(hsn) || { hsn, rate: it.taxRate, taxable: 0, cgst: 0, sgst: 0 };
-      cur.taxable += (it.taxableAmount || 0) * netRatio;
-      cur.cgst += (it.cgstAmount || 0) * netRatio;
-      cur.sgst += (it.sgstAmount || 0) * netRatio;
-      cur.rate = it.taxRate;
-      map.set(hsn, cur);
-    }
-    return Array.from(map.values());
-  })();
+  // HSN/SAC-wise tax summary: one row per HSN + rate (SAL4-8), net of overall discount.
+  const hsnSummary = hsnRateSummary(invoice.items, invoice.overallDiscountAmount || 0, invoice.subtotal || 0, interState);
+
+  // Every payment mode of a split bill, not just the first (SAL4-15).
+  const paySplits = getInvoicePaymentSplits(invoice).filter((sp) => (Number(sp.amount) || 0) > 0);
+  const modeLabel = (m: string) => (m === 'COD-Credit' ? 'Credit (due)' : m);
+  const paymentSummary = paySplits.length > 1
+    ? paySplits.map((sp) => `${modeLabel(sp.mode)} ₹${n2(Number(sp.amount) || 0)}`).join(' + ')
+    : modeLabel(paySplits[0]?.mode || invoice.paymentMode || 'Cash');
 
   // Seller (dispatching branch) block resolved from the invoice branch.
   const sellerBranch = BRANCHES.find((b) => b.id === invoice.branchId);
@@ -200,7 +201,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   );
 
   return createPortal(
-    <div id="invoice-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+    <div id="invoice-print-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Metadata Header (Clean document metadata, No action buttons) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
@@ -228,7 +229,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               </span>
             )}
             <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-none">
-              Mode: {invoice.paymentMode}
+              Mode: {paymentSummary}
             </span>
             {invoice.withGst ? (
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-none border border-emerald-200">
@@ -295,13 +296,13 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <MetaCell label="Invoice No." value={invoice.invoiceNumber} strong />
                 <MetaCell label="Dated" value={invoice.date} strong />
                 <MetaCell label="Delivery Note" value="" />
-                <MetaCell label="Mode/Terms of Payment" value={invoice.transactionType === 'Credit' ? 'CREDIT' : (invoice.paymentMode || 'CASH')} />
+                <MetaCell label="Mode/Terms of Payment" value={paymentSummary} />
                 <MetaCell label="Reference No. & Date." value="" />
                 <MetaCell label="Other References" value={invoice.sourceEstimateNumber || ''} />
                 <MetaCell label="Buyer's Order No." value="" />
                 <MetaCell label="Dated" value="" />
                 <MetaCell label="Dispatched through" value={sellerBranch?.name || ''} />
-                <MetaCell label="Destination" value={buyerState?.state || invoice.stateOfSupply || ''} />
+                <MetaCell label="Place of Supply" value={invoice.stateOfSupply || buyerState?.state || ''} />
                 <div className="col-span-2 px-2 py-1">
                   <span className="text-[9px] text-black/60 block leading-none mb-0.5">Terms of Delivery</span>
                   <span className="block leading-tight">&nbsp;</span>
@@ -400,7 +401,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   </tr>
                 )}
 
-                {/* SGST / CGST lines (per rate) */}
+                {/* SGST / CGST lines (per rate), or IGST for an inter-state bill */}
                 {invoice.withGst && gstBreakdown.map((row, i) => (
                   <tr key={`tax-${i}`}>
                     <td className="border-r border-black" />
@@ -433,7 +434,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   <td className="border-r border-black" />
                   <td className="border-r border-black px-2 py-1 text-right">Total</td>
                   <td className="border-r border-black" />
-                  <td className="border-r border-black px-1 py-1 text-right whitespace-nowrap">{totalQty} {primaryUnit}</td>
+                  <td className="border-r border-black px-1 py-1 text-right whitespace-nowrap">{qtyTotalLabel}</td>
                   <td className="border-r border-black" />
                   <td className="border-r border-black" />
                   {invoice.withGst && <td className="border-r border-black" />}
@@ -460,28 +461,48 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 // same way the items table does; keep it from splitting a page.
                 style={{ tableLayout: 'fixed', breakInside: 'avoid', WebkitColumnBreakInside: 'avoid' } as React.CSSProperties}
               >
-                <colgroup>
-                  <col style={{ width: '19%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '18%' }} />
-                </colgroup>
+                {interState ? (
+                  <colgroup>
+                    <col style={{ width: '25%' }} />
+                    <col style={{ width: '25%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '20%' }} />
+                  </colgroup>
+                ) : (
+                  <colgroup>
+                    <col style={{ width: '19%' }} />
+                    <col style={{ width: '17%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '18%' }} />
+                  </colgroup>
+                )}
                 <thead>
                   <tr className="border-b border-black">
                     <th className="border-r border-black px-2 py-1 text-left" rowSpan={2}>HSN/SAC</th>
                     <th className="border-r border-black px-2 py-1 text-right" rowSpan={2}>Taxable<br/>Value</th>
-                    <th className="border-r border-black px-1 py-0.5 text-center" colSpan={2}>CGST</th>
-                    <th className="border-r border-black px-1 py-0.5 text-center" colSpan={2}>SGST/UTGST</th>
+                    {interState ? (
+                      <th className="border-r border-black px-1 py-0.5 text-center" colSpan={2}>IGST</th>
+                    ) : (
+                      <>
+                        <th className="border-r border-black px-1 py-0.5 text-center" colSpan={2}>CGST</th>
+                        <th className="border-r border-black px-1 py-0.5 text-center" colSpan={2}>SGST/UTGST</th>
+                      </>
+                    )}
                     <th className="px-2 py-1 text-right" rowSpan={2}>Total<br/>Tax Amount</th>
                   </tr>
                   <tr className="border-b border-black">
                     <th className="border-r border-black px-1 py-0.5 text-center">Rate</th>
                     <th className="border-r border-black px-1 py-0.5 text-right">Amount</th>
-                    <th className="border-r border-black px-1 py-0.5 text-center">Rate</th>
-                    <th className="border-r border-black px-1 py-0.5 text-right">Amount</th>
+                    {!interState && (
+                      <>
+                        <th className="border-r border-black px-1 py-0.5 text-center">Rate</th>
+                        <th className="border-r border-black px-1 py-0.5 text-right">Amount</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -489,21 +510,39 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                     <tr key={`hsn-${i}`}>
                       <td className="border-r border-black px-2 py-0.5">{h.hsn}</td>
                       <td className="border-r border-black px-2 py-0.5 text-right">{n2(h.taxable)}</td>
-                      <td className="border-r border-black px-1 py-0.5 text-center">{h.rate / 2}%</td>
-                      <td className="border-r border-black px-1 py-0.5 text-right">{n2(h.cgst)}</td>
-                      <td className="border-r border-black px-1 py-0.5 text-center">{h.rate / 2}%</td>
-                      <td className="border-r border-black px-1 py-0.5 text-right">{n2(h.sgst)}</td>
-                      <td className="px-2 py-0.5 text-right">{n2(h.cgst + h.sgst)}</td>
+                      {interState ? (
+                        <>
+                          <td className="border-r border-black px-1 py-0.5 text-center">{h.rate}%</td>
+                          <td className="border-r border-black px-1 py-0.5 text-right">{n2(h.igst)}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="border-r border-black px-1 py-0.5 text-center">{h.rate / 2}%</td>
+                          <td className="border-r border-black px-1 py-0.5 text-right">{n2(h.cgst)}</td>
+                          <td className="border-r border-black px-1 py-0.5 text-center">{h.rate / 2}%</td>
+                          <td className="border-r border-black px-1 py-0.5 text-right">{n2(h.sgst)}</td>
+                        </>
+                      )}
+                      <td className="px-2 py-0.5 text-right">{n2(h.tax)}</td>
                     </tr>
                   ))}
                   <tr className="border-t border-black font-bold">
                     <td className="border-r border-black px-2 py-0.5 text-right">Total</td>
                     <td className="border-r border-black px-2 py-0.5 text-right">{n2(hsnSummary.reduce((s, h) => s + h.taxable, 0))}</td>
-                    <td className="border-r border-black" />
-                    <td className="border-r border-black px-1 py-0.5 text-right">{n2(invoice.totalCgst)}</td>
-                    <td className="border-r border-black" />
-                    <td className="border-r border-black px-1 py-0.5 text-right">{n2(invoice.totalSgst)}</td>
-                    <td className="px-2 py-0.5 text-right">{n2(invoice.totalTax)}</td>
+                    {interState ? (
+                      <>
+                        <td className="border-r border-black" />
+                        <td className="border-r border-black px-1 py-0.5 text-right">{n2(hsnSummary.reduce((s, h) => s + h.igst, 0))}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border-r border-black" />
+                        <td className="border-r border-black px-1 py-0.5 text-right">{n2(hsnSummary.reduce((s, h) => s + h.cgst, 0))}</td>
+                        <td className="border-r border-black" />
+                        <td className="border-r border-black px-1 py-0.5 text-right">{n2(hsnSummary.reduce((s, h) => s + h.sgst, 0))}</td>
+                      </>
+                    )}
+                    <td className="px-2 py-0.5 text-right">{n2(hsnSummary.reduce((s, h) => s + h.tax, 0))}</td>
                   </tr>
                 </tbody>
               </table>
@@ -525,7 +564,11 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   We declare that this invoice shows the actual price of the goods
                   described and that all particulars are true and correct.
                 </p>
-                <div className="mt-2 whitespace-pre-line text-[10px] text-black/70">{invoice.termsAndConditions}</div>
+                <div className="mt-2 text-[10px] text-black/70">
+                  {termsLines(invoice.termsAndConditions).map((l, i) => (
+                    <div key={i} className={l.bold ? 'font-bold text-black' : undefined}>{l.text || '\u00a0'}</div>
+                  ))}
+                </div>
               </div>
               <div className="p-2 flex flex-col items-end justify-between">
                 <span className="font-bold uppercase">for {COMPANY_PROFILE.name}</span>

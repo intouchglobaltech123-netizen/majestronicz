@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
-import { Estimate, COMPANY_PROFILE, GstBreakdownRow } from '../../types';
+import { Estimate, COMPANY_PROFILE, GstBreakdownRow, isInterStateSupply } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { calculateTaxBreakdown } from '../../lib/taxCalculations';
+import { supplyTaxRows, termsLines } from '../../lib/printTax';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import {
   X,
@@ -28,23 +28,31 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
-  // Compute SGST & CGST breakdown pairs per distinct GST rate using shared tax calculation
+  // Inter-state quote → IGST; intra-state → SGST + CGST (SAL8-5).
+  const interState = isInterStateSupply(estimate?.stateOfSupply);
+
+  // Tax breakdown per distinct GST rate using shared tax calculation
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
     if (!estimate || !estimate.withGst) return [];
-    return calculateTaxBreakdown(estimate.items, estimate.overallDiscountAmount || 0, estimate.subtotal || 0);
-  }, [estimate]);
+    return supplyTaxRows(estimate.items, estimate.overallDiscountAmount || 0, estimate.subtotal || 0, interState);
+  }, [estimate, interState]);
+
+  // SAL6-10: Esc closes the preview (the close button says so).
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !estimate) return null;
 
-  // Per-line item tax is stored pre overall-discount, while the summary GST is
-  // net of any overall discount. Scale each displayed line tax by this ratio so
-  // the line taxes reconcile with the summary total tax. (Display only.)
-  const overallDiscountAmount =
-    (estimate as { overallDiscountAmount?: number }).overallDiscountAmount || 0;
-  const netRatio =
-    estimate.subtotal > 0
-      ? (estimate.subtotal - overallDiscountAmount) / estimate.subtotal
-      : 1;
+  // SAL4-17: each row shows ONE basis — its own GST and Amount before the
+  // overall discount (qty × rate − line discount + GST). The overall discount
+  // and the GST on the discounted value are shown once, in the summary.
+  const overallDiscountAmount = estimate.overallDiscountAmount || 0;
 
   const handlePrint = () => {
     // Hide the app during print so a long quote flows across pages (SAL4-7).
@@ -95,7 +103,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   };
 
   return createPortal(
-    <div id="invoice-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+    <div id="invoice-print-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Top Metadata Header (Clean document metadata, No action buttons) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
@@ -214,7 +222,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                   Tax Calculation Mode
                 </span>
                 <span className="text-xs font-bold text-slate-800">
-                  {estimate.withGst ? 'Exclusive of CGST + SGST (Breakdown itemized)' : 'Direct Net Total (No Tax Added)'}
+                  {estimate.withGst ? (interState ? 'Exclusive of IGST (inter-state supply)' : 'Exclusive of CGST + SGST (Breakdown itemized)') : 'Direct Net Total (No Tax Added)'}
                 </span>
               </div>
             </div>
@@ -274,7 +282,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                       <>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">{item.gstRate}%</td>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                          {(item.totalTax * netRatio).toFixed(2)}
+                          {(item.totalTax || 0).toFixed(2)}
                         </td>
                       </>
                     )}
@@ -285,6 +293,11 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                 ))}
               </tbody>
             </table>
+            {overallDiscountAmount > 0 && (
+              <p className="px-3 py-1.5 text-[10px] italic text-slate-500 border-t border-slate-200 bg-slate-50">
+                Row amounts are before the overall discount of {formatCurrency(overallDiscountAmount)}; GST in the summary is charged on the discounted value.
+              </p>
+            )}
           </div>
 
           {/* Bottom Grid: Tax Breakdown / Words & Amounts Summary */}
@@ -295,7 +308,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
               {estimate.withGst && gstBreakdown.length > 0 && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <div className="bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-700 border-b border-slate-200">
-                    GST Tax Breakdown (SGST + CGST)
+                    GST Tax Breakdown ({interState ? `IGST — ${estimate.stateOfSupply}` : 'SGST + CGST'})
                   </div>
                   <table className="w-full text-left text-[11px]">
                     <thead>
@@ -335,8 +348,10 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                   Terms and Conditions:
                 </span>
-                <div className="text-[11px] text-slate-700 whitespace-pre-line font-medium leading-relaxed">
-                  {estimate.termsAndConditions}
+                <div className="text-[11px] text-slate-700 font-medium leading-relaxed">
+                  {termsLines(estimate.termsAndConditions).map((l, i) => (
+                    <div key={i} className={l.bold ? 'font-bold text-slate-900' : undefined}>{l.text || '\u00a0'}</div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -352,6 +367,15 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
 
               {estimate.withGst ? (
                 <>
+                  {interState ? (
+                    <div className="flex justify-between py-1 text-slate-600 border-t border-slate-200">
+                      <span>Total IGST:</span>
+                      <span className="font-mono font-semibold text-slate-800">
+                        {formatCurrency(estimate.totalTax)}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
                   <div className="flex justify-between py-1 text-slate-600 border-t border-slate-200">
                     <span>Total SGST:</span>
                     <span className="font-mono font-semibold text-slate-800">
@@ -364,6 +388,8 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                       {formatCurrency(estimate.totalCgst)}
                     </span>
                   </div>
+                    </>
+                  )}
                   <div className="flex justify-between py-1 text-slate-600 border-t border-slate-200">
                     <span>Total Tax Amount:</span>
                     <span className="font-mono font-bold text-blue-700">
