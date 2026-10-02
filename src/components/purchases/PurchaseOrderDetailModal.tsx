@@ -26,6 +26,12 @@ import {
   PODebitNote,
   COMPANY_PROFILE,
   BRANCHES,
+  poLineOpen,
+  purchaseOrderGrandOwed,
+  purchaseOrderBalanceDue,
+  purchaseOrderAdvance,
+  purchaseOrderPayCap,
+  purchaseOrderOrderedTotal,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
@@ -42,6 +48,12 @@ const safeAttachmentDataUrl = (raw: unknown): string => {
   const s = typeof raw === 'string' ? raw.trim() : '';
   return /^data:(image\/[a-z0-9.+-]+|application\/pdf);base64,/i.test(s) ? s : '';
 };
+
+/** "2 damaged · 1 missing" — never "× 0 damaged" for a short shipment (PUR4-5). */
+const debitNoteQtyLabel = (l: { damagedQuantity?: number; missingQuantity?: number }): string =>
+  [l.damagedQuantity ? `${l.damagedQuantity} damaged` : '', l.missingQuantity ? `${l.missingQuantity} missing` : '']
+    .filter(Boolean)
+    .join(' · ') || '0';
 
 interface PurchaseOrderDetailModalProps {
   purchaseOrder: PurchaseOrder | null;
@@ -81,7 +93,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     setPriceEdits(seed);
     setIsEditingPrices(true);
   };
-  const saveEditedPrices = () => {
+  const saveEditedPrices = async () => {
     if (!purchaseOrder) return;
     const newItems = purchaseOrder.items.map((it) => {
       const raw = priceEdits[it.id];
@@ -93,11 +105,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     });
     const totalAmount = Math.round(newItems.reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100;
     const totalTax = Math.round(newItems.reduce((s, i) => s + (i.taxAmount || 0), 0) * 100) / 100;
-    savePurchaseOrder({ ...purchaseOrder, items: newItems, totalAmount, totalTax });
-    setIsEditingPrices(false);
-    toast.success('Purchase order prices updated');
+    const saved = await savePurchaseOrder({ ...purchaseOrder, items: newItems, totalAmount, totalTax });
+    if (saved) setIsEditingPrices(false);
   };
   const [payAmt, setPayAmt] = React.useState<string>('');
+  const [paying, setPaying] = React.useState(false);
   const [payMode, setPayMode] = React.useState<string>('Cash');
   const [billNo, setBillNo] = React.useState<string>('');
   const [billDate, setBillDate] = React.useState<string>('');
@@ -145,14 +157,16 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const receivingHistory = purchaseOrder.receivingHistory || [];
   const debitNotes = purchaseOrder.debitNotes || [];
   const debitNotesTotal = debitNotes.reduce((s, dn) => s + (dn.totalAmount || 0), 0);
+  // Units settled (good + damaged + missing) — a line is done when nothing is
+  // still expected, even if part of it was damaged or short-shipped (E2E-5).
+  const totalSettled = purchaseOrder.items.reduce((s, it) => s + (it.quantityOrdered - poLineOpen(it)), 0);
 
-  // GST confirmed while receiving. `totalTax` is absent on orders created before
-  // tax was captured, so fall back to summing the lines, and to 0 when neither
-  // exists — an old PO then reads exactly as it always did.
+  // GST at the line rates. `totalTax` is absent on orders created before tax was
+  // captured, so fall back to summing the lines (purchaseOrderOrderedTotal).
   const poTotalTax =
     purchaseOrder.totalTax ??
     purchaseOrder.items.reduce((sum, l) => sum + (l.taxAmount || 0), 0);
-  const poGrandTotal = Math.round(((purchaseOrder.totalAmount || 0) + poTotalTax) * 100) / 100;
+  const poGrandTotal = purchaseOrderOrderedTotal(purchaseOrder);
 
   // File Upload Handler (PDF or Image, base64 stopgap)
   const handleFileUpload = async (files: FileList | null) => {
@@ -280,18 +294,26 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   // Print the damaged-goods debit note as a standalone bill for the vendor.
   const handlePrintDebitNote = (dn: PODebitNote) => {
     const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const td = 'border:1px solid #333;padding:6px 8px';
+    // Older notes carry no GST split — their amount is the taxable value.
+    const taxableOf = (l: PODebitNote['lines'][number]) => l.taxableValue ?? (l.amount || 0) - (l.taxAmount || 0);
     const rows = dn.lines
       .map(
         (l, i) => `<tr>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:center">${i + 1}</td>
-          <td style="border:1px solid #333;padding:6px 8px">${esc(l.itemName)}${l.itemCode ? ` <span style="color:#666">(${esc(l.itemCode)})</span>` : ''}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${l.damagedQuantity || 0}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">${(l as any).missingQuantity || 0}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.unitPrice || 0).toFixed(2)}</td>
-          <td style="border:1px solid #333;padding:6px 8px;text-align:right">₹${(l.amount || 0).toFixed(2)}</td>
+          <td style="${td};text-align:center">${i + 1}</td>
+          <td style="${td}">${esc(l.itemName)}${l.itemCode ? ` <span style="color:#666">(${esc(l.itemCode)})</span>` : ''}</td>
+          <td style="${td};text-align:right">${l.damagedQuantity || 0}</td>
+          <td style="${td};text-align:right">${l.missingQuantity || 0}</td>
+          <td style="${td};text-align:right">${inr(l.unitPrice || 0)}</td>
+          <td style="${td};text-align:right">${inr(taxableOf(l))}</td>
+          <td style="${td};text-align:right">${l.taxPercent != null ? `${l.taxPercent}%<br/>` : ''}${inr(l.taxAmount || 0)}</td>
+          <td style="${td};text-align:right">${inr(l.amount || 0)}</td>
         </tr>`
       )
       .join('');
+    const totalTaxable = dn.totalTaxable ?? dn.lines.reduce((s, l) => s + taxableOf(l), 0);
+    const totalTax = dn.totalTax ?? dn.lines.reduce((s, l) => s + (l.taxAmount || 0), 0);
     const html = `<!doctype html><html><head><title>${esc(dn.noteNumber)}</title>
       <style>body{font:13px/1.5 system-ui,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}th{border:1px solid #333;padding:6px 8px;background:#f3f3f3;text-align:left}.noprint{position:fixed;top:12px;right:12px;padding:8px 14px;background:#b91c1c;color:#fff;border:none;border-radius:6px;font:bold 13px system-ui;cursor:pointer}@media print{.noprint{display:none!important}}</style>
       </head><body><button class="noprint" onclick="window.print()">Print / Save PDF</button>
@@ -303,11 +325,13 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       </div>
       <div style="margin-top:12px"><strong>Vendor:</strong> ${esc(purchaseOrder.vendorName)}${purchaseOrder.vendorGstin ? ` · GSTIN: ${esc(purchaseOrder.vendorGstin)}` : ''}</div>
       <div><strong>Against PO:</strong> ${esc(purchaseOrder.poNumber)} · <strong>Reason:</strong> Damaged / rejected or short-shipped (missing) goods</div>
-      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged</th><th style="text-align:right">Missing</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+      <table><thead><tr><th style="text-align:center">#</th><th>Item</th><th style="text-align:right">Damaged</th><th style="text-align:right">Missing</th><th style="text-align:right">Rate</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="5" style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">Total Debit</td>
-      <td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:bold">₹${(dn.totalAmount || 0).toFixed(2)}</td></tr></tfoot></table>
-      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged or not delivered (short shipment). Amount is recoverable / adjustable against payables (a credit due from the vendor).</p>
+      <tfoot><tr><td colspan="5" style="${td};text-align:right;font-weight:bold">Total Debit</td>
+      <td style="${td};text-align:right;font-weight:bold">${inr(totalTaxable)}</td>
+      <td style="${td};text-align:right;font-weight:bold">${inr(totalTax)}</td>
+      <td style="${td};text-align:right;font-weight:bold">${inr(dn.totalAmount || 0)}</td></tr></tfoot></table>
+      <p style="margin-top:14px;color:#555">This debit note is raised on the vendor for goods received damaged or not delivered (short shipment), including the GST on them (input tax credit reversed). Only goods received in good condition are payable on this PO.</p>
       <div style="margin-top:40px;text-align:right">For ${esc(COMPANY_PROFILE.name)}<br/><br/>Authorised Signatory</div>
       
       </body></html>`;
@@ -384,13 +408,12 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               <span className="hidden sm:inline">PO Document</span>
             </button>
 
-            {purchaseOrder.status === 'Ordered' && canManagePurchases && (
+            {purchaseOrder.status === 'Ordered' && canManagePurchases && !((purchaseOrder.amountPaid || 0) > 0) && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (window.confirm(`Are you sure you want to cancel Purchase Order ${purchaseOrder.poNumber}?`)) {
-                    cancelPurchaseOrder(purchaseOrder.id);
-                    onClose();
+                    if (await cancelPurchaseOrder(purchaseOrder.id)) onClose();
                   }
                 }}
                 className="px-2.5 py-1.5 text-xs font-semibold rounded-xl text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
@@ -663,7 +686,17 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <div className="col-span-2 sm:col-span-4">
                       <button
                         type="button"
-                        onClick={() => recordPurchaseBill(purchaseOrder.id, { number: billNo, date: billDate, taxable: Number(billTaxable) || 0, gst: Number(billGst) || 0 })}
+                        onClick={() => {
+                          // PUR3-8: same rules as the server, with a message before sending.
+                          const t = Number(billTaxable) || 0;
+                          const g = Number(billGst) || 0;
+                          if (!billNo.trim()) { toast.error('Enter the supplier bill number.'); return; }
+                          if (!billDate) { toast.error('Enter the bill date.'); return; }
+                          if (billDate > getTodayDateString()) { toast.error('A supplier bill cannot be dated in the future.'); return; }
+                          if (t < 0 || g < 0) { toast.error('Taxable value and GST cannot be negative.'); return; }
+                          if (g > Math.round(t * 0.28 * 100) / 100 + 1) { toast.error('GST cannot be more than 28% of the taxable value.'); return; }
+                          void recordPurchaseBill(purchaseOrder.id, { number: billNo.trim(), date: billDate, taxable: t, gst: g });
+                        }}
                         className="px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors cursor-pointer"
                       >
                         Save Bill
@@ -676,13 +709,16 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
               {/* Vendor payments — how much paid to the vendor, how much still due */}
               {(() => {
-                // What the vendor is actually owed includes the GST on the
-                // bill, not just the goods value.
-                const total = poGrandTotal;
+                // PUR8-1: one formula, the server's — owed for the GOOD units
+                // received (incl. the GST of their receipt) + charges. Damaged and
+                // missing units are never owed, so debit notes aren't subtracted.
+                const total = purchaseOrderGrandOwed(purchaseOrder);
                 const paid = purchaseOrder.amountPaid || 0;
-                // Debit notes (goods billed back to the vendor for damage/rejects)
-                // reduce what we still owe them (PUR2-19).
-                const remaining = Math.max(0, total - paid - debitNotesTotal);
+                const remaining = purchaseOrderBalanceDue(purchaseOrder);
+                const advance = purchaseOrderAdvance(purchaseOrder);
+                // The most the server accepts now: the balance plus a prepayment
+                // for units still expected (that part shows as an advance).
+                const payCap = purchaseOrderPayCap(purchaseOrder);
                 const payments = purchaseOrder.payments || [];
                 return (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -693,7 +729,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                       {/* Total / Paid / Remaining */}
                       <div className="grid grid-cols-3 gap-2">
                         <div className="p-2.5 rounded-none bg-slate-50 border border-slate-200 text-center">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PO Total</div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400" title="Good units received incl. GST + charges">Owed (received)</div>
                           <div className="text-sm font-bold font-mono text-slate-900 mt-0.5">{formatCurrency(total)}</div>
                         </div>
                         <div className="p-2.5 rounded-none bg-emerald-50 border border-emerald-200 text-center">
@@ -705,19 +741,31 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           <div className={`text-sm font-bold font-mono mt-0.5 ${remaining > 0 ? 'text-rose-800' : 'text-emerald-800'}`}>{formatCurrency(remaining)}</div>
                         </div>
                       </div>
+                      {advance > 0.005 && (
+                        <p className="text-[11px] font-semibold text-indigo-700">
+                          {formatCurrency(advance)} paid ahead of delivery — held as an advance with the supplier.
+                        </p>
+                      )}
 
                       {/* Record a payment — PUR2-9: not on a cancelled PO, and never
                           more than the remaining balance (overpayment is blocked). */}
-                      {canManagePurchases && remaining > 0 && purchaseOrder.status !== 'Cancelled' && (() => {
+                      {canManagePurchases && payCap > 0 && purchaseOrder.status !== 'Cancelled' && (() => {
                         const entered = Number(payAmt) || 0;
-                        const isOverpayment = entered > remaining;
+                        const isOverpayment = entered > payCap + 0.005;
+                        const pay = async (amt: number) => {
+                          if (paying || !(amt > 0)) return;
+                          setPaying(true);
+                          const ok = await recordPurchaseOrderPayment(purchaseOrder.id, amt, payMode);
+                          setPaying(false);
+                          if (ok) setPayAmt('');
+                        };
                         return (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2 flex-wrap">
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₹</span>
                             <input
-                              type="number" min={0} max={remaining} value={payAmt}
+                              type="number" min={0} max={payCap} value={payAmt}
                               onChange={(e) => setPayAmt(e.target.value)}
                               placeholder="Amount paid"
                               className={`w-32 pl-5 pr-2 py-1.5 rounded-none bg-white border text-xs font-bold font-mono text-slate-900 focus:outline-none ${isOverpayment ? 'border-rose-400 focus:border-rose-600' : 'border-slate-300 focus:border-emerald-600'}`}
@@ -732,24 +780,32 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           </select>
                           <button
                             type="button"
-                            onClick={() => { if (entered > 0 && !isOverpayment) { recordPurchaseOrderPayment(purchaseOrder.id, entered, payMode); setPayAmt(''); } }}
-                            disabled={!(entered > 0) || isOverpayment}
+                            onClick={() => { if (entered > 0 && !isOverpayment) void pay(entered); }}
+                            disabled={paying || !(entered > 0) || isOverpayment}
                             className="px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             Record Payment
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => { recordPurchaseOrderPayment(purchaseOrder.id, remaining, payMode); setPayAmt(''); }}
-                            className="px-3 py-1.5 rounded-none bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 transition-colors cursor-pointer"
-                            title="Pay the full remaining amount"
-                          >
-                            Pay Full ({formatCurrency(remaining)})
-                          </button>
+                          {remaining > 0 && (
+                            <button
+                              type="button"
+                              disabled={paying}
+                              onClick={() => void pay(remaining)}
+                              className="px-3 py-1.5 rounded-none bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 transition-colors cursor-pointer disabled:opacity-40"
+                              title="Pay the full remaining amount (goods received so far)"
+                            >
+                              Pay Full ({formatCurrency(remaining)})
+                            </button>
+                          )}
                           </div>
                           {isOverpayment && (
                             <p className="text-[11px] font-semibold text-rose-600">
-                              Amount exceeds the remaining balance of {formatCurrency(remaining)}.
+                              Amount exceeds the {formatCurrency(payCap)} that can still be paid on this PO.
+                            </p>
+                          )}
+                          {remaining <= 0 && (
+                            <p className="text-[11px] text-slate-500">
+                              Nothing received is unpaid — a payment now is an advance for goods still expected (up to {formatCurrency(payCap)}).
                             </p>
                           )}
                         </div>
@@ -779,7 +835,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 <div className="bg-white rounded-xl border border-rose-200 shadow-2xs overflow-hidden">
                   <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
                     <span className="text-xs font-extrabold uppercase tracking-wider text-rose-800">
-                      Vendor Debit Notes (Damaged / QC Rejects)
+                      Vendor Debit Notes (Damaged / Missing)
                     </span>
                     <span className="text-xs font-bold text-rose-700 font-mono">Total: {formatCurrency(debitNotesTotal)}</span>
                   </div>
@@ -803,7 +859,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         <div className="space-y-0.5">
                           {dn.lines.map((l, i) => (
                             <div key={i} className="flex items-center justify-between text-slate-600">
-                              <span>{l.itemName} <span className="text-rose-600 font-bold">× {l.damagedQuantity} damaged</span></span>
+                              <span>
+                                {l.itemName}{' '}
+                                <span className="text-rose-600 font-bold">× {debitNoteQtyLabel(l)}</span>
+                                {l.taxAmount ? <span className="text-slate-400"> · incl. {formatCurrency(l.taxAmount)} GST @ {l.taxPercent}%</span> : null}
+                              </span>
                               <span className="font-mono">{formatCurrency(l.amount)}</span>
                             </div>
                           ))}
@@ -864,8 +924,10 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <tbody className="divide-y divide-slate-100">
                       {purchaseOrder.items.map((item) => {
                         const rec = item.receivedQuantity || 0;
-                        const pending = Math.max(0, item.quantityOrdered - rec);
+                        // Damaged and missing units settle the line too (E2E-5).
+                        const pending = poLineOpen(item);
                         const isDone = pending === 0;
+                        const billedBack = (item.damagedQuantity || 0) + (item.missingQuantity || 0);
 
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
@@ -895,6 +957,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-emerald-700">
                               {rec} <span className="text-[11px] font-normal text-slate-400">{item.unit}</span>
+                              {billedBack > 0 && (
+                                <div className="text-[10px] font-semibold text-rose-600">
+                                  {[item.damagedQuantity ? `${item.damagedQuantity} damaged` : '', item.missingQuantity ? `${item.missingQuantity} missing` : ''].filter(Boolean).join(' · ')}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-slate-600">
                               {pending > 0 ? (
@@ -930,12 +997,12 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               {isDone ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                   <CheckCircle2 className="h-3 w-3" />
-                                  Fulfilled
+                                  {billedBack > 0 ? 'Settled' : 'Fulfilled'}
                                 </span>
-                              ) : rec > 0 ? (
+                              ) : rec + billedBack > 0 ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                                   <Clock className="h-3 w-3" />
-                                  Partial ({rec}/{item.quantityOrdered})
+                                  Partial ({rec + billedBack}/{item.quantityOrdered})
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-none border border-slate-300">
@@ -959,13 +1026,17 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           {totalReceived}
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-amber-700">
-                          {Math.max(0, totalOrdered - totalReceived)}
+                          {Math.max(0, totalOrdered - totalSettled)}
                         </td>
+                        <td className="py-3 px-3" />
                         <td className="py-3 px-4 text-right font-mono text-base text-slate-900">
-                          {formatCurrency(purchaseOrder.totalAmount)}
+                          {formatCurrency(poGrandTotal)}
+                          {poTotalTax > 0 && (
+                            <div className="text-[11px] font-normal text-slate-500">{formatCurrency(purchaseOrder.totalAmount)} + {formatCurrency(poTotalTax)} GST</div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-center text-xs text-slate-500">
-                          {progressPct}% Inwarded
+                          {totalOrdered > 0 ? Math.round((totalSettled / totalOrdered) * 100) : 0}% settled
                         </td>
                       </tr>
                     </tfoot>

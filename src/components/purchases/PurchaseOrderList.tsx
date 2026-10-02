@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag,
   Search,
@@ -20,7 +20,7 @@ import {
   BRANCHES,
   BranchScope,
 } from '../../types';
-import { purchaseOrderBalanceDue } from '../../types';
+import { purchaseOrderBalanceDue, purchaseOrderAdvance, purchaseOrderOrderedTotal } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
@@ -46,6 +46,11 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<PurchaseOrderStatus | 'ALL' | 'DUE'>('ALL');
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
+  // PUR-9: follow the top-bar branch whenever it changes (the local filter only
+  // narrows further while the top bar is on "All Branches").
+  useEffect(() => {
+    setBranchFilter(currentBranch);
+  }, [currentBranch]);
 
   // Active Modals
   const [selectedPoForReceive, setSelectedPoForReceive] = useState<PurchaseOrder | null>(null);
@@ -184,7 +189,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                 <th className="py-3 px-3">Branch</th>
                 <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-3">Expected Delivery</th>
-                <th className="py-3 px-4 text-right">Total</th>
+                <th className="py-3 px-4 text-right">Total (incl. GST)</th>
                 <th className="py-3 px-3 text-center" title="Vendor Bills Attached">
                   <div className="flex items-center justify-center gap-1">
                     <Paperclip className="h-3.5 w-3.5 text-slate-400" />
@@ -288,11 +293,20 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
                       {/* Total + vendor payment status */}
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                        {formatCurrency(po.totalAmount)}
+                        {/* PUR6-4: the order total incl. GST, on the same basis as Remaining. */}
+                        <span title={`${formatCurrency(po.totalAmount)} goods + GST`}>{formatCurrency(purchaseOrderOrderedTotal(po))}</span>
                         {(() => {
                           if (po.status === 'Cancelled') return null;
                           const paid = po.amountPaid || 0;
                           const remaining = poRemaining(po);
+                          const advance = purchaseOrderAdvance(po);
+                          if (advance > 0.5 && remaining <= 0.5) {
+                            return (
+                              <div className="text-[10px] font-bold text-indigo-600 mt-0.5" title="Paid ahead of the goods received">
+                                Advance {formatCurrency(advance)}
+                              </div>
+                            );
+                          }
                           if (remaining > 0.5) {
                             return (
                               <>
@@ -363,12 +377,12 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                             <FileText className="h-4 w-4" />
                           </button>
 
-                          {/* Cancel button */}
-                          {po.status === 'Ordered' && canManagePurchases && (
+                          {/* Cancel button — not on a PO with payments (the server refuses it; PUR8-6) */}
+                          {po.status === 'Ordered' && canManagePurchases && !((po.amountPaid || 0) > 0) && (
                             <button
                               onClick={() => {
                                 if (window.confirm(`Cancel Purchase Order ${po.poNumber}?`)) {
-                                  cancelPurchaseOrder(po.id);
+                                  void cancelPurchaseOrder(po.id);
                                 }
                               }}
                               title="Cancel Purchase Order"

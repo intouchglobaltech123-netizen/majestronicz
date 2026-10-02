@@ -9,6 +9,7 @@ import { nextPersistent } from '../lib/sequences.js';
 import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customerCredit.service.js';
 import { collectedAtBilling } from '../lib/billingSplit.js';
 import { istToday, assertBusinessDate } from '../lib/businessDate.js';
+import { poPayCap, poBalance, unappliedOf } from '../lib/poMoney.js';
 
 /**
  * Party ledger / payments service.
@@ -188,6 +189,11 @@ export async function recordPayment(
   // One shared business-date rule: a real date, not after today (IST), not
   // absurdly old. The default is TODAY IN IST, not the UTC date (CASH7-11).
   const date = assertBusinessDate(input.date || istToday(), 'A payment');
+  const isVendorOut = input.type === 'out' && input.partyType === 'vendor';
+  // PUR8-8: a vendor allocation of ₹0 / a negative amount is a mistake, not a no-op.
+  if (isVendorOut && (input.allocations || []).some((a) => a?.refId && !(Number(a.amount) > 0))) {
+    throw new AppError('NOTHING_TO_APPLY', 'Each purchase order in a payment needs an amount greater than ₹0.', 400);
+  }
   const allocations = (input.allocations || [])
     .map((a) => ({ ...a, amount: Number(a?.amount) || 0 }))
     .filter((a) => a?.refId && a.amount > 0);
@@ -222,9 +228,33 @@ export async function recordPayment(
     // A vendor payment (type 'out') settles POs; book it to the PO's own branch
     // and, below, authorize every settled PO against the user's branch — otherwise
     // a branch-locked user could pay down another branch's payable (PUR6-1).
-    if (input.type === 'out' && allocations.length) {
-      const firstPo = await tx.purchaseOrder.findUnique({ where: { id: allocations[0].refId } });
-      if (firstPo?.branchId) branchId = firstPo.branchId;
+    let vendorPartyId: string | null = null;
+    if (isVendorOut) {
+      const pos: any[] = [];
+      for (const a of allocations) {
+        const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
+        // PUR8-8: an allocation to a PO that doesn't exist is refused, not booked as ₹0.
+        if (!po) throw new AppError('NOTHING_TO_APPLY', `Purchase order ${a.refNumber || a.refId} was not found.`, 400);
+        pos.push(po);
+      }
+      // CASH8-5 / PUR3-5: one payment voucher is one supplier and one drawer.
+      if (new Set(pos.map((po) => po.vendorId)).size > 1) {
+        throw new AppError('MIXED_VENDORS', 'One payment can only settle purchase orders of one supplier.', 400);
+      }
+      if (input.partyId && pos.some((po) => po.vendorId !== input.partyId)) {
+        throw new AppError('WRONG_VENDOR', "This payment's supplier does not match the purchase order's supplier.", 400);
+      }
+      if (new Set(pos.map((po) => po.branchId)).size > 1) {
+        throw new AppError('CROSS_BRANCH', 'One payment can only cover purchase orders of one branch. Record a separate payment per branch.', 400);
+      }
+      if (pos[0]?.branchId) branchId = pos[0].branchId;
+      vendorPartyId = input.partyId || pos[0]?.vendorId || null;
+      // The unapplied part of a vendor payment is kept as that supplier's advance,
+      // so the supplier must be known and the drawer must be a real branch.
+      if (!vendorPartyId) throw new AppError('VENDOR_REQUIRED', 'Choose the supplier this payment is for.', 400);
+      const vendor = await tx.vendor.findUnique({ where: { id: vendorPartyId }, select: { id: true } });
+      if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
+      if (!isValidBranch(branchId)) throw new AppError('BAD_BRANCH', 'Choose a specific branch for this payment.', 400);
     }
     assertBranchAllowed(reqUser, branchId); // a branch-locked user can't bank a receipt to another branch
     // A receipt/payment dated to a day whose drawer is already closed would
@@ -233,6 +263,7 @@ export async function recordPayment(
     if (closed) throw new AppError('DAY_CLOSED', `The cash day ${date} is closed. Reopen it before recording this payment.`, 409);
 
     const receiptNumber = await nextReceiptNumber(tx, input.type, date);
+    const paymentId = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     // Settle allocated documents.
     const appliedAllocations: Allocation[] = [];
@@ -281,26 +312,48 @@ export async function recordPayment(
       if (!appliedAllocations.length) {
         throw new AppError('NOTHING_TO_APPLY', 'This receipt could not be applied — the selected bill(s) have no outstanding balance.', 400);
       }
-    } else if (input.type === 'out' && allocations.length) {
-      // Payment made to a vendor → settle purchase orders (payables).
+    } else if (isVendorOut && allocations.length) {
+      // Payment made to a vendor → settle purchase orders (payables). Each PO
+      // takes at most what can still be paid on it, by the one PO formula
+      // (lib/poMoney.ts, PUR8-1); whatever is left over stays on this payment as
+      // the supplier's advance (PUR8-4) instead of being dropped.
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
-        if (!po) continue;
+        if (!po) throw new AppError('NOTHING_TO_APPLY', `Purchase order ${a.refNumber || a.refId} was not found.`, 400);
         assertBranchAllowed(reqUser, po.branchId); // PUR6-1: can't settle another branch's PO
         if (po.status === 'Cancelled') {
           throw new AppError('PO_CANCELLED', 'Cannot pay a cancelled purchase order.', 400);
         }
-        // Cap at the tax-INCLUSIVE payable less debit notes — the same balance
-        // used by purchaseOrderBalanceDue and recordPurchaseOrderPayment. Using
-        // the ex-tax goods value here silently dropped the GST portion of a
-        // vendor payment, so an allocated payment didn't fully apply (PUR4-1).
-        const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-        const grandOwed = (po.totalAmount || 0) + (Number(po.totalTax) || 0) + (Number(po.otherCharges) || 0);
-        const balance = Math.max(0, Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100);
-        const pay = Math.min(a.amount, balance);
+        const pay = round2(Math.min(a.amount, poPayCap(po)));
+        // PUR8-8: never write a ₹0 allocation against a fully paid PO.
+        if (pay <= 0.001) {
+          throw new AppError('NOTHING_TO_APPLY', `Purchase order ${po.poNumber} has nothing left to pay.`, 400);
+        }
         await tx.purchaseOrder.update({
           where: { id: po.id },
-          data: { amountPaid: Math.round(((po.amountPaid || 0) + pay) * 100) / 100, updatedAt: nowIso() },
+          data: {
+            amountPaid: round2((po.amountPaid || 0) + pay),
+            // Shown in the PO's payment history; removed with the ledger row.
+            payments: [
+              { id: `${paymentId}-${po.id}`.slice(0, 80), date, amount: pay, mode: input.paymentMode || 'Cash', by: actor?.name || 'System', ledgerPaymentId: paymentId, receiptNumber },
+              ...((po.payments as any[]) || []),
+            ],
+            updatedAt: nowIso(),
+          },
+        });
+        appliedAllocations.push({ refId: po.id, refNumber: po.poNumber, amount: pay });
+      }
+    } else if (input.type === 'out' && !isVendorOut && allocations.length) {
+      // Legacy non-vendor 'out' allocations (unchanged).
+      for (const a of allocations) {
+        const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
+        if (!po) continue;
+        assertBranchAllowed(reqUser, po.branchId);
+        if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot pay a cancelled purchase order.', 400);
+        const pay = Math.min(a.amount, poBalance(po));
+        await tx.purchaseOrder.update({
+          where: { id: po.id },
+          data: { amountPaid: round2((po.amountPaid || 0) + pay), updatedAt: nowIso() },
         });
         appliedAllocations.push({ refId: po.id, refNumber: po.poNumber, amount: pay });
       }
@@ -315,7 +368,12 @@ export async function recordPayment(
     // receipt racing another, or an on-account advance with no bill) is kept as the
     // customer's STORE CREDIT — never trimmed away and never left unaccounted
     // (CRM4-4 / SAL6-7 / CRM7-3). A store-credit receipt only spends what it applies.
-    const recordedAmount = isStoreCredit || input.type !== 'in' ? (allocations.length ? appliedTotal : amount) : amount;
+    // A vendor payment likewise keeps its FULL amount — the cash really left the
+    // drawer — and any part not applied to a PO is that supplier's advance
+    // (PUR8-4 / PUR6-3), shown and netted on the payables screens.
+    const recordedAmount = isVendorOut
+      ? round2(amount)
+      : isStoreCredit || input.type !== 'in' ? (allocations.length ? appliedTotal : amount) : amount;
     const unapplied = input.type === 'in' && !isStoreCredit ? round2(amount - appliedTotal) : 0;
     let creditCustomerId: string | null = null;
     if (unapplied > 0.009) {
@@ -346,11 +404,11 @@ export async function recordPayment(
 
     const payment = await tx.payment.create({
       data: {
-        id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: paymentId,
         receiptNumber,
         type: input.type,
         partyType: input.partyType,
-        partyId: input.partyId ?? null,
+        partyId: (isVendorOut ? vendorPartyId : input.partyId) ?? null,
         partyName: input.partyName.trim(),
         branchId,
         date,
@@ -392,6 +450,70 @@ export async function recordPayment(
     }
     if (hooks?.afterCreate) await hooks.afterCreate(tx, payment);
     return { ...payment, appliedAmount: appliedTotal, storeCreditAdded: creditCustomerId && unapplied > 0.009 ? unapplied : 0 };
+  });
+}
+
+/**
+ * Apply a supplier's unapplied advance (the part of earlier vendor payments not
+ * allocated to any PO) to one of that supplier's purchase orders (PUR6-3). No
+ * cash moves — the money already left the drawer when it was paid — so the
+ * earlier payment rows simply gain an allocation to this PO, oldest first, and
+ * deleting such a payment later reverses these allocations too.
+ */
+export async function applyVendorAdvance(
+  input: { vendorId?: string; poId?: string; amount?: number },
+  actor?: { name?: string },
+  reqUser?: any,
+) {
+  if (reqUser && !roleCan(reqUser.role, 'purchase:write')) {
+    throw new AppError('FORBIDDEN', `Role ${reqUser.role} is not permitted to pay vendors.`, 403);
+  }
+  const want = input.amount == null || (input.amount as any) === '' ? null : Number(input.amount);
+  if (want != null && !(Number.isFinite(want) && want > 0)) throw new AppError('BAD_REQUEST', 'Amount must be greater than zero.', 400);
+  return serializableTx(async (tx) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: String(input.poId || '') } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId);
+    if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot pay a cancelled purchase order.', 400);
+    const vendorId = String(input.vendorId || po.vendorId);
+    if (po.vendorId !== vendorId) throw new AppError('WRONG_VENDOR', "That advance belongs to a different supplier than this purchase order.", 400);
+    const cap = poPayCap(po);
+    if (cap <= 0.001) throw new AppError('NOTHING_TO_APPLY', `Purchase order ${po.poNumber} has nothing left to pay.`, 400);
+    // Advances are held per branch drawer, like the payments they came from.
+    const rows = await tx.payment.findMany({
+      where: { type: 'out', partyType: 'vendor', partyId: vendorId, branchId: po.branchId },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
+    const available = round2(rows.reduce((s: number, p: any) => s + unappliedOf(p), 0));
+    if (available <= 0.001) throw new AppError('NO_ADVANCE', 'This supplier has no unapplied advance at this branch.', 400);
+    if (want != null && want > available + 0.005) {
+      throw new AppError('INSUFFICIENT_ADVANCE', `Only ₹${available.toLocaleString('en-IN')} of advance is available.`, 400);
+    }
+    if (want != null && want > cap + 0.005) {
+      throw new AppError('OVERPAYMENT', `₹${want} exceeds the ₹${cap.toLocaleString('en-IN')} that can still be paid on this PO.`, 400);
+    }
+    let left = round2(Math.min(want ?? Infinity, available, cap));
+    const total = left;
+    const ts = nowIso();
+    const today = istToday(); // the IST business day, not the UTC date
+    const entries: any[] = [];
+    for (const p of rows) {
+      if (left <= 0.001) break;
+      const take = round2(Math.min(unappliedOf(p), left));
+      if (take <= 0.001) continue;
+      const allocs = Array.isArray(p.allocations) ? (p.allocations as any[]) : [];
+      await tx.payment.update({
+        where: { id: p.id },
+        data: { allocations: [...allocs, { refId: po.id, refNumber: po.poNumber, amount: take, appliedFromAdvance: true, appliedOn: today }] as any, updatedAt: ts },
+      });
+      entries.push({ id: `${p.id}-adv-${Date.now().toString(36)}`, date: today, amount: take, mode: `Advance (${p.receiptNumber})`, by: actor?.name || 'System', ledgerPaymentId: p.id });
+      left = round2(left - take);
+    }
+    await tx.purchaseOrder.update({
+      where: { id: po.id },
+      data: { amountPaid: round2((po.amountPaid || 0) + total), payments: [...entries, ...((po.payments as any[]) || [])], updatedAt: ts },
+    });
+    return { ok: true, applied: total, poId: po.id };
   });
 }
 

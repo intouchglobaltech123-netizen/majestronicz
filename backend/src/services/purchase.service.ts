@@ -1,12 +1,13 @@
 import { prisma } from '../db.js';
-import { istToday } from '../lib/businessDate.js';
+import { istToday, isValidYmd } from '../lib/businessDate.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { isValidBranch } from '../lib/constants.js';
+import { isValidBranch, allowsFractionalQty } from '../lib/constants.js';
+import { lineSettled, lineGoodValue, poPayCap } from '../lib/poMoney.js';
 
 const poSnapshot = async (tx: any) => ({
   purchaseOrders: await tx.purchaseOrder.findMany(),
@@ -16,8 +17,16 @@ const poSnapshot = async (tx: any) => ({
 
 /** Create (server-assigned PO number) or edit a purchase order; link pending order. */
 export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
+  if (!poData || typeof poData !== 'object') throw new AppError('BAD_REQUEST', 'Purchase order details are missing.', 400);
   assertBranchAllowed(reqUser, poData.branchId);
   if (!isValidBranch(poData.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${poData.branchId}`, 400);
+  // PUR5-2: a PO needs a real supplier id (a missing one used to reach the
+  // database as NULL and fail with a 500) and real dates ("hello" was stored).
+  if (!String(poData.vendorId || '').trim()) throw new AppError('VENDOR_REQUIRED', 'Choose a supplier for this purchase order.', 400);
+  if (!isValidYmd(poData.date)) throw new AppError('BAD_DATE', 'PO date must be a real date (YYYY-MM-DD).', 400);
+  if (poData.expectedDeliveryDate != null && poData.expectedDeliveryDate !== '' && !isValidYmd(poData.expectedDeliveryDate)) {
+    throw new AppError('BAD_DATE', 'Expected delivery date must be a real date (YYYY-MM-DD).', 400);
+  }
   // Serializable + retry so a concurrent Edit-Prices and receive on the same PO
   // can't lose one another's write (E2E-5).
   return serializableTx(async (tx: any) => {
@@ -26,35 +35,45 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     // positive ordered quantity, a non-negative price and a 0–100% tax rate.
     const lineItems = Array.isArray(poData.items) ? poData.items : [];
     if (!lineItems.length) throw new AppError('NO_ITEMS', 'A purchase order needs at least one line item.', 400);
-    const itemIds = lineItems.map((l: any) => l.itemId).filter(Boolean);
-    const knownItems = new Set((await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true } })).map((i: any) => i.id));
+    const itemIds = lineItems.map((l: any) => l?.itemId).filter(Boolean);
+    const knownItems = new Map<string, any>(
+      (await tx.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, unit: true, itemName: true } })).map((i: any) => [i.id, i]),
+    );
     for (const l of lineItems) {
-      if (!l.itemId || !knownItems.has(l.itemId)) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
-      if (!(Number(l.quantityOrdered) > 0)) throw new AppError('BAD_QTY', 'Ordered quantity must be greater than zero.', 400);
-      if (Number(l.purchasePrice) < 0) throw new AppError('BAD_PRICE', 'Purchase price cannot be negative.', 400);
+      if (!l?.itemId || !knownItems.has(l.itemId)) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
+      const qty = Number(l.quantityOrdered);
+      if (!Number.isFinite(qty) || !(qty > 0)) throw new AppError('BAD_QTY', 'Ordered quantity must be greater than zero.', 400);
+      // PUR5-2 / PUR-10: 2.5 of a piece-counted item silently became 2 on screen.
+      const item = knownItems.get(l.itemId);
+      if (!Number.isInteger(qty) && !allowsFractionalQty(item?.unit || l.unit)) {
+        throw new AppError('BAD_QTY', `"${item?.itemName || l.itemName || 'Item'}" is counted in whole ${item?.unit || l.unit || 'units'} — enter a whole quantity, not ${qty}.`, 400);
+      }
+      if (!Number.isFinite(Number(l.purchasePrice ?? 0)) || Number(l.purchasePrice) < 0) throw new AppError('BAD_PRICE', 'Purchase price cannot be negative.', 400);
       if (l.taxPercent != null && !isValidTaxPercent(l.taxPercent)) throw new AppError('BAD_TAX', 'Tax % must be between 0 and 100.', 400);
     }
     // The vendor must exist.
-    if (poData.vendorId) {
-      const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true } });
-      if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
-    } else if (!String(poData.vendorName || '').trim()) {
-      throw new AppError('VENDOR_REQUIRED', 'A supplier is required.', 400);
-    }
+    const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true, vendorName: true } });
+    if (!vendor) throw new AppError('BAD_VENDOR', 'The selected supplier does not exist.', 400);
     let saved: any;
-    // These are set only by the receive / pay / cancel flows and the server — never
-    // accepted from a save, or a PO could be created/edited as Received with a
-    // fake paid amount and number (PUR2-6).
     // These are owned by dedicated flows (receive / pay / cancel / record-bill /
-    // attachments) and the server — never taken from a general PO save. PUR5-4:
-    // the supplier-bill and attachment fields are here too, so an "Edit Prices"
-    // save built from a stale snapshot can't blank out the supplier's tax invoice
-    // or another user's uploaded attachments (PUR2-6).
+    // attachments) and the server — never taken from a general PO save, or a PO
+    // could be created/edited as Received with a fake paid amount and number
+    // (PUR2-6). PUR5-4: the supplier-bill and attachment fields are here too, so
+    // an "Edit Prices" save built from a stale snapshot can't blank out the
+    // supplier's tax invoice or another user's attachments. PUR8-2: other charges
+    // are added by receipts only, and totals are always recomputed from lines.
     const SERVER_MANAGED = [
       'status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments',
       'supplierBillNumber', 'supplierBillDate', 'supplierBillTaxable', 'supplierBillGst', 'attachments',
-      'createdAt', 'updatedAt',
+      'otherCharges', 'totalAmount', 'totalTax', 'createdAt', 'updatedAt',
     ];
+    // Price × ordered qty and the tax on it, recomputed from the line itself.
+    const priced = (l: any, price: number, qty: number, taxPercent: number) => {
+      const amount = Math.round(price * qty * 100) / 100;
+      const taxAmount = taxAmountFor(amount, taxPercent);
+      return { ...l, quantityOrdered: qty, purchasePrice: price, taxPercent, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
+    };
+    const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
     if (existingPo) {
       // SEC5-2: the guard at the top ran against the request's poData.branchId.
@@ -62,41 +81,78 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       // immutable, so a branch-locked user can't edit or move another branch's PO
       // by sending a different branchId.
       assertBranchAllowed(reqUser, existingPo.branchId);
+      if (existingPo.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'A cancelled purchase order cannot be edited.', 409);
       const { id, ...rest } = poData;
       for (const k of SERVER_MANAGED) delete (rest as any)[k];
       delete (rest as any).branchId;
-      // E2E-5: an Edit-Prices payload is built from a snapshot of the PO the user
-      // opened, which may predate a receipt. Take price / ordered-qty / tax from
-      // the client, but keep the server's per-line received / damaged / missing
-      // quantities so a stale edit can't wipe what was actually received. Totals
-      // are recomputed from the merged lines.
-      if (Array.isArray(rest.items) && Array.isArray(existingPo.items)) {
-        const dbByItem = new Map((existingPo.items as any[]).map((l: any) => [l.itemId, l]));
-        rest.items = rest.items.map((cl: any) => {
-          const db = dbByItem.get(cl.itemId);
-          const price = Number(cl.purchasePrice) || 0;
-          const qtyOrdered = Number(cl.quantityOrdered) || (db?.quantityOrdered ?? 0);
-          const taxPercent = cl.taxPercent != null ? Number(cl.taxPercent) : (db?.taxPercent ?? 0);
-          const amount = Math.round(price * qtyOrdered * 100) / 100;
-          const taxAmount = taxAmountFor(amount, taxPercent);
-          return {
-            ...(db || {}),
-            ...cl,
-            quantityOrdered: qtyOrdered,
-            purchasePrice: price,
-            taxPercent,
-            amount,
-            taxAmount,
-            lineTotal: Math.round((amount + taxAmount) * 100) / 100,
-            // Received state is authoritative from the DB, never the client.
-            receivedQuantity: db?.receivedQuantity ?? 0,
-            damagedQuantity: db?.damagedQuantity ?? 0,
-            missingQuantity: db?.missingQuantity ?? 0,
-          };
-        });
-        rest.totalAmount = Math.round(rest.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
-        rest.totalTax = Math.round(rest.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      const dbLines: any[] = Array.isArray(existingPo.items) ? (existingPo.items as any[]) : [];
+      const anySettled = dbLines.some((l) => lineSettled(l) > 0) || ((existingPo.receivingHistory as any[]) || []).length > 0;
+      // PUR8-3: once anything is received the supplier is fixed — the receipts,
+      // debit notes and payments all belong to that supplier.
+      if (anySettled && rest.vendorId !== existingPo.vendorId) {
+        throw new AppError('VENDOR_LOCKED', 'The supplier cannot be changed after stock has been received on this PO.', 409);
       }
+      // E2E-5 / PUR8-5: an Edit-Prices payload is built from a snapshot of the PO
+      // the user opened, which may predate a receipt. Match each client line to
+      // the stored line by LINE id (the same item may sit on two lines), take
+      // price / ordered-qty / tax from the client, and keep the server's received
+      // / damaged / missing quantities so a stale edit can't wipe what was
+      // actually received. Lines stored before ids existed match by item.
+      const used = new Set<number>();
+      const findDb = (cl: any): number => {
+        if (cl.id) {
+          const i = dbLines.findIndex((d, k) => !used.has(k) && d.id && d.id === cl.id);
+          if (i >= 0) return i;
+        }
+        return dbLines.findIndex((d, k) => !used.has(k) && !d.id && d.itemId === cl.itemId);
+      };
+      rest.items = lineItems.map((cl: any) => {
+        const k = findDb(cl);
+        const db = k >= 0 ? dbLines[k] : null;
+        if (k >= 0) used.add(k);
+        const settled = db ? lineSettled(db) : 0;
+        // PUR8-3: a line with receipts keeps its item, and can't be cut below
+        // what has already been received / billed back.
+        if (db && settled > 0 && db.itemId !== cl.itemId) {
+          throw new AppError('LINE_LOCKED', `"${db.itemName || db.itemId}" has stock received against it and cannot be replaced.`, 409);
+        }
+        const qty = Number(cl.quantityOrdered);
+        if (db && qty < settled) {
+          throw new AppError('QTY_BELOW_RECEIVED', `"${db.itemName || db.itemId}" already has ${settled} received/settled — the ordered quantity cannot go below that.`, 400);
+        }
+        const price = Number(cl.purchasePrice) || 0;
+        const taxPercent = cl.taxPercent != null ? Number(cl.taxPercent) : (db?.taxPercent ?? 0);
+        const line: any = priced({ ...(db || {}), ...cl, id: db?.id || cl.id || lineId() }, price, qty, taxPercent);
+        // Received state is authoritative from the DB, never the client.
+        line.receivedQuantity = db?.receivedQuantity ?? 0;
+        line.damagedQuantity = db?.damagedQuantity ?? 0;
+        line.missingQuantity = db?.missingQuantity ?? 0;
+        delete line.receivedTaxable;
+        delete line.receivedTax;
+        if (db && (db.receivedQuantity || 0) > 0) {
+          // A price/rate correction re-values the units already received at the
+          // corrected price; otherwise each receipt keeps its own value (E2E8-5).
+          const changed = Number(db.purchasePrice || 0) !== price || Number(db.taxPercent || 0) !== taxPercent;
+          const v = changed ? lineGoodValue({ receivedQuantity: db.receivedQuantity, purchasePrice: price, taxPercent }) : lineGoodValue(db);
+          line.receivedTaxable = v.taxable;
+          line.receivedTax = v.tax;
+        }
+        return line;
+      });
+      // PUR8-3: removing a line that already has receipts would erase goods (and
+      // the money owed for them) that are physically in stock.
+      dbLines.forEach((d, k) => {
+        if (!used.has(k) && lineSettled(d) > 0) {
+          throw new AppError('LINE_LOCKED', `"${d.itemName || d.itemId}" has stock received against it and cannot be removed from the PO.`, 409);
+        }
+      });
+      rest.totalAmount = Math.round(rest.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
+      rest.totalTax = Math.round(rest.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      if (anySettled) {
+        const allFull = rest.items.every((l: any) => lineSettled(l) >= (l.quantityOrdered || 0));
+        rest.status = allFull ? 'Received' : 'Partially Received';
+      }
+      if (!rest.vendorName) rest.vendorName = vendor.vendorName;
       saved = await tx.purchaseOrder.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = poData.id || `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -106,29 +162,26 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       // PUR5-2: never trust the client's totals. Recompute each line's amount/tax
       // from price × ordered-qty and the tax %, then the PO totals from the lines,
       // exactly as the edit path does — a tampered or buggy client can't persist
-      // an inflated payable (₹1,98,480 shown vs ₹89,048 actually owed).
-      if (Array.isArray(clean.items)) {
-        clean.items = clean.items.map((l: any) => {
-          const price = Number(l.purchasePrice) || 0;
-          const qty = Number(l.quantityOrdered) || 0;
-          const taxPercent = isValidTaxPercent(l.taxPercent) ? Number(l.taxPercent) : 0;
-          const amount = Math.round(price * qty * 100) / 100;
-          const taxAmount = taxAmountFor(amount, taxPercent);
-          return {
-            ...l,
-            quantityOrdered: qty,
-            purchasePrice: price,
-            taxPercent,
-            amount,
-            taxAmount,
-            lineTotal: Math.round((amount + taxAmount) * 100) / 100,
-          };
-        });
-        clean.totalAmount = Math.round(clean.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
-        clean.totalTax = Math.round(clean.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
-      }
+      // an inflated payable (₹1,98,480 shown vs ₹89,048 actually owed). A new PO
+      // has nothing received, whatever the client sent.
+      clean.items = lineItems.map((l: any) => {
+        const line: any = priced({ ...l, id: l.id || lineId() }, Number(l.purchasePrice) || 0, Number(l.quantityOrdered), isValidTaxPercent(l.taxPercent) ? Number(l.taxPercent) : 0);
+        line.receivedQuantity = 0;
+        line.damagedQuantity = 0;
+        line.missingQuantity = 0;
+        delete line.receivedTaxable;
+        delete line.receivedTax;
+        return line;
+      });
+      // Two lines may not share an id (receipts and edits match lines by id).
+      const seen = new Set<string>();
+      for (const l of clean.items) { if (seen.has(l.id)) l.id = lineId(); seen.add(l.id); }
+      clean.totalAmount = Math.round(clean.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
+      clean.totalTax = Math.round(clean.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      if (!clean.vendorName) clean.vendorName = vendor.vendorName;
+      if (!clean.expectedDeliveryDate) clean.expectedDeliveryDate = clean.date;
       saved = await tx.purchaseOrder.create({
-        data: { ...clean, id, poNumber, status: 'Ordered', amountPaid: 0, createdAt: ts, updatedAt: ts },
+        data: { ...clean, id, poNumber, status: 'Ordered', amountPaid: 0, otherCharges: 0, createdAt: ts, updatedAt: ts },
       });
     }
 
@@ -215,18 +268,25 @@ export function receivePurchaseOrderStock(
     if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot receive stock against a cancelled purchase order.', 400);
     if (po.status === 'Received') throw new AppError('PO_COMPLETE', 'This purchase order is already fully received.', 400);
 
-    const rawValid = (receipts || []).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
+    const n = (v: unknown) => Number(v) || 0;
+    for (const r of receipts || []) {
+      for (const v of [r?.quantityReceived, r?.damagedQuantity, r?.missingQuantity]) {
+        if (v != null && (v as any) !== '' && !Number.isFinite(Number(v))) throw new AppError('BAD_QTY', 'Quantities must be numbers.', 400);
+      }
+    }
+    // PUR4-3: a receipt of 0 good + N missing (nothing arrived) is a real event.
+    const rawValid = (receipts || []).filter((r) => n(r.quantityReceived) > 0 || n(r.damagedQuantity) > 0 || n(r.missingQuantity) > 0);
     if (!rawValid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
     // Aggregate multiple receipt entries for the SAME item into one, so sending the
     // item twice in one receipt can't double the stock (PUR3-1).
     const aggByItem = new Map<string, any>();
     for (const r of rawValid) {
       const cur = aggByItem.get(r.itemId) || { itemId: r.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0 };
-      cur.quantityReceived += Number(r.quantityReceived) || 0;
-      cur.damagedQuantity += Number(r.damagedQuantity) || 0;
-      cur.missingQuantity += Number(r.missingQuantity) || 0;
+      cur.quantityReceived += n(r.quantityReceived);
+      cur.damagedQuantity += n(r.damagedQuantity);
+      cur.missingQuantity += n(r.missingQuantity);
       if (r.location) cur.location = r.location;
-      if (r.purchasePrice != null) cur.purchasePrice = r.purchasePrice;
+      if (r.purchasePrice != null) cur.purchasePrice = Number(r.purchasePrice);
       if (r.taxPercent != null) cur.taxPercent = r.taxPercent;
       aggByItem.set(r.itemId, cur);
     }
@@ -239,43 +299,53 @@ export function receivePurchaseOrderStock(
     for (const rec of valid) {
       const line = lines.find((l) => l.itemId === rec.itemId);
       if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
-      const good = Number(rec.quantityReceived) || 0;
-      const dmg = Number(rec.damagedQuantity) || 0;
-      const missing = Number(rec.missingQuantity) || 0;
+      const good = n(rec.quantityReceived);
+      const dmg = n(rec.damagedQuantity);
+      const missing = n(rec.missingQuantity);
       if (good < 0 || dmg < 0 || missing < 0) throw new AppError('NEGATIVE_QTY', 'Received, damaged or missing quantity cannot be negative.', 400);
+      if (!allowsFractionalQty(line.unit) && [good, dmg, missing].some((q) => !Number.isInteger(q))) {
+        throw new AppError('BAD_QTY', `"${line.itemName || rec.itemId}" is counted in whole units.`, 400);
+      }
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
         throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);
       }
+      if (rec.purchasePrice != null && !(Number.isFinite(rec.purchasePrice) && rec.purchasePrice >= 0)) {
+        throw new AppError('BAD_PRICE', `Price for "${line.itemName || rec.itemId}" cannot be negative.`, 400);
+      }
     }
+    const extraRaw = otherCharges == null || (otherCharges as any) === '' ? 0 : Number(otherCharges);
+    if (!Number.isFinite(extraRaw) || extraRaw < 0) throw new AppError('BAD_CHARGES', 'Packing / other charges cannot be negative.', 400);
 
     // DISTRIBUTE each item's receipt across ITS lines (PO order), filling each
     // line's remaining capacity. Previously the full receipt was added to EVERY
     // line sharing the item, so the same item on two lines doubled the received
     // quantity (and, now, the received-value payable). Reject anything that can't
-    // fit across the item's combined remaining (over-receipt).
-    const lineAlloc = new Map<string, { good: number; dmg: number; missing: number }>();
+    // fit across the item's combined remaining (over-receipt). Keyed by line
+    // index, so legacy lines without an id can't collide.
+    const lineAlloc = new Map<number, { good: number; dmg: number; missing: number }>();
     for (const rec of valid) {
-      const itemLines = lines.filter((l) => l.itemId === rec.itemId);
-      let g = Number(rec.quantityReceived) || 0;
-      let d = Number(rec.damagedQuantity) || 0;
-      let m = Number(rec.missingQuantity) || 0;
-      for (const line of itemLines) {
-        const settled = (line.receivedQuantity || 0) + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
-        let cap = Math.max(0, (line.quantityOrdered || 0) - settled);
+      let g = n(rec.quantityReceived);
+      let d = n(rec.damagedQuantity);
+      let m = n(rec.missingQuantity);
+      lines.forEach((line, idx) => {
+        if (line.itemId !== rec.itemId) return;
+        let cap = Math.max(0, (line.quantityOrdered || 0) - lineSettled(line));
         const ag = Math.min(g, cap); cap -= ag; g -= ag;
         const ad = Math.min(d, cap); cap -= ad; d -= ad;
         const am = Math.min(m, cap); cap -= am; m -= am;
-        lineAlloc.set(line.id, { good: ag, dmg: ad, missing: am });
-      }
+        lineAlloc.set(idx, { good: ag, dmg: ad, missing: am });
+      });
       if (g + d + m > 0.0001) {
-        const first = itemLines[0];
+        const first = lines.find((l) => l.itemId === rec.itemId);
         throw new AppError('OVER_RECEIPT', `Cannot settle more of "${first?.itemName || rec.itemId}" than remains on the PO.`, 400);
       }
     }
 
     const recByItem = new Map(valid.map((r) => [r.itemId, r]));
-    const updatedLines = lines.map((line) => {
-      const alloc = lineAlloc.get(line.id);
+    // Debit-note lines for this receipt, one per PO line billed back.
+    const dnLines: any[] = [];
+    const updatedLines = lines.map((line, idx) => {
+      const alloc = lineAlloc.get(idx);
       if (!alloc || (alloc.good <= 0 && alloc.dmg <= 0 && alloc.missing <= 0)) return line;
       const rec = recByItem.get(line.itemId)!;
       const nextPrice =
@@ -283,11 +353,31 @@ export function receivePurchaseOrderStock(
       const nextTaxPercent =
         rec.taxPercent != null ? Number(rec.taxPercent) : (line.taxPercent ?? 0);
       const lineAmount = Math.round(nextPrice * (line.quantityOrdered || 0) * 100) / 100;
+      // E2E8-5: what this receipt's GOOD units are worth, at THIS receipt's price
+      // and GST — added to the line's running received value, so a later receipt
+      // at a different rate never re-taxes units already received.
+      const before = lineGoodValue(line);
+      const addTaxable = Math.round(nextPrice * alloc.good * 100) / 100;
+      const addTax = taxAmountFor(addTaxable, nextTaxPercent);
+      // E2E-4: damaged and missing units are billed back WITH their GST (the
+      // input tax on them is reversed), at the price/rate of this receipt.
+      if (alloc.dmg > 0 || alloc.missing > 0) {
+        const dnTaxable = Math.round(nextPrice * (alloc.dmg + alloc.missing) * 100) / 100;
+        const dnTax = taxAmountFor(dnTaxable, nextTaxPercent);
+        dnLines.push({
+          itemId: line.itemId, itemName: line.itemName || line.itemId, itemCode: line.itemCode || '',
+          damagedQuantity: alloc.dmg, missingQuantity: alloc.missing, unitPrice: nextPrice,
+          taxPercent: nextTaxPercent, taxableValue: dnTaxable, taxAmount: dnTax,
+          amount: Math.round((dnTaxable + dnTax) * 100) / 100,
+        });
+      }
       return {
         ...line,
         receivedQuantity: (line.receivedQuantity || 0) + alloc.good,
         damagedQuantity: (line.damagedQuantity || 0) + alloc.dmg,
         missingQuantity: (line.missingQuantity || 0) + alloc.missing,
+        receivedTaxable: Math.round((before.taxable + addTaxable) * 100) / 100,
+        receivedTax: Math.round((before.tax + addTax) * 100) / 100,
         purchasePrice: nextPrice,
         amount: lineAmount,
         taxPercent: nextTaxPercent,
@@ -295,81 +385,79 @@ export function receivePurchaseOrderStock(
         lineTotal: Math.round((lineAmount + taxAmountFor(lineAmount, nextTaxPercent)) * 100) / 100,
       };
     });
-    const newTotalAmount = updatedLines.reduce((s: number, l: any) => s + (l.amount || 0), 0);
+    const newTotalAmount = Math.round(updatedLines.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
     const newTotalTax = Math.round(
       updatedLines.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100,
     ) / 100;
 
+    // PUR8-2: extra charges the vendor billed (packing/freight) on THIS receipt,
+    // added to the PO exactly once and recorded on the receipt itself.
+    const extraCharge = Math.round(extraRaw * 100) / 100;
+    const newOtherCharges = Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100;
+
     const eventLines = valid.map((rec) => {
       const line = lines.find((l) => l.itemId === rec.itemId);
-      const prevReceived = line?.receivedQuantity || 0;
+      const prevReceived = lines.filter((l) => l.itemId === rec.itemId).reduce((s, l) => s + (l.receivedQuantity || 0), 0);
+      const price = rec.purchasePrice != null && rec.purchasePrice > 0 ? rec.purchasePrice : line?.purchasePrice ?? 0;
+      const rate = rec.taxPercent ?? line?.taxPercent ?? 0;
+      const taxableValue = Math.round(price * rec.quantityReceived * 100) / 100;
       return {
         itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
-        quantityOrdered: line?.quantityOrdered || 0, quantityReceivedThisEvent: rec.quantityReceived,
+        quantityOrdered: lines.filter((l) => l.itemId === rec.itemId).reduce((s, l) => s + (l.quantityOrdered || 0), 0),
+        quantityReceivedThisEvent: rec.quantityReceived,
         damagedQuantity: rec.damagedQuantity || 0,
         missingQuantity: rec.missingQuantity || 0,
         totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
         // What this receipt itself cost, so the history shows the money that
         // moved on the day rather than only the PO's running totals.
-        purchasePrice: rec.purchasePrice ?? line?.purchasePrice ?? 0,
-        taxPercent: rec.taxPercent ?? line?.taxPercent ?? 0,
-        taxableValue: Math.round((rec.purchasePrice ?? line?.purchasePrice ?? 0) * rec.quantityReceived * 100) / 100,
-        taxAmount: taxAmountFor(
-          (rec.purchasePrice ?? line?.purchasePrice ?? 0) * rec.quantityReceived,
-          rec.taxPercent ?? line?.taxPercent ?? 0,
-        ),
+        purchasePrice: price,
+        taxPercent: rate,
+        taxableValue,
+        taxAmount: taxAmountFor(taxableValue, rate),
       };
     });
     const receivingEvent = {
       id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       date: istToday(), timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
+      ...(extraCharge > 0 ? { otherCharges: extraCharge } : {}),
     };
 
-    // Damaged (defective) AND missing (short-shipped) units are both billed back
-    // to the vendor as a debit/credit note — the shop paid for units it didn't
-    // get as sellable stock.
+    // Damaged (defective) AND missing (short-shipped) units are both listed on a
+    // debit note to the vendor, with GST. The amount owed is worked out from the
+    // GOOD units only (lib/poMoney.ts), so the note is the document for the
+    // supplier — it is not subtracted from the payable a second time (PUR8-1).
     const existingNotes = (po.debitNotes as any[]) || [];
-    const billBackReceipts = valid.filter((r) => (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
     let debitNotes = existingNotes;
-    if (billBackReceipts.length) {
-      const dnLines = billBackReceipts.map((rec) => {
-        const line = updatedLines.find((l: any) => l.itemId === rec.itemId) || lines.find((l) => l.itemId === rec.itemId);
-        const unitPrice = line?.purchasePrice || 0;
-        const dq = Number(rec.damagedQuantity) || 0;
-        const mq = Number(rec.missingQuantity) || 0;
-        return {
-          itemId: rec.itemId, itemName: line?.itemName || rec.itemId, itemCode: line?.itemCode || '',
-          damagedQuantity: dq, missingQuantity: mq, unitPrice,
-          amount: Math.round(unitPrice * (dq + mq) * 100) / 100,
-        };
-      });
-      const dnTotal = dnLines.reduce((s, l) => s + l.amount, 0);
+    if (dnLines.length) {
+      const r2 = (x: number) => Math.round(x * 100) / 100;
       const newNote = {
         id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
         date: istToday(), createdBy: actor, lines: dnLines,
-        totalAmount: Math.round(dnTotal * 100) / 100, notes: notes?.trim() || undefined,
+        totalTaxable: r2(dnLines.reduce((s, l) => s + l.taxableValue, 0)),
+        totalTax: r2(dnLines.reduce((s, l) => s + l.taxAmount, 0)),
+        totalAmount: r2(dnLines.reduce((s, l) => s + l.amount, 0)),
+        notes: notes?.trim() || undefined,
       };
       debitNotes = [newNote, ...existingNotes];
     }
 
     // A line is settled when good + damaged + missing covers the ordered qty.
-    const lineSettled = (l: any) => (l.receivedQuantity || 0) + (l.damagedQuantity || 0) + (l.missingQuantity || 0);
     const allFull = updatedLines.every((l) => lineSettled(l) >= l.quantityOrdered);
-    const anyReceived = updatedLines.some((l) => (l.receivedQuantity || 0) > 0 || (l.damagedQuantity || 0) > 0 || (l.missingQuantity || 0) > 0);
+    const anyReceived = updatedLines.some((l) => lineSettled(l) > 0);
     const status = allFull ? 'Received' : anyReceived ? 'Partially Received' : po.status;
 
-    // PUR: extra charges the vendor billed (packing/freight) entered on this
-    // receipt. Accumulate onto the PO so the payable includes them.
-    const extraCharge = Math.max(0, Number(otherCharges) || 0);
-    const newOtherCharges = Math.round(((po.otherCharges || 0) + extraCharge) * 100) / 100;
-
-    // Optional vendor payment recorded at the moment of receiving — CAPPED at what
-    // is still owed so "pay now" can't exceed the PO's value (PUR2-9).
+    // Optional vendor payment recorded at the moment of receiving — capped by the
+    // same formula as every other vendor payment (PUR2-9 / PUR8-1): refused, not
+    // silently trimmed, so the drawer and the PO never disagree.
     const today = istToday(); // the IST cash day, not the UTC date (CASH7-11 / PUR7-5)
-    const debitTotalNow = (debitNotes as any[]).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-    const owedCap = Math.max(0, Math.round(((newTotalAmount + newTotalTax + newOtherCharges) - debitTotalNow - (po.amountPaid || 0)) * 100) / 100);
-    const payNow = Math.min(Math.max(0, Number(payment?.amount) || 0), owedCap);
+    const payNow = Math.round(Math.max(0, n(payment?.amount)) * 100) / 100;
+    if (payNow > 0) {
+      const cap = poPayCap({ ...po, items: updatedLines, otherCharges: newOtherCharges, status });
+      if (payNow > cap + 0.005) {
+        throw new AppError('OVERPAYMENT', `Payment of ₹${payNow} exceeds the ₹${cap.toLocaleString('en-IN')} that can still be paid on this PO.`, 400);
+      }
+    }
     const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
     const payments = (po.payments as any[]) || [];
     let ledgerId: string | null = null;
@@ -399,7 +487,7 @@ export function receivePurchaseOrderStock(
       const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
       const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
       let maxNo = 0;
-      for (const r of existingRows) { const n = parseInt(String(r.receiptNumber).slice(like.length), 10); if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n); }
+      for (const r of existingRows) { const k = parseInt(String(r.receiptNumber).slice(like.length), 10); if (!Number.isNaN(k)) maxNo = Math.max(maxNo, k); }
       await tx.payment.create({
         data: {
           id: ledgerId, receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
@@ -470,13 +558,27 @@ export function receivePurchaseOrderStock(
   });
 }
 
+/** Largest supplier-bill attachment accepted (decoded bytes). */
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
 export function addAttachment(poId: string, attachmentData: any, actor: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
+    // PUR2-12: only an image or a PDF, as a base64 data URL, up to 5 MB — a 15 MB
+    // .exe used to be stored inside the PO row and sent with every response.
+    const dataUrl = String(attachmentData?.dataUrl || '').trim();
+    const m = /^data:(image\/(?:png|jpe?g|webp|gif)|application\/pdf);base64,([A-Za-z0-9+/=\s]*)$/i.exec(dataUrl);
+    if (!m) throw new AppError('BAD_ATTACHMENT', 'Only an image (JPG, PNG, WEBP, GIF) or a PDF can be attached.', 400);
+    const bytes = Math.floor((m[2].replace(/\s/g, '').length * 3) / 4);
+    if (bytes > MAX_ATTACHMENT_BYTES) throw new AppError('ATTACHMENT_TOO_LARGE', 'The file is larger than 5 MB.', 413);
+    if (bytes === 0) throw new AppError('BAD_ATTACHMENT', 'The file is empty.', 400);
+    const fileType = /^application\/pdf$/i.test(m[1]) ? 'pdf' : 'image';
+    const name = String(attachmentData?.name || (fileType === 'pdf' ? 'bill.pdf' : 'bill.jpg')).trim().slice(0, 200);
     const newAttachment = {
-      ...attachmentData, id: rid('po-att'), uploadedAt: nowIso(), uploadedBy: actor,
+      name, fileType, fileSize: `${Math.max(1, Math.round(bytes / 1024))} KB`, dataUrl,
+      id: rid('po-att'), uploadedAt: nowIso(), uploadedBy: actor,
     };
     await tx.purchaseOrder.update({
       where: { id: poId },
@@ -508,13 +610,29 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
+    // PUR3-8: the bill feeds the ITC register and GSTR-3B, so it must be a real
+    // bill: a number, a real past date, a non-negative taxable value and GST that
+    // is not negative nor more than the highest slab (28%) on that taxable value.
+    const number = String(bill?.number ?? '').trim();
+    const date = String(bill?.date ?? '').trim();
+    const taxable = Number(bill?.taxable ?? 0);
+    const gst = Number(bill?.gst ?? 0);
+    if (!number) throw new AppError('BILL_NUMBER_REQUIRED', 'Enter the supplier bill number.', 400);
+    if (number.length > 60) throw new AppError('BAD_BILL', 'Bill number is too long.', 400);
+    if (!isValidYmd(date)) throw new AppError('BAD_DATE', 'Bill date must be a real date (YYYY-MM-DD).', 400);
+    if (date > istToday()) throw new AppError('BAD_DATE', 'A supplier bill cannot be dated in the future.', 400);
+    if (!Number.isFinite(taxable) || taxable < 0) throw new AppError('BAD_BILL', 'Taxable value cannot be negative.', 400);
+    if (!Number.isFinite(gst) || gst < 0) throw new AppError('BAD_BILL', 'GST cannot be negative.', 400);
+    if (gst > Math.round(taxable * 0.28 * 100) / 100 + 1) {
+      throw new AppError('BAD_BILL', `GST of ₹${gst} is more than 28% of the taxable value ₹${taxable}.`, 400);
+    }
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
-        supplierBillNumber: (bill?.number || '').trim() || null,
-        supplierBillDate: (bill?.date || '').trim() || null,
-        supplierBillTaxable: Number(bill?.taxable) || 0,
-        supplierBillGst: Number(bill?.gst) || 0,
+        supplierBillNumber: number,
+        supplierBillDate: date,
+        supplierBillTaxable: Math.round(taxable * 100) / 100,
+        supplierBillGst: Math.round(gst * 100) / 100,
         updatedAt: nowIso(),
       },
     });
@@ -536,16 +654,13 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     if (po.status === 'Cancelled') throw new AppError('PO_CANCELLED', 'Cannot record a payment against a cancelled purchase order.', 400);
     const pay = Math.max(0, Number(amount) || 0);
     if (pay <= 0) throw new AppError('INVALID', 'Payment amount must be greater than 0', 400);
-    // Debit notes (damaged/rejected goods billed back) reduce what we owe (PUR2-19).
-    const debitTotal = ((po.debitNotes as any[]) || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-    // PUR4-1/PUR4-2: the vendor is owed the GST too, so the payable is the
-    // tax-INCLUSIVE grand total. Capping at the ex-tax goods value (as before)
-    // rejected the tax portion of a GST PO as "overpayment", so such a PO could
-    // never be marked fully paid. Legacy POs with no tax leave this unchanged.
-    const grandOwed = Math.round(((po.totalAmount || 0) + (Number(po.totalTax) || 0) + (Number(po.otherCharges) || 0)) * 100) / 100;
-    const remaining = Math.round((grandOwed - (po.amountPaid || 0) - debitTotal) * 100) / 100;
-    if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
-    if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
+    // PUR8-1: one formula (lib/poMoney.ts) — owed for the good units received
+    // incl. GST and charges, plus what is still expected on the PO (a prepayment
+    // for that is an advance). Once every unit is settled this is exactly the
+    // balance, so a short-shipped PO can't be over-paid.
+    const cap = poPayCap(po);
+    if (cap <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
+    if (pay > cap + 0.005) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${cap.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();
     const today = istToday(); // the IST cash day, not the UTC date (CASH7-11 / PUR7-5)
     // A vendor payment hits the drawer of the PO's branch today — if that day is

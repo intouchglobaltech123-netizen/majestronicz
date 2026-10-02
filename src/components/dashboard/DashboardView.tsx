@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, computeInvoiceCogs, purchaseOrderBalanceDue } from '../../types';
+import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, computeInvoiceCogs, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
 import {
@@ -94,9 +94,9 @@ export const DashboardView: React.FC = () => {
     const countToday = scopedSales.filter((i) => i.date === today).length;
 
     const receivables = scopedSales.reduce((t, i) => t + invoiceDue(i), 0);
-    const payables = purchaseOrders
-      .filter((p) => inScope(p.branchId) && p.status !== 'Cancelled')
-      .reduce((t, p) => t + purchaseOrderBalanceDue(p), 0);
+    // Same as Purchases / To Pay / Parties: owed for goods received, each
+    // supplier netted against the advances it holds (PUR8-1 / PUR6-3).
+    const payables = totalVendorPayable(vendorPayables(purchaseOrders, payments, inScope));
 
     const branchesInScope = isAllBranches ? BRANCHES.map((b) => b.id) : [currentBranch];
     let cashInHand = 0;

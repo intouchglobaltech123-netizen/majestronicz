@@ -5,7 +5,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { PurchaseOrder, BRANCHES } from '../../types';
+import { PurchaseOrder, BRANCHES, poLineOpen, purchaseOrderGrandOwed } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 
@@ -50,6 +50,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const [packingChargeInput, setPackingChargeInput] = useState<string>('');
   // Optional receiving notes (e.g. Courier docket / Vendor DC)
   const [receivingNotes, setReceivingNotes] = useState('');
+  // True while the server is saving — the modal stays open until it accepts, so
+  // a refused receipt keeps everything the user typed (PUR8-7).
+  const [submitting, setSubmitting] = useState(false);
 
   // Track which PO/open-session we've already seeded inputs for, so that a
   // background live-sync re-bootstrap (which replaces the purchaseOrder object
@@ -73,9 +76,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       purchaseOrder.items.forEach((item) => {
         // Remaining nets received + damaged + missing (all settle the ordered qty),
         // matching the server — otherwise the pre-filled/validated qty is too high.
-        const settled = (item.receivedQuantity || 0) + (item.damagedQuantity || 0) + (item.missingQuantity || 0);
-        const remaining = Math.max(0, item.quantityOrdered - settled);
-        initial[item.id] = remaining;
+        initial[item.id] = poLineOpen(item);
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
         initialLocs[item.id] = currentLoc;
         initialPrices[item.id] = item.purchasePrice || 0;
@@ -97,7 +98,9 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setMissingToAssign({});
       setPayNowInput('');
       setPayMode('Cash');
+      setPackingChargeInput('');
       setReceivingNotes('');
+      setSubmitting(false);
     } else if (!isOpen) {
       // Reset the guard when the modal closes so re-opening seeds fresh.
       seededKeyRef.current = null;
@@ -108,8 +111,14 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setPerUnitInputs({});
       setDamagedToAssign({});
       setMissingToAssign({});
+      setTaxToAssign({});
+      setTaxInputs({});
       setPayNowInput('');
+      // PUR8-2: the charge belongs to ONE receipt — never carried to the next
+      // receipt or to another PO.
+      setPackingChargeInput('');
       setReceivingNotes('');
+      setSubmitting(false);
     }
     // Intentionally keyed on the PO id + open state only (not the object
     // reference or getBranchStock), to survive live-sync re-renders.
@@ -120,16 +129,23 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 
   const branchData = BRANCHES.find((b) => b.id === purchaseOrder.branchId);
 
-  const handleQtyChange = (lineId: string, valStr: string, maxAllowed: number) => {
+  // PUR8-7: good + damaged + missing on a line can never exceed what remains on
+  // it, so each input is capped by what the other two leave.
+  const lineRemaining = (lineId: string): number => {
+    const line = purchaseOrder.items.find((l) => l.id === lineId);
+    return line ? poLineOpen(line) : 0;
+  };
+  const roomFor = (lineId: string, field: 'good' | 'dmg' | 'missing'): number => {
+    const good = field === 'good' ? 0 : Number(quantitiesToReceive[lineId]) || 0;
+    const dmg = field === 'dmg' ? 0 : Number(damagedToAssign[lineId]) || 0;
+    const missing = field === 'missing' ? 0 : Number(missingToAssign[lineId]) || 0;
+    return Math.max(0, lineRemaining(lineId) - good - dmg - missing);
+  };
+
+  const handleQtyChange = (lineId: string, valStr: string) => {
     const parsed = parseInt(valStr, 10);
-    if (isNaN(parsed) || parsed < 0) {
-      setQuantitiesToReceive((prev) => ({ ...prev, [lineId]: 0 }));
-    } else {
-      setQuantitiesToReceive((prev) => ({
-        ...prev,
-        [lineId]: Math.min(parsed, maxAllowed),
-      }));
-    }
+    const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, roomFor(lineId, 'good'));
+    setQuantitiesToReceive((prev) => ({ ...prev, [lineId]: safe }));
   };
 
   // Per-unit price: hold raw text while typing, commit the parsed value on blur.
@@ -164,24 +180,25 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     });
   };
 
-  const handleDamagedChange = (lineId: string, valStr: string, maxAllowed: number) => {
+  // A damaged / missing count first takes room from the pre-filled inward qty
+  // (the units are the same physical units), then is capped at what remains.
+  const handleBillBackChange = (lineId: string, valStr: string, field: 'dmg' | 'missing') => {
     const parsed = parseInt(valStr, 10);
-    const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, maxAllowed);
-    setDamagedToAssign((prev) => ({ ...prev, [lineId]: safe }));
+    const want = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    const other = Number((field === 'dmg' ? missingToAssign : damagedToAssign)[lineId]) || 0;
+    const safe = Math.min(want, Math.max(0, lineRemaining(lineId) - other));
+    const goodNow = Number(quantitiesToReceive[lineId]) || 0;
+    const goodMax = Math.max(0, lineRemaining(lineId) - other - safe);
+    if (goodNow > goodMax) setQuantitiesToReceive((prev) => ({ ...prev, [lineId]: goodMax }));
+    (field === 'dmg' ? setDamagedToAssign : setMissingToAssign)((prev) => ({ ...prev, [lineId]: safe }));
   };
-
-  const handleMissingChange = (lineId: string, valStr: string, maxAllowed: number) => {
-    const parsed = parseInt(valStr, 10);
-    const safe = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, maxAllowed);
-    setMissingToAssign((prev) => ({ ...prev, [lineId]: safe }));
-  };
+  const handleDamagedChange = (lineId: string, valStr: string) => handleBillBackChange(lineId, valStr, 'dmg');
+  const handleMissingChange = (lineId: string, valStr: string) => handleBillBackChange(lineId, valStr, 'missing');
 
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
-      const settled = (item.receivedQuantity || 0) + (item.damagedQuantity || 0) + (item.missingQuantity || 0);
-      const remaining = Math.max(0, item.quantityOrdered - settled);
-      full[item.id] = remaining;
+      full[item.id] = Math.max(0, poLineOpen(item) - (Number(damagedToAssign[item.id]) || 0) - (Number(missingToAssign[item.id]) || 0));
     });
     setQuantitiesToReceive(full);
   };
@@ -214,20 +231,18 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const receiptTax = Math.round(receiptTotals.tax * 100) / 100;
   const packingCharge = Math.max(0, Math.round((Number(packingChargeInput) || 0) * 100) / 100);
   const receiptPayable = Math.round((receiptTaxable + receiptTax + packingCharge) * 100) / 100;
-  // What the vendor is owed on this PO INCLUDING GST: goods value + tax confirmed
-  // on earlier receipts + the tax being billed on THIS receipt (which is not in
-  // the stored totalTax until stock-in is confirmed), less debit notes. Using the
-  // ex-tax value previously showed "Fully Paid" while the GST was still owed.
-  const poDebitTotal = (purchaseOrder.debitNotes || []).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
-  const poPayableInclTax = Math.max(
-    0,
-    Math.round(((purchaseOrder.totalAmount || 0) + (purchaseOrder.totalTax || 0) + (purchaseOrder.otherCharges || 0) + receiptTax + packingCharge - poDebitTotal) * 100) / 100,
-  );
+  // What the vendor will be owed on this PO once this receipt is confirmed — the
+  // SAME formula the server stores (purchaseOrderGrandOwed: good units incl. the
+  // GST of their own receipt + charges). Damaged and missing units are never
+  // owed, so nothing is subtracted for the debit notes (PUR5-3 / PUR8-1).
+  const poOwedNow = purchaseOrderGrandOwed(purchaseOrder);
+  const poPayableInclTax = Math.round((poOwedNow + receiptPayable) * 100) / 100;
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
   const totalMissingNow = Object.values(missingToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0) return;
 
     // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
@@ -281,25 +296,25 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       if (!ok) return;
     }
 
-    receivePurchaseOrderStock(
+    setSubmitting(true);
+    const saved = await receivePurchaseOrderStock(
       purchaseOrder.id,
       receipts,
       receivingNotes,
       payNow > 0 ? { amount: payNow, mode: payMode } : undefined,
       packingCharge > 0 ? packingCharge : undefined,
     );
-
-    // Damaged goods are recorded as a vendor debit note by receivePurchaseOrderStock
-    // above. We intentionally do NOT pop open / print the bill here — the user asked
-    // that submitting not trigger an immediate print. The debit note appears in the
-    // Purchase Order detail under "Vendor Debit Notes", where a "Print Bill" button
-    // prints it on demand.
-    onClose();
+    setSubmitting(false);
+    // PUR8-7: close only once the server has accepted — a refused receipt keeps
+    // the modal open with everything the user typed (the error toast says why).
+    // Damaged goods are recorded as a vendor debit note; it appears in the PO
+    // detail under "Vendor Debit Notes" with a "Print Bill" button (no auto-print).
+    if (saved) onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-7xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -360,13 +375,16 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         {/* Scrollable Line Items Table */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
-            <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
+            <table className="w-full min-w-[1080px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-4 min-w-[240px]">Item &amp; Code</th>
+                  <th className="py-2.5 px-4 min-w-[200px]">Item &amp; Code</th>
                   <th className="py-2.5 px-3 text-center">Ordered</th>
                   <th className="py-2.5 px-3 text-center">Prev. Received</th>
                   <th className="py-2.5 px-3 text-center">Remaining</th>
+                  <th className="py-2.5 px-3 text-right w-28">Inward Now</th>
+                  <th className="py-2.5 px-3 text-right w-28 text-rose-600">Damaged (QC)</th>
+                  <th className="py-2.5 px-3 text-right w-28 text-amber-600">Missing (Short)</th>
                   <th className="py-2.5 px-3 text-right w-44">Purchase Price<br/><span className="text-[9px] font-normal lowercase text-slate-400">total for all units → per unit</span></th>
                   <th className="py-2.5 px-3 text-right w-32">GST %<br/><span className="text-[9px] font-normal lowercase text-slate-400">as billed by supplier</span></th>
                   <th className="py-2.5 px-3 text-left">
@@ -375,9 +393,6 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                       <span className="text-[11px] font-normal lowercase text-slate-400">(optional)</span>
                     </div>
                   </th>
-                  <th className="py-2.5 px-3 text-right w-28">Inward Now</th>
-                  <th className="py-2.5 px-3 text-right w-28 text-rose-600">Damaged (QC)</th>
-                  <th className="py-2.5 px-3 text-right w-28 text-amber-600">Missing (Short)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -385,8 +400,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   const ordered = line.quantityOrdered;
                   const received = line.receivedQuantity || 0;
                   // Received + damaged + missing all settle the ordered qty.
-                  const settled = received + (line.damagedQuantity || 0) + (line.missingQuantity || 0);
-                  const remaining = Math.max(0, ordered - settled);
+                  const remaining = poLineOpen(line);
                   const currentInput = quantitiesToReceive[line.id] ?? 0;
                   const isFullyReceived = remaining === 0;
 
@@ -396,7 +410,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                       className={isFullyReceived ? 'bg-slate-50/50 opacity-70' : 'hover:bg-slate-50/60 transition-colors'}
                     >
                       {/* Item Details */}
-                      <td className="py-3 px-4 align-top min-w-[240px]">
+                      <td className="py-3 px-4 align-top min-w-[200px]">
                         <div className="font-semibold text-slate-900 leading-snug">{line.itemName}</div>
                         <div className="mt-0.5 text-xs text-slate-500 font-mono flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="whitespace-nowrap">{line.itemCode}</span>
@@ -436,6 +450,62 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         </span>
                       </td>
 
+                      {/* Inward Qty Input */}
+                      <td className="py-3 px-4 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs font-medium text-slate-400 italic">Fully Inwarded</span>
+                        ) : (
+                          <div className="flex items-center justify-end">
+                            <input
+                              type="number"
+                              min={0}
+                              max={roomFor(line.id, 'good')}
+                              value={currentInput}
+                              onChange={(e) => handleQtyChange(line.id, e.target.value)}
+                              aria-label={`Inward now for ${line.itemName}`}
+                              className="w-24 text-right px-2.5 py-1.5 text-sm font-bold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            />
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Damaged / QC-reject qty (raises a vendor debit note) */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={roomFor(line.id, 'dmg')}
+                            value={damagedToAssign[line.id] ?? ''}
+                            onChange={(e) => handleDamagedChange(line.id, e.target.value)}
+                            aria-label={`Damaged for ${line.itemName}`}
+                            placeholder="0"
+                            title="Units received damaged — billed back to the vendor as a debit note"
+                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-rose-200 text-rose-700 focus:outline-hidden focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                          />
+                        )}
+                      </td>
+
+                      {/* Missing / short-shipped qty (also billed back to the vendor) */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={roomFor(line.id, 'missing')}
+                            value={missingToAssign[line.id] ?? ''}
+                            onChange={(e) => handleMissingChange(line.id, e.target.value)}
+                            aria-label={`Missing for ${line.itemName}`}
+                            placeholder="0"
+                            title="Units the vendor did not deliver (short shipment) — billed back to the vendor and settles the line"
+                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-amber-200 text-amber-700 focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                          />
+                        )}
+                      </td>
                       {/* Purchase Price — enter TOTAL for all ordered units → per-unit */}
                       <td className="py-3 px-3 text-right">
                         <div className="flex flex-col items-end gap-1">
@@ -521,59 +591,6 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                         )}
                       </td>
 
-                      {/* Inward Qty Input */}
-                      <td className="py-3 px-4 text-right">
-                        {isFullyReceived ? (
-                          <span className="text-xs font-medium text-slate-400 italic">Fully Inwarded</span>
-                        ) : (
-                          <div className="flex items-center justify-end">
-                            <input
-                              type="number"
-                              min={0}
-                              max={remaining}
-                              value={currentInput}
-                              onChange={(e) => handleQtyChange(line.id, e.target.value, remaining)}
-                              className="w-24 text-right px-2.5 py-1.5 text-sm font-bold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                            />
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Damaged / QC-reject qty (raises a vendor debit note) */}
-                      <td className="py-3 px-3 text-right">
-                        {isFullyReceived ? (
-                          <span className="text-xs text-slate-300">—</span>
-                        ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            max={remaining}
-                            value={damagedToAssign[line.id] ?? ''}
-                            onChange={(e) => handleDamagedChange(line.id, e.target.value, remaining)}
-                            placeholder="0"
-                            title="Units received damaged — billed back to the vendor as a debit note"
-                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-rose-200 text-rose-700 focus:outline-hidden focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
-                          />
-                        )}
-                      </td>
-
-                      {/* Missing / short-shipped qty (also billed back to the vendor) */}
-                      <td className="py-3 px-3 text-right">
-                        {isFullyReceived ? (
-                          <span className="text-xs text-slate-300">—</span>
-                        ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            max={remaining}
-                            value={missingToAssign[line.id] ?? ''}
-                            onChange={(e) => handleMissingChange(line.id, e.target.value, remaining)}
-                            placeholder="0"
-                            title="Units the vendor did not deliver (short shipment) — billed back to the vendor and settles the line"
-                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-amber-200 text-amber-700 focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
-                          />
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
@@ -635,10 +652,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         {(() => {
           const total = poPayableInclTax;
           const paid = purchaseOrder.amountPaid || 0;
-          const outstanding = Math.max(0, total - paid);
+          const outstanding = Math.max(0, Math.round((total - paid) * 100) / 100);
           return (
             <div className="px-6 py-2.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs shrink-0">
-              <span className="text-slate-500">Payable (incl GST): <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
+              <span className="text-slate-500" title="What the vendor is owed on this PO after this receipt: good units incl. GST + charges">PO owed after receipt (incl GST): <span className="font-bold text-slate-900 font-mono">{formatCurrency(total)}</span></span>
               <span className="text-slate-500">Paid to Vendor: <span className="font-bold text-emerald-700 font-mono">{formatCurrency(paid)}</span></span>
               <span className="text-slate-500">Outstanding: <span className={`font-bold font-mono ${outstanding > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatCurrency(outstanding)}</span></span>
               {/* Record a vendor payment now (validated before stock-in) */}
@@ -693,8 +710,8 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   Packing <span className="font-semibold font-mono text-slate-800">{formatCurrency(packingCharge)}</span>
                 </span>
               )}
-              <span>
-                Payable{' '}
+              <span title="Good units in this receipt incl. GST + packing">
+                This receipt{' '}
                 <span className="font-bold font-mono text-slate-900 text-sm">{formatCurrency(receiptPayable)}</span>
               </span>
             </span>
@@ -711,15 +728,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0}
+              disabled={submitting || (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0)}
               className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl shadow-xs transition-colors ${
-                totalUnitsReceivingNow > 0 || totalDamagedNow > 0 || totalMissingNow > 0
+                !submitting && (totalUnitsReceivingNow > 0 || totalDamagedNow > 0 || totalMissingNow > 0)
                   ? 'text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
                   : 'text-slate-400 bg-slate-200 cursor-not-allowed'
               }`}
             >
               <PackageCheck className="h-4 w-4" />
-              <span>Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}{totalMissingNow > 0 ? ` · ${totalMissingNow} missing` : ''}</span>
+              <span>{submitting ? 'Saving… ' : ''}Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}{totalMissingNow > 0 ? ` · ${totalMissingNow} missing` : ''}</span>
             </button>
           </div>
         </div>
