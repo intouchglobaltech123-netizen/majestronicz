@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { REFUND_MODES, PAYMENT_MODE_LABEL } from '../../lib/paymentModes';
 import { Invoice, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
@@ -40,7 +41,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   // not always Cash.
   const billRefundMode = (inv: Invoice | null | undefined): string => {
     const m = inv ? getInvoicePaymentSplits(inv).find((s) => s.mode !== 'COD-Credit' && (Number(s.amount) || 0) > 0)?.mode : undefined;
-    return m && ['Cash', 'GPay', 'HDFC'].includes(m) ? m : 'Cash';
+    return m && (REFUND_MODES as readonly string[]).includes(m) ? m : 'Cash';
   };
   const [refundMode, setRefundMode] = useState<string>(() => billRefundMode(invoice));
 
@@ -429,9 +430,9 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   onChange={(e) => setRefundMode(e.target.value)}
                   className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600"
                 >
-                  <option value="Cash">Cash (leaves the drawer)</option>
-                  <option value="GPay">GPay</option>
-                  <option value="HDFC">Bank / HDFC</option>
+                  {REFUND_MODES.map((m) => (
+                    <option key={m} value={m}>{m === 'Cash' ? 'Cash (leaves the drawer)' : PAYMENT_MODE_LABEL[m] || m}</option>
+                  ))}
                   <option value="Adjust">Adjusted to credit note</option>
                 </select>
               </div>

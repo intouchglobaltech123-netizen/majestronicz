@@ -1,7 +1,11 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, expenseIsEffective, BANK_DEPOSIT_CATEGORY } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { BranchScope, BRANCHES } from '../../types';
+import { isOperatingExpense, makeExpenseCategoryOf, payrollPaymentRows } from '../../lib/reportMath';
+import { modeGroup } from '../../lib/paymentModes';
+
+const PAYROLL_CATEGORY = 'Payroll (salaries paid)';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -15,50 +19,62 @@ interface Props {
 
 /** Daily-expense report: every logged expense in range, with category + branch breakdowns. */
 export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
-  const { cashRegisters } = useErp();
+  const { cashRegisters, recurringExpenses, payments, payrollRecords } = useErp();
 
+  // The same expenses as the P&L (RPT2-4): approved register expenses (never
+  // pending/rejected entries or bank deposits — a deposit moves cash to the bank,
+  // it is not spent), categorised (rent posted from a recurring template takes
+  // the template's category), plus payroll paid in the period (E2E5-12).
   const rowsData = useMemo(() => {
     const out: {
       date: string; branchId: string; category: string; reason: string;
       cash: number; gpay: number; total: number; by: string; hasBill: boolean;
     }[] = [];
-    cashRegisters.forEach((reg: any) => {
-      if (startDate && reg.date < startDate) return;
-      if (endDate && reg.date > endDate) return;
-      if (branchScope !== 'all' && reg.branchId !== branchScope) return;
-      (reg.expenses || []).forEach((e: any) => {
-        // Only real, APPROVED expenses belong in the expense report — skip
-        // pending/rejected entries, and skip bank deposits (a deposit is a cash
-        // transfer to the bank, not a business expense). Matches the P&L (RPT2-4).
-        if (!expenseIsEffective(e)) return;
-        if (e.category === BANK_DEPOSIT_CATEGORY) return;
+    const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
+    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
+    const categoryOf = makeExpenseCategoryOf(recurringExpenses);
+    cashRegisters.forEach((reg) => {
+      if (!inRange(reg.date) || !inScope(reg.branchId)) return;
+      (reg.expenses || []).forEach((e) => {
+        if (!isOperatingExpense(e)) return;
         const cash = e.cashAmount || 0;
         const gpay = e.gpayAmount || 0;
         out.push({
-          date: reg.date, branchId: reg.branchId, category: e.category || 'Uncategorised',
+          date: reg.date, branchId: reg.branchId, category: categoryOf(e),
           reason: e.reason || '', cash, gpay, total: cash + gpay, by: e.createdBy || 'Staff',
           hasBill: !!e.billUrl,
         });
       });
     });
+    for (const p of payrollPaymentRows(payments, payrollRecords, inRange, inScope)) {
+      const isCash = modeGroup(p.mode) === 'Cash';
+      out.push({
+        date: p.date, branchId: p.branchId, category: PAYROLL_CATEGORY,
+        reason: `Salary ${p.month ? `for ${p.month} ` : ''}— ${p.name} (${p.mode})`,
+        cash: isCash ? p.amount : 0, gpay: isCash ? 0 : p.amount, total: p.amount, by: 'Payroll', hasBill: false,
+      });
+    }
     return out.sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [cashRegisters, startDate, endDate, branchScope]);
+  }, [cashRegisters, recurringExpenses, payments, payrollRecords, startDate, endDate, branchScope]);
 
   const totals = useMemo(() => {
     const grand = rowsData.reduce((s, r) => s + r.total, 0);
     const cash = rowsData.reduce((s, r) => s + r.cash, 0);
     const gpay = rowsData.reduce((s, r) => s + r.gpay, 0);
+    const payroll = rowsData.filter((r) => r.category === PAYROLL_CATEGORY).reduce((s, r) => s + r.total, 0);
     const byCat: Record<string, number> = {};
     rowsData.forEach((r) => { byCat[r.category] = (byCat[r.category] || 0) + r.total; });
-    return { grand, cash, gpay, byCat: Object.entries(byCat).sort((a, b) => b[1] - a[1]) };
+    return { grand, cash, gpay, payroll, byCat: Object.entries(byCat).sort((a, b) => b[1] - a[1]) };
   }, [rowsData]);
 
   const handleExport = (fmt: ExportFormat) => {
-    const headers = ['Date', 'Branch', 'Category', 'Description', 'Cash (₹)', 'GPay (₹)', 'Total (₹)', 'By', 'Bill'];
-    const rows = rowsData.map((r) => [
+    const headers = ['Date', 'Branch', 'Category', 'Description', 'Cash (Rs)', 'GPay / Bank (Rs)', 'Total (Rs)', 'By', 'Bill'];
+    const money = (n: number) => Math.round(n * 100) / 100;
+    const rows: (string | number)[][] = rowsData.map((r) => [
       r.date, BRANCHES.find((b) => b.id === r.branchId)?.name || r.branchId, r.category, r.reason,
-      r.cash.toFixed(2), r.gpay.toFixed(2), r.total.toFixed(2), r.by, r.hasBill ? 'Yes' : '',
+      money(r.cash), money(r.gpay), money(r.total), r.by, r.hasBill ? 'Yes' : '',
     ]);
+    rows.push(['TOTAL', '', '', `${rowsData.length} entries`, money(totals.cash), money(totals.gpay), money(totals.grand), '', '']);
     const name = `expense-report-${startDate}_to_${endDate}`;
     if (fmt === 'csv') exportToCsv(name, headers, rows);
     else if (fmt === 'excel') exportToExcel(name, headers, rows);
@@ -77,10 +93,10 @@ export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchSc
       {/* Summary tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Expenses', value: formatCurrency(totals.grand), tone: 'text-rose-700' },
+          { label: 'Total (incl. payroll)', value: formatCurrency(totals.grand), tone: 'text-rose-700' },
+          { label: 'Payroll paid', value: formatCurrency(totals.payroll), tone: 'text-rose-700' },
           { label: 'Cash', value: formatCurrency(totals.cash), tone: 'text-emerald-700' },
-          { label: 'GPay', value: formatCurrency(totals.gpay), tone: 'text-blue-700' },
-          { label: 'Entries', value: String(rowsData.length), tone: 'text-slate-900' },
+          { label: 'GPay / Bank', value: formatCurrency(totals.gpay), tone: 'text-blue-700' },
         ].map((m) => (
           <div key={m.label} className="bg-white border border-slate-300 p-3 shadow-xs">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</div>
@@ -113,7 +129,7 @@ export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchSc
               <th className="py-2.5 px-3">Category</th>
               <th className="py-2.5 px-3">Description</th>
               <th className="py-2.5 px-3 text-right">Cash</th>
-              <th className="py-2.5 px-3 text-right">GPay</th>
+              <th className="py-2.5 px-3 text-right">GPay / Bank</th>
               <th className="py-2.5 px-3 text-right">Total</th>
               <th className="py-2.5 px-3">By</th>
             </tr>
@@ -123,7 +139,7 @@ export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchSc
               <tr><td colSpan={8} className="py-8 text-center text-slate-400">No expenses in this period.</td></tr>
             ) : rowsData.map((r, i) => (
               <tr key={i} className="hover:bg-slate-50/60">
-                <td className="py-2 px-3 font-mono text-slate-600">{r.date}</td>
+                <td className="py-2 px-3 font-mono text-slate-600 whitespace-nowrap">{formatDate(r.date)}</td>
                 <td className="py-2 px-3">{BRANCHES.find((b) => b.id === r.branchId)?.shortCode || r.branchId}</td>
                 <td className="py-2 px-3"><span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold">{r.category}</span></td>
                 <td className="py-2 px-3 text-slate-700 flex items-center gap-1.5">{r.reason}{r.hasBill && <Paperclip className="h-3 w-3 text-blue-500" />}</td>

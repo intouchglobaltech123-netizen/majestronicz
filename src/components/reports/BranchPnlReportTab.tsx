@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BranchScope, BRANCHES, expenseIsEffective, BANK_DEPOSIT_CATEGORY, computeInvoiceFinance, computeInvoiceCogs } from '../../types';
+import { BranchId, BranchScope, BRANCHES } from '../../types';
+import { computeProfit, ProfitLine } from '../../lib/reportMath';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -13,7 +14,10 @@ import {
   WalletCards,
   AlertCircle,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency, formatDate } from '../../lib/utils';
+
+/** Whole rupees, Indian grouping, one sign style (FMT-1). */
+const rs = (n: number) => formatCurrency(Math.round(n));
 
 interface Props {
   startDate: string;
@@ -26,113 +30,32 @@ export const BranchPnlReportTab: React.FC<Props> = ({
   endDate,
   branchScope,
 }) => {
-  const { invoices, cashRegisters, items } = useErp();
+  const { invoices, cashRegisters, items, payments, payrollRecords, recurringExpenses } = useErp();
 
-  // 1. Calculate P&L per Branch
+  // 1. P&L per branch — the ONE profit formula shared with the Dashboard
+  // (src/lib/reportMath computeProfit): ex-GST revenue net of returns and bill
+  // discount, cost of goods at the cost captured when sold, damaged returns
+  // written off, approved operating expenses (never bank deposits) and payroll
+  // paid in the period (E2E-8 / E2E5-5 / E2E5-12 / RPT2-4). The cards, the table
+  // and the export all read these figures, for the selected branch (RPT-2).
   const pnlData = useMemo(() => {
-    // Branch breakdown accumulator. A real P&L: Net Revenue (ex-GST, net of
-    // returns) − Cost of Goods Sold = Gross Profit; − Operating Expenses = Net
-    // Profit. Previously this showed GROSS, GST-inclusive sales minus register
-    // expenses only (no COGS at all), so "profit" was overstated.
-    const branchStats: Record<
-      BranchId,
-      {
-        revenue: number;   // net revenue, ex-GST, net of returns
-        cogs: number;      // cost of goods sold (combos expanded, pro-rated for returns)
-        invoiceCount: number;
-        totalExpenses: number;
-        expenseCount: number;
-        categoryExpenses: Record<string, number>;
-      }
-    > = {
-      'erode-hq': { revenue: 0, cogs: 0, invoiceCount: 0, totalExpenses: 0, expenseCount: 0, categoryExpenses: {} },
-      'coimbatore': { revenue: 0, cogs: 0, invoiceCount: 0, totalExpenses: 0, expenseCount: 0, categoryExpenses: {} },
-      'chennai': { revenue: 0, cogs: 0, invoiceCount: 0, totalExpenses: 0, expenseCount: 0, categoryExpenses: {} },
-    };
-
-    // Aggregate Sales from Invoices (excluding voided sales)
-    invoices.forEach((inv) => {
-      if (inv.isVoided) return;
-      if (startDate && inv.date < startDate) return;
-      if (endDate && inv.date > endDate) return;
-      if (branchStats[inv.branchId]) {
-        // Revenue is the taxable value net of GST (a pass-through liability, not
-        // profit) and net of returns; COGS via the shared helper (combos expanded).
-        const fin = computeInvoiceFinance(inv);
-        const grand = Number(inv.grandTotal) || 0;
-        const ratio = grand > 0 ? fin.net / grand : 1;
-        const exGstRevenue = Math.max(0, fin.net - (Number(inv.totalTax) || 0) * ratio);
-        branchStats[inv.branchId].revenue += exGstRevenue;
-        branchStats[inv.branchId].cogs += computeInvoiceCogs(inv, items);
-        branchStats[inv.branchId].invoiceCount++;
-      }
+    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
+    const { total, byBranch } = computeProfit({
+      invoices, items, registers: cashRegisters, payments, payrollRecords, recurringTemplates: recurringExpenses, startDate, endDate, inScope,
     });
-
-    // Aggregate Operating Expenses from Daily Cash Registers
-    cashRegisters.forEach((reg) => {
-      if (startDate && reg.date < startDate) return;
-      if (endDate && reg.date > endDate) return;
-      if (branchStats[reg.branchId]) {
-        reg.expenses.forEach((exp) => {
-          // Only real, approved operating expenses count. Skip pending/rejected
-          // entries and bank deposits — a deposit is a cash transfer, not an
-          // expense (RPT2-4).
-          if (!expenseIsEffective(exp)) return;
-          if (exp.category === BANK_DEPOSIT_CATEGORY) return;
-          const expAmt = (exp.cashAmount || 0) + (exp.gpayAmount || 0);
-          branchStats[reg.branchId].totalExpenses += expAmt;
-          branchStats[reg.branchId].expenseCount++;
-          // Group by the structured category field (matching the Expense Report),
-          // not the free-text reason, so the two reports agree (RPT-8).
-          const cat = exp.category || 'Uncategorised';
-          branchStats[reg.branchId].categoryExpenses[cat] =
-            (branchStats[reg.branchId].categoryExpenses[cat] || 0) + expAmt;
-        });
-      }
+    const blank = (): ProfitLine => ({
+      revenue: 0, cogs: 0, writeOff: 0, grossProfit: 0, expenses: 0, payroll: 0, netProfit: 0, invoiceCount: 0, expenseCount: 0, categoryExpenses: {},
     });
-
-    // Compute consolidated totals
-    let consolidatedRevenue = 0;
-    let consolidatedCogs = 0;
-    let consolidatedExpenses = 0;
-    let consolidatedInvoices = 0;
-    let consolidatedExpenseCount = 0;
-    const consolidatedCategories: Record<string, number> = {};
-
-    // The summary cards must reflect the branch chosen in the top selector — sum
-    // only the in-scope branch(es), not always all three (the cards used to ignore
-    // the selected branch while the per-branch table respected it).
-    BRANCHES.filter((b) => branchScope === 'all' || b.id === branchScope).forEach((b) => {
-      const bStat = branchStats[b.id];
-      consolidatedRevenue += bStat.revenue;
-      consolidatedCogs += bStat.cogs;
-      consolidatedExpenses += bStat.totalExpenses;
-      consolidatedInvoices += bStat.invoiceCount;
-      consolidatedExpenseCount += bStat.expenseCount;
-
-      Object.entries(bStat.categoryExpenses).forEach(([cat, amt]) => {
-        consolidatedCategories[cat] = (consolidatedCategories[cat] || 0) + amt;
-      });
-    });
-
-    const consolidatedGrossProfit = consolidatedRevenue - consolidatedCogs;
-    const consolidatedNetProfit = consolidatedGrossProfit - consolidatedExpenses;
-
+    const branchStats = Object.fromEntries(BRANCHES.map((b) => [b.id, byBranch[b.id] || blank()])) as Record<BranchId, ProfitLine>;
     return {
       branchStats,
       consolidated: {
-        revenue: consolidatedRevenue,
-        cogs: consolidatedCogs,
-        grossProfit: consolidatedGrossProfit,
-        totalExpenses: consolidatedExpenses,
-        netProfit: consolidatedNetProfit,
-        marginPct: consolidatedRevenue > 0 ? (consolidatedNetProfit / consolidatedRevenue) * 100 : 0,
-        invoiceCount: consolidatedInvoices,
-        expenseCount: consolidatedExpenseCount,
-        categoryExpenses: consolidatedCategories,
+        ...total,
+        totalExpenses: total.expenses,
+        marginPct: total.revenue > 0 ? (total.netProfit / total.revenue) * 100 : 0,
       },
     };
-  }, [invoices, cashRegisters, items, startDate, endDate, branchScope]);
+  }, [invoices, cashRegisters, items, payments, payrollRecords, recurringExpenses, startDate, endDate, branchScope]);
 
   const displayedBranches = useMemo(() => {
     if (branchScope === 'all') return BRANCHES;
@@ -142,22 +65,18 @@ export const BranchPnlReportTab: React.FC<Props> = ({
   // Per-branch derived P&L lines (so the table/cards/CSV all agree).
   const branchPnl = (id: BranchId) => {
     const s = pnlData.branchStats[id];
-    const grossProfit = s.revenue - s.cogs;
-    const netProfit = grossProfit - s.totalExpenses;
     return {
-      revenue: s.revenue,
-      cogs: s.cogs,
-      grossProfit,
-      totalExpenses: s.totalExpenses,
-      netProfit,
-      marginPct: s.revenue > 0 ? (netProfit / s.revenue) * 100 : 0,
+      ...s,
+      totalExpenses: s.expenses,
+      marginPct: s.revenue > 0 ? (s.netProfit / s.revenue) * 100 : 0,
     };
   };
 
   const hasAnyActivity =
     pnlData.consolidated.revenue > 0 ||
     pnlData.consolidated.cogs > 0 ||
-    pnlData.consolidated.totalExpenses > 0;
+    pnlData.consolidated.totalExpenses > 0 ||
+    pnlData.consolidated.payroll > 0;
 
   const handleExport = (format: ExportFormat = 'csv') => {
     if (!hasAnyActivity) return;
@@ -173,69 +92,36 @@ export const BranchPnlReportTab: React.FC<Props> = ({
 
     const rows: (string | number)[][] = [];
     const cons = pnlData.consolidated;
-
-    // Net Revenue (ex-GST, net of returns)
-    rows.push([
-      'Net Revenue ex-GST (₹)',
-      ...displayedBranches.map((b) => branchPnl(b.id).revenue.toFixed(2)),
-      ...(branchScope === 'all' ? [cons.revenue.toFixed(2)] : []),
+    const money = (n: number) => Math.round(n * 100) / 100; // numbers stay numbers in Excel (RPT2-6)
+    const line = (label: string, pick: (l: ProfitLine) => number) => rows.push([
+      label,
+      ...displayedBranches.map((b) => money(pick(pnlData.branchStats[b.id]))),
+      ...(branchScope === 'all' ? [money(pick(cons))] : []),
     ]);
 
-    // Invoices count
-    rows.push([
-      'Invoice Count',
-      ...displayedBranches.map((b) => pnlData.branchStats[b.id].invoiceCount),
-      ...(branchScope === 'all' ? [cons.invoiceCount] : []),
-    ]);
-
-    // Cost of Goods Sold
-    rows.push([
-      'Cost of Goods Sold (₹)',
-      ...displayedBranches.map((b) => branchPnl(b.id).cogs.toFixed(2)),
-      ...(branchScope === 'all' ? [cons.cogs.toFixed(2)] : []),
-    ]);
-
-    // Gross Profit
-    rows.push([
-      'Gross Profit (₹)',
-      ...displayedBranches.map((b) => branchPnl(b.id).grossProfit.toFixed(2)),
-      ...(branchScope === 'all' ? [cons.grossProfit.toFixed(2)] : []),
-    ]);
-
-    // Operating Expenses
-    rows.push([
-      'Operating Expenses (₹)',
-      ...displayedBranches.map((b) => branchPnl(b.id).totalExpenses.toFixed(2)),
-      ...(branchScope === 'all' ? [cons.totalExpenses.toFixed(2)] : []),
-    ]);
-
-    // Net Profit
-    rows.push([
-      'Net Profit (₹)',
-      ...displayedBranches.map((b) => branchPnl(b.id).netProfit.toFixed(2)),
-      ...(branchScope === 'all' ? [cons.netProfit.toFixed(2)] : []),
-    ]);
-
-    // Net Margin %
-    rows.push([
-      'Net Margin (%)',
-      ...displayedBranches.map((b) => `${branchPnl(b.id).marginPct.toFixed(1)}%`),
-      ...(branchScope === 'all' ? [`${cons.marginPct.toFixed(1)}%`] : []),
-    ]);
+    line('Net Revenue ex-GST (Rs)', (l) => l.revenue);
+    line('Invoice Count', (l) => l.invoiceCount);
+    line('Cost of Goods Sold (Rs)', (l) => l.cogs);
+    line('Damaged Goods Written Off (Rs)', (l) => l.writeOff);
+    line('Gross Profit (Rs)', (l) => l.grossProfit);
+    line('Operating Expenses (Rs)', (l) => l.expenses);
+    line('Payroll Paid (Rs)', (l) => l.payroll);
+    line('Net Profit (Rs)', (l) => l.netProfit);
+    line('Net Margin (%)', (l) => (l.revenue > 0 ? (l.netProfit / l.revenue) * 100 : 0));
 
     // Detailed Expense Categories Section
     rows.push([]);
     rows.push(['--- EXPENSES BY CATEGORY ---']);
     const allCategories = new Set<string>();
-    Object.values(pnlData.branchStats).forEach((b) => {
-      Object.keys(b.categoryExpenses).forEach((cat) => allCategories.add(cat));
+    displayedBranches.forEach((b) => {
+      Object.keys(pnlData.branchStats[b.id].categoryExpenses).forEach((cat) => allCategories.add(cat));
     });
 
     allCategories.forEach((cat) => {
       rows.push([
         cat,
-        ...displayedBranches.map((b) => (pnlData.branchStats[b.id].categoryExpenses[cat] || 0).toFixed(2)),
-        ...(branchScope === 'all' ? [(pnlData.consolidated.categoryExpenses[cat] || 0).toFixed(2)] : []),
+        ...displayedBranches.map((b) => money(pnlData.branchStats[b.id].categoryExpenses[cat] || 0)),
+        ...(branchScope === 'all' ? [money(pnlData.consolidated.categoryExpenses[cat] || 0)] : []),
       ]);
     });
 
@@ -256,7 +142,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
             <span>Branch-Wise Profit & Loss (P&L)</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Net revenue (ex-GST) − cost of goods sold − operating expenses, {startDate} to {endDate}
+            Net revenue (ex-GST) − cost of goods sold − write-offs − operating expenses − payroll, {formatDate(startDate)} to {formatDate(endDate)}
           </p>
         </div>
 
@@ -280,7 +166,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                 Net Revenue (ex-GST)
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-blue-700 mt-1">
-                ₹{pnlData.consolidated.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(pnlData.consolidated.revenue)}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
                 {pnlData.consolidated.invoiceCount} invoices · net of GST &amp; returns
@@ -292,10 +178,10 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                 Cost of Goods Sold
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">
-                ₹{pnlData.consolidated.cogs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(pnlData.consolidated.cogs)}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
-                Gross profit ₹{pnlData.consolidated.grossProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                Gross profit {rs(pnlData.consolidated.grossProfit)}
               </span>
             </div>
 
@@ -304,10 +190,10 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                 Operating Expenses
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-rose-700 mt-1">
-                ₹{pnlData.consolidated.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(pnlData.consolidated.totalExpenses)}
               </p>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
-                {pnlData.consolidated.expenseCount} register expense entries
+                {pnlData.consolidated.expenseCount} register entries · payroll paid {rs(pnlData.consolidated.payroll)}
               </span>
             </div>
 
@@ -322,7 +208,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     pnlData.consolidated.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
                   )}
                 >
-                  ₹{pnlData.consolidated.netProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  {rs(pnlData.consolidated.netProfit)}
                 </p>
                 <span
                   className={cn(
@@ -336,7 +222,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                 </span>
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
-                Revenue − COGS − expenses
+                Gross profit − expenses − payroll
               </span>
             </div>
           </div>
@@ -380,12 +266,12 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-blue-700">
-                        ₹{branchPnl(b.id).revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {rs(branchPnl(b.id).revenue)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-blue-900 bg-blue-50/20 text-sm">
-                        ₹{pnlData.consolidated.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {rs(pnlData.consolidated.revenue)}
                       </td>
                     )}
                   </tr>
@@ -413,27 +299,42 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-amber-700">
-                        −₹{branchPnl(b.id).cogs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        −{rs(branchPnl(b.id).cogs)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-amber-800 bg-blue-50/20 text-sm">
-                        −₹{pnlData.consolidated.cogs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        −{rs(pnlData.consolidated.cogs)}
+                      </td>
+                    )}
+                  </tr>
+
+                  {/* Damaged write-off: a damaged return is a loss, not recovered (E2E5-5) */}
+                  <tr className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2.5 px-4 pl-8 text-[11px] font-semibold text-slate-700">Damaged Goods Written Off</td>
+                    {displayedBranches.map((b) => (
+                      <td key={b.id} className="py-2.5 px-4 text-right text-[11px] font-bold text-amber-700">
+                        −{rs(branchPnl(b.id).writeOff)}
+                      </td>
+                    ))}
+                    {branchScope === 'all' && (
+                      <td className="py-2.5 px-4 text-right text-[11px] font-bold text-amber-800 bg-blue-50/10">
+                        −{rs(pnlData.consolidated.writeOff)}
                       </td>
                     )}
                   </tr>
 
                   {/* Gross Profit */}
                   <tr className="hover:bg-slate-50/80 transition-colors text-slate-700">
-                    <td className="py-2.5 px-4 pl-8 text-[11px] font-semibold">Gross Profit (Revenue − COGS)</td>
+                    <td className="py-2.5 px-4 pl-8 text-[11px] font-semibold">Gross Profit (Revenue − COGS − write-off)</td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-2.5 px-4 text-right text-[11px] font-bold">
-                        ₹{branchPnl(b.id).grossProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {rs(branchPnl(b.id).grossProfit)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-2.5 px-4 text-right text-[11px] font-bold bg-blue-50/10">
-                        ₹{pnlData.consolidated.grossProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {rs(pnlData.consolidated.grossProfit)}
                       </td>
                     )}
                   </tr>
@@ -446,12 +347,30 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                     </td>
                     {displayedBranches.map((b) => (
                       <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-rose-700">
-                        −₹{branchPnl(b.id).totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        −{rs(branchPnl(b.id).totalExpenses)}
                       </td>
                     ))}
                     {branchScope === 'all' && (
                       <td className="py-3.5 px-4 text-right font-extrabold text-rose-900 bg-blue-50/20 text-sm">
-                        −₹{pnlData.consolidated.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        −{rs(pnlData.consolidated.totalExpenses)}
+                      </td>
+                    )}
+                  </tr>
+
+                  {/* Payroll paid in the period (E2E5-12) */}
+                  <tr className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-slate-800 flex items-center gap-2">
+                      <TrendingDown className="h-3.5 w-3.5 text-rose-600" />
+                      <span>Payroll Paid</span>
+                    </td>
+                    {displayedBranches.map((b) => (
+                      <td key={b.id} className="py-3.5 px-4 text-right font-extrabold text-rose-700">
+                        −{rs(branchPnl(b.id).payroll)}
+                      </td>
+                    ))}
+                    {branchScope === 'all' && (
+                      <td className="py-3.5 px-4 text-right font-extrabold text-rose-900 bg-blue-50/20 text-sm">
+                        −{rs(pnlData.consolidated.payroll)}
                       </td>
                     )}
                   </tr>
@@ -459,7 +378,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                   {/* Net Profit */}
                   <tr className="hover:bg-slate-50/80 transition-colors bg-slate-50/40 font-bold">
                     <td className="py-3.5 px-4 text-slate-900 font-extrabold">
-                      Net Profit (Gross Profit − Expenses)
+                      Net Profit (Gross Profit − Expenses − Payroll)
                     </td>
                     {displayedBranches.map((b) => {
                       const net = branchPnl(b.id).netProfit;
@@ -471,7 +390,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                             net >= 0 ? 'text-emerald-700' : 'text-rose-700'
                           )}
                         >
-                          ₹{net.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          {rs(net)}
                         </td>
                       );
                     })}
@@ -482,7 +401,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                           pnlData.consolidated.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
                         )}
                       >
-                        ₹{pnlData.consolidated.netProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {rs(pnlData.consolidated.netProfit)}
                       </td>
                     )}
                   </tr>
@@ -534,7 +453,7 @@ export const BranchPnlReportTab: React.FC<Props> = ({
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-800">{category}</span>
                         <span className="font-extrabold text-rose-700">
-                          ₹{amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          {rs(amount)}
                         </span>
                       </div>
 

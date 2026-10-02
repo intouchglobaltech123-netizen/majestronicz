@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchScope, BRANCHES, Invoice, computeInvoiceFinance, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
+import { gstCollected } from '../../lib/reportMath';
 
 const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 import {
@@ -140,7 +141,9 @@ export const ReportsView: React.FC = () => {
     const scoped = invoices.filter((i) => !i.isVoided && inScope(i.branchId));
     const periodInv = scoped.filter((i) => inRange(i.date || ''));
     const sales = periodInv.reduce((t, i) => t + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)), 0);
-    const tax = periodInv.filter((i) => i.withGst).reduce((t, i) => t + (i.totalTax || 0), 0);
+    // The ONE 'GST collected' figure (net of returns and bill discount, IGST
+    // included) — the same as the Sales register and the GST tab (RPT5-1).
+    const tax = gstCollected(periodInv).tax;
     const receivables = scoped.reduce((t, i) => t + invoiceDue(i), 0);
     const payables = totalVendorPayable(vendorPayables(purchaseOrders, payments, inScope));
     return { sales, tax, receivables, payables, bills: periodInv.length };
@@ -282,7 +285,7 @@ export const ReportsView: React.FC = () => {
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>
               <p className="text-lg font-bold text-emerald-700 mt-1 font-mono">{formatCurrency(summary.tax)}</p>
-              <span className="text-[11px] text-slate-400">On taxable invoices</span>
+              <span className="text-[11px] text-slate-400">Net of returns &amp; discounts, incl. IGST</span>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">To Collect</span>

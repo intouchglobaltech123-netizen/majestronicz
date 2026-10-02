@@ -4,8 +4,11 @@ import { useErp } from '../../context/ErpContext';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import type { PaymentAllocation } from '../../types';
+import { RECEIPT_MODES, STORE_CREDIT_MODE } from '../../lib/paymentModes';
 
-const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Cheque'];
+// One shared list of modes (E2E5-3): the sale modes (Cash, GPay, HDFC) first,
+// then UPI / Card / Bank Transfer / Cheque.
+const PAYMENT_MODES: string[] = [...RECEIPT_MODES];
 
 /** A document (invoice or purchase order) this payment can be applied to. */
 export interface OutstandingDoc {
@@ -47,7 +50,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     return customers.find((c) => c.id === partyId)?.creditBalance || 0;
   }, [type, partyType, partyId, customers]);
   const paymentModes = useMemo(
-    () => (creditAvailable > 0 ? [...PAYMENT_MODES, 'Store Credit'] : PAYMENT_MODES),
+    () => (creditAvailable > 0 ? [...PAYMENT_MODES, STORE_CREDIT_MODE] : PAYMENT_MODES),
     [creditAvailable]
   );
 

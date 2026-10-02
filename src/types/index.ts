@@ -1444,45 +1444,6 @@ export const computeInvoiceFinance = (
 };
 
 /**
- * Cost of goods sold for one invoice, net of returns, with combos expanded to
- * their component costs. A combo line carries no own itemId (only
- * comboComponents), so a naive item-master lookup counts it at ZERO cost and
- * inflates profit (E2E-8) — this expands each combo into its components. Cost
- * comes from the item master's purchasePrice (invoice lines don't store a
- * captured cost), resolved by id, then code, then name. Pro-rated by the
- * un-returned fraction so a returned unit's cost is backed out with its revenue.
- * Shared by the Dashboard profit KPI and the Branch P&L so they agree.
- */
-export const computeInvoiceCogs = (
-  inv: Pick<Invoice, 'items' | 'grandTotal' | 'totalReturnedAmount' | 'isVoided'>,
-  items: Pick<Item, 'id' | 'itemCode' | 'itemName' | 'purchasePrice'>[],
-): number => {
-  if (inv.isVoided) return 0;
-  const byId = new Map(items.map((i) => [i.id, i] as const));
-  const byCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode as string, i] as const));
-  const byName = new Map(items.map((i) => [(i.itemName || '').toLowerCase(), i] as const));
-  const costById = (id?: string): number => (id ? byId.get(id)?.purchasePrice || 0 : 0);
-  const gross = Number(inv.grandTotal) || 0;
-  const returns = Math.min(gross, Number(inv.totalReturnedAmount) || 0);
-  const ratio = gross > 0 ? (gross - returns) / gross : 1;
-  let cogs = 0;
-  for (const li of ((inv.items || []) as any[])) {
-    if (li.isCombo && Array.isArray(li.comboComponents) && li.comboComponents.length) {
-      for (const c of li.comboComponents) {
-        cogs += (Number(c.quantity) || 0) * (Number(li.quantity) || 0) * costById(c.itemId);
-      }
-    } else {
-      const it =
-        byId.get(li.itemId) ||
-        (li.itemCode ? byCode.get(li.itemCode) : undefined) ||
-        byName.get((li.itemName || '').toLowerCase());
-      cogs += (Number(li.quantity) || 0) * (it?.purchasePrice || 0);
-    }
-  }
-  return Math.round(cogs * ratio * 100) / 100;
-};
-
-/**
  * What a vendor is owed on a PO — the ONE formula (PUR8-1), mirrored EXACTLY from
  * backend/src/lib/poMoney.ts (change both together):
  *

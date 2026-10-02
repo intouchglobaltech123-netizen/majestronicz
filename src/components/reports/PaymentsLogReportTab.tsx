@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, getInvoicePaymentSplits, expenseIsEffective } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { BranchScope, BRANCHES } from '../../types';
+import { buildPaymentsLog } from '../../lib/paymentsLog';
+import { formatCurrency, formatDate } from '../../lib/utils';
+import { modeGroup } from '../../lib/paymentModes';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -13,149 +15,29 @@ interface Props {
   branchScope: BranchScope;
 }
 
-type PayRow = {
-  date: string;
-  direction: 'IN' | 'OUT';
-  type: string;
-  party: string;
-  mode: string;
-  amount: number;
-  ref: string;
-  branchId: string;
-};
-
-/** Payments log: every rupee in (sales receipts, advances) and out (vendor payments, expenses). */
+/** Payments log: every rupee in (sales receipts, advances) and out (refunds, vendor payments, salaries, expenses). */
 export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, branchScope }) => {
   const { invoices, purchaseOrders, pendingOrders, cashRegisters, payments } = useErp();
 
-  const rows = useMemo(() => {
-    const out: PayRow[] = [];
-
-    // Invoices that already have a real refund Payment 'out' row (processReturn
-    // now books the refund to the ledger on the return day, in its actual mode).
-    // For those we must NOT also emit a synthetic refund from totalReturnedAmount,
-    // or the same refund is counted twice (CRM6-9).
-    const refundedInvoiceIds = new Set<string>();
-    // POs that already have a real vendor Payment 'out' row — their payments must
-    // NOT also be emitted from po.payments, or each vendor payment is counted
-    // twice (recordPurchaseOrderPayment writes BOTH a Payment row and a po.payments
-    // entry). CRM6-9 / "Payments Log lists each vendor payment twice".
-    const vendorPaidPoIds = new Set<string>();
-    payments.forEach((p: any) => {
-      if (p.type !== 'out') return;
-      if (p.partyType === 'customer') {
-        (p.allocations || []).forEach((a: any) => a?.refId && refundedInvoiceIds.add(a.refId));
-      } else {
-        (p.allocations || []).forEach((a: any) => a?.refId && vendorPaidPoIds.add(a.refId));
-      }
-    });
-
-    // Sales receipts (money IN) — actual amounts received per mode (skip COD-Credit dues).
-    invoices.forEach((inv: any) => {
-      if (inv.isVoided) return;
-      getInvoicePaymentSplits(inv).forEach((s) => {
-        if (!s.amount || s.mode === 'COD-Credit') return;
-        out.push({
-          date: inv.date, direction: 'IN', type: 'Sale receipt', party: inv.customerName,
-          mode: s.mode, amount: Number(s.amount) || 0, ref: inv.invoiceNumber, branchId: inv.branchId,
-        });
-      });
-      // Sale refund (money OUT). Only synthesise it for LEGACY returns with no
-      // real refund Payment row — otherwise the ledger row below is the source of
-      // truth (correct date + mode) and this would double-count it.
-      const refunded = Number(inv.totalReturnedAmount) || 0;
-      if (refunded > 0 && !refundedInvoiceIds.has(inv.id)) {
-        out.push({
-          date: inv.date, direction: 'OUT', type: 'Sale refund', party: inv.customerName,
-          mode: '—', amount: refunded, ref: inv.invoiceNumber, branchId: inv.branchId,
-        });
-      }
-    });
-
-    // Party-ledger payments — customer receipts / refunds (type 'in'/'out' on a
-    // customer) & vendor payments (type 'out' on a vendor).
-    payments.forEach((p: any) => {
-      const amount = Number(p.amount) || 0;
-      if (!amount) return;
-      // A 'Store Credit' receipt spends money already received (an advance or an
-      // over-payment logged when it came in) — listing it again double-counts it.
-      if (p.type === 'in' && /store\s*credit/i.test(p.paymentMode || '')) return;
-      const type =
-        p.type === 'in' ? 'Customer receipt' : p.partyType === 'customer' ? 'Sale refund' : 'Vendor payment';
-      out.push({
-        date: (p.date || p.createdAt || '').slice(0, 10),
-        direction: p.type === 'in' ? 'IN' : 'OUT',
-        type,
-        party: p.partyName,
-        mode: p.paymentMode || 'Cash',
-        amount,
-        ref: p.receiptNumber,
-        branchId: p.branchId,
-      });
-    });
-
-    // Advance payments on pending orders (money IN)
-    // Only LEGACY advances (taken before advances became real receipts) — a
-    // current advance is a Payment row above, and listing both double-counts it
-    // (CRM2-8).
-    const advanceRefs = new Set(
-      payments.filter((p: any) => p.type === 'in' && String(p.notes || '').startsWith('Advance on pending order')).map((p: any) => p.reference),
-    );
-    pendingOrders.forEach((po: any) => {
-      if (!po.advanceAmount || po.advanceAmount <= 0) return;
-      if (advanceRefs.has(po.orderNumber)) return;
-      out.push({
-        date: (po.advancePaidAt || po.createdAt || '').slice(0, 10), direction: 'IN', type: 'Advance',
-        party: po.customerName, mode: po.advanceMode || 'Cash', amount: po.advanceAmount,
-        ref: po.orderNumber, branchId: po.branchId,
-      });
-    });
-
-    // Vendor payments (money OUT) — only for POs WITHOUT a real Payment 'out' row
-    // (legacy payments recorded before the ledger existed); the rest come from the
-    // Payment rows above, so emitting both would double-count them.
-    purchaseOrders.forEach((po: any) => {
-      if (vendorPaidPoIds.has(po.id)) return;
-      (po.payments || []).forEach((p: any) => {
-        out.push({
-          date: p.date, direction: 'OUT', type: 'Vendor payment', party: po.vendorName,
-          mode: p.mode || 'Cash', amount: Number(p.amount) || 0, ref: po.poNumber, branchId: po.branchId,
-        });
-      });
-    });
-
-    // Expenses (money OUT) — cash & gpay logged separately. Only EFFECTIVE expenses
-    // hit the drawer; skip pending / rejected bank deposits (they aren't money out yet).
-    cashRegisters.forEach((reg: any) => {
-      (reg.expenses || []).forEach((e: any) => {
-        if (!expenseIsEffective(e)) return;
-        if (e.cashAmount > 0) out.push({ date: reg.date, direction: 'OUT', type: 'Expense', party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'Cash', amount: e.cashAmount, ref: '', branchId: reg.branchId });
-        if (e.gpayAmount > 0) out.push({ date: reg.date, direction: 'OUT', type: 'Expense', party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'GPay', amount: e.gpayAmount, ref: '', branchId: reg.branchId });
-      });
-    });
-
-    return out
-      .filter((r) => {
-        if (startDate && r.date < startDate) return false;
-        if (endDate && r.date > endDate) return false;
-        if (branchScope !== 'all' && r.branchId !== branchScope) return false;
-        return true;
-      })
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [invoices, purchaseOrders, pendingOrders, cashRegisters, payments, startDate, endDate, branchScope]);
+  const rows = useMemo(
+    () => buildPaymentsLog({ invoices, payments, purchaseOrders, pendingOrders, cashRegisters, startDate, endDate, branchScope }),
+    [invoices, purchaseOrders, pendingOrders, cashRegisters, payments, startDate, endDate, branchScope],
+  );
 
   const totals = useMemo(() => {
     const inTotal = rows.filter((r) => r.direction === 'IN').reduce((s, r) => s + r.amount, 0);
     const outTotal = rows.filter((r) => r.direction === 'OUT').reduce((s, r) => s + r.amount, 0);
     const byMode: Record<string, number> = {};
-    rows.filter((r) => r.direction === 'IN').forEach((r) => { byMode[r.mode] = (byMode[r.mode] || 0) + r.amount; });
+    // Grouped by where the money lands, the same groups as the Dashboard and the
+    // Sales register (E2E5-3).
+    rows.filter((r) => r.direction === 'IN').forEach((r) => { const g = modeGroup(r.mode); byMode[g] = (byMode[g] || 0) + r.amount; });
     return { inTotal, outTotal, net: inTotal - outTotal, byMode: Object.entries(byMode).sort((a, b) => b[1] - a[1]) };
   }, [rows]);
 
   const handleExport = (fmt: ExportFormat) => {
-    const headers = ['Date', 'In/Out', 'Type', 'Party / Detail', 'Mode', 'Amount (₹)', 'Reference', 'Branch'];
+    const headers = ['Date', 'In/Out', 'Type', 'Party / Detail', 'Mode', 'Amount (Rs)', 'Reference', 'Branch'];
     const data = rows.map((r) => [
-      r.date, r.direction, r.type, r.party, r.mode, r.amount.toFixed(2), r.ref,
+      r.date, r.direction, r.type, r.party, r.mode, Math.round(r.amount * 100) / 100, r.ref,
       BRANCHES.find((b) => b.id === r.branchId)?.name || r.branchId,
     ]);
     const name = `payments-log-${startDate}_to_${endDate}`;
@@ -171,7 +53,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
           <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
             <Banknote className="h-4 w-4 text-red-600" /> Payments Log
           </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">Every payment in (sales, advances) and out (vendor payments, expenses).</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Every payment in (sales, receipts, advances) and out (refunds, vendor payments, salaries, expenses).</p>
         </div>
         <ReportExportButtons onExport={handleExport} disabled={rows.length === 0} />
       </div>
@@ -224,7 +106,7 @@ export const PaymentsLogReportTab: React.FC<Props> = ({ startDate, endDate, bran
               <tr><td colSpan={7} className="py-8 text-center text-slate-400">No payments in this period.</td></tr>
             ) : rows.map((r, i) => (
               <tr key={i} className="hover:bg-slate-50/60">
-                <td className="py-2 px-3 font-mono text-slate-500 whitespace-nowrap">{r.date}</td>
+                <td className="py-2 px-3 font-mono text-slate-500 whitespace-nowrap">{formatDate(r.date)}</td>
                 <td className="py-2 px-3">
                   {r.direction === 'IN' ? (
                     <span className="inline-flex items-center gap-1 text-emerald-700 font-bold"><ArrowDownCircle className="h-3.5 w-3.5" /> IN</span>

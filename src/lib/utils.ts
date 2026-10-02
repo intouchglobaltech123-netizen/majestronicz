@@ -5,13 +5,46 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * THE money formatter (FMT-1): Indian grouping, the ₹ sign before the minus
+ * ("-₹27,922", never "₹-27,922"), whole rupees without decimals and anything
+ * else to exactly two decimals ("₹3,645.90", not "₹3,645.9"). A value that
+ * rounds to zero paise shows as "₹0", never "-₹0".
+ */
 export function formatCurrency(amount: number): string {
+  const v = Math.round((Number(amount) || 0) * 100) / 100;
+  const whole = Number.isInteger(v);
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  }).format(amount);
+    maximumFractionDigits: whole ? 0 : 2,
+    minimumFractionDigits: whole ? 0 : 2,
+  }).format(v === 0 ? 0 : v);
+}
+
+/** A plain number with Indian grouping ("1,82,295.50"); decimals as given. */
+export function formatNumber(n: number, decimals = 2): string {
+  const v = Number(n) || 0;
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(v === 0 ? 0 : v);
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * THE date formatter for screens, exports and printouts (FMT-1): "02 Oct 2026".
+ * Accepts a YYYY-MM-DD business date (taken as is, no time-zone shift) or an
+ * ISO timestamp (shown on its India date). Anything else is returned unchanged.
+ */
+export function formatDate(value?: string | null): string {
+  if (!value) return '';
+  let ymd = value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const t = Date.parse(value);
+    if (Number.isNaN(t)) return value;
+    ymd = new Date(t + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  const [y, m, d] = ymd.split('-');
+  return `${d} ${MONTHS_SHORT[Number(m) - 1] || m} ${y}`;
 }
 
 /**

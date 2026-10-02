@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES, PaymentMode, getInvoicePaymentSplits } from '../../types';
+import { BranchScope, BRANCHES } from '../../types';
+import { gstCollected, productSales } from '../../lib/reportMath';
+import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -16,7 +18,10 @@ import {
   AlertCircle,
   Award,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency, formatDate } from '../../lib/utils';
+
+/** Whole rupees, Indian grouping (FMT-1). */
+const rs = (n: number) => formatCurrency(Math.round(n));
 
 interface Props {
   startDate: string;
@@ -49,91 +54,34 @@ export const SalesReportTab: React.FC<Props> = ({
     });
   }, [invoices, startDate, endDate, branchScope]);
 
-  // Aggregate Sales Metrics
+  // Aggregate Sales Metrics — through the shared report maths, so GST, product
+  // figures and the payment-mode mix match the GST tab, the Reports header, the
+  // Dashboard and the Payments Log (RPT5-1 / RPT8-1 / RPT-1 / RPT5-3 / SAL6-2).
+  const { payments } = useErp();
   const summary = useMemo(() => {
     let totalGross = 0;
     let totalReturns = 0;
-    let totalTaxable = 0;
-    let totalTax = 0;
     let loyaltyRewardCount = 0;
     let loyaltyDiscountGivenTotal = 0;
-
-    const paymentModes: Record<PaymentMode, { count: number; total: number }> = {
-      HDFC: { count: 0, total: 0 },
-      Cash: { count: 0, total: 0 },
-      GPay: { count: 0, total: 0 },
-      'COD-Credit': { count: 0, total: 0 },
-    };
-
-    // Item-level performance accumulator
-    const itemMap = new Map<
-      string,
-      {
-        itemId?: string;
-        itemName: string;
-        itemCode: string;
-        isCombo?: boolean;
-        quantity: number;
-        revenue: number;
-      }
-    >();
 
     filteredInvoices.forEach((inv) => {
       totalGross += inv.grandTotal;
       totalReturns += inv.totalReturnedAmount || 0;
-      totalTaxable += inv.subtotal;
-      totalTax += inv.totalCgst + inv.totalSgst;
-
       if (inv.isLoyaltyRewardApplied) {
         loyaltyRewardCount++;
         loyaltyDiscountGivenTotal += (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0);
       }
-
-      // Returns reduce the amount that actually reconciles to each payment mode and
-      // to product revenue, so pro-rate everything below by the net-of-returns
-      // fraction (RPT-1).
-      const grand = inv.grandTotal || 0;
-      const returned = Math.min(grand, inv.totalReturnedAmount || 0);
-      const ratio = grand > 0 ? (grand - returned) / grand : 1;
-
-      const splits = getInvoicePaymentSplits(inv);
-      const modesCountedThisBill = new Set<PaymentMode>();
-      splits.forEach((split) => {
-        if (paymentModes[split.mode]) {
-          // Count each BILL once per mode, not each split — two Cash splits on one
-          // bill is still one cash bill (RPT-4).
-          if (!modesCountedThisBill.has(split.mode)) {
-            paymentModes[split.mode].count++;
-            modesCountedThisBill.add(split.mode);
-          }
-          paymentModes[split.mode].total += split.amount * ratio;
-        }
-      });
-
-      // Tally line items (revenue net of returns, pro-rated)
-      inv.items.forEach((line) => {
-        const isCombo = Boolean(line.isCombo || line.comboId);
-        const key = line.itemId || line.comboId || line.itemName;
-        const netLineRevenue = (line.totalAmount || 0) * ratio;
-        const existing = itemMap.get(key);
-        if (existing) {
-          existing.quantity += line.quantity;
-          existing.revenue += netLineRevenue;
-          if (isCombo) existing.isCombo = true;
-        } else {
-          itemMap.set(key, {
-            itemId: line.itemId || line.comboId,
-            itemName: line.itemName,
-            itemCode: line.itemCode || '—',
-            isCombo,
-            quantity: line.quantity,
-            revenue: netLineRevenue,
-          });
-        }
-      });
     });
 
-    const allItems = Array.from(itemMap.values());
+    // GST collected: net of returns and the bill discount, IGST included.
+    const gst = gstCollected(filteredInvoices);
+    // Money collected in the period by the mode it came in: bills' at-billing
+    // splits plus receipts on their own date and mode.
+    const inScope = (b: string) => branchScope === 'all' || b === branchScope;
+    const inRange = (d: string) => (!startDate || d >= startDate) && (!endDate || d <= endDate);
+    const modes = collectionsByMode(invoices, payments, inRange, inScope);
+    // Units and revenue per product, net of returns and the bill discount.
+    const allItems = productSales(filteredInvoices);
     const topByQty = [...allItems].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
     const topByRevenue = [...allItems].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 
@@ -141,17 +89,17 @@ export const SalesReportTab: React.FC<Props> = ({
       totalGross,
       totalReturns,
       netSales: totalGross - totalReturns,
-      totalTaxable,
-      totalTax,
+      gst,
+      totalTax: gst.tax,
       loyaltyRewardCount,
       loyaltyDiscountGivenTotal,
       invoiceCount: filteredInvoices.length,
       averageInvoice: filteredInvoices.length > 0 ? totalGross / filteredInvoices.length : 0,
-      paymentModes,
+      modes,
       topByQty,
       topByRevenue,
     };
-  }, [filteredInvoices]);
+  }, [filteredInvoices, invoices, payments, branchScope, startDate, endDate]);
 
   const handleExport = (format: ExportFormat = 'csv') => {
     if (filteredInvoices.length === 0) return;
@@ -162,58 +110,39 @@ export const SalesReportTab: React.FC<Props> = ({
     const filename = `Sales_Report_${branchName}_${startDate}_to_${endDate}.csv`;
 
     // One layout with the Sales list (SAL6-9 / RPT-4): status for every bill,
-    // every payment mode of a split, returns, net, received, due and a totals row.
+    // every payment mode of a split, discount, returns, net, received, due and a
+    // totals row. Summary rows put the label in the first column and the figure
+    // in the second, so nothing lands under an unrelated header (RPT4-7).
     const headers = SALES_EXPORT_HEADERS;
     const rows: (string | number)[][] = salesExportRows(
       [...filteredInvoices].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.invoiceNumber || '').localeCompare(b.invoiceNumber || '')),
     );
-
-    // Add empty row separator and Summary section
-    rows.push([]);
-    rows.push(['--- SUMMARY BREAKDOWN ---', '', '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Total Invoices', summary.invoiceCount, '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Total Gross Sales (₹)', summary.totalGross.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Less: Returns (₹)', summary.totalReturns.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Net Sales (₹)', summary.netSales.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Total Tax Collected (₹)', summary.totalTax.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Average Invoice Value (₹)', summary.averageInvoice.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Loyalty Rewards Given', `${summary.loyaltyRewardCount} bills`, '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Total Loyalty Discounts Waived (₹)', summary.loyaltyDiscountGivenTotal.toFixed(2), '', '', '', '', '', '', '', '', '', '', '']);
-    rows.push([]);
-    rows.push(['--- PAYMENT MODE BREAKDOWN ---', '', '', '', '', '', '', '', '', '', '']);
-    Object.entries(summary.paymentModes).forEach(([mode, data]) => {
-      rows.push([
-        mode,
-        `${data.count} bills`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        data.total.toFixed(2),
-        '',
-      ]);
-    });
+    const money = (n: number) => Math.round(n * 100) / 100;
 
     rows.push([]);
-    rows.push(['--- TOP SELLING ITEMS & COMBOS ---', '', '', '', '', '', '', '', '', '', '']);
-    rows.push(['Item / Combo Name', 'Item Code', 'Type', 'Units Sold', 'Revenue (₹)', '', '', '', '', '', '']);
+    rows.push(['--- SUMMARY BREAKDOWN ---']);
+    rows.push(['Total Invoices', summary.invoiceCount]);
+    rows.push(['Total Gross Sales (Rs)', money(summary.totalGross)]);
+    rows.push(['Less: Returns (Rs)', money(summary.totalReturns)]);
+    rows.push(['Net Sales (Rs)', money(summary.netSales)]);
+    rows.push(['GST Collected (Rs)', money(summary.gst.tax)]);
+    rows.push(['  of which CGST (Rs)', money(summary.gst.cgst)]);
+    rows.push(['  of which SGST (Rs)', money(summary.gst.sgst)]);
+    rows.push(['  of which IGST (Rs)', money(summary.gst.igst)]);
+    rows.push(['Average Invoice Value (Rs)', money(summary.averageInvoice)]);
+    rows.push(['Loyalty Rewards Given (bills)', summary.loyaltyRewardCount]);
+    rows.push(['Total Loyalty Discounts Waived (Rs)', money(summary.loyaltyDiscountGivenTotal)]);
+    rows.push([]);
+    rows.push(['--- MONEY COLLECTED BY MODE ---']);
+    MODE_GROUPS.forEach((g) => { if (summary.modes.byGroup[g]) rows.push([g, money(summary.modes.byGroup[g])]); });
+    rows.push(['Total collected (Rs)', money(summary.modes.total)]);
+    rows.push(['Credit given at billing (Rs)', money(summary.modes.creditGiven)]);
+
+    rows.push([]);
+    rows.push(['--- TOP SELLING ITEMS & COMBOS ---']);
+    rows.push(['Item / Combo Name', 'Item Code', 'Type', 'Units Sold (net)', 'Revenue (Rs, net)']);
     summary.topByRevenue.forEach((item) => {
-      rows.push([
-        item.itemName,
-        item.itemCode,
-        item.isCombo ? 'Combo' : 'Product',
-        item.quantity,
-        item.revenue.toFixed(2),
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-      ]);
+      rows.push([item.itemName, item.itemCode, item.isCombo ? 'Combo' : 'Product', item.quantity, money(item.revenue)]);
     });
 
     if (format === 'excel') exportToExcel(filename, headers, rows);
@@ -221,19 +150,6 @@ export const SalesReportTab: React.FC<Props> = ({
     else if (format === 'pdf') exportToPdf(filename, headers, rows, filename.replace(/[_-]+/g, ' ').replace(/\.csv$/i, '').trim());
 
     else exportToCsv(filename, headers, rows);
-  };
-
-  const getModeIcon = (mode: PaymentMode) => {
-    switch (mode) {
-      case 'HDFC':
-        return <CreditCard className="h-4 w-4 text-blue-600" />;
-      case 'Cash':
-        return <Banknote className="h-4 w-4 text-emerald-600" />;
-      case 'GPay':
-        return <Smartphone className="h-4 w-4 text-purple-600" />;
-      case 'COD-Credit':
-        return <Truck className="h-4 w-4 text-amber-600" />;
-    }
   };
 
   return (
@@ -246,7 +162,7 @@ export const SalesReportTab: React.FC<Props> = ({
             <span>Sales & Revenue Summary</span>
           </h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Aggregated from official Sales Invoices for the period {startDate} to {endDate}
+            Aggregated from official Sales Invoices for the period {formatDate(startDate)} to {formatDate(endDate)}
           </p>
         </div>
 
@@ -266,13 +182,13 @@ export const SalesReportTab: React.FC<Props> = ({
           {/* Gross → Returns → Net reconciliation */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 rounded-none bg-slate-50 border border-slate-300 text-xs font-mono">
             <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-600">Sales reconciliation:</span>
-            <span className="font-bold text-slate-900">₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-bold text-slate-900">{rs(summary.totalGross)}</span>
             <span className="font-sans text-[11px] text-slate-500">gross</span>
             <span className="text-rose-600 font-bold">−</span>
-            <span className="font-bold text-rose-700">₹{summary.totalReturns.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-bold text-rose-700">{rs(summary.totalReturns)}</span>
             <span className="font-sans text-[11px] text-slate-500">returns</span>
             <span className="text-slate-400 font-bold">=</span>
-            <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-none">₹{summary.netSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-none">{rs(summary.netSales)}</span>
             <span className="font-sans text-[11px] text-slate-500">net sales</span>
           </div>
 
@@ -283,7 +199,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 Total Revenue
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-red-800 mt-1 font-mono tabular-nums">
-                ₹{summary.totalGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(summary.totalGross)}
               </p>
               <span className="text-[11px] text-slate-500 mt-0.5 block">
                 Gross sales inclusive of tax
@@ -303,7 +219,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 Average Order Value
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1 font-mono tabular-nums">
-                ₹{summary.averageInvoice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(summary.averageInvoice)}
               </p>
               <span className="text-[11px] text-slate-500 mt-0.5 block">Average ticket size</span>
             </div>
@@ -313,9 +229,9 @@ export const SalesReportTab: React.FC<Props> = ({
                 GST Tax Collected
               </span>
               <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tabular-nums">
-                ₹{summary.totalTax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {rs(summary.totalTax)}
               </p>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">CGST + SGST remittance</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">CGST + SGST + IGST, net of returns &amp; discounts</span>
             </div>
 
             {/* Loyalty Rewards Given */}
@@ -331,7 +247,7 @@ export const SalesReportTab: React.FC<Props> = ({
                 <span className="text-xs text-amber-700 font-bold">bills</span>
               </p>
               <span className="text-[11px] text-amber-800 mt-0.5 block font-semibold">
-                - ₹{summary.loyaltyDiscountGivenTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })} waived
+                - {rs(summary.loyaltyDiscountGivenTotal)} waived
               </span>
             </div>
           </div>
@@ -341,44 +257,32 @@ export const SalesReportTab: React.FC<Props> = ({
             <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-red-700" />
-                <span>Payment Mode Breakdown</span>
+                <span>Money Collected by Mode</span>
               </h3>
-              <span className="text-[11px] text-slate-500 font-semibold">Reconciled to Cash Register</span>
+              <span className="text-[11px] text-slate-500 font-semibold">Money collected: bills on their day + receipts by their own mode and date</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {(['HDFC', 'Cash', 'GPay', 'COD-Credit'] as PaymentMode[]).map((mode) => {
-                const data = summary.paymentModes[mode];
-                const pct = summary.totalGross > 0 ? (data.total / summary.totalGross) * 100 : 0;
-
+              {[...MODE_GROUPS.filter((g) => g !== 'Store Credit' && (summary.modes.byGroup[g] > 0 || g !== 'Other')).map((g) => ({ label: g, amount: summary.modes.byGroup[g] })),
+                { label: 'Credit given (owed)', amount: summary.modes.creditGiven }].map((m) => {
+                const pct = summary.modes.total > 0 && !m.label.startsWith('Credit') ? (m.amount / summary.modes.total) * 100 : 0;
                 return (
-                  <div
-                    key={mode}
-                    className="p-3 rounded-none bg-slate-50 border border-slate-300 space-y-1.5"
-                  >
+                  <div key={m.label} className="p-3 rounded-none bg-slate-50 border border-slate-300 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        {getModeIcon(mode)}
-                        <span className="text-xs font-bold text-slate-900">{mode}</span>
+                        {m.label === 'Cash' ? <Banknote className="h-4 w-4 text-emerald-600" />
+                          : m.label === 'GPay / UPI' ? <Smartphone className="h-4 w-4 text-purple-600" />
+                          : m.label.startsWith('Credit') ? <Truck className="h-4 w-4 text-amber-600" />
+                          : <CreditCard className="h-4 w-4 text-blue-600" />}
+                        <span className="text-xs font-bold text-slate-900">{m.label}</span>
                       </div>
-                      <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-none bg-white text-slate-700 border border-slate-300">
-                        {data.count} bills
-                      </span>
                     </div>
-
                     <div className="flex items-baseline justify-between">
-                      <span className="text-base font-extrabold text-slate-900 font-mono tabular-nums">
-                        ₹{data.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                      </span>
-                      <span className="text-xs font-bold text-slate-600 font-mono">{pct.toFixed(1)}%</span>
+                      <span className="text-base font-extrabold text-slate-900 font-mono tabular-nums">{rs(m.amount)}</span>
+                      {!m.label.startsWith('Credit') && <span className="text-xs font-bold text-slate-600 font-mono">{pct.toFixed(1)}%</span>}
                     </div>
-
-                    {/* Progress Bar */}
                     <div className="w-full h-1.5 rounded-none bg-slate-200 overflow-hidden">
-                      <div
-                        className="h-full bg-red-700 rounded-none transition-all"
-                        style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                      />
+                      <div className="h-full bg-red-700 rounded-none transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
                     </div>
                   </div>
                 );
@@ -459,10 +363,10 @@ export const SalesReportTab: React.FC<Props> = ({
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-right font-bold font-mono tabular-nums text-slate-900">
-                            {item.quantity.toLocaleString('en-IN')}
+                            {item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
                           </td>
                           <td className="py-2.5 px-4 text-right font-bold font-mono tabular-nums text-slate-900">
-                            ₹{item.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            {rs(item.revenue)}
                           </td>
                           <td className="py-2.5 px-4 text-right">
                             <span className="inline-block px-1.5 py-0.5 rounded-none text-[11px] font-mono font-bold bg-slate-100 text-slate-800 border border-slate-300">

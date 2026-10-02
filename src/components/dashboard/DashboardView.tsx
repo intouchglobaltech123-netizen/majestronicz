@@ -1,8 +1,10 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BRANCHES, BranchId, getInvoicePaymentSplits, Invoice, computeInvoiceFinance, computeInvoiceCogs, vendorPayables, totalVendorPayable } from '../../types';
+import { BRANCHES, BranchId, Invoice, computeInvoiceFinance, vendorPayables, totalVendorPayable } from '../../types';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
+import { computeProfit } from '../../lib/reportMath';
+import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
@@ -16,10 +18,9 @@ const pct = (cur: number, prev: number) => (prev <= 0 ? (cur > 0 ? 100 : 0) : Ma
 
 const MODE_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   Cash: { label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
-  UPI: { label: 'UPI', icon: Smartphone, color: 'bg-blue-500' },
-  Card: { label: 'Card', icon: CreditCard, color: 'bg-violet-500' },
-  'Bank Transfer': { label: 'Bank', icon: Landmark, color: 'bg-cyan-500' },
-  'COD-Credit': { label: 'Credit', icon: ClipboardList, color: 'bg-amber-500' },
+  'GPay / UPI': { label: 'GPay / UPI', icon: Smartphone, color: 'bg-blue-500' },
+  'Bank / Card': { label: 'Bank / Card', icon: Landmark, color: 'bg-cyan-500' },
+  Other: { label: 'Other', icon: CreditCard, color: 'bg-violet-500' },
 };
 
 export const DashboardView: React.FC = () => {
@@ -27,7 +28,7 @@ export const DashboardView: React.FC = () => {
     items, branchStocks, currentBranch, isAllBranches, currentBranchData, switchBranch, setCurrentView,
     currentUser, invoices, payments, purchaseOrders, cashRegisters, enquiries, pendingOrders,
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
-    employees,
+    employees, payrollRecords, recurringExpenses,
     activeSubTab,
     navigateToTab,
   } = useErp();
@@ -109,26 +110,22 @@ export const DashboardView: React.FC = () => {
     return { salesToday, salesYest, salesMonth, salesPrevMonth, countToday, receivables, payables, cashInHand };
   }, [scopedSales, invoices, payments, purchaseOrders, cashRegisters, isAllBranches, currentBranch, today, yesterday, thisMonth, lastMonth]);
 
-  // ---- Profit / margin (this month): revenue − cost of goods sold ----
+  // ---- Profit (this month): the SAME formula as the Branch P&L (src/lib/reportMath
+  // computeProfit) — revenue ex-GST net of returns, cost at the time of sale,
+  // damaged write-offs, operating expenses and payroll paid — so the card's gross
+  // and net equal the P&L for this month and branch (E2E-8 / E2E5-5).
   const profit = useMemo(() => {
-    const monthInv = scopedSales.filter((i) => (i.date || '').startsWith(thisMonth));
-    let revenue = 0, cost = 0;
-    for (const i of monthInv) {
-      // Revenue must be the taxable value net of GST and net of returns — GST is a
-      // pass-through liability, not profit, and returned goods aren't revenue
-      // (RPT2-3). Apply the return fraction to both revenue and cost of goods.
-      const fin = computeInvoiceFinance(i);
-      const grand = Number(i.grandTotal) || 0;
-      const ratio = grand > 0 ? fin.net / grand : 1; // fraction remaining after returns
-      const exGstRevenue = fin.net - (Number(i.totalTax) || 0) * ratio;
-      revenue += exGstRevenue;
-      // COGS via the shared helper, which expands combos to their component costs
-      // (a combo line has no own itemId, so the old inline loop counted it at ₹0
-      // and inflated profit — E2E-8) and pro-rates for returns.
-      cost += computeInvoiceCogs(i, items);
-    }
-    return { value: revenue - cost, margin: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0 };
-  }, [scopedSales, thisMonth, items]);
+    const lastDay = new Date(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)), 0).getDate();
+    const { total } = computeProfit({
+      invoices, items, registers: cashRegisters, payments, payrollRecords, recurringTemplates: recurringExpenses,
+      startDate: `${thisMonth}-01`, endDate: `${thisMonth}-${String(lastDay).padStart(2, '0')}`, inScope,
+    });
+    return {
+      value: total.netProfit,
+      gross: total.grossProfit,
+      margin: total.revenue > 0 ? Math.round((total.netProfit / total.revenue) * 100) : 0,
+    };
+  }, [invoices, items, cashRegisters, payments, payrollRecords, recurringExpenses, thisMonth, isAllBranches, currentBranch]);
 
   // ---- Inventory health ----
   const inv = useMemo(() => {
@@ -159,28 +156,16 @@ export const DashboardView: React.FC = () => {
     return { days, max };
   }, [scopedSales, trendDays]);
 
-  // ---- Payment mode split (this month) — ACTUAL collections only ----
-  // An invoice contributes only the amount actually received (billed − due − returns),
-  // distributed across its real (non-credit) payment modes. Unpaid/credit bills = ₹0.
+  // ---- Payment mode split (this month) — money actually collected, by the mode
+  // and date it came in: bills' at-billing splits plus receipts on the RECEIPT's
+  // own date and mode (CRM6-9). Shared with the Sales register and Payments Log.
   const modeSplit = useMemo(() => {
-    const map: Record<string, number> = {};
-    scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
-      const paid = Math.max(0, netRevenue(i) - invoiceDue(i));
-      if (paid <= 0) return;
-      const splits = getInvoicePaymentSplits(i).filter((s) => s.mode !== 'COD-Credit');
-      const splitTotal = splits.reduce((t, s) => t + s.amount, 0);
-      if (splitTotal <= 0) {
-        const mode = i.paymentMode && i.paymentMode !== 'COD-Credit' ? i.paymentMode : 'Cash';
-        map[mode] = (map[mode] || 0) + paid;
-      } else {
-        splits.forEach((s) => { map[s.mode] = (map[s.mode] || 0) + paid * (s.amount / splitTotal); });
-      }
-    });
-    const rows = Object.entries(map).map(([mode, amount]) => ({ mode, amount, meta: MODE_META[mode] || { label: mode, icon: Wallet, color: 'bg-slate-400' } }))
+    const m = collectionsByMode(invoices, payments, (d) => (d || '').startsWith(thisMonth), inScope);
+    const rows = MODE_GROUPS.filter((g) => m.byGroup[g] > 0)
+      .map((g) => ({ mode: g, amount: m.byGroup[g], meta: MODE_META[g] || { label: g, icon: Wallet, color: 'bg-slate-400' } }))
       .sort((a, b) => b.amount - a.amount);
-    const total = rows.reduce((t, r) => t + r.amount, 0) || 1;
-    return { rows, total };
-  }, [scopedSales, thisMonth]);
+    return { rows, total: m.total || 1 };
+  }, [invoices, payments, thisMonth, isAllBranches, currentBranch]);
 
   // ---- Top products (this month) ----
   const topProducts = useMemo(() => {
@@ -269,7 +254,7 @@ export const DashboardView: React.FC = () => {
           icon={IndianRupee} tone="red" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
           icon={TrendingUp} tone="slate" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
-        <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`${profit.margin}% margin`}
+        <KpiCard label="Profit (Month)" value={formatCurrency(profit.value)} sub={`net · gross ${formatCurrency(Math.round(profit.gross))} · ${profit.margin}% margin`}
           icon={Percent} tone="emerald" onClick={() => setCurrentView('reports')} />
         <KpiCard label="To Collect" value={formatCurrency(money.receivables)} sub="customer dues"
           icon={ArrowDownCircle} tone="amber" onClick={() => navigateToTab('parties', 'customers')} accent={money.receivables > 0} />
@@ -325,7 +310,7 @@ export const DashboardView: React.FC = () => {
         {/* Payment mode split */}
         <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <h3 className="text-sm font-extrabold text-slate-900 mb-1">Payment Modes</h3>
-          <p className="text-[11px] text-slate-500 mb-4">This month · by collection</p>
+          <p className="text-[11px] text-slate-500 mb-4">This month · money collected (bills + receipts), by the mode it came in</p>
           {modeSplit.rows.length === 0 ? (
             <p className="text-xs text-slate-400 py-8 text-center">No sales this month yet.</p>
           ) : (

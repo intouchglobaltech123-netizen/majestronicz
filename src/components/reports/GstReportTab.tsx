@@ -5,6 +5,7 @@ import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
 import { formatCurrency, cn } from '../../lib/utils';
+import { invoiceFigures } from '../../lib/reportMath';
 import { FileSpreadsheet, Landmark, Percent, Hash, Users, Calculator } from 'lucide-react';
 
 interface Props {
@@ -13,8 +14,9 @@ interface Props {
   branchScope: BranchScope;
 }
 
-const HOME_STATE = '33-Tamil Nadu';
-const isInterState = (stateOfSupply?: string) => !!stateOfSupply && stateOfSupply !== HOME_STATE;
+const noCost = () => 0;
+/** Money as a number rounded to paise, so exports stay numeric (RPT2-6). */
+const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 interface RateRow {
   rate: number;
@@ -92,35 +94,16 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     const totals = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, invoices: filtered.length };
 
     for (const inv of filtered) {
-      const inter = isInterState(inv.stateOfSupply);
       const gstin = buyerGstin(inv);
-      // Net returns out of the GST liability (RPT4-2): a returned bill reduces the
-      // taxable value and tax owed. Scale each line's contribution by the share of
-      // the bill that was NOT returned — proportional netting, matching the cash /
-      // sales reports so every view of the period agrees.
-      const grand = inv.grandTotal || 0;
-      const returned = Math.min(grand, inv.totalReturnedAmount || 0);
-      const netRatio = grand > 0 ? (grand - returned) / grand : 1;
-      // A bill-level (overall) discount reduces the GST base, but the stored
-      // per-line taxableAmount/CGST/SGST only reflect the LINE discount — the
-      // overall discount is applied to the invoice totals, not back to each line.
-      // Scale every line by the discount ratio too, or the report overstates the
-      // taxable value and tax whenever a bill carries an overall discount (RPT4-3).
-      const lineSubtotal = (inv.items || []).reduce((s, l) => s + (l.taxableAmount || 0), 0);
-      const subtotal = inv.subtotal || lineSubtotal;
-      const overallDisc = inv.overallDiscountAmount || 0;
-      const discRatio = subtotal > 0 ? Math.max(0, (subtotal - overallDisc) / subtotal) : 1;
-      const scale = discRatio * netRatio;
+      // The shared report maths (src/lib/reportMath): each line net of the bill
+      // discount and of the units returned on it, IGST on inter-state bills —
+      // the same figures as the Reports header and the Sales register (RPT5-1).
+      const fig = invoiceFigures(inv, noCost);
       let invTaxable = 0, invCgst = 0, invSgst = 0, invIgst = 0, invTotal = 0;
-      for (const li of inv.items || []) {
+      for (const lf of fig.lines) {
+        const li = lf.line;
         const rate = li.taxRate || 0;
-        const taxable = (li.taxableAmount || 0) * scale;
-        const tax = (li.totalTax || 0) * scale;
-        const cgst = inter ? 0 : (li.cgstAmount != null ? li.cgstAmount * scale : tax / 2);
-        const sgst = inter ? 0 : (li.sgstAmount != null ? li.sgstAmount * scale : tax / 2);
-        const igst = inter ? tax : 0;
-        // Derive Total Tax from the components so the displayed CGST+SGST+IGST
-        // always equals Total Tax (legacy lines can have a 0.01 half-split drift).
+        const { taxable, cgst, sgst, igst } = lf;
         const compTax = cgst + sgst + igst;
 
         const r = rateMap.get(rate) || { rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
@@ -129,7 +112,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
 
         const hsnKey = li.itemHSN || '—';
         const h = hsnMap.get(hsnKey) || { hsn: hsnKey, qty: 0, taxable: 0, tax: 0, rates: new Set<number>() };
-        h.qty += li.quantity || 0; h.taxable += taxable; h.tax += compTax; h.rates.add(rate);
+        h.qty += lf.netQty; h.taxable += taxable; h.tax += compTax; h.rates.add(rate);
         hsnMap.set(hsnKey, h);
 
         totals.taxable += taxable; totals.cgst += cgst; totals.sgst += sgst; totals.igst += igst; totals.total += compTax;
@@ -160,23 +143,23 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     if (view === 'rate') {
       filename = `gstr1-rate-summary_${startDate}_to_${endDate}`; title = `GSTR-1 Rate Summary ${startDate} to ${endDate}`;
       headers = ['GST Rate (%)', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
-      rows = rateRows.map((r) => [r.rate, r.taxable.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.igst.toFixed(2), r.total.toFixed(2)]);
+      rows = rateRows.map((r) => [r.rate, r2(r.taxable), r2(r.cgst), r2(r.sgst), r2(r.igst), r2(r.total)]);
     } else if (view === 'hsn') {
       filename = `hsn-summary_${startDate}_to_${endDate}`; title = `HSN Summary ${startDate} to ${endDate}`;
       headers = ['HSN/SAC', 'Total Qty', 'GST Rates', 'Taxable Value', 'Tax Amount'];
-      rows = hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), h.taxable.toFixed(2), h.tax.toFixed(2)]);
+      rows = hsnRows.map((h) => [h.hsn, h.qty, [...h.rates].sort().join('/'), r2(h.taxable), r2(h.tax)]);
     } else if (view === 'b2b') {
       filename = `gstr1-b2b_${startDate}_to_${endDate}`; title = `GSTR-1 B2B (by GSTIN) ${startDate} to ${endDate}`;
       headers = ['GSTIN', 'Party', 'Invoices', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
-      rows = b2bRows.map((b) => [b.gstin, b.name, b.invoices, b.taxable.toFixed(2), b.cgst.toFixed(2), b.sgst.toFixed(2), b.igst.toFixed(2), b.total.toFixed(2)]);
-      rows.push(['', 'B2C (unregistered)', b2cs.invoices, b2cs.taxable.toFixed(2), b2cs.cgst.toFixed(2), b2cs.sgst.toFixed(2), b2cs.igst.toFixed(2), b2cs.total.toFixed(2)]);
+      rows = b2bRows.map((b) => [b.gstin, b.name, b.invoices, r2(b.taxable), r2(b.cgst), r2(b.sgst), r2(b.igst), r2(b.total)]);
+      rows.push(['', 'B2C (unregistered)', b2cs.invoices, r2(b2cs.taxable), r2(b2cs.cgst), r2(b2cs.sgst), r2(b2cs.igst), r2(b2cs.total)]);
     } else {
       filename = `gstr3b-worksheet_${startDate}_to_${endDate}`; title = `GSTR-3B Working Sheet ${startDate} to ${endDate}`;
       headers = ['Line', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax'];
       rows = [
-        ['Outward taxable supplies (output tax)', totals.taxable.toFixed(2), totals.cgst.toFixed(2), totals.sgst.toFixed(2), totals.igst.toFixed(2), totals.total.toFixed(2)],
-        ['Less: Input Tax Credit (from purchase bills)', '', '', '', '', itc.toFixed(2)],
-        ['Net Tax Payable', '', '', '', '', Math.max(0, totals.total - itc).toFixed(2)],
+        ['Outward taxable supplies (output tax)', r2(totals.taxable), r2(totals.cgst), r2(totals.sgst), r2(totals.igst), r2(totals.total)],
+        ['Less: Input Tax Credit (from purchase bills)', '', '', '', '', r2(itc)],
+        ['Net Tax Payable', '', '', '', '', Math.max(0, r2(totals.total - itc))],
       ];
     }
     if (format === 'excel') exportToExcel(filename, headers, rows);
@@ -408,7 +391,7 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
 
       <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
         <FileSpreadsheet className="h-3.5 w-3.5" />
-        Intra-state supplies ({HOME_STATE}) split into CGST + SGST; other states shown as IGST. Non-GST bills are excluded. For filing, reconcile against your GST portal.
+        Intra-state supplies (33-Tamil Nadu) split into CGST + SGST; other states shown as IGST. Net of returns and bill discounts. Non-GST bills are excluded. For filing, reconcile against your GST portal.
       </p>
     </div>
   );

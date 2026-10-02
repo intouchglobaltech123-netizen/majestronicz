@@ -3,9 +3,15 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  post, get, ok, expectStatus, near, r2, createItem, line, serviceLine, saleBody, mustSell, sell, getInvoice, receive,
-  returnLine, freshDay, randomPhone,
+  post, put, get, api, ok, expectStatus, near, r2, uid, createItem, createCombo, comboLine, line, serviceLine, saleBody, mustSell, sell,
+  getInvoice, receive, returnLine, freshDay, randomPhone, istToday, login,
 } from './lib.mjs';
+import { importTs } from './lib-ts.mjs';
+
+// The report maths the screens run (src/lib), bundled for node.
+const rm = await importTs('src/lib/reportMath.ts');
+const pm = await importTs('src/lib/paymentModes.ts');
+const pl = await importTs('src/lib/paymentsLog.ts');
 
 const sum = (a, f) => a.reduce((t, x) => t + (Number(f(x)) || 0), 0);
 
@@ -144,5 +150,172 @@ describe('reports arithmetic', () => {
     const inv = await mustSell(body);
     near(inv.grandTotal, 1180);
     near(inv.incentiveAmount, 23.6);
+  });
+});
+
+/** A fresh employee for payroll tests. */
+async function newEmployee(branchId, salary = 20800) {
+  for (let i = 0; i < 20; i++) {
+    const pin = String(1000 + Math.floor(Math.random() * 9000));
+    const res = await post('/api/employees', { name: `QA Payee ${uid()}`, designation: 'QA Technician', branchId, monthlySalary: salary, status: 'Active', joinedDate: '2026-01-01', pin });
+    if (res.status === 409) continue;
+    return ok(res, 'create employee').employee;
+  }
+  throw new Error('could not create employee');
+}
+async function payrollDraft(emp, month, adjustment = 1500) {
+  const snap = ok(await post('/api/hrm/payroll-adjustment', { employeeId: emp.id, month, adjustment, reason: 'QA', standardHoursPerMonth: 208 }), 'draft payroll');
+  return snap.payrollRecords.find((p) => p.employeeId === emp.id && p.month === month);
+}
+
+describe('profit, GST and money reports (phase 6)', () => {
+  test('E2E5-5 a sale stores each line\'s purchase cost at the time of sale; a later cost change does not move it', async () => {
+    const date = await freshDay('erode-hq');
+    const a = await createItem({ price: 1000, purchasePrice: 600, stock: { 'erode-hq': 10 } });
+    const b = await createItem({ price: 500, purchasePrice: 200, stock: { 'erode-hq': 10 } });
+    const combo = await createCombo([{ item: a, qty: 1 }, { item: b, qty: 2 }], 2000);
+    const inv = await mustSell(saleBody({ date, lines: [line(a, 2), comboLine(combo, 1), serviceLine(1, 300, 18)] }));
+    near(inv.items[0].unitCost, 600, 'item line cost');
+    near(inv.items[1].unitCost, 1000, 'combo line cost = 600 + 2 x 200');
+    near(inv.items[2].unitCost, 0, 'typed line has no cost');
+    ok(await put(`/api/catalog/item/${a.id}`, { item: { purchasePrice: 900 } }), 'raise the cost');
+    const after = await getInvoice(inv.id);
+    near(after.items[0].unitCost, 600, 'the bill keeps the cost it was sold at');
+    // The report maths cost the sale at 600 even though the item now costs 900.
+    const items = ok(await get('/api/items'));
+    const fig = rm.invoiceFigures(after, rm.makeCostOf(items));
+    near(fig.cogs, 2 * 600 + 1000, 'COGS at sale-time cost');
+  });
+
+  test('E2E-8 profit: ex-GST revenue net of bill discount and returns, damaged return written off', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, gst: 18, purchasePrice: 600, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 3)], overallDiscountValue: 5, shippingCharges: 100 }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'Defective / Damaged Goods', actor: 'QA', refundMode: 'Cash' }));
+    const saved = await getInvoice(inv.id);
+    const fig = rm.invoiceFigures(saved, rm.makeCostOf([]));
+    near(fig.revenue, 2850 * (2 / 3) + 100, 'revenue = taxable after 5% discount for the 2 kept units + shipping');
+    near(fig.cogs, 1200, 'cost of the 2 kept units');
+    near(fig.writeOff, 600, 'the damaged unit is a loss, not recovered');
+    near(fig.grossProfit, 2000 - 1200 - 600);
+    near(fig.tax, 513 * (2 / 3), 'GST on the kept units');
+  });
+
+  test('RPT5-1 one GST-collected figure: net of returns and bill discount, IGST included', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 5000, gst: 18, purchasePrice: 3000, stock: { 'erode-hq': 5 } });
+    const intra = await mustSell(saleBody({ date, lines: [line(item, 2)], overallDiscountValue: 5 }));
+    ok(await post('/api/tx/sale-return', { invoiceId: intra.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    const inter = await mustSell(saleBody({ date, stateOfSupply: '29-Karnataka', lines: [serviceLine(1, 1650, 18)] }));
+    const g = rm.gstCollected([await getInvoice(intra.id), await getInvoice(inter.id)]);
+    near(g.tax, 1710 / 2 + 297, 'net GST');
+    near(g.igst, 297, 'IGST included');
+    near(g.cgst + g.sgst, 855, 'CGST + SGST on the kept unit');
+    near(g.taxable, 4750 + 1650, 'taxable after discount and return');
+  });
+
+  test('E2E5-12 Mark Paid books the salary as money out on today\'s cash day at the employee\'s branch', async () => {
+    const emp = await newEmployee('coimbatore');
+    const row = await payrollDraft(emp, '2026-04', 2500);
+    const snap = ok(await post('/api/hrm/payroll-paid', { payrollId: row.id, paymentMode: 'Cash', record: { ...row } }));
+    const pay = snap.payments.find((p) => p.partyType === 'staff' && p.partyId === emp.id);
+    assert.ok(pay, 'a salary payment row was written');
+    assert.equal(pay.type, 'out');
+    assert.equal(pay.branchId, 'coimbatore');
+    assert.equal(pay.date, istToday());
+    assert.equal(pay.paymentMode, 'Cash');
+    near(pay.amount, row.finalPayable);
+    // A salary row cannot be deleted from the ledger on its own.
+    expectStatus(await api('DELETE', `/api/payments/${pay.id}`), 409, 'delete salary row');
+    // The Coimbatore manager sees the money leave the drawer, not who was paid what.
+    const seen = ok(await get('/api/payments', 'Manager')).find((p) => p.id === pay.id);
+    assert.ok(seen, 'manager sees the row');
+    assert.equal(seen.partyName, 'Salary payment');
+    near(seen.amount, pay.amount);
+  });
+
+  test('E2E5-12 Mark Paid is refused while today\'s cash day is closed', async () => {
+    const emp = await newEmployee('chennai');
+    const row = await payrollDraft(emp, '2026-02', 1000);
+    const today = istToday();
+    ok(await post('/api/cash/close', { branchId: 'chennai', date: today, actor: 'QA' }), 'close today');
+    try {
+      expectStatus(await post('/api/hrm/payroll-paid', { payrollId: row.id, paymentMode: 'Cash', record: { ...row } }), 409);
+      const after = ok(await get('/api/payroll-records')).find((p) => p.id === row.id);
+      assert.notEqual(after.status, 'Paid', 'not marked paid');
+    } finally {
+      ok(await post('/api/cash/reopen', { branchId: 'chennai', date: today }), 'reopen today');
+    }
+  });
+
+  test('E2E-8 P&L and Dashboard profit: payroll paid is an expense, bank deposits and pending items are not', async () => {
+    const inv = {
+      id: 'x', branchId: 'erode-hq', date: '2026-10-01', withGst: true, stateOfSupply: '33-Tamil Nadu', subtotal: 1000, overallDiscountAmount: 0,
+      totalTax: 180, totalCgst: 90, totalSgst: 90, shippingCharges: 0, grandTotal: 1180,
+      items: [{ id: 'l1', itemId: 'i1', itemName: 'X', quantity: 1, taxRate: 18, taxableAmount: 1000, totalTax: 180, totalAmount: 1180, unitCost: 400 }],
+    };
+    const registers = [{ branchId: 'erode-hq', date: '2026-10-01', expenses: [
+      { id: 'e1', category: 'Tea / Snacks', reason: 'tea', cashAmount: 50, gpayAmount: 0 },
+      { id: 'e2', category: 'Deposit to Bank', reason: 'deposit', cashAmount: 5000, gpayAmount: 0, approvalStatus: 'approved' },
+      { id: 'e3', category: 'Repairs / Maintenance', reason: 'pending', cashAmount: 70, gpayAmount: 0, approvalStatus: 'pending' },
+      { id: 'e4', reason: 'Showroom Rent', cashAmount: 100, gpayAmount: 0 },
+    ] }];
+    const payments = [{ id: 'p1', type: 'out', partyType: 'staff', branchId: 'erode-hq', date: '2026-10-01', amount: 200, paymentMode: 'Cash', allocations: [{ refId: 'pr1', amount: 200 }] }];
+    const payrollRecords = [{ id: 'pr1', status: 'Paid', paidAt: '2026-10-01T05:00:00Z', branchId: 'erode-hq', finalPayable: 200 }];
+    const templates = [{ id: 't1', category: 'Rent', approvalHistory: [{ cashExpenseId: 'e4', month: '2026-10' }] }];
+    const { total } = rm.computeProfit({ invoices: [inv], items: [], registers, payments, payrollRecords, recurringTemplates: templates, startDate: '2026-10-01', endDate: '2026-10-31', inScope: () => true });
+    near(total.grossProfit, 600);
+    near(total.expenses, 150, 'tea + rent; no deposit, no pending');
+    near(total.payroll, 200, 'payroll counted once (row + record)');
+    near(total.netProfit, 250);
+    assert.equal(total.categoryExpenses.Rent, 100, 'RPT2-4 rent posted from a template is categorised');
+  });
+
+  test('CRM6-9 money collected is counted by the receipt\'s own mode and date', async () => {
+    const date = await freshDay('erode-hq');
+    const inv = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [serviceLine(1, 1000, 18)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
+    const later = (await freshDay('erode-hq'));
+    ok(await receive(inv, 1180, { mode: 'GPay', date: later }));
+    const payments = ok(await get('/api/payments'));
+    const bills = [await getInvoice(inv.id)];
+    const onBillDay = pm.collectionsByMode(bills, payments, (d) => d === date, () => true);
+    near(onBillDay.total, 0, 'nothing collected on the bill day');
+    near(onBillDay.creditGiven, 1180);
+    const onReceiptDay = pm.collectionsByMode(bills, payments, (d) => d === later, () => true);
+    near(onReceiptDay.byGroup['GPay / UPI'], 1180, 'the receipt counts as GPay on its own day');
+    near(onReceiptDay.byGroup.Cash, 0);
+  });
+
+  test('RPT8-2 the Payments Log lists refunds only from refund rows (none for credit-bill or credit-note returns)', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const credit = await mustSell(saleBody({ date, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'COD-Credit', amount: 2360 }] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: credit.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    const paid = await mustSell(saleBody({ date, customerPhone: randomPhone(), lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: paid.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Adjust' }));
+    const cash = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: cash.id, returnLines: [returnLine(item, 1)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }));
+    const payments = ok(await get('/api/payments'));
+    const invoices = await Promise.all([credit, paid, cash].map((i) => getInvoice(i.id)));
+    const rows = pl.buildPaymentsLog({ invoices, payments, purchaseOrders: [], pendingOrders: [], cashRegisters: [], branchScope: 'all' });
+    const refunds = rows.filter((r) => r.type === 'Sale refund' && [credit, paid, cash].some((i) => r.ref && payments.find((p) => p.receiptNumber === r.ref)?.allocations?.[0]?.refId === i.id));
+    assert.equal(refunds.length, 1, `one real refund (the cash bill), got ${refunds.length}`);
+    near(refunds[0].amount, 1180);
+    assert.equal(refunds[0].date, istToday(), 'on the day it was paid');
+  });
+});
+
+
+describe('report exports (phase 6)', () => {
+  test('RPT4-4 Excel keeps numbers as numbers, also under "Consolidated" and "Shipping" headers', async () => {
+    const { buildXlsx } = await importTs('src/utils/xlsxWriter.ts');
+    const bytes = buildXlsx(['Metric', 'Consolidated Enterprise Total', 'Shipping (Rs)', 'Invoice No', 'Date'], [
+      ['Net Profit (Rs)', -53998, '125.50', 'MZ/7307', '2026-10-01'],
+    ]);
+    const xml = Buffer.from(bytes).toString('utf8');
+    assert.match(xml, /<c r="B2"><v>-53998<\/v><\/c>/, 'negative total is a number');
+    assert.match(xml, /<c r="C2"><v>125.5<\/v><\/c>/, 'shipping amount is a number');
+    assert.match(xml, /<c r="D2" t="inlineStr">/, 'invoice number stays text');
+    assert.match(xml, /<c r="E2" t="inlineStr">/, 'date stays text');
   });
 });
