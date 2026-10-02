@@ -151,18 +151,29 @@ export async function assertLinesAgainstCatalogue(
         throw new AppError('BAD_GST', `The kit "${name}" is charged GST at ${COMBO_GST_RATE}%, not ${rate}%.`, 400);
       }
     }
+    // SAL10-5: prices are converted with the CATALOGUE rate (the branch override
+    // wins), never the rate the request carries — a "0%" line on a GST-off bill
+    // must not lower the floor.
+    const catalogueRate = master ? effectiveTaxSlab(master.gstTaxSlab, overrideById.get(master.id) as any)
+      : li.isCombo ? COMBO_GST_RATE : Number(lineRate(li)) || 0;
     if (opts.canDiscount === false && (Number(lineDiscount(li)) || 0) > 0 && !keptFromBill(li, 'discount')) {
       // The item's own standard discount (applied by the form) is allowed.
+      // SAL10-4: compared in RUPEES PER UNIT, in the line's own price basis (the
+      // form converts a ₹ standard discount the same way), to the paisa — a %
+      // comparison against the catalogue price refused the form's own discount.
       const std = master ? Number(master.discountOnSalePrice) || 0 : 0;
-      const stdPct = !master || std <= 0 ? 0
-        : (master.discountType || '%') === '%' ? Math.min(100, std)
-          : (Number(master.salePrice) || 0) > 0 ? (std / Number(master.salePrice)) * 100 : 0;
-      const pct = (li.discountType || '%') === '%' ? Number(lineDiscount(li)) || 0
-        : ((Number(li.unitPrice) || 0) * qty > 0 ? ((Number(lineDiscount(li)) || 0) / ((Number(li.unitPrice) || 0) * qty)) * 100 : 100);
-      if (pct > stdPct + 0.001) throw new AppError('NO_DISCOUNT_RIGHT', `Your role is not permitted to give a discount on "${name}".`, 403);
+      const unitPrice = Number(li.unitPrice) || 0;
+      const factor = 1 + catalogueRate / 100;
+      const inclusive = master?.salePriceTaxMode === 'with';
+      const stdPerUnit = !master || std <= 0 ? 0
+        : (master.discountType || '%') === '%' ? (unitPrice * Math.min(100, std)) / 100
+          : r2(doc.withGst ? (inclusive ? std / factor : std) : (inclusive ? std : std * factor));
+      const disc = Number(lineDiscount(li)) || 0;
+      const perUnit = (li.discountType || '%') === '%' ? (unitPrice * Math.min(100, disc)) / 100 : (qty > 0 ? disc / qty : disc);
+      if (perUnit > stdPerUnit + 0.01) throw new AppError('NO_DISCOUNT_RIGHT', `Your role is not permitted to give a discount on "${name}".`, 403);
     }
     if (opts.canEditPrice === false && !keptFromBill(li, 'unitPrice')) {
-      const rate = Number(lineRate(li)) || 0;
+      const rate = catalogueRate;
       let floor: number | null = null;
       if (master) {
         const sale = Number(master.salePrice) || 0;

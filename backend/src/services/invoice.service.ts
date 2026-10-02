@@ -321,6 +321,7 @@ export function createSale(inv: any, reqUser?: any) {
   if (!inv || typeof inv !== 'object' || !Array.isArray(inv.items)) {
     throw new AppError('BAD_REQUEST', 'A sale needs its line items.', 400);
   }
+  if (!inv.items.length) throw new AppError('NO_LINES', 'A bill needs at least one line.', 400); // SAL10-7
   // E2E8-12: "Skip" on the sale form's new-customer prompt bills the number as a
   // walk-in — no customer master is created for it. Not a bill column.
   const skipCustomerSave = inv.skipCustomerSave === true;

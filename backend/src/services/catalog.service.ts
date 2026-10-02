@@ -8,9 +8,10 @@ import { GSTIN_RE, gstinChecksumValid } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { archivedItemError, assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
-import { istToday, istTime } from '../lib/businessDate.js';
+import { istToday, istTime, assertBusinessDate } from '../lib/businessDate.js';
 import { isWholeUnit } from '../lib/units.js';
-import { roleCan } from '../lib/auth.js';
+import { roleCan, roleFlags } from '../lib/auth.js';
+import { isValidBranch } from '../lib/constants.js';
 import { receiveStockTransfer, isTransferChallan } from './stock.service.js';
 
 /**
@@ -68,8 +69,20 @@ async function estimateIsConverted(tx: any, estimateId: string): Promise<boolean
  *  from a save payload (a quote is cancelled only through cancelEstimate). */
 const ESTIMATE_LIFECYCLE_FIELDS = ['status', 'cancelReason', 'cancelledAt', 'cancelledBy'];
 
+/** SAL10-8: a quote follows the same price / discount rights as a bill. */
+const billingRights = (reqUser?: any) => {
+  if (!reqUser) return {};
+  const flags = roleFlags(reqUser.role);
+  return { canEditPrice: flags.includes('bill.editPrice'), canDiscount: flags.includes('bill.giveDiscount') };
+};
+
 /** Create/edit estimate — new records get a server-assigned collision-free number. */
 export function saveEstimate(data: any, reqUser?: any) {
+  // SAL10-7: a quote needs lines, a real date and a real branch.
+  if (!data || typeof data !== 'object' || !Array.isArray(data.items) || !data.items.length) {
+    throw new AppError('NO_LINES', 'A quotation needs at least one line.', 400);
+  }
+  assertBusinessDate(data.date, 'A quotation');
   recomputeEstimateMoney(data); // server-authoritative totals
   return withRetry(() => prisma.$transaction(async (tx: any) => {
     const existing = data.id ? await tx.estimate.findUnique({ where: { id: data.id } }) : null;
@@ -84,7 +97,7 @@ export function saveEstimate(data: any, reqUser?: any) {
       if (existing.status === 'Cancelled') {
         throw new AppError('QUOTE_CANCELLED', 'This quotation was cancelled and can no longer be edited.', 409);
       }
-      await assertLinesAgainstCatalogue(tx, data, existing.branchId, { previousItems: (existing.items as any[]) || [] });
+      await assertLinesAgainstCatalogue(tx, data, existing.branchId, { previousItems: (existing.items as any[]) || [], ...billingRights(reqUser) });
       if (existing.status === 'Converted' || await estimateIsConverted(tx, existing.id)) {
         throw new AppError('QUOTE_CONVERTED', 'This quotation was already converted to a sale and can no longer be edited.', 409);
       }
@@ -96,7 +109,8 @@ export function saveEstimate(data: any, reqUser?: any) {
     } else {
       // A branch-locked user can only create a quote for their own branch.
       assertBranchAllowed(reqUser, data.branchId);
-      await assertLinesAgainstCatalogue(tx, data, data.branchId);
+      if (!isValidBranch(data.branchId)) throw new AppError('BAD_BRANCH', `Unknown branch: ${String(data.branchId).slice(0, 40)}`, 400); // SAL10-7
+      await assertLinesAgainstCatalogue(tx, data, data.branchId, billingRights(reqUser));
       const id = data.id || `est-${Date.now()}`;
       const estimateNumber = await nextEstimateNumber(tx, data.branchId, data.date);
       const clean = { ...data };

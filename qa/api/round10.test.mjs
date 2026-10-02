@@ -3,7 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  post, get, del, ok, expectStatus, near, createItem, line, saleBody, mustSell, sell, getInvoice, resave,
+  post, get, put, del, ok, expectStatus, near, createItem, line, saleBody, mustSell, sell, getInvoice, resave,
   freshDays, freshDay, thisMonthDay, randomPhone, paymentsFor, returnLine, receive, sql, istToday, anyVendor,
 } from './lib.mjs';
 
@@ -212,5 +212,55 @@ describe('round 10: sale replies, live sync and the bootstrap window (SAL10-1)',
     assert.ok(seen.has(paid.id), 'the old bill is in the history pages');
     assert.ok(ok(await get('/api/bootstrap?full=1')).invoices.some((i) => i.id === paid.id), 'full=1');
     assert.deepEqual(ok(await get('/api/history?kind=invoices&page=0', 'Sales')).invoices, [], 'Sales gets no bills');
+  });
+});
+
+describe('round 10: billing rights and quote checks', () => {
+  const withoutRights = async (fn) => {
+    const matrix = ok(await get('/api/access-matrix')).matrix;
+    const restricted = JSON.parse(JSON.stringify(matrix));
+    restricted.Billing.flags = restricted.Billing.flags.filter((f) => f !== 'bill.editPrice' && f !== 'bill.giveDiscount');
+    ok(await put('/api/access-matrix', restricted), 'take the rights away from Billing');
+    try { await fn(); } finally { ok(await put('/api/access-matrix', matrix), 'restore'); }
+  };
+  const quote = (lines, extra = {}) => ({
+    id: `est-qa-${Date.now()}${Math.random().toString(36).slice(2, 6)}`, branchId: 'erode-hq', date: istToday(), time: '10:00', customerName: 'QA Quote', withGst: true,
+    items: lines, overallDiscountType: '%', overallDiscountValue: 0, shippingCharges: 0, roundOffEnabled: false, termsAndConditions: 'QA', ...extra,
+  });
+
+  test('SAL10-4 without the discount right, an item\'s own ₹ standard discount still sells (rupees per unit, to the paisa); more is refused', async () => {
+    const date = await thisMonthDay();
+    // ₹118 off a ₹1,180 tax-inclusive price = ₹100 per unit before GST.
+    const item = await createItem({ price: 1180, stock: { 'erode-hq': 10 }, extra: { salePriceTaxMode: 'with', discountOnSalePrice: 118, discountType: 'amount' } });
+    await withoutRights(async () => {
+      ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 3, { price: 1000, discountType: 'amount', discountValue: 300 })] }), 'Billing'), 'the standard discount');
+      expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 3, { price: 1000, discountType: 'amount', discountValue: 303 })] }), 'Billing'), 403, '₹1 per unit more');
+      expectStatus(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { price: 1000, discountValue: 12 })] }), 'Billing'), 403, '12% is more than ₹100 of ₹1,000');
+      ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 1, { price: 1000, discountValue: 10 })] }), 'Billing'), '10% = ₹100 is the standard');
+    });
+  });
+
+  test('SAL10-5 the price floor uses the catalogue GST rate, not a 0% sent with a GST-off bill', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    await withoutRights(async () => {
+      const off = (price, taxRate) => ({ ...saleBody({ date, lines: [line(item, 1, { price, taxRate })] }), withGst: false });
+      expectStatus(await post('/api/tx/sale', off(1000, 0), 'Billing'), 403, '₹1,000 on a GST-off bill is below ₹1,180');
+      ok(await post('/api/tx/sale', off(1180, 18), 'Billing'), 'the full price on a GST-off bill');
+    });
+  });
+
+  test('SAL10-8 / SAL10-7 quotes follow the same rights; empty, undated or unknown-branch quotes and empty bills are refused', async () => {
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    await withoutRights(async () => {
+      expectStatus(await post('/api/catalog/estimate', quote([line(item, 1, { price: 800 })]), 'Billing'), 403, 'quote below catalogue');
+      expectStatus(await post('/api/catalog/estimate', quote([line(item, 1, { discountValue: 20 })]), 'Billing'), 403, 'quote with a discount');
+      ok(await post('/api/catalog/estimate', quote([line(item, 1)]), 'Billing'), 'a plain quote');
+    });
+    expectStatus(await post('/api/catalog/estimate', quote([])), 400, 'empty quote');
+    expectStatus(await post('/api/catalog/estimate', quote([line(item, 1)], { date: 'abc' })), 400, 'date abc');
+    expectStatus(await post('/api/catalog/estimate', quote([line(item, 1)], { date: '2030-01-01' })), 400, 'date in 2030');
+    expectStatus(await post('/api/catalog/estimate', quote([line(item, 1)], { branchId: 'mars' })), [400, 403], 'branch mars');
+    expectStatus(await post('/api/tx/sale', saleBody({ date: istToday(), lines: [] })), 400, 'empty bill');
   });
 });
