@@ -161,6 +161,10 @@ export interface Item {
   reorderThreshold?: number; // Threshold for Low Stock alerts (default 10)
   imageUrl?: string; // Optional product image URL
   description?: string; // Optional product description / specs / notes
+  /** Archived (INV5-7): kept with its history, hidden from pickers and default lists. */
+  isArchived?: boolean | null;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -792,6 +796,8 @@ export interface ChallanPartyBlock {
   name?: string;
   comment?: string;
   date?: string;
+  /** HH:MM, IST — set by the server when the goods are marked received. */
+  time?: string;
 }
 
 export interface DeliveryChallan {

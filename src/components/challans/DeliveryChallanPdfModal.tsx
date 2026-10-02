@@ -296,10 +296,19 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
                     {challan.receivedBy?.comment || '________________________'}
                   </span>
                 </div>
+                {/* INV8-5: the document says whether the goods were received, and when (IST). */}
+                <div className="flex gap-2">
+                  <span className="text-slate-400 font-medium w-16 shrink-0">Status:</span>
+                  <span className={challan.status === 'received' ? 'font-bold text-emerald-700' : 'font-semibold text-amber-700'}>
+                    {challan.status === 'received' ? 'Received' : 'Pending — not yet received'}
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <span className="text-slate-400 font-medium w-16 shrink-0">Date:</span>
                   <span className="font-mono text-slate-800">
-                    {challan.receivedBy?.date || '____/____/________'}
+                    {challan.status === 'received'
+                      ? `${challan.receivedBy?.date || (challan.receivedAt || '').slice(0, 10)}${challan.receivedBy?.time ? ` ${challan.receivedBy.time} IST` : ''}`
+                      : '____/____/________'}
                   </span>
                 </div>
               </div>

@@ -54,7 +54,24 @@ export async function reseedDatabase() {
     },
   );
 
-  await prisma.stockAdjustmentLog.createMany({ data: INITIAL_STOCK_ADJUSTMENT_LOGS as any });
+  // INV8-9: the demo movement rows carried hand-written before/after figures
+  // ("12 → 14") that contradicted the opening rows above (item-001 opens at 43
+  // and ends at 45). Replay each item/branch from its opening balance in time
+  // order and restate every row's before/after, so the history reads as one
+  // continuous balance that ends on the seeded stock.
+  const running = new Map<string, number>();
+  for (const o of openingLogs) running.set(`${o.itemId}|${o.branchId}`, Number(o.quantityChange) || 0);
+  const demoLogs = [...(INITIAL_STOCK_ADJUSTMENT_LOGS as any[])]
+    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+    .map((log) => {
+      const k = `${log.itemId}|${log.branchId}`;
+      const prev = running.get(k) || 0;
+      const next = Math.round((prev + (Number(log.quantityChange) || 0)) * 100) / 100;
+      running.set(k, next);
+      return { ...log, previousQuantity: prev, newQuantity: next };
+    });
+
+  await prisma.stockAdjustmentLog.createMany({ data: demoLogs as any });
   if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
   await prisma.estimate.createMany({ data: INITIAL_ESTIMATES as any });
   await prisma.deliveryChallan.createMany({ data: INITIAL_CHALLANS as any });

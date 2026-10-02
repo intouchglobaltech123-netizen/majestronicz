@@ -90,11 +90,17 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
 
   // A single-label preset (thermal roll) must print on a page the SIZE of the
   // label, not a full A4 — otherwise every sticker comes out alone on an A4
-  // page. Sheet presets keep A4 with their margins. (STK-5)
+  // page (STK-5). Sheet presets print on A4 with NO printer margin: the sheet's
+  // own top/left margins and row/column gaps are laid out in mm so the labels
+  // land on the die-cut stickers (INV4-4). Each printed page is a hair shorter
+  // than the paper and clips its overflow, so a page never spills a row onto
+  // the next sheet and the last one leaves no blank page behind.
   const isSingleLabel = preset.labelsPerPage === 1;
   const pageRule = isSingleLabel
     ? `@page { size: ${preset.widthMm}mm ${preset.heightMm}mm; margin: 0; }`
-    : `@page { size: A4 portrait; margin: 8mm; }`;
+    : `@page { size: A4 portrait; margin: 0; }`;
+  const printPageHeightMm = isSingleLabel ? preset.heightMm - 0.3 : 296.5;
+  const printPageWidthMm = isSingleLabel ? preset.widthMm - 0.3 : 209.5;
 
   return createPortal(
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
@@ -114,8 +120,10 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                   {preset.name}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
-                {allLabels.length} labels total • {totalPages} A4 page{totalPages > 1 ? 's' : ''} required
+              <p className="text-[11px] text-slate-500" data-testid="barcode-sheet-summary">
+                {isSingleLabel
+                  ? `${allLabels.length} label${allLabels.length === 1 ? '' : 's'} on ${preset.widthMm}×${preset.heightMm} mm roll`
+                  : `${allLabels.length} labels total • ${totalPages} A4 page${totalPages > 1 ? 's' : ''} required`}
               </p>
             </div>
           </div>
@@ -257,6 +265,8 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
               ${pageRule}
               html, body {
                 background: #fff !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 print-color-adjust: exact;
                 -webkit-print-color-adjust: exact;
               }
@@ -296,14 +306,16 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
               .barcode-print-page {
                 page-break-after: always;
                 break-after: page;
-                /* A4 sheet fills the printable A4 height; a single-label (thermal
-                   roll) page is exactly one label tall so it prints on the roll,
-                   not a full A4 (STK-5). */
-                height: ${isSingleLabel ? `${preset.heightMm}mm` : '275mm'};
-                max-height: ${isSingleLabel ? `${preset.heightMm}mm` : '275mm'};
+                /* One sheet (or one roll label) per printed page, with the
+                   preset's own margins (INV4-4 / STK-5). */
+                width: ${printPageWidthMm}mm;
+                height: ${printPageHeightMm}mm;
+                max-height: ${printPageHeightMm}mm;
+                padding: ${preset.pageMarginTopMm}mm 0 0 ${preset.pageMarginLeftMm}mm;
                 box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
+                overflow: hidden;
+                page-break-inside: avoid;
+                break-inside: avoid;
               }
               .barcode-print-page:last-child {
                 page-break-after: auto;
@@ -320,12 +332,13 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: `repeat(${preset.columns}, minmax(0, 1fr))`,
-                  // Rows are exactly one label tall (mm), NOT 1fr of a full-height
-                  // grid — otherwise each label's explicit heightMm overflowed its
-                  // 1fr cell and overlapped the row below (header behind barcode).
+                  // Columns and rows are exactly one label (mm), with the preset's
+                  // SEPARATE column and row gaps — one gap for both pushed row 13
+                  // of the 38×21 sheet onto the next page (INV4-4).
+                  gridTemplateColumns: `repeat(${preset.columns}, ${preset.widthMm}mm)`,
                   gridAutoRows: `${preset.heightMm}mm`,
-                  gap: `${preset.gapXmm}mm`,
+                  columnGap: `${preset.gapXmm}mm`,
+                  rowGap: `${preset.gapYmm}mm`,
                 }}
               >
                 {Array.from({ length: preset.labelsPerPage }).map((_, slotIdx) => {
@@ -347,6 +360,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                       className="flex flex-col justify-between items-center text-center p-1 box-border overflow-hidden"
                       style={{
                         border: settings.showBorders ? '0.5px solid #bbb' : 'none',
+                        width: `${preset.widthMm}mm`,
                         height: `${preset.heightMm}mm`,
                       }}
                     >
@@ -389,7 +403,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
           <div className="flex items-center gap-1.5 text-slate-500">
             <FileCheck className="h-4 w-4 text-emerald-600" />
             <span>
-              Format: <strong>{preset.name}</strong> • Margins pre-calibrated for A4 sticker paper
+              Format: <strong>{preset.name}</strong> • {isSingleLabel ? 'One label per roll sticker' : 'Margins pre-calibrated for A4 sticker paper'}
             </span>
           </div>
           <button

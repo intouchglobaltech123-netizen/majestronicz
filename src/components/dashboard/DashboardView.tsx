@@ -27,7 +27,7 @@ export const DashboardView: React.FC = () => {
     items, branchStocks, currentBranch, isAllBranches, currentBranchData, switchBranch, setCurrentView,
     currentUser, invoices, payments, purchaseOrders, cashRegisters, enquiries, pendingOrders,
     getItemLastSaleInfo, inventorySettings, navigateToInventoryWithMovementFilter,
-    employees,
+    employees, getReorderThreshold, combos,
     activeSubTab,
     navigateToTab,
   } = useErp();
@@ -134,7 +134,8 @@ export const DashboardView: React.FC = () => {
   const inv = useMemo(() => {
     let stockValue = 0, lowStock = 0, deadStock = 0;
     items.forEach((item) => {
-      const threshold = item.reorderThreshold ?? 10;
+      // The shared low-stock threshold, same as Inventory and the sidebar (INV2-10).
+      const threshold = getReorderThreshold(item, isAllBranches ? 'all' : currentBranch);
       const qty = isAllBranches
         ? branchStocks.filter((s) => s.itemId === item.id).reduce((s2, s) => s2 + s.quantity, 0)
         : branchStocks.find((s) => s.itemId === item.id && s.branchId === currentBranch)?.quantity ?? 0;
@@ -187,8 +188,14 @@ export const DashboardView: React.FC = () => {
     const map: Record<string, { name: string; qty: number; revenue: number }> = {};
     scopedSales.filter((i) => (i.date || '').startsWith(thisMonth)).forEach((i) => {
       (i.items || []).forEach((li: any) => {
-        const key = li.itemName || li.itemCode || 'Item';
-        if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
+        // RPT6-1: group by the catalogue item / combo, not the line's typed name
+        // (the same item sold under two names appeared twice).
+        const comboKey = li.isCombo ? (li.comboId || li.itemId) : null;
+        const key = comboKey ? `combo:${comboKey}` : li.itemId ? `item:${li.itemId}` : `name:${li.itemName || li.itemCode || 'Item'}`;
+        const name = comboKey
+          ? combos.find((c) => c.id === comboKey)?.comboName || li.itemName || 'Combo'
+          : (li.itemId && items.find((it) => it.id === li.itemId)?.itemName) || li.itemName || li.itemCode || 'Item';
+        if (!map[key]) map[key] = { name, qty: 0, revenue: 0 };
         map[key].qty += li.quantity || 0;
         map[key].revenue += li.totalAmount || 0;
       });
@@ -196,7 +203,7 @@ export const DashboardView: React.FC = () => {
     const rows = Object.values(map).sort((a, b) => (topMetric === 'revenue' ? b.revenue - a.revenue : b.qty - a.qty)).slice(0, 5);
     const max = Math.max(1, ...rows.map((r) => (topMetric === 'revenue' ? r.revenue : r.qty)));
     return { rows, max };
-  }, [scopedSales, thisMonth, topMetric]);
+  }, [scopedSales, thisMonth, topMetric, items, combos]);
 
   const recentSales = useMemo(
     () => [...scopedSales].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 6),

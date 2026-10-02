@@ -36,6 +36,11 @@ model Item {
   reorderThreshold    Float?
   imageUrl            String?
   description         String?
+  // Archived items (INV5-7) keep their stock history but are hidden from the
+  // sale/PO pickers and the default lists. NULL = active.
+  isArchived          Boolean?
+  archivedAt          String?
+  archivedBy          String?
   createdAt           String
   updatedAt           String
 }

@@ -46,25 +46,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     navigateToTab,
     logout,
     items,
-    getBranchStock,
-    getTotalStockAcrossBranches,
+    getStockStatus,
     isAllBranches,
     currentBranch,
   } = useErp();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Count catalog items at or below their reorder threshold within the current
-  // branch scope, so the Inventory nav entry can flag replenishment work (INV-16).
+  // Count low-stock items in the current branch scope with the SAME rule and
+  // threshold as the Inventory "Low Stock" card (INV-16 / INV2-10).
   const lowStockCount = useMemo(() => {
-    return items.reduce((count, item) => {
-      const qty = isAllBranches
-        ? getTotalStockAcrossBranches(item.id)
-        : getBranchStock(item.id, currentBranch)?.quantity ?? 0;
-      const threshold = item.reorderThreshold ?? 10;
-      return qty <= threshold ? count + 1 : count;
-    }, 0);
-  }, [items, isAllBranches, currentBranch, getBranchStock, getTotalStockAcrossBranches]);
+    const scope = isAllBranches ? 'all' : currentBranch;
+    return items.reduce((count, item) => (getStockStatus(item, scope).status === 'low-stock' ? count + 1 : count), 0);
+  }, [items, isAllBranches, currentBranch, getStockStatus]);
   const isMobileDrawerOpen = Boolean(mobileOpen);
 
   const modules = NAV_MODULES.filter((m) => m.items.some((it) => canAccessView(it.cap)));
@@ -266,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <span className="truncate">{it.label}</span>
                             {showLowStock && (
                               <span
-                                title={`${lowStockCount} item${lowStockCount === 1 ? '' : 's'} at or below reorder level`}
+                                title={`${lowStockCount} item${lowStockCount === 1 ? '' : 's'} low on stock (at or below the reorder level)`}
                                 className={cn(
                                   'shrink-0 min-w-[18px] px-1.5 py-0.5 rounded-none text-[10px] font-extrabold leading-none text-center border',
                                   subActive

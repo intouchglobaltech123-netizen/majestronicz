@@ -38,33 +38,25 @@ const MOVEMENT_META: Record<Movement, { label: string; cls: string }> = {
 };
 
 export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
-  const { items, branchStocks, invoices } = useErp();
+  const { items, branchStocks, itemSales90d, getReorderThreshold } = useErp();
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
   const [movementFilter, setMovementFilter] = useState<'all' | Movement>('all');
 
-  // Units sold per item over the trailing window, scoped to the active branch,
-  // with combos expanded to their components (a combo sale depletes components).
+  // NET units sold per item over exactly the last 90 days (today + 89 before it),
+  // scoped to the active branch: combos count as their sold parts and returned
+  // units are taken off (INV8-7). Computed by the server for every role, so a
+  // role without bills (Purchase) sees the same classification.
   const salesVelocity = useMemo(() => {
-    const cutoff = getTodayDateString(new Date(Date.now() - VELOCITY_WINDOW_DAYS * 864e5));
     const sold = new Map<string, number>();
-    const add = (id: string | undefined, q: number) => {
-      if (id) sold.set(id, (sold.get(id) || 0) + q);
-    };
-    for (const inv of invoices) {
-      if (inv.isVoided) continue;
-      if ((inv.date || '') < cutoff) continue;
-      if (branchScope !== 'all' && inv.branchId !== branchScope) continue;
-      for (const li of ((inv.items || []) as any[])) {
-        if (li.isCombo && Array.isArray(li.comboComponents) && li.comboComponents.length) {
-          for (const c of li.comboComponents) add(c.itemId, (Number(c.quantity) || 0) * (Number(li.quantity) || 0));
-        } else {
-          add(li.itemId, Number(li.quantity) || 0);
-        }
-      }
+    for (const [itemId, byBranch] of Object.entries(itemSales90d || {})) {
+      const units = branchScope === 'all'
+        ? Object.values(byBranch).reduce((t, n) => t + (n || 0), 0)
+        : byBranch[branchScope] || 0;
+      if (units > 0) sold.set(itemId, units);
     }
     return sold;
-  }, [invoices, branchScope]);
+  }, [itemSales90d, branchScope]);
 
   // Compute Valuation Metrics
   const valuationData = useMemo(() => {
@@ -85,11 +77,12 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     };
 
     items.forEach((item) => {
-      const threshold = item.reorderThreshold ?? 10;
       const unitPurchase = item.purchasePrice || 0;
       const unitSale = item.salePrice || 0;
 
       BRANCHES.forEach((b) => {
+        // The shared low-stock threshold for this branch (INV2-10).
+        const threshold = getReorderThreshold(item, b.id);
         const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id);
         const qty = stockRow?.quantity ?? 0;
 
@@ -109,7 +102,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
 
     // Item-level rows for the active branch scope
     const itemRows = items.map((item) => {
-      const threshold = item.reorderThreshold ?? 10;
+      const threshold = getReorderThreshold(item, branchScope);
       let qty = 0;
 
       if (branchScope === 'all') {
@@ -203,7 +196,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
         'no-sale': itemRows.filter((r) => r.movement === 'no-sale').length,
       },
     };
-  }, [items, branchStocks, branchScope, salesVelocity]);
+  }, [items, branchStocks, branchScope, salesVelocity, itemSales90d]);
 
   // Filtered rows for display
   const filteredRows = useMemo(() => {
