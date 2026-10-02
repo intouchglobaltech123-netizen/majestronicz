@@ -65,7 +65,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [items, isAllBranches, currentBranch, getStockStatus]);
   const isMobileDrawerOpen = Boolean(mobileOpen);
 
-  const modules = NAV_MODULES.filter((m) => m.items.some(canSee));
+  // FIN-B-13: a menu whose only visible entry is a shortcut to another menu
+  // (Sales → Enquiries for the Sales and Purchase logins) is not shown.
+  const modules = NAV_MODULES.filter((m) => m.items.some((it) => canSee(it) && !it.shortcut));
   const activeModuleId = modules.find((m) => isModuleActive(m, currentView))?.id ?? null;
 
   // Accordion expanded state persisted across refresh (per-user — see userPrefs)

@@ -1123,7 +1123,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               {item.taxPercent ? (
                                 <>
                                   <div className="text-xs font-semibold text-slate-700">{item.taxPercent}%</div>
-                                  <div className="text-[11px] text-slate-500">{formatCurrency(item.taxAmount || 0)}</div>
+                                  {/* PUR10-2: the tax of the units in the line's value (good received + still expected), not the ordered qty */}
+                                  <div className="text-[11px] text-slate-500">{formatCurrency(poParts.lines[itemIdx]?.tax ?? (item.taxAmount || 0))}</div>
                                 </>
                               ) : (
                                 <span className="text-slate-300">—</span>

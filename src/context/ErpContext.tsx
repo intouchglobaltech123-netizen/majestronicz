@@ -941,7 +941,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // debounced live-refresh can never fire /api/bootstrap without a token
     // during the logged-out/login-transition window (which 401'd and bounced
     // the just-submitted login back to the PIN screen — R03-02).
-    if (isBootstrapping || !isAuthenticated) return;
+    // FIN-B-14: nor while the login must still set its own PIN (no data yet).
+    if (isBootstrapping || !isAuthenticated || mustResetPin) return;
     // The live-updates stream requires login; EventSource can't send an auth
     // header, so pass the token as a query param (the server verifies it).
     const tok = getAuthToken();
@@ -1021,7 +1022,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (statsTimer) clearTimeout(statsTimer);
       es.close();
     };
-  }, [isBootstrapping, isAuthenticated]);
+  }, [isBootstrapping, isAuthenticated, mustResetPin]);
 
   // Data collections persist via granular per-operation endpoints (see the
   // mutation functions below) — concurrency-safe, no full-collection replace.
@@ -1273,11 +1274,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView(landingViewFor(res.user.role));
       setMustResetPin(Boolean(res.mustResetPin));
       setIsAuthenticated(true);
-      try {
-        const bootstrapData = await apiGet<any>('/api/bootstrap');
-        hydrateState(bootstrapData);
-      } catch (err) {
-        console.error('Failed to load ERP state on login:', err);
+      // FIN-B-14: a login that must set its own PIN first gets no data until it
+      // does (SEC10-5) — the bootstrap is loaded after the PIN change, so asking
+      // now only logged a 403 error.
+      if (!res.mustResetPin) {
+        try {
+          const bootstrapData = await apiGet<any>('/api/bootstrap');
+          hydrateState(bootstrapData);
+        } catch (err) {
+          console.error('Failed to load ERP state on login:', err);
+        }
       }
       // One-time dashboard "tour" auto-scroll after each fresh login.
       try { sessionStorage.setItem('mjz_dashboard_tour', '1'); } catch { /* ignore */ }
@@ -3035,10 +3041,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (currentQty < order.quantityNeeded) return;
 
       restockNotifiedRef.current.add(order.id);
-      toast.success(`Stock Arrived for Pending Order ${order.orderNumber}!`, {
-        description: `${order.itemName} now has ${currentQty} ${order.unit} at ${order.branchId}. Ready to convert for ${order.customerName}!`,
+      // SAL2-5: the notice only once the server has recorded the new status.
+      persist(apiPost('/api/enquiry/pending/update', { orderId: order.id, updates: { status: 'Stock Arrived' } }), () => {
+        toast.success(`Stock Arrived for Pending Order ${order.orderNumber}!`, {
+          description: `${order.itemName} now has ${currentQty} ${order.unit} at ${order.branchId}. Ready to convert for ${order.customerName}!`,
+        });
       });
-      persist(apiPost('/api/enquiry/pending/update', { orderId: order.id, updates: { status: 'Stock Arrived' } }));
     });
   }, [branchStocks, pendingOrders]);
 
@@ -3980,10 +3988,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAttendanceRecords((prev) => [newRecord, ...prev]);
-    toast.success(`Check-In Recorded: ${emp.name}`, {
-      description: `Time: ${timeStr} • ${location ? `GPS Accuracy: ±${location.accuracy || 10}m` : 'No GPS'}`,
+    // SAL2-5: "recorded" only once the server has recorded it.
+    persist(apiPost('/api/hrm/clock-in', { employeeId, photoDataUrl, location, customTime }), () => {
+      toast.success(`Check-In Recorded: ${emp.name}`, {
+        description: `Time: ${timeStr} • ${location ? `GPS Accuracy: ±${location.accuracy || 10}m` : 'No GPS'}`,
+      });
     });
-    persist(apiPost('/api/hrm/clock-in', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-in successful', record: newRecord };
   };
 
@@ -4041,10 +4051,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
-    toast.success(`Check-Out Recorded: ${emp.name}`, {
-      description: `Total Shift: ${diffHours} hrs • Time: ${timeStr}`,
+    persist(apiPost('/api/hrm/clock-out', { employeeId, photoDataUrl, location, customTime }), () => {
+      toast.success(`Check-Out Recorded: ${emp.name}`, { // SAL2-5: after the server's OK
+        description: `Total Shift: ${diffHours} hrs • Time: ${timeStr}`,
+      });
     });
-    persist(apiPost('/api/hrm/clock-out', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-out successful', record: updatedRecord };
   };
 

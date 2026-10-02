@@ -34,6 +34,8 @@ export interface NavSub {
   customersOnly?: boolean;
   /** Shown only to a payroll admin (PLT10-3). */
   payrollOnly?: boolean;
+  /** FIN-B-13: a shortcut to another menu's screen — it never keeps a menu on its own. */
+  shortcut?: boolean;
 }
 
 export interface NavAction {
@@ -78,7 +80,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'invoices', subTabId: 'returns', label: 'Sale Returns', cap: 'invoices' },
       { id: 'invoices', subTabId: 'draft-sales', label: 'Saved Sale Drafts', cap: 'invoices' },
       { id: 'invoices', subTabId: 'draft-quotes', label: 'Saved Quote Drafts', cap: 'invoices' },
-      { id: 'enquiries', label: 'Enquiries', cap: 'enquiries' },
+      { id: 'enquiries', label: 'Enquiries', cap: 'enquiries', shortcut: true },
     ],
   },
   {

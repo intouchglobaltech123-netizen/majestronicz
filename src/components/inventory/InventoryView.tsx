@@ -57,6 +57,7 @@ export const InventoryView: React.FC = () => {
     getReorderThreshold,
     canWriteStock,
     canManagePurchases,
+    canManageItems,
   } = useErp();
 
   // Search and Filters
@@ -971,11 +972,16 @@ export const InventoryView: React.FC = () => {
 
                       {/* Low Stock Threshold (Editable) */}
                       <td className="py-3.5 px-3 text-center">
+                        {/* INV5-6: only a login that may change item masters opens the editor
+                            (its Save was disabled for Purchase anyway). */}
                         <button
                           type="button"
-                          onClick={() => setThresholdItem(item)}
-                          title="Auto alert level = avg monthly sales + 10 (uses this manual value only when there's no sales history). Click to edit the manual fallback."
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all text-xs font-semibold text-slate-700 group"
+                          onClick={() => canManageItems && setThresholdItem(item)}
+                          disabled={!canManageItems}
+                          title={canManageItems
+                            ? "Auto alert level = avg monthly sales + 10 (uses this manual value only when there's no sales history). Click to edit the manual fallback."
+                            : 'Auto alert level = avg monthly sales + 10 (the manual fallback is set by a Manager or the CEO).'}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all text-xs font-semibold text-slate-700 group disabled:cursor-default disabled:hover:bg-transparent disabled:hover:border-transparent"
                         >
                           <span>{stockData.threshold} {item.unit}</span>
                           {/* Say which rule set the level, so an edited manual value that
@@ -983,7 +989,7 @@ export const InventoryView: React.FC = () => {
                           {stockData.threshold !== (item.reorderThreshold ?? 10) && (
                             <span className="text-[10px] font-normal text-slate-400">(auto · manual {item.reorderThreshold ?? 10})</span>
                           )}
-                          <Edit3 className="h-3 w-3 text-slate-400 group-hover:text-blue-600" />
+                          {canManageItems && <Edit3 className="h-3 w-3 text-slate-400 group-hover:text-blue-600" />}
                         </button>
                       </td>
 

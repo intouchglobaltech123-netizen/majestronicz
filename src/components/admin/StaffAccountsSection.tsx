@@ -65,7 +65,8 @@ export const StaffAccountsSection: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-3 px-4"><span className="font-semibold">{u.role}</span></td>
-                  <td className="py-3 px-4 text-slate-600">{u.role === 'Manager' ? branchName(u.assignedBranchId) : '—'}</td>
+                  <td className="py-3 px-4 text-slate-600">{/* FIN-B-12: every branch-locked account shows its branch (Billing, Sales, Purchase too) */}
+                    {u.assignedBranchId ? branchName(u.assignedBranchId) : u.role === 'CEO' ? 'All branches' : '—'}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-col gap-1">
                       <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-bold border w-fit', u.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300')}>
