@@ -102,6 +102,9 @@ export function saveEstimate(data: any, reqUser?: any) {
 /** Cancel a quotation with a reason — the delete action is gone; an Open quote is
  *  either Converted (to a sale) or Cancelled (with a reason). */
 export function cancelEstimate(id: string, reason: string, actor?: string, reqUser?: any) {
+  // SAL9-14: a cancelled quote must say why — the screen asks, the server insists.
+  const why = String(reason ?? '').trim();
+  if (!why) throw new AppError('REASON_REQUIRED', 'Give a reason for cancelling this quotation.', 400);
   return prisma.$transaction(async (tx: any) => {
     const est = await tx.estimate.findUnique({ where: { id } });
     if (!est) throw new AppError('NOT_FOUND', 'Quotation not found', 404);
@@ -112,7 +115,7 @@ export function cancelEstimate(id: string, reason: string, actor?: string, reqUs
     }
     await tx.estimate.update({
       where: { id },
-      data: { status: 'Cancelled', cancelReason: (reason || '').trim() || 'No reason given', cancelledAt: nowIso(), cancelledBy: actor || null },
+      data: { status: 'Cancelled', cancelReason: why.slice(0, 500), cancelledAt: nowIso(), cancelledBy: actor || null },
     });
     return { estimates: await tx.estimate.findMany() };
   });
