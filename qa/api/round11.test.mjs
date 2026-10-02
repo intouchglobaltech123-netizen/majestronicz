@@ -283,3 +283,34 @@ describe('round 11: errors', () => {
     }
   });
 });
+
+describe('round 11: sale terms and prices', () => {
+  test('E2E-20 a bill\'s due date follows its payment terms', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const body = (terms, dueDate) => ({ ...saleBody({ date, transactionType: 'Credit', customerName: 'QA Terms', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }), paymentTerms: terms, dueDate });
+    const net15 = await mustSell(body('Net 15', date));
+    assert.equal(net15.dueDate, new Date(Date.parse(`${date}T00:00:00Z`) + 15 * 86400000).toISOString().slice(0, 10));
+    const now = await mustSell(body('Due on Receipt', '2099-01-01'));
+    assert.equal(now.dueDate, date, 'the terms win over a stray due date');
+    const custom = await mustSell(body('Custom', '2001-01-01'));
+    assert.equal(custom.dueDate, date, 'a custom due date before the bill date is the bill date');
+  });
+
+  test('SAL-21 without the price right, the wholesale price is allowed only from the minimum wholesale quantity', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 50 }, extra: { wholesalePrice: 800, minWholesaleQty: 10 } });
+    const matrix = ok(await get('/api/access-matrix')).matrix;
+    const restricted = JSON.parse(JSON.stringify(matrix));
+    restricted.Billing.flags = restricted.Billing.flags.filter((f) => f !== 'bill.editPrice');
+    ok(await put('/api/access-matrix', restricted), 'take the price right away');
+    try {
+      const few = await post('/api/tx/sale', saleBody({ date, lines: [line(item, 2, { price: 800 })] }), 'Billing');
+      expectStatus(few, 403, 'wholesale price on 2 units');
+      assert.equal(few.body.error, 'NO_PRICE_RIGHT');
+      ok(await post('/api/tx/sale', saleBody({ date, lines: [line(item, 10, { price: 800 })] }), 'Billing'), 'wholesale price on 10 units');
+    } finally {
+      ok(await put('/api/access-matrix', matrix), 'restore');
+    }
+  });
+});

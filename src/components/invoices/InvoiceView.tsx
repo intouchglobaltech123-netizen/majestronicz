@@ -51,6 +51,8 @@ interface BillTab {
   duplicateSourceInvoice: Invoice | null;
   duplicateSourceEstimate: Estimate | null;
   resumedDraftId: string | null;
+  /** SAL4-13: the form's latest contents, kept so a page reload restores the tab with its lines. */
+  workingCopy?: Invoice | Estimate | null;
 }
 
 interface Props {
@@ -91,7 +93,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       if (raw) {
         const p = JSON.parse(raw);
         if (Array.isArray(p.openBills)) {
-          return { openBills: p.openBills, activeBillId: p.activeBillId ?? null, activeTab: p.activeTab ?? null };
+          // SAL4-13: a tab comes back with what was typed into it — its last
+          // working copy reopens like a parked draft.
+          const openBills = (p.openBills as BillTab[]).map((t) => (t.workingCopy
+            ? {
+                ...t,
+                editingInvoice: t.documentType === 'Invoice' ? (t.workingCopy as Invoice) : null,
+                editingEstimate: t.documentType === 'Quotation' ? (t.workingCopy as Estimate) : null,
+                convertedEstimate: null, duplicateSourceInvoice: null, duplicateSourceEstimate: null,
+              }
+            : t));
+          return { openBills, activeBillId: p.activeBillId ?? null, activeTab: p.activeTab ?? null };
         }
       }
     } catch { /* ignore */ }
@@ -192,6 +204,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         setActiveTab(tab);
       } else if (tab === 'new') {
         openBillTab({ documentType: 'Invoice' });
+      } else if (tab === 'open-bills') {
+        // SAL4-13: a reload on the billing screen returns to the restored tabs.
+        if (openBills.length) setActiveTab('new');
       } else if (tab === 'new-quote') {
         openBillTab({ documentType: 'Quotation' });
       } else if (tab === 'challans') {
@@ -218,12 +233,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Sync with initialTab prop when changed by router. Skip the very first run so
   // a refresh that restored open bill tabs (activeTab='new') is not overridden.
-  const initialTabMountRef = useRef(true);
+  // SAL4-13: compare with the previous value (not "first run"), so React's
+  // development double-run of effects doesn't switch a restored billing screen
+  // back to the list.
+  const prevInitialTabRef = useRef(initialTab);
   useEffect(() => {
-    if (initialTabMountRef.current) {
-      initialTabMountRef.current = false;
-      return;
-    }
+    if (prevInitialTabRef.current === initialTab) return;
+    prevInitialTabRef.current = initialTab;
     if (initialTab) {
       setActiveTab(initialTab);
     }
@@ -684,6 +700,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 onSaved={(inv) => handleSaved(tab, inv)}
                 onSavedEstimate={(est) => handleSavedEstimate(tab, est)}
                 onSaveDraft={(doc, kind) => handleSaveDraft(tab, doc, kind)}
+                onWorkingCopy={(doc) => setOpenBills((prev) => prev.map((t) => (t.id === tab.id ? { ...t, workingCopy: doc } : t)))}
                 onPreviewPdf={(inv) => setPreviewInvoice(inv)}
                 onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
                 onCancel={() => closeBillTab(tab.id, tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}

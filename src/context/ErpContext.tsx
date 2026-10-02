@@ -622,6 +622,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // customer/supplier…) is not re-opened by a page reload.
           if (parsed.tab === 'history' && parsed.view === 'cash-register') return { view: parsed.view, tab: 'register', nonce: Date.now() };
           if (/^new-/.test(String(parsed.tab))) return null;
+          // SAL4-13: "New Sale" opens a tab; the bill tabs restore themselves, so
+          // a reload goes back to the open bills instead of opening one more.
+          if (parsed.view === 'invoices' && parsed.tab === 'new') return { view: parsed.view, tab: 'open-bills', nonce: Date.now() };
           return { view: parsed.view, tab: parsed.tab, nonce: Date.now() };
         }
       }

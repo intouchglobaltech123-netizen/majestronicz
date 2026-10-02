@@ -70,6 +70,9 @@ interface Props {
   onCancel?: () => void;
   /** Save the current document as a work-in-progress draft (not committed). */
   onSaveDraft?: (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => void;
+  /** SAL4-13: the form's current contents (unvalidated), so the bill tabs can be
+   *  restored WITH their lines after a page reload. */
+  onWorkingCopy?: (doc: Invoice | Estimate) => void;
   /** True when this bill tab is the one on screen (enables the global scanner). */
   isActive?: boolean;
 }
@@ -88,6 +91,7 @@ export const InvoiceForm: React.FC<Props> = ({
   onPreviewEstimatePdf,
   onCancel,
   onSaveDraft,
+  onWorkingCopy,
 }) => {
   const {
     currentBranch,
@@ -110,7 +114,11 @@ export const InvoiceForm: React.FC<Props> = ({
     employees,
     pendingOrders,
     payments,
+    invoices,
   } = useErp();
+  // A bill that is really saved (not a parked draft or a restored tab copy):
+  // only then do "already paid" and the ended-month date limit apply.
+  const isSavedBill = !!initialInvoice && invoices.some((i) => i.id === initialInvoice.id);
 
   // Document Type Mode: 'Invoice' (Sales Invoice) vs 'Quotation' (Quotation / Estimate)
   const [documentType, setDocumentType] = useState<'Invoice' | 'Quotation'>(() => {
@@ -377,7 +385,8 @@ export const InvoiceForm: React.FC<Props> = ({
     initialInvoice?.sourceEnquiryNumber || convertedFromEstimate?.sourceEnquiryNumber
   );
 
-  // Keep the (now-hidden) due date sensible from payment terms + invoice date.
+  // Keep the due date sensible from payment terms + invoice date (E2E-20: the
+  // terms are chosen on a bill with an amount owed).
   useEffect(() => {
     const matched = paymentTermsOptions.find((t) => t.value === paymentTerms);
     if (matched && matched.days > 0) {
@@ -772,9 +781,12 @@ export const InvoiceForm: React.FC<Props> = ({
       item.gstTaxSlab,
       branchStocks.find((bs) => bs.itemId === item.id && bs.branchId === selectedBranch)?.gstTaxSlab,
     );
-  const getItemPreTaxPrice = (item: Item): number => {
-    const base =
-      isWholesaleCustomer && item.wholesalePrice > 0 ? item.wholesalePrice : item.salePrice;
+  // SAL-21: the wholesale price applies from the item's minimum wholesale quantity.
+  const wholesaleApplies = (item: Item, qty: number): boolean =>
+    isWholesaleCustomer && item.wholesalePrice > 0 && qty >= (Number(item.minWholesaleQty) || 1);
+  const getItemPreTaxPrice = (item: Item, qty = 1, forceBase?: 'sale' | 'wholesale'): number => {
+    const useWholesale = forceBase ? forceBase === 'wholesale' : wholesaleApplies(item, qty);
+    const base = useWholesale && item.wholesalePrice > 0 ? item.wholesalePrice : item.salePrice;
     const factor = 1 + taxSlabFor(item) / 100;
     // GST-ON representation of the unit price (pre-tax portion), unchanged from before.
     const preOn = item.salePriceTaxMode === 'with' ? base / factor : base;
@@ -948,6 +960,38 @@ export const InvoiceForm: React.FC<Props> = ({
     );
   };
 
+  // SAL-21: a catalogue line follows the wholesale rule as its quantity or the
+  // customer changes (an Organization buyer at or above the item's minimum
+  // wholesale quantity pays the wholesale price) — unless the price was typed
+  // by hand (then it is neither of the two catalogue prices and is left alone).
+  const wholesaleKey = lineItems.map((l) => `${l.id}:${l.itemId || ''}:${l.quantity}`).join('|');
+  // Only a change made here re-prices: a line seen for the first time (picked
+  // just now, or loaded from a stored bill/quote) keeps its price.
+  const wholesaleSeenRef = useRef<{ lines: Map<string, { itemId: string; qty: number }>; customer: boolean | null }>({ lines: new Map(), customer: null });
+  useEffect(() => {
+    const seen = wholesaleSeenRef.current;
+    const customerChanged = seen.customer !== null && seen.customer !== isWholesaleCustomer && !isSavedBill;
+    seen.customer = isWholesaleCustomer;
+    const next = new Map<string, { itemId: string; qty: number }>();
+    for (const li of lineItems) {
+      const qty = Number(li.quantity) || 0;
+      const prev = seen.lines.get(li.id);
+      next.set(li.id, { itemId: li.itemId || '', qty });
+      if (!li.itemId || li.isCombo || !prev || prev.itemId !== li.itemId) continue;
+      if (!customerChanged && prev.qty === qty) continue;
+      const master = items.find((i) => i.id === li.itemId);
+      if (!master || !(master.wholesalePrice > 0)) continue;
+      const retail = getItemPreTaxPrice(master, 1, 'sale');
+      const wholesale = getItemPreTaxPrice(master, 1, 'wholesale');
+      const want = wholesaleApplies(master, qty) ? wholesale : retail;
+      const cur = Number(li.unitPrice) || 0;
+      const isCatalogue = Math.abs(cur - retail) < 0.000001 || Math.abs(cur - wholesale) < 0.000001;
+      if (isCatalogue && Math.abs(cur - want) > 0.000001) updateLineItem(li.id, { unitPrice: want });
+    }
+    seen.lines = next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wholesaleKey, isWholesaleCustomer]);
+
   const selectMasterItemForRow = (rowId: string, item: Item) => {
     const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === selectedBranch);
     const availableQty = stockRow?.quantity ?? 0;
@@ -959,7 +1003,7 @@ export const InvoiceForm: React.FC<Props> = ({
       return;
     }
 
-    const roundedPrice = getItemPreTaxPrice(item);
+    const roundedPrice = getItemPreTaxPrice(item, Number(lineItems.find((l) => l.id === rowId)?.quantity) || 1);
 
     updateLineItem(rowId, {
       itemId: item.id,
@@ -1323,24 +1367,24 @@ export const InvoiceForm: React.FC<Props> = ({
   // credit (a walk-in bill has no account for it), so a split that is "over"
   // the new total is expected here, not an error.
   const alreadyPaid = useMemo(() => {
-    if (!initialInvoice) return 0;
+    if (!initialInvoice || !isSavedBill) return 0;
     return Math.max(0, Math.round(((Number(initialInvoice.grandTotal) || 0) - (Number(initialInvoice.balanceDue) || 0) - (Number(initialInvoice.totalReturnedAmount) || 0)) * 100) / 100);
-  }, [initialInvoice]);
-  const paidOverNewTotal = documentType === 'Invoice' && initialInvoice
+  }, [initialInvoice, isSavedBill]);
+  const paidOverNewTotal = documentType === 'Invoice' && initialInvoice && isSavedBill
     ? Math.max(0, Math.round((alreadyPaid - totals.grandTotal) * 100) / 100) : 0;
   // FIN-A-1: store credit given back on THIS bill by an earlier edit below what
   // was paid (same rule as the server's creditBackForBill). Editing the bill back
   // up keeps what was collected as it is; that credit is applied back to the new
   // total and anything left is a due to collect — never "cash" nobody took.
   const billCreditBack = useMemo(() => {
-    if (!initialInvoice || !selectedCustomerObj) return 0;
+    if (!initialInvoice || !isSavedBill || !selectedCustomerObj) return 0;
     const id = initialInvoice.id;
     const t = (selectedCustomerObj.creditHistory || []).reduce((sum, h: any) => {
       const ref = String(h?.refId || '');
       return ref === id || h?.billId === id || ref === `fix-overpay:${id}` ? sum + (Number(h.amount) || 0) : sum;
     }, 0);
     return Math.max(0, Math.round(t * 100) / 100);
-  }, [initialInvoice, selectedCustomerObj]);
+  }, [initialInvoice, isSavedBill, selectedCustomerObj]);
   const collectedOnBill = useMemo(
     () => (documentType === 'Invoice' && initialInvoice
       ? getInvoicePaymentSplits(initialInvoice).filter((s) => s.mode !== 'COD-Credit' && (Number(s.amount) || 0) > 0)
@@ -1353,7 +1397,7 @@ export const InvoiceForm: React.FC<Props> = ({
   const leftToCollect = billCreditBack > 0.009 && paidOverNewTotal <= 0.009 ? Math.round((owingAfterEdit - creditAppliedBack) * 100) / 100 : 0;
   // FIN-E-2: in both cases the server keeps the bill's collected split exactly as
   // it is, so the form shows that split (read-only) instead of an editable one.
-  const keepsCollectedSplit = documentType === 'Invoice' && !!initialInvoice && (paidOverNewTotal > 0.009 || billCreditBack > 0.009);
+  const keepsCollectedSplit = documentType === 'Invoice' && isSavedBill && (paidOverNewTotal > 0.009 || billCreditBack > 0.009);
 
   // Is payment reconciled exactly to 0 remaining?
   const isPaymentReconciled = useMemo(() => {
@@ -1414,18 +1458,18 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   // Build the complete invoice object
-  const assembleInvoiceObject = (): Invoice | null => {
+  const assembleInvoiceObject = (quiet = false): Invoice | null => {
     // Customer name is optional — a phone-only walk-in bill is fine.
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
-      toast.error('At least one valid item is required', {
+      if (!quiet) toast.error('At least one valid item is required', {
         description: 'Please enter a product description and quantity > 0.',
       });
       return null;
     }
 
     // Validate split payment reconciliation
-    if (documentType === 'Invoice' && paymentSplits.length > 1 && !isPaymentReconciled) {
+    if (documentType === 'Invoice' && paymentSplits.length > 1 && !isPaymentReconciled && !quiet) {
       toast.error('Payment split not reconciled', {
         description:
           remainingBalance > 0
@@ -1529,12 +1573,12 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   // Build the complete quotation/estimate object
-  const assembleEstimateObject = (): Estimate | null => {
+  const assembleEstimateObject = (quiet = false): Estimate | null => {
     // Customer name optional here too (phone-first entry).
 
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
-      toast.error('At least one valid item is required', {
+      if (!quiet) toast.error('At least one valid item is required', {
         description: 'Please enter a product description and quantity > 0.',
       });
       return null;
@@ -1696,6 +1740,20 @@ export const InvoiceForm: React.FC<Props> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isActive]);
+
+  // SAL4-13: hand the tab bar the form's current contents (quietly — no
+  // validation toasts) a moment after each change, so a reload restores them.
+  const workingCopyRef = useRef(onWorkingCopy);
+  workingCopyRef.current = onWorkingCopy;
+  useEffect(() => {
+    if (!workingCopyRef.current || isSavedBill) return;
+    const t = setTimeout(() => {
+      const doc = documentType === 'Quotation' ? assembleEstimateObject(true) : assembleInvoiceObject(true);
+      if (doc) workingCopyRef.current?.(doc);
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineItems, customerName, customerPhone, customerAddress, customerId, date, paymentSplits, overallDiscountType, overallDiscountValue, shippingCharges, roundOffEnabled, withGst, documentType, salespersonId, terms]);
 
   const handleSaveDraft = () => {
     if (!onSaveDraft) return;
@@ -1877,6 +1935,21 @@ export const InvoiceForm: React.FC<Props> = ({
             </div>
           )}
 
+          {/* E2E-20: a bill with an amount owed carries payment terms; the due
+              date follows the bill date + the terms' days. */}
+          {documentType === 'Invoice' && (transactionType === 'Credit' || paymentSplits.some((sp) => sp.mode === 'COD-Credit')) && paymentTermsOptions.length > 0 && (
+            <div className="flex items-center gap-1.5" data-testid="payment-terms">
+              <div className="w-36 sm:w-40">
+                <UniversalDropdown
+                  options={paymentTermsOptions.filter((t) => t.value !== 'Custom').map((t) => ({ value: t.value, label: t.label }))}
+                  value={paymentTermsOptions.some((t) => t.value === paymentTerms) ? paymentTerms : paymentTermsOptions[0].value}
+                  onChange={(val) => setPaymentTerms(String(val))}
+                />
+              </div>
+              <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">Due {dueDate.split('-').reverse().join('/')}</span>
+            </div>
+          )}
+
           {sourceEstimateId && (
             <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" />
@@ -1945,7 +2018,7 @@ export const InvoiceForm: React.FC<Props> = ({
               type="date"
               value={date}
               // FIN-A-3: an edited bill stays in the current month (an ended month is reported).
-              min={initialInvoice && documentType === 'Invoice' ? `${getTodayDateString().slice(0, 7)}-01` : undefined}
+              min={isSavedBill && documentType === 'Invoice' ? `${getTodayDateString().slice(0, 7)}-01` : undefined}
               onChange={(e) => setDate(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
             />

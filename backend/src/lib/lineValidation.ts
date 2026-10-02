@@ -178,7 +178,9 @@ export async function assertLinesAgainstCatalogue(
       if (master) {
         const sale = Number(master.salePrice) || 0;
         const wholesale = Number(master.wholesalePrice) || 0;
-        const base = wholesale > 0 ? Math.min(sale, wholesale) : sale;
+        // SAL-21: the wholesale price is a floor only from its minimum quantity.
+        const minQty = Number(master.minWholesaleQty) || 1;
+        const base = wholesale > 0 && qty >= minQty ? Math.min(sale, wholesale) : sale;
         const preOn = master.salePriceTaxMode === 'with' ? base / (1 + rate / 100) : base;
         floor = doc.withGst ? preOn : preOn * (1 + rate / 100);
       } else if (li.isCombo && comboById.has(String(li.comboId))) {

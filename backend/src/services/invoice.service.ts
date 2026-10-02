@@ -12,7 +12,7 @@ import { legacyRefundId, creditBackForBill } from '../lib/returnRefunds.js';
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
-import { isValidBranch } from '../lib/constants.js';
+import { isValidBranch, PAYMENT_TERMS_OPTIONS, isValidYmd } from '../lib/constants.js';
 import { isWholeUnit } from '../lib/units.js';
 import { roleFlags } from '../lib/auth.js';
 import { assertBusinessDate, assertDayOpen, closedDayFrom, istToday } from '../lib/businessDate.js';
@@ -335,6 +335,24 @@ async function applySalesperson(tx: any, inv: any, existing: any): Promise<void>
   inv.incentiveAmount = rate > 0 ? Math.round((inv.grandTotal || 0) * rate) / 100 : null;
 }
 
+/**
+ * E2E-20: a bill's due date follows its payment terms — the bill date plus the
+ * terms' days ("Net 30" → 30 days later); terms the list doesn't know keep a
+ * real due date on or after the bill date, anything else is due on the bill date.
+ */
+function applyPaymentTerms(inv: any): void {
+  const date = String(inv.date);
+  const terms = typeof inv.paymentTerms === 'string' ? inv.paymentTerms.trim().slice(0, 40) : '';
+  inv.paymentTerms = terms || 'Due on Receipt';
+  const known = PAYMENT_TERMS_OPTIONS.find((t) => t.value === inv.paymentTerms && t.value !== 'Custom');
+  if (known) {
+    inv.dueDate = new Date(Date.parse(`${date}T00:00:00Z`) + known.days * 86_400_000).toISOString().slice(0, 10);
+    return;
+  }
+  const due = typeof inv.dueDate === 'string' ? inv.dueDate : '';
+  inv.dueDate = isValidYmd(due) && due >= date ? due : date;
+}
+
 /** CRM-8: a customer's purchase count is the number of their LIVE bills (not a
  *  running counter that drifted), so loyalty reads a true count. */
 async function liveBillCount(tx: any, customerId: string, excludeId?: string): Promise<number> {
@@ -377,6 +395,7 @@ export function createSale(inv: any, reqUser?: any) {
     if (stored) inv.branchId = stored.branchId;
     // CASH10-1: not on a closed day, nor on any day before the latest closed one.
     await assertDayOpen(tx, inv.branchId, inv.date, stored ? 'edit this bill' : 'save a bill on that date');
+    applyPaymentTerms(inv);
 
     // Reject nonsensical line quantities: a zero or negative quantity produced a
     // ₹0 bill and, worse, a negative quantity *added* stock instead of selling it
