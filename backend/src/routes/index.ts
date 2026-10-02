@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db.js';
 import { crudRouter } from '../crud.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { requireCapability, requireAuth, requireManagerOrCEO } from '../middleware/rbac.js';
+import { requireCapability, requireAuth, requireManagerOrCEO, sessionIsLive } from '../middleware/rbac.js';
 import { issueToken, verifyToken, hashPin, Capability } from '../lib/auth.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -97,6 +97,16 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   }
   loginAttempts.set(ip, rec);
   throw new AppError('INVALID_PIN', `Incorrect PIN.${remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before a 1-minute lock.` : ' Locked for 1 minute.'}`, 401);
+}));
+
+// Sign out (SEC-5): tokens are stateless and live 12h, so a copied token kept
+// working after "Sign out". Record the moment; attachUser rejects every token
+// of this account issued before it (all of this user's open sessions end).
+router.post('/auth/logout', requireAuth, asyncHandler(async (req, res) => {
+  const actor = (req as any).user;
+  await prisma.user.update({ where: { id: actor.userId }, data: { tokensValidAfter: Date.now(), updatedAt: nowIso() } });
+  await recordAudit({ actor: actorOf(req), action: 'auth.logout', entity: 'user', entityId: actor.userId, summary: 'Signed out' });
+  res.json({ ok: true });
 }));
 
 // Rate-limit change-pin per account so it can't be used as a PIN oracle. The
@@ -401,7 +411,11 @@ router.get('/events', (req, res, next) => {
   const token = typeof req.query.token === 'string' ? req.query.token : undefined;
   const session = verifyToken(token);
   if (!session || !session.userId) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
-  next();
+  // Same revocation as every other request (disabled / role changed / signed out).
+  sessionIsLive(session).then((live) => {
+    if (!live) return next(new AppError('UNAUTHENTICATED', 'Login required', 401));
+    next();
+  }, next);
 }, sseHandler);
 
 // ---- Access control matrix (view/edit; edit is CEO/admin only) ----

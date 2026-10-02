@@ -14,6 +14,16 @@ const app = express();
 // otherwise allow all (dev). Auth is Bearer-token based (no cookies), so this is
 // the main cross-origin control.
 const allowlist = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+// SEC2-9: in production an empty allowlist lets every website call the API with
+// a stolen token. Refusing to start would take the shop offline, so shout instead.
+if (!allowlist.length && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '\n' + '!'.repeat(78) +
+    '\nSECURITY WARNING: CORS_ORIGINS is not set — the API accepts requests from ANY website.' +
+    '\nSet CORS_ORIGINS to the shop\'s web address(es), comma-separated, and redeploy.\n' +
+    '!'.repeat(78) + '\n',
+  );
+}
 app.use(cors(allowlist.length ? {
   origin: (origin, cb) => cb(null, !origin || allowlist.includes(origin)),
 } : undefined));

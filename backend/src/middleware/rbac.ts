@@ -3,10 +3,37 @@ import { verifyToken, roleCan, Capability, SessionUser } from '../lib/auth.js';
 import { AppError } from './errorHandler.js';
 import { prisma } from '../db.js';
 
+// Tokens live 12h (lib/auth.ts issueToken) and carry only their expiry, so the
+// issue time is exp − 12h unless the token states it (`iat`).
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+export const tokenIssuedAt = (session: SessionUser): number =>
+  typeof (session as any).iat === 'number' ? (session as any).iat : session.exp - TOKEN_TTL_MS;
+
+/**
+ * True when a cryptographically valid session is still live: the account is
+ * active, its role unchanged, and the token was issued after the user's last
+ * sign-out (SEC-5). On a DB hiccup the (already verified) token is trusted.
+ */
+export async function sessionIsLive(session: SessionUser): Promise<boolean> {
+  if (!session.userId) return false;
+  try {
+    const account = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { status: true, role: true, tokensValidAfter: true },
+    });
+    if (!account || account.status !== 'active' || account.role !== session.role) return false;
+    if (account.tokensValidAfter != null && tokenIssuedAt(session) < account.tokensValidAfter) return false;
+  } catch {
+    /* on a DB hiccup, fall back to the (already cryptographically valid) token */
+  }
+  return true;
+}
+
 // Attach the authenticated user (if a valid Bearer token is present) to req.
 // Also enforces live session revocation: a token is rejected the moment its
 // account is disabled or its role no longer matches (role change / disable takes
-// effect on the very next request — no waiting for the 12h token to expire).
+// effect on the very next request — no waiting for the 12h token to expire), or
+// once the user has signed out (SEC-5).
 export async function attachUser(req: Request & { user?: SessionUser | null }, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
@@ -18,19 +45,9 @@ export async function attachUser(req: Request & { user?: SessionUser | null }, _
     req.user = null;
     return next();
   }
-  if (session?.userId) {
-    try {
-      const account = await prisma.user.findUnique({
-        where: { id: session.userId },
-        select: { status: true, role: true },
-      });
-      if (!account || account.status !== 'active' || account.role !== session.role) {
-        req.user = null; // revoked → treated as unauthenticated
-        return next();
-      }
-    } catch {
-      /* on a DB hiccup, fall back to the (already cryptographically valid) token */
-    }
+  if (session?.userId && !(await sessionIsLive(session))) {
+    req.user = null; // revoked → treated as unauthenticated
+    return next();
   }
   req.user = session;
   next();

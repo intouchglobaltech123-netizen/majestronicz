@@ -1275,6 +1275,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    // Revoke the token on the server too (SEC-5) — fire-and-forget, so signing
+    // out never hangs on a slow or unreachable backend.
+    if (getAuthToken()) void apiPost('/api/auth/logout', {}).catch(() => {});
     setAuthToken(null);
     setIsAuthenticated(false);
     setMustResetPin(false);
