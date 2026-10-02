@@ -1316,8 +1316,10 @@ export const InvoiceForm: React.FC<Props> = ({
   const isPaymentReconciled = useMemo(() => {
     if (documentType !== 'Invoice') return true;
     if (paymentSplits.length <= 1) return true;
-    // E2E10-4: over by no more than what was already paid is fine on an edit.
-    if (paidOverNewTotal > 0 && remainingBalance < 0 && -remainingBalance <= paidOverNewTotal + 0.01) return true;
+    // E2E10-4: an edit below what was already paid keeps the bill's collected
+    // split as it is on the server (the difference becomes store credit), so
+    // the split on screen does not have to match the new total.
+    if (paidOverNewTotal > 0) return true;
     return Math.abs(remainingBalance) < 0.01;
   }, [documentType, paymentSplits.length, remainingBalance, paidOverNewTotal]);
 
