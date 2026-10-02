@@ -1,3 +1,4 @@
+import { istToday, istTime } from '../lib/businessDate.js';
 import crypto from 'crypto';
 import { prisma } from '../db.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
@@ -355,7 +356,7 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
 
   await prisma.$transaction(async (tx: any) => {
     const branchId = shopifyBranch();
-    const date = (o.created_at || nowIso()).split('T')[0];
+    const date = o.created_at ? String(o.created_at).split('T')[0] : istToday();
     const invLines = (o.line_items || []).map((li: any) => {
       const sku = String(li.sku || '').toLowerCase();
       const match = sku ? map.get(sku) : undefined;
@@ -394,7 +395,7 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         // Carry the FULL delivery address, not just line 1 + city — dropping
         // address2/province/zip/country lost half the address on every import.
         customerAddress: fullShopifyAddress(o.shipping_address || o.billing_address) || null,
-        date, time: (o.created_at || ts).slice(11, 19) || '00:00:00',
+        date, time: o.created_at ? String(o.created_at).slice(11, 19) || '00:00:00' : istTime(),
         paymentTerms: 'Paid', dueDate: date, stateOfSupply: '33-Tamil Nadu', withGst: false,
         items: invLines, subtotal, totalTax: 0, totalCgst: 0, totalSgst: 0,
         overallDiscountType: '%', overallDiscountValue: 0, overallDiscountAmount: 0,

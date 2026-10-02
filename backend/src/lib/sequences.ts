@@ -4,9 +4,12 @@
  * this makes document numbers collision-free under concurrency.
  */
 
+import { istToday } from './businessDate.js';
+
 // Indian financial year (Apr 1 – Mar 31). Accepts a Date or a YYYY-MM-DD string
 // so invoice numbers roll over based on the document's own date.
-export function financialYear(input: Date | string = new Date()): string {
+// No date: today's IST day, so 00:00–05:30 IST on 1 April is already the new year (UTC-1).
+export function financialYear(input: Date | string = istToday()): string {
   let d: Date;
   if (typeof input === 'string') {
     const p = input.split('T')[0].split('-').map(Number);

@@ -1,3 +1,4 @@
+import { istDateOf } from '../lib/businessDate.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso } from '../lib/stockLedger.js';
@@ -107,7 +108,7 @@ export async function provisionUserEmployees(): Promise<number> {
           status: 'Active',
           phone: null,
           email: null,
-          joinedDate: (u.createdAt || nowIso()).split('T')[0],
+          joinedDate: istDateOf(u.createdAt || nowIso()),
           createdAt: nowIso(),
           updatedAt: nowIso(),
         },

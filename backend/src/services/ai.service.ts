@@ -1,3 +1,4 @@
+import { istToday } from '../lib/businessDate.js';
 import { prisma } from '../db.js';
 
 /**
@@ -91,8 +92,9 @@ export async function getAiStatus(): Promise<AiStatus> {
 
 const has = (flags: string[], f: string) => flags.includes(f);
 const money = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const todayStr = () => new Date().toISOString().slice(0, 10);
-const monthStr = () => new Date().toISOString().slice(0, 7);
+// The shop's day and month are IST (UTC-1).
+const todayStr = () => istToday();
+const monthStr = () => istToday().slice(0, 7);
 
 /** Safely read an array off a JSON column. */
 function asRows(json: unknown): any[] {

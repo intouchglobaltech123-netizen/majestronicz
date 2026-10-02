@@ -365,7 +365,7 @@ export function saveCustomer(data: any) {
     } else {
       const id = data.id ? String(data.id) : `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const firstPurchaseDate = typeof data.firstPurchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.firstPurchaseDate)
-        ? data.firstPurchaseDate : ts.split('T')[0];
+        ? data.firstPurchaseDate : istToday();
       await tx.customer.create({
         data: {
           address: '', ...fields, id,
