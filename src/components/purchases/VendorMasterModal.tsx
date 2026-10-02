@@ -19,7 +19,7 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
   vendorToEdit,
   onVendorSaved,
 }) => {
-  const { saveVendor } = useErp();
+  const { saveVendor, vendors } = useErp();
 
   const [vendorName, setVendorName] = useState('');
   const [contactNo, setContactNo] = useState('');
@@ -86,6 +86,16 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
     if (gstin.trim() && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gstin.trim())) {
       errs.gstin = 'Invalid GSTIN format (e.g. 33AABCD1234E1Z5)';
     }
+    // PUR6-5: the same supplier must not be registered twice (the server refuses
+    // it too) — same GSTIN, or the same name with the same phone number.
+    const others = vendors.filter((v) => v.id !== vendorToEdit?.id);
+    const g = gstin.trim().toUpperCase();
+    const dupGstin = g ? others.find((v) => (v.gstin || '').toUpperCase() === g) : undefined;
+    if (dupGstin && !errs.gstin) errs.gstin = `This GSTIN is already registered to "${dupGstin.vendorName}".`;
+    const dupNamePhone = others.find(
+      (v) => v.vendorName.trim().toLowerCase() === vendorName.trim().toLowerCase() && cleanPhoneDigits(v.contactNo || '') === cleanPhoneDigits(contactNo),
+    );
+    if (dupNamePhone && !errs.vendorName) errs.vendorName = `"${dupNamePhone.vendorName}" with this phone number is already registered.`;
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };

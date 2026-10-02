@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { PurchaseOrder, COMPANY_PROFILE, BRANCHES } from '../../types';
+import { createPortal } from 'react-dom';
+import { PurchaseOrder, COMPANY_PROFILE, BRANCHES, purchaseOrderOrderedTotal } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -43,37 +44,56 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
   const branchData = BRANCHES.find((b) => b.id === purchaseOrder.branchId);
 
+  // E2E6-6: print ONLY the PO document — hide the app (#root) behind the
+  // overlay and let the document flow, instead of printing the whole screen
+  // (2–4 pages with a blank band at the top). Same scope as invoice printing.
   const handlePrint = () => {
-    window.print();
+    document.body.classList.add('po-printing');
+    const cleanup = () => {
+      document.body.classList.remove('po-printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1000);
+    }, 50);
   };
+
+  // GST at each line's rate, and the tax-inclusive order total.
+  const lineTax = (l: PurchaseOrder['items'][number]) =>
+    l.taxAmount ?? Math.round((l.amount || 0) * ((l.taxPercent || 0) / 100) * 100) / 100;
+  const poTax = Math.round(purchaseOrder.items.reduce((s, l) => s + lineTax(l), 0) * 100) / 100;
+  const poGrand = purchaseOrderOrderedTotal({ ...purchaseOrder, totalTax: poTax });
 
   // Download this PO's line items as an Excel-compatible sheet.
   const handleExportExcel = () => {
-    const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (₹)', 'Amount (₹)'];
+    const headers = ['#', 'Item', 'Code', 'Vendor SKU', 'HSN', 'Unit', 'Qty Ordered', 'Received', 'Rate (₹)', 'Taxable (₹)', 'GST %', 'GST (₹)', 'Amount (₹)'];
     const rows = purchaseOrder.items.map((l, i) => [
       i + 1, l.itemName, l.itemCode, l.vendorSku || '', l.itemHSN || '', l.unit,
       l.quantityOrdered, l.receivedQuantity || 0, (l.purchasePrice || 0).toFixed(2), (l.amount || 0).toFixed(2),
+      l.taxPercent || 0, lineTax(l).toFixed(2), ((l.amount || 0) + lineTax(l)).toFixed(2),
     ]);
-    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', (purchaseOrder.totalAmount || 0).toFixed(2)]);
+    rows.push(['', '', '', '', '', '', '', '', 'TOTAL', (purchaseOrder.totalAmount || 0).toFixed(2), '', poTax.toFixed(2), poGrand.toFixed(2)]);
     exportToCsv(`${purchaseOrder.poNumber}`, headers, rows);
   };
 
   const handleShareWhatsApp = () => {
-    const text = `*PURCHASE ORDER — ${COMPANY_PROFILE.name}*\nPO No: ${purchaseOrder.poNumber}\nVendor: ${purchaseOrder.vendorName}\nDate: ${purchaseOrder.date}\nExpected: ${purchaseOrder.expectedDeliveryDate}\nDestination Branch: ${branchData?.name || purchaseOrder.branchId}\nTotal Amount: ${formatCurrency(purchaseOrder.totalAmount)}`;
+    const text = `*PURCHASE ORDER — ${COMPANY_PROFILE.name}*\nPO No: ${purchaseOrder.poNumber}\nVendor: ${purchaseOrder.vendorName}\nDate: ${purchaseOrder.date}\nExpected: ${purchaseOrder.expectedDeliveryDate}\nDestination Branch: ${branchData?.name || purchaseOrder.branchId}\nTotal Amount: ${formatCurrency(poGrand)} (incl. GST)`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleCopySummary = () => {
-    const summary = `${COMPANY_PROFILE.name} Purchase Order: ${purchaseOrder.poNumber}\nVendor: ${purchaseOrder.vendorName}\nDate: ${purchaseOrder.date}\nExpected Delivery: ${purchaseOrder.expectedDeliveryDate}\nTotal Items: ${purchaseOrder.items.length}\nTotal Value: ${formatCurrency(purchaseOrder.totalAmount)}`;
+    const summary = `${COMPANY_PROFILE.name} Purchase Order: ${purchaseOrder.poNumber}\nVendor: ${purchaseOrder.vendorName}\nDate: ${purchaseOrder.date}\nExpected Delivery: ${purchaseOrder.expectedDeliveryDate}\nTotal Items: ${purchaseOrder.items.length}\nTotal Value: ${formatCurrency(poGrand)} (incl. GST)`;
     navigator.clipboard.writeText(summary);
     setCopied(true);
     toast.success('PO summary copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+  return createPortal(
+    <div id="po-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden during Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden shrink-0">
@@ -177,10 +197,10 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
         )}
 
         {/* Scrollable Printable A4 Area */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white print:p-0 print:overflow-visible text-slate-900 font-sans">
+        <div id="printable-po-doc" className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white print:p-0 print:overflow-visible text-slate-900 font-sans">
           {/* Printable Linked Pending Order Badge */}
           {pendingOrderRef && (
-            <div className="mb-4 p-2.5 bg-purple-50/70 border border-purple-200 rounded-xl flex items-center justify-between text-xs">
+            <div className="mb-4 p-2.5 bg-purple-50/70 border border-purple-200 rounded-xl flex items-center justify-between text-xs print:hidden">
               <div className="flex items-center gap-2">
                 <Layers className="h-3.5 w-3.5 text-purple-600" />
                 <span className="text-purple-950 font-semibold">
@@ -284,8 +304,10 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                 <th className="py-2.5 px-3 text-center w-24">HSN</th>
                 <th className="py-2.5 px-3 text-center w-20">Qty</th>
                 <th className="py-2.5 px-3 text-center w-16">Unit</th>
-                <th className="py-2.5 px-3 text-right w-28">Rate (₹)</th>
-                <th className="py-2.5 px-3 text-right w-32">Amount (₹)</th>
+                <th className="py-2.5 px-3 text-right w-24">Rate (₹)</th>
+                <th className="py-2.5 px-3 text-right w-28">Taxable (₹)</th>
+                <th className="py-2.5 px-3 text-right w-24">GST</th>
+                <th className="py-2.5 px-3 text-right w-28">Amount (₹)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -303,8 +325,13 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                   <td className="py-2.5 px-3 text-center font-bold text-slate-900">{line.quantityOrdered}</td>
                   <td className="py-2.5 px-3 text-center text-slate-600 uppercase">{line.unit}</td>
                   <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(line.purchasePrice)}</td>
+                  <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(line.amount)}</td>
+                  <td className="py-2.5 px-3 text-right font-mono">
+                    <div>{formatCurrency(lineTax(line))}</div>
+                    <div className="text-[10px] text-slate-500">@ {line.taxPercent || 0}%</div>
+                  </td>
                   <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                    {formatCurrency(line.amount)}
+                    {formatCurrency((line.amount || 0) + lineTax(line))}
                   </td>
                 </tr>
               ))}
@@ -318,7 +345,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
                 AMOUNT IN WORDS
               </span>
               <p className="font-medium text-slate-800 italic">
-                {numberToWordsIndian(purchaseOrder.totalAmount)}
+                {numberToWordsIndian(poGrand)}
               </p>
 
               {purchaseOrder.notes && (
@@ -333,13 +360,17 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
 
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-200 font-medium">
-                <span className="text-slate-600">Subtotal</span>
+                <span className="text-slate-600">Taxable value</span>
                 <span className="font-mono text-slate-900">{formatCurrency(purchaseOrder.totalAmount)}</span>
               </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-200 font-medium">
+                <span className="text-slate-600">GST</span>
+                <span className="font-mono text-slate-900">{formatCurrency(poTax)}</span>
+              </div>
               <div className="flex justify-between py-2 border-b-2 border-slate-900 font-bold text-sm">
-                <span className="text-slate-900 uppercase">Total Order Value</span>
+                <span className="text-slate-900 uppercase">Total Order Value (incl. GST)</span>
                 <span className="font-mono text-slate-900 text-base">
-                  {formatCurrency(purchaseOrder.totalAmount)}
+                  {formatCurrency(poGrand)}
                 </span>
               </div>
             </div>
@@ -366,6 +397,7 @@ export const PurchaseOrderPdfModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
