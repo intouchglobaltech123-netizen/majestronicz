@@ -468,3 +468,46 @@ describe('archived items', () => {
     assert.equal(await stockOf(item.id, 'erode-hq'), 2, 'both units back');
   });
 });
+
+describe('round 9: inventory', () => {
+  const manual = (extra = {}) => ({
+    recipientName: 'QA Customer', location: 'Erode', contactNo: '9876543210',
+    date: '2026-09-15', time: '10:00', items: [{ id: 'l1', itemName: 'QA part', quantity: 2, unit: 'NOS' }], totalQuantity: 2,
+    termsAndConditions: 'QA', ...extra,
+  });
+
+  test('INV9-1 a return of a fractional quantity of a whole-unit item is refused', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 2)] }));
+    const res = await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 0.5)], reason: 'QA', refundMode: 'Cash' });
+    expectStatus(res, 400, '0.5 PCS returned');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 3);
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }), 'whole unit');
+  });
+
+  test('INV9-2 an archived item takes no stock by adjust or set', async () => {
+    const item = await createItem();
+    ok(await post(`/api/catalog/item/${item.id}/archive`, { archived: true }), 'archive');
+    expectStatus(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: 5, reason: 'Found' }), 400, 'adjust');
+    expectStatus(await post('/api/stock/update', { itemId: item.id, branchId: 'chennai', quantity: 7 }), 400, 'set');
+    assert.equal(await stockOf(item.id, 'chennai'), 0);
+    ok(await post('/api/stock/update', { itemId: item.id, branchId: 'chennai', quantity: 0, minStockAlert: 3 }), 'alert level only is fine');
+  });
+
+  test('INV9-3 a transfer challan can be edited/deleted only by its source/destination branch or the CEO', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const res = ok(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: 2 }));
+    const ch = res.challans.find((c) => c.challanNumber === res.challanNumber);
+    expectStatus(await post('/api/catalog/challan', { ...ch, deliveredBy: { name: 'Hacker' } }, 'Manager'), 403, 'Coimbatore manager edits');
+    expectStatus(await del(`/api/catalog/challan/${ch.id}`, 'Manager'), 403, 'Coimbatore manager deletes');
+    ok(await post('/api/catalog/challan', { ...ch, deliveredBy: { name: 'Driver' } }), 'CEO edits');
+  });
+
+  test('INV9-4 Billing cannot delete a received manual challan', async () => {
+    const saved = ok(await post('/api/catalog/challan', manual(), 'Billing')).savedChallan;
+    ok(await post(`/api/catalog/challan/${saved.id}/received`, { receiverName: 'QA' }));
+    expectStatus(await del(`/api/catalog/challan/${saved.id}`, 'Billing'), 403, 'Billing deletes received');
+    assert.ok(ok(await get('/api/challans')).some((c) => c.id === saved.id));
+  });
+});

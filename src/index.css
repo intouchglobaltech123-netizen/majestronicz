@@ -480,7 +480,8 @@ table tbody tr:hover {
     overflow: visible !important;
   }
   body.invoice-printing #printable-invoice-doc,
-  body.invoice-printing #printable-estimate-doc {
+  body.invoice-printing #printable-estimate-doc,
+  body.invoice-printing #printable-challan-doc {
     max-height: none !important;
     overflow: visible !important;
   }
@@ -558,16 +559,23 @@ table tbody tr:hover {
      page and no row is cut across a page break. */
   #printable-invoice-doc thead,
   #printable-estimate-doc thead,
+  #printable-challan-doc thead,
   #printable-po-doc thead {
     display: table-header-group;
   }
   #printable-invoice-doc tr,
   #printable-estimate-doc tr,
+  #printable-challan-doc tr,
   #printable-po-doc tr {
     break-inside: avoid;
   }
+  /* INV6-7: the challan's own wrappers must not clip the table across pages. */
+  body.invoice-printing #printable-challan-doc .overflow-hidden {
+    overflow: visible !important;
+  }
 
   #printable-estimate-doc,
+  #printable-challan-doc,
   #printable-invoice-doc {
     width: 100% !important;
     max-width: 100% !important;

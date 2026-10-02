@@ -11,6 +11,7 @@ import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customer
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
 import { isValidBranch } from '../lib/constants.js';
+import { isWholeUnit } from '../lib/units.js';
 import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 
@@ -819,7 +820,7 @@ export function processReturn(
     // master — never from the request (SAL7-4 / INV8-8; a request that flags a
     // plain line as a combo can't bring its own parts either).
     const billLines: any[] = (inv.items as any[]) || [];
-    const masterItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true } });
+    const masterItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true, unit: true } });
     const masterById = new Map(masterItems.map((i: any) => [i.id, i]));
     returnLines = returnLines.map((l: any) => {
       const qty = Number(l?.returnQty) || 0;
@@ -832,6 +833,14 @@ export function processReturn(
         throw new AppError('NOT_ON_BILL', `"${String(l?.itemName || l?.itemId || 'This item').slice(0, 80)}" was not sold on this bill and cannot be returned.`, 400);
       }
       const master: any = masterById.get(bl.itemId);
+      // INV9-1: a whole-unit item (and any kit) comes back in whole units, like
+      // it was sold (SAL2-8) — 0.5 of a PCS item is not a return.
+      if (!Number.isInteger(qty)) {
+        const unit = master?.unit || bl.unit;
+        if (bl.isCombo || (unit && isWholeUnit(unit)) || (!unit && master)) {
+          throw new AppError('WHOLE_UNITS', `"${String(bl.itemName || master?.itemName || 'This item').slice(0, 80)}" is returned in whole ${bl.isCombo ? 'sets' : String(unit || 'NOS').toUpperCase()} — ${qty} is not a whole number.`, 400);
+        }
+      }
       return {
         returnQty: qty,
         id: bl.id,

@@ -2804,7 +2804,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (sum.creditIssued > 0) parts.push(`Credit note ${inr(sum.creditIssued)} added to the customer's store credit`);
         if (sum.dueReduced > 0) parts.push(`Due reduced by ${inr(sum.dueReduced)}`);
         if (sum.damaged) parts.push(`${sum.writtenOffUnits} damaged unit(s) written off — not restocked`);
-        else if (sum.restockedUnits > 0) parts.push(`${sum.restockedUnits} unit(s) back in stock at ${inv.branchId}`);
+        else if (sum.restockedUnits > 0) parts.push(`${sum.restockedUnits} unit(s) back in stock at ${BRANCHES.find((b) => b.id === inv.branchId)?.name || inv.branchId}`);
       }
       toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, { description: parts.join('. ') || undefined });
       return true;

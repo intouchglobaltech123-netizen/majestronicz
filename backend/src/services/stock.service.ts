@@ -193,6 +193,8 @@ export function receiveStockTransfer(transferId: string, actor: string, reqUser?
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const item = await tx.item.findUnique({ where: { id: line.itemId } });
+      // INV9-2: restore an archived item before its stock is taken in.
+      if (item?.isArchived) throw archivedItemError(item.itemName);
       const toRow = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId: line.itemId, branchId: transfer.toBranch } } });
       const toPrevQty = toRow?.quantity ?? 0;
       await tx.branchStock.upsert({
@@ -241,6 +243,8 @@ export function adjustStock(
   return serializableTx(async (tx: any) => {
     const item = await tx.item.findUnique({ where: { id: itemId } });
     if (!item) throw new AppError('NOT_FOUND', 'Item not found', 404);
+    // INV9-2: an archived item takes no new stock (it would vanish from screens).
+    if (item.isArchived) throw archivedItemError(item.itemName);
     const change = stockQty(quantityChange, item.unit, 'Adjustment quantity');
     if (change === 0) throw new AppError('BAD_QTY', 'Adjustment quantity cannot be zero.', 400);
 
@@ -387,6 +391,8 @@ export function updateBranchStock(itemId: string, branchId: string, quantity: nu
     const ts = nowIso();
     const existing = await tx.branchStock.findUnique({ where: { itemId_branchId: { itemId, branchId } } });
     const prevQty = existing?.quantity ?? 0;
+    // INV9-2: an archived item's stock can't be set (its alert level/location can).
+    if (item.isArchived && qty !== prevQty) throw archivedItemError(item.itemName);
     await tx.branchStock.upsert({
       where: { itemId_branchId: { itemId, branchId } },
       create: { itemId, branchId, quantity: qty, minStockAlert: minStockAlert ?? 5, location: location?.trim() ?? '', updatedAt: ts },

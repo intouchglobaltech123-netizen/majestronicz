@@ -142,6 +142,17 @@ export function deleteEstimate(id: string, reqUser?: any) {
 const MAX_CHALLAN_LINE_QTY = 10_000;
 const canManageTransferChallans = (reqUser?: any) => !reqUser || reqUser.role === 'CEO' || reqUser.role === 'Manager';
 
+/** INV9-3: a transfer challan belongs to its transfer's two branches — a
+ *  branch-locked Manager of a third branch may not edit or delete it. */
+async function assertTransferChallanBranch(tx: any, ch: any, reqUser?: any): Promise<void> {
+  if (!reqUser || reqUser.role === 'CEO' || !reqUser.assignedBranchId) return;
+  const transfer = await tx.stockTransfer.findFirst({ where: { challanNumber: ch.challanNumber } });
+  if (!transfer) return;
+  if (transfer.fromBranch !== reqUser.assignedBranchId && transfer.toBranch !== reqUser.assignedBranchId) {
+    throw new AppError('FORBIDDEN', 'This transfer challan belongs to other branches. Only their Manager or the CEO can change it.', 403);
+  }
+}
+
 /** Validate a manual challan's lines: a name and a real quantity > 0 within the
  *  cap, whole for whole-unit catalogue items (INV-13). Returns cleaned lines. */
 async function cleanChallanItems(tx: any, items: any): Promise<any[]> {
@@ -175,6 +186,7 @@ export function saveChallan(data: any, reqUser?: any) {
       if (existing.status === 'received') throw new AppError('CHALLAN_RECEIVED', 'This challan was already received and can no longer be edited.', 409);
       if (isTransferChallan(existing)) {
         if (!canManageTransferChallans(reqUser)) throw new AppError('FORBIDDEN', 'Only a Manager or CEO can edit a stock-transfer challan.', 403);
+        await assertTransferChallanBranch(tx, existing, reqUser);
         // Its lines are the transfer's lines — only the paperwork fields change.
         delete (rest as any).items;
         delete (rest as any).totalQuantity;
@@ -251,7 +263,11 @@ export function deleteChallan(id: string, reqUser?: any) {
     const ch = await tx.deliveryChallan.findUnique({ where: { id } });
     if (ch && isTransferChallan(ch)) {
       if (!canManageTransferChallans(reqUser)) throw new AppError('FORBIDDEN', 'Only a Manager or CEO can delete a stock-transfer challan.', 403);
+      await assertTransferChallanBranch(tx, ch, reqUser);
       if (ch.status === 'received') throw new AppError('CHALLAN_RECEIVED', 'A received transfer challan cannot be deleted.', 409);
+    } else if (ch && ch.status === 'received' && reqUser && !canManageTransferChallans(reqUser)) {
+      // INV9-4: a received challan is the recipient's signed acknowledgement.
+      throw new AppError('CHALLAN_RECEIVED', 'This challan was received. Only a Manager or CEO can delete it.', 403);
     }
     await tx.deliveryChallan.deleteMany({ where: { id } });
     return { challans: await tx.deliveryChallan.findMany() };

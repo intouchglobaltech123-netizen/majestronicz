@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { REFUND_MODES, PAYMENT_MODE_LABEL } from '../../lib/paymentModes';
-import { Invoice, getInvoicePaymentSplits } from '../../types';
+import { Invoice, getInvoicePaymentSplits, BRANCHES } from '../../types';
+import { isWholeUnit } from '../../lib/units';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 import {
@@ -76,6 +77,26 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       returnedLeft.set(k, (returnedLeft.get(k) || 0) + (r.returnedQuantity || 0));
     }
 
+    // SAL9-6: the server refunds an item sold on several lines at the AVERAGE
+    // per-unit value of those lines — the preview does the same.
+    const unitValue = (it: typeof invoice.items[number]) => {
+      const lt = it.taxableAmount || 0;
+      const net = it.totalAmount || lt + (it.totalTax || 0);
+      const share = subtotalTaxable > 0 ? overallDisc * (lt / subtotalTaxable) : 0;
+      return (net - share) / (it.quantity || 1);
+    };
+    const avgByItem = new Map<string, number>();
+    {
+      const sums = new Map<string, { v: number; q: number }>();
+      for (const it of invoice.items) {
+        if (it.isCombo) continue;
+        const k = it.itemId || it.id;
+        const cur = sums.get(k) || { v: 0, q: 0 };
+        sums.set(k, { v: cur.v + unitValue(it) * (it.quantity || 0), q: cur.q + (it.quantity || 0) });
+      }
+      for (const [k, { v, q }] of sums) avgByItem.set(k, q > 0 ? v / q : 0);
+    }
+
     return invoice.items.map((item) => {
       const itemId = item.itemId || item.id;
       const key = item.isCombo && item.comboId ? `c:${item.comboId}` : itemId;
@@ -91,7 +112,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       const lineNetWithTax =
         item.totalAmount || lineTaxable + (item.totalTax || 0);
       const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
-      const perUnitRefund = Math.max(0, Math.round(((lineNetWithTax - overallShare) / q) * 100) / 100);
+      const perUnitRaw = !item.isCombo && avgByItem.has(itemId) ? avgByItem.get(itemId)! : (lineNetWithTax - overallShare) / q;
+      const perUnitRefund = Math.max(0, Math.round(perUnitRaw * 100) / 100);
+      // INV9-1: whole-unit items and kits come back in whole units.
+      const wholeUnits = !!item.isCombo || isWholeUnit(item.unit);
       const totalRefund = Math.round(perUnitRefund * currentReturnQty * 100) / 100;
 
       return {
@@ -103,6 +127,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
         currentReturnQty,
         perUnitRefund,
         totalRefund,
+        wholeUnits,
       };
     });
   }, [invoice, returnQuantities]);
@@ -138,8 +163,9 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   if (!isOpen || !invoice) return null;
 
-  const handleQtyChange = (lineId: string, qty: number, max: number) => {
-    const valid = Math.max(0, Math.min(max, Number.isFinite(qty) ? qty : 0));
+  const handleQtyChange = (lineId: string, qty: number, max: number, whole = true) => {
+    const n = Number.isFinite(qty) ? (whole ? Math.floor(qty) : qty) : 0;
+    const valid = Math.max(0, Math.min(max, n));
     setReturnQuantities((prev) => ({
       ...prev,
       [lineId]: valid,
@@ -324,7 +350,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty - 1, line.maxReturnable)}
+                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty - 1, line.maxReturnable, line.wholeUnits)}
                               disabled={line.currentReturnQty <= 0}
                               className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
@@ -334,15 +360,17 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                             <input
                               type="number"
                               min="0"
+                              step={line.wholeUnits ? 1 : 'any'}
                               max={line.maxReturnable}
                               value={line.currentReturnQty}
-                              onChange={(e) => handleQtyChange(line.lineId, Number(e.target.value) || 0, line.maxReturnable)}
+                              aria-label={`Quantity of ${line.itemName} to return`}
+                              onChange={(e) => handleQtyChange(line.lineId, Number(e.target.value) || 0, line.maxReturnable, line.wholeUnits)}
                               className="w-14 text-center py-1 border border-slate-300 rounded-none font-mono font-bold text-slate-900 text-xs focus:outline-none focus:border-red-600"
                             />
 
                             <button
                               type="button"
-                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty + 1, line.maxReturnable)}
+                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty + 1, line.maxReturnable, line.wholeUnits)}
                               disabled={line.currentReturnQty >= line.maxReturnable}
                               className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
@@ -452,7 +480,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <p className="text-[11px] text-slate-500">
                   {/damag/i.test(reason)
                     ? `${totalUnitsToReturn} unit(s) selected — damaged, written off (no stock added)`
-                    : `${totalUnitsToReturn} unit(s) selected for return to ${invoice.branchId} stock`}
+                    : `${totalUnitsToReturn} unit(s) selected for return to ${BRANCHES.find((b) => b.id === invoice.branchId)?.name || invoice.branchId} stock`}
                 </p>
                 <p className="text-[11px] text-slate-500">
                   Reduces what the customer owes first; only an over-paid amount is refunded.

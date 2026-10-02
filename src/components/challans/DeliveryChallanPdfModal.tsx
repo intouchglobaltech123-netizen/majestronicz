@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { printDocument } from '../../utils/pdfExport';
 import { DeliveryChallan, COMPANY_PROFILE } from '../../types';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import {
@@ -9,6 +11,7 @@ import {
   Check,
   Building,
   Truck,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,11 +30,23 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 }) => {
   const [copied, setCopied] = React.useState(false);
 
+  // INV9-8: Esc closes the preview, like the invoice preview.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !challan) return null;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // INV6-7: print through the same scope as the invoice — the app is hidden, the
+  // (portaled) overlay is un-fixed so every row flows across A4 pages once, the
+  // table header repeats and no row or signature block is cut in half.
+  const handlePrint = () => printDocument('invoice-printing');
+  const handleSavePdf = () => printDocument('invoice-printing', { saveAsPdf: `${challan.challanNumber}.pdf` });
 
   const handleShareWhatsApp = () => {
     const text = `*DELIVERY CHALLAN — ${COMPANY_PROFILE.name}*\nChallan No: ${challan.challanNumber}\nDate: ${challan.date}\nDelivered To: ${challan.recipientName}\nTotal Qty: ${challan.totalQuantity} items\n\nGoods Movement Verification Note.`;
@@ -47,8 +62,8 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
+  return createPortal(
+    <div id="invoice-print-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white">
       <div className="bg-white border border-slate-300 rounded-none w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
         {/* Action Header (Hidden during Print) */}
         <div className="px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between print:hidden">
@@ -89,11 +104,22 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-colors shadow-none cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
-              <span>Print / Save as PDF</span>
+              <span>Print</span>
+            </button>
+
+            <button
+              onClick={handleSavePdf}
+              title='Opens the print window — choose "Save as PDF" as the destination'
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-none transition-colors cursor-pointer shadow-none"
+            >
+              <Download className="h-3.5 w-3.5 text-slate-500" />
+              <span>Save as PDF</span>
             </button>
 
             <button
               onClick={onClose}
+              title="Close (Esc)"
+              aria-label="Close preview"
               className="p-1.5 rounded-none text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-2 cursor-pointer"
             >
               <X className="h-5 w-5" />
@@ -241,7 +267,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
           )}
 
           {/* Dual Verification Blocks: Delivered By & Received By */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 mb-6 break-inside-avoid">
             {/* Delivered By Block */}
             <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5 text-xs">
               <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
@@ -319,7 +345,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
           </div>
 
           {/* Footer Signature Box */}
-          <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-end justify-between gap-6 text-xs">
+          <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row print:flex-row items-end justify-between gap-6 text-xs break-inside-avoid">
             <div className="text-slate-500 text-[10px] space-y-1">
               <p>This goods delivery challan accompanies merchandise in transit.</p>
               <p>For inquiries, please contact: <strong>6379560289</strong> or <strong>majestroniczonline@gmail.com</strong></p>
@@ -365,6 +391,7 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

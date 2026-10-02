@@ -317,9 +317,11 @@ export function receivePurchaseOrderStock(
     // Validate each item's receipt (exists on PO, non-negative, whole for counted
     // units, valid tax). The unit comes from the item master (the PO line's copy
     // as a fallback), the same rule as the PO save and every stock move.
-    const masterUnits = new Map<string, string | null>(
-      (await tx.item.findMany({ where: { id: { in: valid.map((r) => r.itemId) } }, select: { id: true, unit: true } })).map((i: any) => [i.id, i.unit]),
-    );
+    const masters = await tx.item.findMany({ where: { id: { in: valid.map((r) => r.itemId) } }, select: { id: true, unit: true, itemName: true, isArchived: true } });
+    const masterUnits = new Map<string, string | null>(masters.map((i: any) => [i.id, i.unit]));
+    // INV9-2: an archived item takes no new stock — restore it first.
+    const archived = masters.find((i: any) => i.isArchived && n(valid.find((r) => r.itemId === i.id)?.quantityReceived) > 0);
+    if (archived) throw archivedItemError(archived.itemName);
     for (const rec of valid) {
       const line = lines.find((l) => l.itemId === rec.itemId);
       if (!line) throw new AppError('ITEM_NOT_ON_PO', `An item being received is not on this purchase order.`, 400);
