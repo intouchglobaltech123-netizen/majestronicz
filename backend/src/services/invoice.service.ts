@@ -1061,13 +1061,18 @@ export function processReturn(
     const subtotalTaxable =
       Number(inv.subtotal) || invItems.reduce((s, i) => s + (Number(i.taxableAmount) || 0), 0);
     const overallDisc = Number(inv.overallDiscountAmount) || 0;
+    // RPT10-3: the bill-level discount comes off the TAXABLE value and GST is
+    // charged on what is left (taxCalc scales every line's tax by the same net
+    // ratio), so a line's share of the bill is its value incl. GST times that
+    // ratio. Taking the discount off the GST-inclusive value refunded the GST on
+    // the discount too (₹2,053.50 instead of ₹2,030.19).
+    const netRatio = subtotalTaxable > 0 ? Math.max(0, subtotalTaxable - overallDisc) / subtotalTaxable : 1;
     // Net-of-discount, tax-inclusive value a single stored line contributed per unit.
     const lineUnitValue = (li: any): number => {
       const q = Number(li.quantity) || 1;
       const lineTaxable = Number(li.taxableAmount) || 0;
       const lineNetWithTax = Number(li.totalAmount) || lineTaxable + (Number(li.totalTax) || 0);
-      const overallShare = subtotalTaxable > 0 ? overallDisc * (lineTaxable / subtotalTaxable) : 0;
-      return (lineNetWithTax - overallShare) / q;
+      return (lineNetWithTax * netRatio) / q;
     };
     // Per-unit refund for an item. When the same item sits on more than one line at
     // different prices we can't know which physical unit came back, so refund the

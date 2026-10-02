@@ -264,3 +264,19 @@ describe('round 10: billing rights and quote checks', () => {
     expectStatus(await post('/api/tx/sale', saleBody({ date: istToday(), lines: [] })), 400, 'empty bill');
   });
 });
+
+describe('round 10: returns and reports', () => {
+  test('RPT10-3 a return on a bill with a bill-level discount refunds the discounted value incl. GST (no GST on the discount)', async () => {
+    const date = await thisMonthDay();
+    const a = await createItem({ price: 1000, gst: 18, stock: { 'erode-hq': 10 } });
+    const b = await createItem({ price: 500, gst: 5, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, lines: [line(a, 2), line(b, 2)], overallDiscountValue: 10 }));
+    // taxable 3,000 − 10% = 2,700; GST (360 + 50) × 0.9 = 369; total 3,069.
+    near(inv.grandTotal, 3069, 'bill');
+    const res = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(a, 1)], reason: 'QA', refundMode: 'Cash' }));
+    near(res.returnSummary.value, 1062, 'one unit of A = 1,180 × 0.9');
+    const all = ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(a, 1), returnLine(b, 2)], reason: 'QA', refundMode: 'Cash' }));
+    near((await getInvoice(inv.id)).totalReturnedAmount, 3069, 'a full return gives back exactly the bill');
+    assert.ok(all.returnSummary.cashRefund > 0);
+  });
+});
