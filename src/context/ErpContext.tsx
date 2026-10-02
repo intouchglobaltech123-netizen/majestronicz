@@ -452,13 +452,13 @@ interface ErpContextType {
   clockIn: (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ) => { success: boolean; message: string; record?: AttendanceRecord };
   clockOut: (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ) => { success: boolean; message: string; record?: AttendanceRecord };
   updatePayrollSettings: (settings: PayrollSettings) => void;
@@ -4097,7 +4097,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clockIn = (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ): { success: boolean; message: string; record?: AttendanceRecord } => {
     const emp = employees.find((e) => e.id === employeeId);
@@ -4135,7 +4135,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setAttendanceRecords((prev) => [newRecord, ...prev]);
     toast.success(`Check-In Recorded: ${emp.name}`, {
-      description: `Time: ${timeStr} • GPS Accuracy: ±${location.accuracy || 10}m`,
+      description: `Time: ${timeStr} • ${location ? `GPS Accuracy: ±${location.accuracy || 10}m` : 'No GPS'}`,
     });
     persist(apiPost('/api/hrm/clock-in', { employeeId, photoDataUrl, location, customTime }));
     return { success: true, message: 'Check-in successful', record: newRecord };
@@ -4144,7 +4144,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clockOut = (
     employeeId: string,
     photoDataUrl: string,
-    location: GeoLocationCapture,
+    location: GeoLocationCapture | null,
     customTime?: string
   ): { success: boolean; message: string; record?: AttendanceRecord } => {
     const emp = employees.find((e) => e.id === employeeId);

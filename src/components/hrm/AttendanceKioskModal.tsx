@@ -18,6 +18,7 @@ import { CameraCapture } from './CameraCapture';
 import { apiPost } from '../../lib/api';
 import { playSuccess } from '../../lib/sound';
 import { toast } from 'sonner';
+import { hasCoords, formatCoords } from '../../lib/geo';
 
 interface AttendanceKioskModalProps {
   isOpen: boolean;
@@ -91,29 +92,20 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
           setIsFetchingLocation(false);
         },
         (err) => {
-          console.warn('Geolocation denied or failed, using branch fallback:', err);
-          fallbackToBranchLocation(preSelectedEmployeeId || '');
+          // HRM-7: no GPS means no location — never substitute the branch's
+          // coordinates, which then looked like a verified on-premises punch.
+          console.warn('Geolocation denied or failed; recording without GPS:', err);
+          setLocation(null);
           setIsFetchingLocation(false);
         },
         { timeout: 8000, enableHighAccuracy: true }
       );
     } else {
-      fallbackToBranchLocation(preSelectedEmployeeId || '');
+      setLocation(null);
       setIsFetchingLocation(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, preSelectedEmployeeId]);
-
-  const fallbackToBranchLocation = (empId: string) => {
-    const emp = employees.find((e) => e.id === empId);
-    const branch = emp?.branchId || 'erode-hq';
-    const coords: Record<string, GeoLocationCapture> = {
-      coimbatore: { latitude: 11.0168, longitude: 76.9558, accuracy: 10, addressHint: 'Coimbatore Branch (Default GPS)' },
-      chennai: { latitude: 13.0827, longitude: 80.2707, accuracy: 10, addressHint: 'Chennai Outlet (Default GPS)' },
-      'erode-hq': { latitude: 11.341, longitude: 77.7172, accuracy: 10, addressHint: 'Erode HQ Warehouse (Default GPS)' },
-    };
-    setLocation(coords[branch] || coords['erode-hq']);
-  };
 
   const currentEmp = employees.find((e) => e.id === selectedEmployeeId);
 
@@ -165,8 +157,9 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
       toast.error('Please capture your selfie to record attendance');
       return;
     }
-    const effectiveLocation: GeoLocationCapture =
-      location || { latitude: 11.341, longitude: 77.7172, accuracy: 15, addressHint: 'Verified Branch Premises' };
+    // Without GPS the punch is stored with no location (shown as "No GPS"), not
+    // as a made-up "Verified Branch Premises" fix (HRM-7).
+    const effectiveLocation: GeoLocationCapture | null = hasCoords(location) ? location : null;
 
     const result = mode === 'in'
       ? clockIn(currentEmp.id, capturedPhoto, effectiveLocation)
@@ -328,10 +321,10 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
                   <span className="flex items-center gap-1.5 font-semibold text-slate-700">
                     <Navigation className="h-3.5 w-3.5 text-red-700" /> Location
                   </span>
-                  {location ? (
+                  {hasCoords(location) ? (
                     <span className="text-[11px] text-slate-600 font-mono">
-                      {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                      <span className="text-slate-400 font-sans"> ({location.addressHint})</span>
+                      {formatCoords(location)}
+                      <span className="text-slate-400 font-sans"> ({location?.addressHint || 'GPS'})</span>
                     </span>
                   ) : (
                     <span className={`text-[11px] px-1.5 py-0.5 rounded-none border font-bold ${

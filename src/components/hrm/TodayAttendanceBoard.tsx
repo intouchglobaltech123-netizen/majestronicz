@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { BRANCHES } from '../../types';
+import { hasCoords, mapsLink } from '../../lib/geo';
 
 /** Today's IST date (YYYY-MM-DD) — matches how the backend stamps attendance. */
 function istToday(): string {
@@ -151,15 +152,15 @@ export const TodayAttendanceBoard: React.FC = () => {
                       <div className="text-[11px] font-mono font-bold text-slate-800 flex items-center justify-end gap-1">
                         <LogIn className="h-3 w-3 text-red-700" /> {rec?.checkInTime}
                       </div>
-                      {rec?.checkInLocation && (
+                      {rec && hasCoords(rec.checkInLocation) && (
                         <a
-                          href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
+                          href={mapsLink(rec.checkInLocation)}
                           target="_blank"
                           rel="noreferrer"
                           className="text-[10px] text-red-700 hover:text-red-900 font-medium inline-flex items-center gap-0.5"
                         >
                           <MapPin className="h-2.5 w-2.5 text-rose-500" />
-                          <span className="truncate max-w-[90px]">{rec.checkInLocation.addressHint || 'GPS'}</span>
+                          <span className="truncate max-w-[90px]">{rec.checkInLocation?.addressHint || 'GPS'}</span>
                         </a>
                       )}
                     </div>

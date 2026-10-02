@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, MapPin, Calendar, Clock, ExternalLink } from 'lucide-react';
 import { GeoLocationCapture } from '../../types';
+import { hasCoords, mapsLink } from '../../lib/geo';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface PhotoLightboxModalProps {
   title: string;
   timestamp?: string;
   date?: string;
-  location?: GeoLocationCapture;
+  location?: GeoLocationCapture | null;
 }
 
 export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
@@ -23,9 +24,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 }) => {
   if (!isOpen || !photoUrl) return null;
 
-  const mapsUrl = location
-    ? `https://www.google.com/maps?q=${location.latitude},${location.longitude}`
-    : undefined;
+  const mapsUrl = mapsLink(location);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4 animate-in fade-in duration-150">
@@ -76,8 +75,10 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
                   {location.addressHint || 'Verified Attendance Location'}
                 </p>
                 <p className="text-[11px] text-slate-400 font-mono">
-                  {location.latitude.toFixed(5)}° N, {location.longitude.toFixed(5)}° E{' '}
-                  {location.accuracy ? `(±${Math.round(location.accuracy)}m)` : ''}
+                  {hasCoords(location)
+                    ? `${location.latitude.toFixed(5)}° N, ${location.longitude.toFixed(5)}° E `
+                    : 'No GPS coordinates '}
+                  {typeof location.accuracy === 'number' ? `(±${Math.round(location.accuracy)}m)` : ''}
                 </p>
               </div>
             </div>

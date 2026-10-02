@@ -14,6 +14,7 @@ import { useErp } from '../../context/ErpContext';
 import { getTodayDateString } from '../../lib/utils';
 import { GeoLocationCapture, BRANCHES, BranchScope } from '../../types';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
+import { hasCoords, formatCoords, mapsLink } from '../../lib/geo';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
 import { TodayAttendanceBoard } from './TodayAttendanceBoard';
 
@@ -37,7 +38,7 @@ export const AttendanceLogView: React.FC = () => {
     title: string;
     timestamp?: string;
     date?: string;
-    location?: GeoLocationCapture;
+    location?: GeoLocationCapture | null;
   }>({
     isOpen: false,
     photoUrl: null,
@@ -87,7 +88,7 @@ export const AttendanceLogView: React.FC = () => {
     title: string,
     timestamp?: string,
     date?: string,
-    location?: GeoLocationCapture
+    location?: GeoLocationCapture | null
   ) => {
     setLightboxData({
       isOpen: true,
@@ -299,16 +300,16 @@ export const AttendanceLogView: React.FC = () => {
                               <Clock className="h-3 w-3 text-red-700" />
                               <span>{rec.checkInTime}</span>
                             </div>
-                            {rec.checkInLocation ? (
+                            {hasCoords(rec.checkInLocation) ? (
                               <a
-                                href={`https://www.google.com/maps?q=${rec.checkInLocation.latitude},${rec.checkInLocation.longitude}`}
+                                href={mapsLink(rec.checkInLocation)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="text-[11px] text-red-700 hover:text-red-900 font-medium flex items-center gap-1 truncate max-w-[170px]"
-                                title={`${rec.checkInLocation.addressHint} (${rec.checkInLocation.latitude.toFixed(4)}, ${rec.checkInLocation.longitude.toFixed(4)})`}
+                                title={`${rec.checkInLocation?.addressHint || 'GPS'} (${formatCoords(rec.checkInLocation)})`}
                               >
                                 <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
-                                <span className="truncate">{rec.checkInLocation.addressHint || 'Map GPS'}</span>
+                                <span className="truncate">{rec.checkInLocation?.addressHint || 'Map GPS'}</span>
                               </a>
                             ) : (
                               <span className="text-[11px] text-slate-400 flex items-center gap-1" title="No GPS captured">
@@ -355,16 +356,16 @@ export const AttendanceLogView: React.FC = () => {
                                 <Clock className="h-3 w-3 text-emerald-600" />
                                 <span>{rec.checkOutTime}</span>
                               </div>
-                              {rec.checkOutLocation && (
+                              {hasCoords(rec.checkOutLocation) && (
                                 <a
-                                  href={`https://www.google.com/maps?q=${rec.checkOutLocation.latitude},${rec.checkOutLocation.longitude}`}
+                                  href={mapsLink(rec.checkOutLocation)}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="text-[11px] text-emerald-700 hover:text-emerald-900 flex items-center gap-1 truncate max-w-[170px]"
-                                  title={`${rec.checkOutLocation.addressHint} (${rec.checkOutLocation.latitude.toFixed(4)}, ${rec.checkOutLocation.longitude.toFixed(4)})`}
+                                  title={`${rec.checkOutLocation?.addressHint || 'GPS'} (${formatCoords(rec.checkOutLocation)})`}
                                 >
                                   <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
-                                  <span className="truncate">{rec.checkOutLocation.addressHint || 'Map GPS'}</span>
+                                  <span className="truncate">{rec.checkOutLocation?.addressHint || 'Map GPS'}</span>
                                 </a>
                               )}
                             </div>

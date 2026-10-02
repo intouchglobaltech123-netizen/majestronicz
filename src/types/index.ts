@@ -1121,10 +1121,10 @@ export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
   checkInTime: string; // HH:mm:ss
   checkInPhoto: string; // Base64 data URL
-  checkInLocation: GeoLocationCapture;
+  checkInLocation: GeoLocationCapture | null; // null when no GPS was captured
   checkOutTime?: string; // HH:mm:ss
   checkOutPhoto?: string; // Base64 data URL
-  checkOutLocation?: GeoLocationCapture;
+  checkOutLocation?: GeoLocationCapture | null;
   hoursWorked?: number; // In hours (e.g. 8.5)
   status: 'Present' | 'Half-Day' | 'Absent';
   notes?: string;
