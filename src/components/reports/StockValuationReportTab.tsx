@@ -193,6 +193,13 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       activeLowStock,
       activeOutOfStock,
       activeInStock,
+      // FIN-B-4: the filter tabs count the rows they list (one row per item);
+      // the header card keeps the per-branch alert count.
+      tabCounts: {
+        'in-stock': itemRows.filter((r) => r.status === 'in-stock').length,
+        'low-stock': itemRows.filter((r) => r.status === 'low-stock').length,
+        'out-of-stock': itemRows.filter((r) => r.status === 'out-of-stock').length,
+      },
       movementCounts: {
         fast: itemRows.filter((r) => r.movement === 'fast').length,
         average: itemRows.filter((r) => r.movement === 'average').length,
@@ -442,7 +449,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                 statusFilter === 'in-stock' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-emerald-50'
               )}
             >
-              In Stock ({valuationData.activeInStock})
+              In Stock ({valuationData.tabCounts['in-stock']})
             </button>
             <button
               type="button"
@@ -452,7 +459,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                 statusFilter === 'low-stock' ? 'bg-amber-500 text-slate-900 shadow-2xs' : 'text-amber-700 hover:bg-amber-50'
               )}
             >
-              Low Stock ({valuationData.activeLowStock})
+              Low Stock ({valuationData.tabCounts['low-stock']})
             </button>
             <button
               type="button"
@@ -462,7 +469,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
                 statusFilter === 'out-of-stock' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-rose-50'
               )}
             >
-              Out of Stock ({valuationData.activeOutOfStock})
+              Out of Stock ({valuationData.tabCounts['out-of-stock']})
             </button>
           </div>
         </div>
