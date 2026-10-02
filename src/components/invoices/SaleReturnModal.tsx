@@ -66,14 +66,24 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
       invoice.subtotal || invoice.items.reduce((s, i) => s + (i.taxableAmount || 0), 0);
     const overallDisc = invoice.overallDiscountAmount || 0;
 
+    // SAL-15: the boxes are keyed by LINE, not by item — the same item on two
+    // lines used to share one box. What was already returned of an item is
+    // shared out over its lines in order, so each line knows what is left on it.
+    const returnedLeft = new Map<string, number>();
+    for (const r of invoice.returns || []) {
+      const k = r.isCombo && r.comboId ? `c:${r.comboId}` : r.itemId;
+      returnedLeft.set(k, (returnedLeft.get(k) || 0) + (r.returnedQuantity || 0));
+    }
+
     return invoice.items.map((item) => {
       const itemId = item.itemId || item.id;
-      const alreadyReturned = (invoice.returns || [])
-        .filter((r) => r.itemId === itemId)
-        .reduce((sum, r) => sum + r.returnedQuantity, 0);
+      const key = item.isCombo && item.comboId ? `c:${item.comboId}` : itemId;
+      const pool = returnedLeft.get(key) || 0;
+      const alreadyReturned = Math.min(item.quantity || 0, pool);
+      returnedLeft.set(key, pool - alreadyReturned);
 
       const maxReturnable = Math.max(0, item.quantity - alreadyReturned);
-      const currentReturnQty = Math.min(maxReturnable, returnQuantities[itemId] || 0);
+      const currentReturnQty = Math.min(maxReturnable, returnQuantities[item.id] || 0);
 
       const q = item.quantity || 1;
       const lineTaxable = item.taxableAmount || 0;
@@ -85,6 +95,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
       return {
         ...item,
+        lineId: item.id,
         itemId,
         alreadyReturned,
         maxReturnable,
@@ -126,18 +137,18 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   if (!isOpen || !invoice) return null;
 
-  const handleQtyChange = (itemId: string, qty: number, max: number) => {
-    const valid = Math.max(0, Math.min(max, qty));
+  const handleQtyChange = (lineId: string, qty: number, max: number) => {
+    const valid = Math.max(0, Math.min(max, Number.isFinite(qty) ? qty : 0));
     setReturnQuantities((prev) => ({
       ...prev,
-      [itemId]: valid,
+      [lineId]: valid,
     }));
   };
 
   const handleSetAllMax = () => {
     const allMax: Record<string, number> = {};
     linesWithReturnState.forEach((l) => {
-      allMax[l.itemId] = l.maxReturnable;
+      allMax[l.lineId] = l.maxReturnable;
     });
     setReturnQuantities(allMax);
   };
@@ -172,8 +183,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
     // Damaged goods are written off from STOCK, but the customer is still owed
     // their money — the refund mode applies to every return (CASH7-7 / E2E8-11).
-    processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode);
-    onClose();
+    // Close only once the server accepted it; a refused return keeps the form.
+    void processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode).then((ok) => {
+      if (ok) onClose();
+    });
   };
 
   return (
@@ -195,7 +208,9 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Line-item stock reversal • Physical units will be restored to warehouse
+                {/damag/i.test(reason)
+                  ? 'Line-item return • Damaged units are written off, not restocked'
+                  : 'Line-item return • Undamaged units go back into branch stock'}
               </p>
             </div>
           </div>
@@ -308,7 +323,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleQtyChange(line.itemId, line.currentReturnQty - 1, line.maxReturnable)}
+                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty - 1, line.maxReturnable)}
                               disabled={line.currentReturnQty <= 0}
                               className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
@@ -320,13 +335,13 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                               min="0"
                               max={line.maxReturnable}
                               value={line.currentReturnQty}
-                              onChange={(e) => handleQtyChange(line.itemId, parseInt(e.target.value) || 0, line.maxReturnable)}
+                              onChange={(e) => handleQtyChange(line.lineId, Number(e.target.value) || 0, line.maxReturnable)}
                               className="w-14 text-center py-1 border border-slate-300 rounded-none font-mono font-bold text-slate-900 text-xs focus:outline-none focus:border-red-600"
                             />
 
                             <button
                               type="button"
-                              onClick={() => handleQtyChange(line.itemId, line.currentReturnQty + 1, line.maxReturnable)}
+                              onClick={() => handleQtyChange(line.lineId, line.currentReturnQty + 1, line.maxReturnable)}
                               disabled={line.currentReturnQty >= line.maxReturnable}
                               className="p-1 rounded-none bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-30 transition-colors"
                             >
@@ -431,10 +446,15 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-800">
-                  Total Refund & Reversal Value
+                  Total Return Value
                 </span>
                 <p className="text-[11px] text-slate-500">
-                  {totalUnitsToReturn} unit(s) selected for return to {invoice.branchId} stock
+                  {/damag/i.test(reason)
+                    ? `${totalUnitsToReturn} unit(s) selected — damaged, written off (no stock added)`
+                    : `${totalUnitsToReturn} unit(s) selected for return to ${invoice.branchId} stock`}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Reduces what the customer owes first; only an over-paid amount is refunded.
                 </p>
               </div>
             </div>

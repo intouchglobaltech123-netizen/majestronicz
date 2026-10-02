@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Invoice, COMPANY_PROFILE, BRANCHES } from '../../types';
+import { Invoice, COMPANY_PROFILE, BRANCHES, SaleReturnLineItem, isDamagedReturn, isLatestReturnBatch } from '../../types';
+import { useErp } from '../../context/ErpContext';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { formatCurrency } from '../../lib/utils';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -13,6 +14,8 @@ import {
   PackageCheck,
   User,
   ShieldCheck,
+  Undo2,
+  PackageX,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,8 +33,35 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
   onViewOriginalSale,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [reversing, setReversing] = useState(false);
+  const { items: catalogItems, currentUser, reverseReturn } = useErp();
+  // SAL3-2: reversing a return is a Manager/CEO action (the server checks the branch).
+  const canReverse = currentUser.role === 'CEO' || currentUser.role === 'Manager';
 
   if (!isOpen || !invoice) return null;
+
+  // E2E-15 / E6-11: only undamaged catalogue units went back on the shelf;
+  // damaged units were written off and typed service lines carry no stock.
+  const isStockLine = (r: SaleReturnLineItem) => !!r.isCombo || catalogItems.some((i) => i.id === r.itemId);
+  const restockedUnits = (invoice.returns || []).filter((r) => !isDamagedReturn(r) && isStockLine(r)).reduce((t, r) => t + (r.returnedQuantity || 0), 0);
+  const writtenOffUnits = (invoice.returns || []).filter((r) => isDamagedReturn(r)).reduce((t, r) => t + (r.returnedQuantity || 0), 0);
+
+  const handleReverse = async (ret: SaleReturnLineItem) => {
+    const batch = (invoice.returns || []).filter((r) => (r.batchId || r.returnedAt) === (ret.batchId || ret.returnedAt));
+    const units = batch.reduce((t, r) => t + (r.returnedQuantity || 0), 0);
+    const value = batch.reduce((t, r) => t + (r.refundAmount || 0), 0);
+    const money = (ret.batchRefundCash || 0) > 0
+      ? `The refund of ${formatCurrency(ret.batchRefundCash || 0)} is cancelled (or collected back today if its cash day is closed).`
+      : (ret.batchCreditIssued || 0) > 0
+      ? `The credit note of ${formatCurrency(ret.batchCreditIssued || 0)} is taken back off the customer's store credit.`
+      : 'The amount goes back onto what the customer owes.';
+    const stock = isDamagedReturn(ret) ? 'Damaged units were written off, so stock does not change.' : `${units} unit(s) go back out of stock.`;
+    if (!confirm(`Reverse this return of ${units} unit(s) (${formatCurrency(value)}) on #${invoice.invoiceNumber}?\n\n${stock}\n${money}`)) return;
+    setReversing(true);
+    const done = await reverseReturn(invoice.id, ret.id);
+    setReversing(false);
+    if (done) onClose();
+  };
 
   const branchData = BRANCHES.find((b) => b.id === invoice.branchId);
   const returns = invoice.returns || [];
@@ -61,7 +91,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
   };
 
   const handleCopySummary = () => {
-    const summary = `${COMPANY_PROFILE.name} - Sales Return Voucher\nOriginal Sale: ${invoice.invoiceNumber}\nCustomer: ${invoice.customerName}\nBranch: ${branchData?.name || invoice.branchId}\nDate of Return: ${returnDate}\nUnits Returned: ${totalUnitsReturned}\nTotal Refund: ${formatCurrency(totalRefund)}\nProcessed By: ${processedByStaff}`;
+    const summary = `${COMPANY_PROFILE.name} - Sales Return Voucher\nOriginal Sale: ${invoice.invoiceNumber}\nCustomer: ${invoice.customerName}\nBranch: ${branchData?.name || invoice.branchId}\nDate of Return: ${returnDate}\nUnits Returned: ${totalUnitsReturned}\nReturn Value: ${formatCurrency(totalRefund)}\nProcessed By: ${processedByStaff}`;
     navigator.clipboard.writeText(summary);
     setCopied(true);
     toast.success('Return summary copied to clipboard');
@@ -87,7 +117,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Audited stock restoration & customer refund voucher
+                Returned goods, stock and refund / credit record
               </p>
             </div>
           </div>
@@ -222,7 +252,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                 Returned Line Items Breakdown ({returns.length})
               </span>
               <span className="text-xs text-slate-500">
-                {totalUnitsReturned} unit{totalUnitsReturned === 1 ? '' : 's'} returned into physical inventory
+                {restockedUnits} unit{restockedUnits === 1 ? '' : 's'} back in stock{writtenOffUnits > 0 ? ` · ${writtenOffUnits} damaged, written off` : ''}
               </span>
             </div>
 
@@ -236,6 +266,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                   <th className="py-2.5 px-3 text-center w-20">GST %</th>
                   <th className="py-2.5 px-3 text-right w-28">Refund Amount</th>
                   <th className="py-2.5 px-3 text-left w-48">Reason & Notes</th>
+                  {canReverse && <th className="py-2.5 px-3 text-right w-24 print:hidden">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -262,10 +293,30 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                     </td>
                     <td className="py-2.5 px-3 text-slate-600 text-[11px]">
                       <p className="font-medium text-slate-800">{ret.reason || 'General Return'}</p>
+                      {isDamagedReturn(ret) && (
+                        <p className="text-rose-700 font-bold mt-0.5">Damaged — written off, not restocked</p>
+                      )}
                       {ret.notes && (
                         <p className="text-slate-500 italic mt-0.5">{ret.notes}</p>
                       )}
                     </td>
+                    {canReverse && (
+                      <td className="py-2.5 px-3 text-right print:hidden">
+                        {isLatestReturnBatch(invoice, ret) ? (
+                          <button
+                            type="button"
+                            disabled={reversing || !!invoice.isVoided}
+                            onClick={() => handleReverse(ret)}
+                            title="Undo this return: stock, refund / credit note and the bill's due are put back"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-none cursor-pointer disabled:opacity-40"
+                          >
+                            <Undo2 className="h-3 w-3" /> Reverse
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400" title="Returns are reversed newest first">Reverse later return first</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -274,19 +325,33 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
 
           {/* Totals & Stock Verification Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="p-4 bg-emerald-50/60 rounded-none border border-emerald-200 text-xs space-y-2">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold">
-                <PackageCheck className="h-4 w-4 text-emerald-600" />
-                <span>Warehouse Stock Replenished</span>
-              </div>
-              <p className="text-slate-600 text-[11px] leading-relaxed">
-                Returned items have been incremented back into the{' '}
-                <strong className="text-slate-900">{branchData?.name || invoice.branchId}</strong> active branch stock.
-                Stock adjustment audit logs recorded.
-              </p>
+            <div className={`p-4 rounded-none border text-xs space-y-2 ${restockedUnits > 0 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`}>
+              {restockedUnits > 0 ? (
+                <>
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                    <PackageCheck className="h-4 w-4 text-emerald-600" />
+                    <span>{restockedUnits} unit{restockedUnits === 1 ? '' : 's'} back in stock</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Undamaged returned items were added back to the{' '}
+                    <strong className="text-slate-900">{branchData?.name || invoice.branchId}</strong> branch stock.
+                    Stock adjustment audit logs recorded.
+                  </p>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-rose-800 font-bold">
+                  <PackageX className="h-4 w-4 text-rose-600" />
+                  <span>No stock added back</span>
+                </div>
+              )}
+              {writtenOffUnits > 0 && (
+                <p className="text-rose-700 text-[11px] font-semibold leading-relaxed">
+                  {writtenOffUnits} damaged unit{writtenOffUnits === 1 ? '' : 's'} written off — not restocked.
+                </p>
+              )}
               <div className="pt-2 border-t border-emerald-200/80">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                  REFUND IN WORDS
+                  RETURN VALUE IN WORDS
                 </span>
                 <p className="font-medium text-slate-800 italic">
                   {numberToWordsIndian(totalRefund)}
@@ -304,7 +369,7 @@ export const SaleReturnDetailModal: React.FC<Props> = ({
                 <span className="font-mono font-bold text-amber-800">{totalUnitsReturned} units</span>
               </div>
               <div className="flex justify-between py-2 border-b-2 border-slate-900 font-bold text-sm">
-                <span className="text-slate-900 uppercase">Total Refund Issued:</span>
+                <span className="text-slate-900 uppercase">Total Return Value:</span>
                 <span className="font-mono text-amber-700 text-base">
                   {formatCurrency(totalRefund)}
                 </span>

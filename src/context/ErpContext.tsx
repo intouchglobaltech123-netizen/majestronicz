@@ -204,8 +204,8 @@ interface ErpContextType {
 
   // Estimates & Quotations
   estimates: Estimate[];
-  saveEstimate: (estimate: Estimate) => Promise<Estimate>;
-  deleteEstimate: (estimateId: string) => void;
+  saveEstimate: (estimate: Estimate) => Promise<Estimate | undefined>;
+  deleteEstimate: (estimateId: string) => Promise<boolean>;
   cancelEstimate: (estimateId: string, reason: string) => Promise<void>;
   getNextEstimateNumber: (branchId: BranchId, date?: string) => string;
 
@@ -256,7 +256,8 @@ interface ErpContextType {
     reason: string,
     notes?: string,
     refundMode?: string
-  ) => void;
+  ) => Promise<boolean>;
+  reverseReturn: (invoiceId: string, returnId: string) => Promise<boolean>;
   getNextInvoiceNumber: (branchId: BranchId, date?: string) => string;
   estimateToConvert: Estimate | null;
   setEstimateToConvert: (estimate: Estimate | null) => void;
@@ -2087,8 +2088,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${prefix}${String(nextSeq).padStart(3, '0')}`;
   };
 
-  const saveEstimate = async (newEstimate: Estimate): Promise<Estimate> => {
+  const saveEstimate = async (newEstimate: Estimate): Promise<Estimate | undefined> => {
     // Optimistic insert (shows a provisional number instantly).
+    const before = estimates.find((e) => e.id === newEstimate.id);
     setEstimates((prev) => {
       const existingIdx = prev.findIndex((e) => e.id === newEstimate.id);
       if (existingIdx >= 0) {
@@ -2109,8 +2111,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saved = snap.estimates.find((e: Estimate) => e.id === newEstimate.id) || newEstimate;
       }
     } catch (e: any) {
-      toast.error('Could not save estimate to server', { description: e?.message ?? 'Backend error' });
-      return newEstimate;
+      // SAL8-4: a refused save returns nothing (as for invoices), so the form
+      // stays open with the draft — no printable quote for a save that failed.
+      setEstimates((prev) => (before ? prev.map((x) => (x.id === before.id ? before : x)) : prev.filter((x) => x.id !== newEstimate.id)));
+      toast.error('Could not save quotation', { description: e?.message ?? 'Backend error' });
+      return undefined;
     }
     toast.success(`Quotation ${saved.estimateNumber} saved`, {
       description: `For ${saved.customerName} (₹${saved.grandTotal.toLocaleString('en-IN')})`,
@@ -2118,24 +2123,25 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved;
   };
 
-  const deleteEstimate = (estimateId: string) => {
-    setEstimates((prev) => prev.filter((e) => e.id !== estimateId));
-    persist(apiDelete(`/api/catalog/estimate/${estimateId}`));
-    toast.success('Estimate removed');
+  // SAL8-3: deleting a quote is a CEO clean-up; the server decides and the list
+  // changes only after it agrees (no "deleted" toast for a refused delete).
+  const deleteEstimate = async (estimateId: string): Promise<boolean> => {
+    try {
+      const snap = await apiDelete<any>(`/api/catalog/estimate/${estimateId}`);
+      if (snap && Array.isArray(snap.estimates)) setEstimates(snap.estimates);
+      toast.success('Quotation deleted');
+      return true;
+    } catch (e: any) {
+      toast.error('Could not delete quotation', { description: e?.message ?? 'Backend error' });
+      return false;
+    }
   };
 
   // Cancel a quotation with a reason (the delete action is retired — a quote is
   // Open, then Converted to a sale or Cancelled with a reason). Server is
   // authoritative; it refuses to cancel a converted quote.
   const cancelEstimate = async (estimateId: string, reason: string) => {
-    const now = new Date().toISOString();
-    setEstimates((prev) =>
-      prev.map((e) =>
-        e.id === estimateId
-          ? { ...e, status: 'Cancelled' as const, cancelReason: reason, cancelledAt: now, cancelledBy: currentUser?.name }
-          : e,
-      ),
-    );
+    // The list changes only once the server agreed (it refuses a converted quote).
     try {
       const snap = await apiPost<any>(`/api/catalog/estimate/${estimateId}/cancel`, { reason });
       if (snap && Array.isArray(snap.estimates)) setEstimates(snap.estimates);
@@ -2930,16 +2936,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) {
       toast.error('Sale record not found.');
-      return;
+      return false;
     }
     if (inv.isVoided) {
       toast.error('Cannot process return on a voided sale.');
-      return;
+      return false;
     }
     const validLines = returnLines.filter((l) => l.returnQty > 0);
     if (validLines.length === 0) {
       toast.error('Please specify at least 1 unit to return.');
-      return;
+      return false;
     }
 
     try {
@@ -2957,12 +2963,50 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // snapshot — refresh so the drawer and the customer's credit show them now.
       void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
       const totalUnitsReturned = validLines.reduce((sum, l) => sum + l.returnQty, 0);
-      const totalRefund = validLines.reduce((sum, l) => sum + l.refundAmount, 0);
-      toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, {
-        description: `Refund value ₹${totalRefund.toLocaleString('en-IN')}. Stock incremented in ${inv.branchId}.`,
-      });
+      // Say what really happened, from the server's own summary: money paid back
+      // vs. the due that was just reduced (E2E8-13), and units restocked vs.
+      // written off as damaged (E2E-15).
+      const sum = snap?.returnSummary;
+      const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+      const parts: string[] = [];
+      if (sum) {
+        if (sum.cashRefund > 0) parts.push(`Refunded ${inr(sum.cashRefund)}${sum.refundMode ? ` (${sum.refundMode})` : ''}`);
+        if (sum.creditIssued > 0) parts.push(`Credit note ${inr(sum.creditIssued)} added to the customer's store credit`);
+        if (sum.dueReduced > 0) parts.push(`Due reduced by ${inr(sum.dueReduced)}`);
+        if (sum.damaged) parts.push(`${sum.writtenOffUnits} damaged unit(s) written off — not restocked`);
+        else if (sum.restockedUnits > 0) parts.push(`${sum.restockedUnits} unit(s) back in stock at ${inv.branchId}`);
+      }
+      toast.success(`Return processed for ${totalUnitsReturned} unit(s)`, { description: parts.join('. ') || undefined });
+      return true;
     } catch (e: any) {
       toast.error('Failed to process return', { description: e?.message ?? 'Backend error' });
+      return false;
+    }
+  };
+
+  // SAL3-2: undo a return (Manager/CEO). The server reverses the stock, the
+  // refund or credit note and the bill's returned total in one go.
+  const reverseReturn = async (invoiceId: string, returnId: string): Promise<boolean> => {
+    try {
+      const snap = await apiPost<any>('/api/tx/reverse-return', { invoiceId, returnId });
+      applySaleSnapshot(snap);
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      const r = snap?.reversed;
+      const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+      const money = r?.refund
+        ? r.refund.kind === 'deleted'
+          ? `Refund of ${inr(r.refund.amount)} cancelled.`
+          : `Refund of ${inr(r.refund.amount)} taken back from the customer today (${r.refund.mode}).`
+        : r?.creditTakenBack
+        ? `Credit note of ${inr(r.creditTakenBack)} taken back.`
+        : 'The due is back on the bill.';
+      toast.success(`Return on #${r?.invoiceNumber || ''} reversed`, {
+        description: `${r?.damaged ? 'Damaged units were written off — no stock change.' : `${r?.stockOut ?? 0} unit(s) taken back out of stock.`} ${money}`,
+      });
+      return true;
+    } catch (e: any) {
+      toast.error('Could not reverse the return', { description: e?.message ?? 'Backend error' });
+      return false;
     }
   };
 
@@ -4386,6 +4430,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteInvoice,
         voidInvoice,
         processSaleReturn,
+        reverseReturn,
         getNextInvoiceNumber,
         estimateToConvert,
         setEstimateToConvert,

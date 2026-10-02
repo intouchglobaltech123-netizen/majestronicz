@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, BranchId, BRANCHES, isInvoiceFullyReturned } from '../../types';
+import { Invoice, BranchId, BRANCHES, isInvoiceFullyReturned, isDamagedReturn, returnBatchKey } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import {
   RotateCcw,
@@ -12,6 +12,7 @@ import {
   ExternalLink,
   ShieldCheck,
   Receipt,
+  Undo2,
 } from 'lucide-react';
 
 interface Props {
@@ -23,7 +24,29 @@ export const ReturnsListView: React.FC<Props> = ({
   onSelectReturn,
   onViewOriginalSale,
 }) => {
-  const { invoices, currentBranch, isAllBranches } = useErp();
+  const { invoices, currentBranch, isAllBranches, items: catalogItems, currentUser, reverseReturn } = useErp();
+  // SAL3-2: Manager/CEO can undo a bill's newest return from here.
+  const canReverse = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const [reversingId, setReversingId] = useState<string | null>(null);
+  const handleReverseLatest = async (inv: Invoice) => {
+    const list = inv.returns || [];
+    const last = list[list.length - 1];
+    if (!last) return;
+    const batch = list.filter((r) => returnBatchKey(r) === returnBatchKey(last));
+    const units = batch.reduce((t, r) => t + (r.returnedQuantity || 0), 0);
+    const value = batch.reduce((t, r) => t + (r.refundAmount || 0), 0);
+    const stock = isDamagedReturn(last) ? 'Damaged units were written off, so stock does not change.' : `${units} unit(s) go back out of stock.`;
+    const money = (last.batchRefundCash || 0) > 0
+      ? `The refund of ${formatCurrency(last.batchRefundCash || 0)} is cancelled (or collected back today if its cash day is closed).`
+      : (last.batchCreditIssued || 0) > 0
+      ? `The credit note of ${formatCurrency(last.batchCreditIssued || 0)} is taken back off the customer's store credit.`
+      : 'The amount goes back onto what the customer owes.';
+    if (!confirm(`Reverse the latest return on #${inv.invoiceNumber}: ${units} unit(s), ${formatCurrency(value)}?\n\n${stock}\n${money}`)) return;
+    setReversingId(inv.id);
+    await reverseReturn(inv.id, last.id);
+    setReversingId(null);
+  };
+  const isStockLine = (r: { isCombo?: boolean; itemId: string }) => !!r.isCombo || catalogItems.some((i) => i.id === r.itemId);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [branchFilter, setBranchFilter] = useState<'ALL' | BranchId>(() =>
@@ -76,15 +99,24 @@ export const ReturnsListView: React.FC<Props> = ({
     });
   }, [returnedInvoices, branchFilter, isAllBranches, currentBranch, searchQuery]);
 
-  // KPI calculations across filtered returns
-  const totalRefundAmount = filteredReturns.reduce(
+  // KPI calculations across filtered returns. A voided bill's returns were
+  // undone with the bill, so they are not counted (SAL4-18); damaged write-offs
+  // and typed service lines never went back on the shelf (E2E6-11).
+  const liveReturns = filteredReturns.filter((inv) => !inv.isVoided);
+  const totalRefundAmount = liveReturns.reduce(
     (sum, inv) => sum + (inv.totalReturnedAmount || 0),
     0
   );
-  const totalUnitsRestocked = filteredReturns.reduce((sum, inv) => {
-    const units = (inv.returns || []).reduce((s, r) => s + r.returnedQuantity, 0);
+  const totalUnitsRestocked = liveReturns.reduce((sum, inv) => {
+    const units = (inv.returns || [])
+      .filter((r) => !isDamagedReturn(r) && isStockLine(r))
+      .reduce((s, r) => s + r.returnedQuantity, 0);
     return sum + units;
   }, 0);
+  const totalUnitsWrittenOff = liveReturns.reduce(
+    (sum, inv) => sum + (inv.returns || []).filter((r) => isDamagedReturn(r)).reduce((s, r) => s + r.returnedQuantity, 0),
+    0
+  );
 
   return (
     <div className="space-y-4">
@@ -99,10 +131,10 @@ export const ReturnsListView: React.FC<Props> = ({
               Total Returns Processed
             </p>
             <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">
-              {filteredReturns.length}
+              {liveReturns.length}
             </p>
             <p className="text-[11px] text-slate-500">
-              Active return vouchers logged
+              Bills with returns{filteredReturns.length > liveReturns.length ? ` (+${filteredReturns.length - liveReturns.length} voided, not counted)` : ''}
             </p>
           </div>
         </div>
@@ -113,13 +145,13 @@ export const ReturnsListView: React.FC<Props> = ({
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Total Refund Value
+              Total Return Value
             </p>
             <p className="text-xl font-extrabold text-rose-700 font-mono mt-0.5">
               {formatCurrency(totalRefundAmount)}
             </p>
             <p className="text-[11px] text-slate-500">
-              Credited / refunded to customers
+              Refunded, credited or taken off the due
             </p>
           </div>
         </div>
@@ -136,7 +168,7 @@ export const ReturnsListView: React.FC<Props> = ({
               {totalUnitsRestocked} units
             </p>
             <p className="text-[11px] text-slate-500">
-              Inwarded back into warehouses
+              Back in stock{totalUnitsWrittenOff > 0 ? ` · ${totalUnitsWrittenOff} damaged written off` : ''}
             </p>
           </div>
         </div>
@@ -261,6 +293,11 @@ export const ReturnsListView: React.FC<Props> = ({
                           >
                             {isFullReturn ? 'Full' : 'Partial'}
                           </span>
+                          {inv.isVoided && (
+                            <span className="text-[11px] font-extrabold uppercase px-1.5 py-0.2 rounded border bg-slate-100 text-slate-500 border-slate-300">
+                              Voided
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] text-slate-400 block font-sans mt-0.5">
                           Sale: {formatCurrency(inv.grandTotal)}
@@ -319,7 +356,7 @@ export const ReturnsListView: React.FC<Props> = ({
                         <span className="font-bold text-sm text-rose-700 block">
                           {formatCurrency(inv.totalReturnedAmount || 0)}
                         </span>
-                        <span className="text-[11px] text-slate-400">Refund value</span>
+                        <span className="text-[11px] text-slate-400">Return value</span>
                       </td>
 
                       {/* 6. Branch */}
@@ -349,6 +386,19 @@ export const ReturnsListView: React.FC<Props> = ({
                             <RotateCcw className="h-3 w-3" />
                             <span>Return Slip</span>
                           </button>
+
+                          {canReverse && !inv.isVoided && returns.length > 0 && (
+                            <button
+                              type="button"
+                              disabled={reversingId === inv.id}
+                              onClick={() => handleReverseLatest(inv)}
+                              className="px-2 py-1 text-xs font-bold rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 shadow-2xs disabled:opacity-40"
+                              title="Reverse the latest return on this bill"
+                            >
+                              <Undo2 className="h-3 w-3" />
+                              <span>Reverse</span>
+                            </button>
+                          )}
 
                           <button
                             type="button"

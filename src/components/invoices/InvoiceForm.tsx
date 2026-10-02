@@ -1410,8 +1410,11 @@ export const InvoiceForm: React.FC<Props> = ({
       // Use the server-saved estimate (authoritative number) for the preview,
       // not the provisional one — saveEstimate emits its own success toast.
       const saved = await saveEstimate(est);
+      // SAL8-4: a refused save (error toast already shown) keeps this tab and its
+      // draft open — no printable quote for a quotation that was never saved.
+      if (!saved) return;
       // The enquiry is closed only now that the quotation really exists (CRM-2).
-      if (fromEnquiryPrefill && saved?.sourceEnquiryId) {
+      if (fromEnquiryPrefill && saved.sourceEnquiryId) {
         await markEnquiryConverted(saved.sourceEnquiryId, 'estimate', saved.id, saved.estimateNumber);
       }
       if (onSavedEstimate) {

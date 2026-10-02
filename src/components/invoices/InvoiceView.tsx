@@ -54,11 +54,14 @@ interface Props {
   initialTab?: 'ledger' | 'estimates' | 'returns';
 }
 
+type QuoteLifecycle = 'Open' | 'Converted' | 'Cancelled';
+
 export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const {
     invoices,
     estimates,
     deleteEstimate,
+    cancelEstimate,
     currentBranch,
     isAllBranches,
     currentBranchData,
@@ -312,15 +315,45 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     });
   }, [invoices, branchFilter, isAllBranches, currentBranch, searchQuery]);
 
-  // Filter estimates by search and branch scope
-  const filteredEstimates = useMemo(() => {
-    return estimates.filter((est) => {
-      const matchesBranch =
-        branchFilter === 'ALL'
-          ? isAllBranches || est.branchId === currentBranch
-          : est.branchId === branchFilter;
+  // ---- Quotation lifecycle (SAL8-3): Open → Converted (a live bill was made
+  // from it) or Cancelled (with a reason). Converted is stored by the server and
+  // also derived from the bills, so it is right even for older quotes.
+  const convertedEstimateMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inv of invoices) {
+      if (inv.sourceEstimateId && !inv.isVoided) map.set(inv.sourceEstimateId, inv.invoiceNumber);
+    }
+    return map;
+  }, [invoices]);
+  const lifecycleOf = (est: Estimate): QuoteLifecycle =>
+    convertedEstimateMap.has(est.id) ? 'Converted' : est.status === 'Cancelled' ? 'Cancelled' : 'Open';
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<'all' | QuoteLifecycle>('all');
+  const [cancelTarget, setCancelTarget] = useState<Estimate | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null);
+  const isCeo = currentUser.role === 'CEO';
+  const confirmCancelQuote = async () => {
+    if (!cancelTarget || !cancelReason.trim()) return;
+    await cancelEstimate(cancelTarget.id, cancelReason.trim());
+    setCancelTarget(null);
+    setCancelReason('');
+  };
 
-      if (!matchesBranch) return false;
+  // Filter estimates by search, branch scope and lifecycle
+  const branchScopedEstimates = useMemo(
+    () => estimates.filter((est) =>
+      branchFilter === 'ALL' ? isAllBranches || est.branchId === currentBranch : est.branchId === branchFilter),
+    [estimates, branchFilter, isAllBranches, currentBranch],
+  );
+  const quoteCounts = useMemo(() => {
+    const c = { all: branchScopedEstimates.length, Open: 0, Converted: 0, Cancelled: 0 };
+    for (const e of branchScopedEstimates) c[lifecycleOf(e)] += 1;
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchScopedEstimates, convertedEstimateMap]);
+  const filteredEstimates = useMemo(() => {
+    return branchScopedEstimates.filter((est) => {
+      if (quoteStatusFilter !== 'all' && lifecycleOf(est) !== quoteStatusFilter) return false;
 
       const q = estimateSearchQuery.trim().toLowerCase();
       if (!q) return true;
@@ -331,7 +364,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         (est.customerContact && est.customerContact.includes(q))
       );
     });
-  }, [estimates, branchFilter, isAllBranches, currentBranch, estimateSearchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchScopedEstimates, estimateSearchQuery, quoteStatusFilter, convertedEstimateMap]);
 
   // Once a resumed draft is finalized (committed), remove it from the draft store.
   const handleSaved = (tab: BillTab, savedInvoice: Invoice) => {
@@ -381,9 +415,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     openBillTab({ documentType: docType });
   };
 
+  // SEC-6: voiding a bill is a Manager/CEO action.
+  const canVoid = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+
   const handleEdit = (invoice: Invoice) => {
     if (invoice.isVoided) {
       toast.error('Cannot edit a voided sale.');
+      return;
+    }
+    if ((invoice.returns || []).some((r) => (r.returnedQuantity || 0) > 0)) {
+      toast.error('This bill has returns and cannot be edited.', { description: 'Reverse the return(s) first (Manager/CEO).' });
       return;
     }
     // If this invoice is already open in a tab, focus it instead of duplicating.
@@ -393,6 +434,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   };
 
   const handleEditEstimate = (estimate: Estimate) => {
+    // Only an Open quote can be edited (the server refuses the others too).
+    if (lifecycleOf(estimate) !== 'Open') {
+      toast.error(`Quotation ${estimate.estimateNumber} is ${lifecycleOf(estimate).toLowerCase()} and can't be edited.`);
+      return;
+    }
     const existing = openBills.find((t) => t.editingEstimate?.id === estimate.id);
     if (existing) { setActiveBillId(existing.id); setActiveTab('new'); return; }
     openBillTab({ documentType: 'Quotation', editingEstimate: estimate, label: estimate.estimateNumber });
@@ -411,6 +457,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   };
 
   const handleSelectEstimateToConvert = (est: Estimate) => {
+    if (lifecycleOf(est) !== 'Open') {
+      toast.error(`Quotation ${est.estimateNumber} is ${lifecycleOf(est).toLowerCase()} and can't be billed.`);
+      return;
+    }
     openBillTab({ documentType: 'Invoice', convertedEstimate: est, label: `Convert ${est.estimateNumber}` });
     setIsConvertModalOpen(false);
   };
@@ -630,6 +680,25 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       ) : activeTab === 'estimates' ? (
         /* QUOTATION HISTORY TAB VIEW */
         <div className="space-y-4">
+          {/* Lifecycle filter: Open / Converted / Cancelled (SAL8-3) */}
+          <div className="flex items-center gap-1.5 flex-wrap" role="tablist" aria-label="Quotation status">
+            {(['all', 'Open', 'Converted', 'Cancelled'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={quoteStatusFilter === k}
+                onClick={() => setQuoteStatusFilter(k)}
+                className={cn(
+                  'px-3 py-1.5 text-[11px] font-bold border rounded-none transition-colors cursor-pointer',
+                  quoteStatusFilter === k ? 'bg-slate-800 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                )}
+              >
+                {k === 'all' ? 'All' : k} ({quoteCounts[k]})
+              </button>
+            ))}
+          </div>
+
           {/* Quick Filter Bar */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
             <div className="relative flex-1 max-w-md w-full">
@@ -652,11 +721,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               </div>
               <ListExportBar
                 build={(from, to) => ({
-                  headers: ['Date', 'Quote No', 'Customer', 'Phone', 'Branch', 'Grand Total (₹)'],
+                  headers: ['Date', 'Quote No', 'Customer', 'Phone', 'Branch', 'Grand Total (₹)', 'Status'],
                   rows: estimates
                     .filter((e) => (isAllBranches || e.branchId === currentBranch) && (!from || (e.date || '') >= from) && (!to || (e.date || '') <= to))
                     .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1))
-                    .map((e) => [e.date, e.estimateNumber, e.customerName, e.customerContact || '', BRANCHES.find((b) => b.id === e.branchId)?.shortCode || e.branchId, (e.grandTotal || 0).toFixed(2)]),
+                    .map((e) => [e.date, e.estimateNumber, e.customerName, e.customerContact || '', BRANCHES.find((b) => b.id === e.branchId)?.shortCode || e.branchId, (e.grandTotal || 0).toFixed(2), lifecycleOf(e)]),
                   title: 'Quotations', filename: `quotations-${from || 'all'}_to_${to || 'all'}`,
                 })}
               />
@@ -675,13 +744,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                     <th className="py-3.5 px-4">Branch</th>
                     <th className="py-3.5 px-4">Tax Mode</th>
                     <th className="py-3.5 px-4 text-right">Grand Total</th>
+                    <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-800">
                   {filteredEstimates.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         <FileText className="h-8 w-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-bold text-sm text-slate-700">No quotations found</p>
                         <p className="text-xs text-slate-400 mt-0.5">
@@ -742,20 +812,44 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-slate-900">
                           {formatCurrency(est.grandTotal)}
                         </td>
+                        <td className="py-3.5 px-4">
+                          {(() => {
+                            const lc = lifecycleOf(est);
+                            return (
+                              <span
+                                data-testid="quote-status"
+                                title={lc === 'Cancelled' && est.cancelReason ? `Cancelled: ${est.cancelReason}` : lc === 'Converted' ? `Converted to ${convertedEstimateMap.get(est.id) || 'a bill'}` : 'Open'}
+                                className={cn(
+                                  'text-[11px] font-bold px-2 py-0.5 rounded border whitespace-nowrap',
+                                  lc === 'Open' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : lc === 'Converted' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                )}
+                              >
+                                {lc}
+                              </span>
+                            );
+                          })()}
+                          {lifecycleOf(est) === 'Cancelled' && est.cancelReason && (
+                            <div className="text-[11px] text-rose-500 truncate max-w-[140px] mt-0.5" title={est.cancelReason}>{est.cancelReason}</div>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {(() => {
-                              // A quote can become only ONE live invoice. If it's
-                              // already converted (a non-voided invoice points at
-                              // it), show that link instead of the convert button —
-                              // so the used list can't start a second conversion
-                              // (the backend also blocks it). SAL3-1.
-                              const conv = invoices.find((i) => i.sourceEstimateId === est.id && !i.isVoided);
-                              return conv ? (
-                                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 text-[11px] font-bold" title={`Already converted to ${conv.invoiceNumber}`}>
-                                  <ArrowRightLeft className="h-3 w-3" /> Converted → {conv.invoiceNumber}
-                                </span>
-                              ) : (
+                              // A quote can become only ONE live invoice (SAL3-1); a
+                              // Cancelled quote can't be billed at all (SAL8-2).
+                              const lc = lifecycleOf(est);
+                              if (lc === 'Converted') {
+                                const num = convertedEstimateMap.get(est.id);
+                                return (
+                                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 text-[11px] font-bold" title={`Already converted to ${num || 'a bill'}`}>
+                                    <ArrowRightLeft className="h-3 w-3" /> Converted{num ? ` → ${num}` : ''}
+                                  </span>
+                                );
+                              }
+                              if (lc === 'Cancelled') return null;
+                              return (
                                 <button
                                   type="button"
                                   onClick={() => handleSelectEstimateToConvert(est)}
@@ -775,14 +869,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                             >
                               <Printer className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleEditEstimate(est)}
-                              title="Edit Quotation"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
+                            {/* Edit only while Open — a Converted or Cancelled quote is locked. */}
+                            {lifecycleOf(est) === 'Open' && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditEstimate(est)}
+                                title="Edit Quotation"
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleDuplicateEstimate(est)}
@@ -791,19 +888,34 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (confirm(`Delete quotation ${est.estimateNumber}?`)) {
-                                  deleteEstimate(est.id);
-                                  toast.success(`Quotation ${est.estimateNumber} deleted`);
-                                }
-                              }}
-                              title="Delete Quotation"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {/* Cancel-with-reason replaces delete; only for an Open quote. */}
+                            {lifecycleOf(est) === 'Open' && (
+                              <button
+                                type="button"
+                                onClick={() => { setCancelTarget(est); setCancelReason(''); }}
+                                title="Cancel this quotation (with a reason)"
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 border border-slate-200 transition-colors cursor-pointer"
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            {/* Permanent delete is a CEO clean-up only, never for a converted quote. */}
+                            {isCeo && lifecycleOf(est) !== 'Converted' && (
+                              <button
+                                type="button"
+                                disabled={deletingQuoteId === est.id}
+                                onClick={async () => {
+                                  if (!confirm(`Permanently delete quotation ${est.estimateNumber}? (Cancelling keeps it on record.)`)) return;
+                                  setDeletingQuoteId(est.id);
+                                  await deleteEstimate(est.id);
+                                  setDeletingQuoteId(null);
+                                }}
+                                title="Delete Quotation (CEO)"
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 border border-slate-200 transition-colors cursor-pointer disabled:opacity-40"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1097,37 +1209,29 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 <Printer className="h-3.5 w-3.5" />
                               </button>
 
-                              {/* Process Return Action */}
-                              <button
-                                type="button"
-                                onClick={() => setReturnInvoice(inv)}
-                                disabled={isVoided}
-                                title={isVoided ? 'Cannot return voided sale' : 'Process Line-Item Return'}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  isVoided
-                                    ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
-                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
-                                )}
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </button>
+                              {/* Process Return Action — not on a voided or fully returned bill (SAL3-2) */}
+                              {!isVoided && !isInvoiceFullyReturned(inv) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReturnInvoice(inv)}
+                                  title="Process Line-Item Return"
+                                  className="p-1.5 rounded-lg border transition-colors bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </button>
+                              )}
 
-                              {/* Edit Action */}
-                              <button
-                                type="button"
-                                onClick={() => handleEdit(inv)}
-                                disabled={isVoided}
-                                title={isVoided ? 'Cannot edit voided sale' : 'Edit Sale'}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  isVoided
-                                    ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
-                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                                )}
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
+                              {/* Edit Action — a bill with returns is locked until they are reversed (SAL3-2) */}
+                              {!isVoided && !hasReturns && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(inv)}
+                                  title="Edit Sale"
+                                  className="p-1.5 rounded-lg border transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
 
                               {/* Duplicate Action */}
                               <button
@@ -1145,7 +1249,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 <Copy className="h-3.5 w-3.5" />
                               </button>
 
-                              {/* Void Action */}
+                              {/* Void Action — Manager/CEO only (SEC-6; the server refuses Billing) */}
+                              {canVoid && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1163,6 +1268,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               >
                                 <Ban className="h-3.5 w-3.5" />
                               </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1218,11 +1324,54 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         // SAL3-1: a quote already turned into a (non-voided) invoice must not be
         // offered for a second conversion — the server rejects it, but the picker
         // should not tempt the user into it either.
-        estimates={estimates.filter(
-          (est) => !invoices.some((i) => i.sourceEstimateId === est.id && !i.isVoided)
-        )}
+        // SAL8-2: only Open quotes can be billed — Converted ones already have a
+        // bill and Cancelled ones are final (the server refuses both).
+        estimates={estimates.filter((est) => lifecycleOf(est) === 'Open')}
         onSelectEstimate={handleSelectEstimateToConvert}
       />
+
+      {/* Cancel-with-reason modal for a quotation (replaces delete) */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white border border-slate-300 rounded-none w-full max-w-md shadow-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 bg-rose-50 flex items-center gap-2.5">
+              <Ban className="h-5 w-5 text-rose-700" />
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Cancel quotation {cancelTarget.estimateNumber}</h2>
+                <p className="text-xs text-slate-500">A cancelled quote is kept for the record (not deleted) and can't be edited or billed.</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">Reason for cancellation</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder="e.g. Customer chose another supplier / price not accepted"
+                className="w-full px-3 py-2 rounded-none bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:outline-none focus:border-rose-600"
+              />
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setCancelTarget(null); setCancelReason(''); }}
+                className="px-4 py-2 rounded-none text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
+              >
+                Keep quotation
+              </button>
+              <button
+                type="button"
+                onClick={confirmCancelQuote}
+                disabled={!cancelReason.trim()}
+                className="px-4 py-2 rounded-none text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Cancel quotation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Void Confirmation Modal */}
       {voidModalInvoice && (

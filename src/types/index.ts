@@ -266,7 +266,30 @@ export interface SaleReturnLineItem {
   isCombo?: boolean;
   comboId?: string;
   comboComponents?: ComboComponent[];
+  // Server-set: the return call this line belongs to (one call = one batch, which
+  // is what "Reverse return" undoes), whether it was a damaged write-off, and
+  // what that batch paid back.
+  batchId?: string;
+  damaged?: boolean;
+  batchRefundCash?: number;
+  batchRefundPaymentId?: string | null;
+  batchCreditIssued?: number;
 }
+
+/** A damaged return is written off — those units were never put back in stock. */
+export const isDamagedReturn = (r: Pick<SaleReturnLineItem, 'damaged' | 'reason'>): boolean =>
+  r.damaged ?? /damag/i.test(r.reason || '');
+
+/** The return batch a return line belongs to (older lines: grouped by time). */
+export const returnBatchKey = (r: Pick<SaleReturnLineItem, 'batchId' | 'returnedAt'>): string =>
+  r.batchId || `at:${r.returnedAt}`;
+
+/** True when this return line is part of the bill's newest return — the only one
+ *  that can be reversed (returns are undone newest first). */
+export const isLatestReturnBatch = (inv: Pick<Invoice, 'returns'>, r: SaleReturnLineItem): boolean => {
+  const list = inv.returns || [];
+  return list.length > 0 && returnBatchKey(list[list.length - 1]) === returnBatchKey(r);
+};
 
 /**
  * Fulfillment pipeline for online-store (Shopify) orders. Ordered progression;
@@ -1327,14 +1350,17 @@ export const isInvoiceFullyReturned = (
   const items = inv.items || [];
   const returns = inv.returns || [];
   if (!items.length || !returns.length) return false;
-  return items.every((li) => {
-    const sold = li.quantity || 0;
-    if (sold <= 0) return true;
-    const returned = returns
-      .filter((r) => (r.itemId && r.itemId === li.itemId) || (r.isCombo && li.comboId && r.comboId === li.comboId))
-      .reduce((s, r) => s + (r.returnedQuantity || 0), 0);
-    return returned >= sold;
-  });
+  // Compare per item, summed across lines (the same item can sit on two lines),
+  // keyed the way the server keys returns: combo id, catalogue item id, or the
+  // line id for a typed service line (SAL4-18).
+  const lineKey = (li: InvoiceLineItem) => (li.isCombo && li.comboId ? `c:${li.comboId}` : li.itemId || li.id);
+  const retKey = (r: SaleReturnLineItem) => (r.isCombo && r.comboId ? `c:${r.comboId}` : r.itemId);
+  const sold = new Map<string, number>();
+  for (const li of items) if ((li.quantity || 0) > 0) sold.set(lineKey(li), (sold.get(lineKey(li)) || 0) + (li.quantity || 0));
+  const back = new Map<string, number>();
+  for (const r of returns) back.set(retKey(r), (back.get(retKey(r)) || 0) + (r.returnedQuantity || 0));
+  if (!sold.size) return false;
+  return [...sold.entries()].every(([k, q]) => (back.get(k) || 0) >= q - 1e-9);
 };
 
 /**
