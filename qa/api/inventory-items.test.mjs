@@ -62,6 +62,44 @@ describe('combos and returns', () => {
     assert.equal(await stockOf(a.id, 'erode-hq'), 20);
   });
 
+  test('SAL3-2 reversing a combo return takes back exactly the parts it restocked', async () => {
+    const date = await freshDay('erode-hq');
+    const a = await createItem({ stock: { 'erode-hq': 20 } });
+    const b = await createItem({ stock: { 'erode-hq': 20 } });
+    const c = await createItem({ stock: { 'erode-hq': 20 } });
+    const combo = await createCombo([{ item: a, qty: 2 }, { item: b, qty: 1 }]);
+    const inv = await mustSell(saleBody({ date, lines: [comboLine(combo, 2)] }));
+    // The combo master changes after the sale, and the browser sends made-up parts.
+    ok(await post('/api/catalog/combo', { id: combo.id, comboName: combo.comboName, comboPrice: combo.comboPrice, components: [{ itemId: c.id, quantity: 5 }] }), 'edit combo');
+    ok(await ret(inv.id, [{ itemId: combo.id, comboId: combo.id, isCombo: true, itemName: combo.comboName, returnQty: 1, comboComponents: [{ itemId: a.id, quantity: 50 }] }]), 'return 1 kit');
+    assert.deepEqual([await stockOf(a.id, 'erode-hq'), await stockOf(b.id, 'erode-hq'), await stockOf(c.id, 'erode-hq')], [18, 19, 20], 'one sold kit restocked');
+    const res = ok(await post('/api/tx/reverse-return', { invoiceId: inv.id, returnId: (await getInvoice(inv.id)).returns[0].id }), 'reverse');
+    assert.equal(res.reversed.stockOut, 3, '2 A + 1 B taken back');
+    assert.deepEqual([await stockOf(a.id, 'erode-hq'), await stockOf(b.id, 'erode-hq'), await stockOf(c.id, 'erode-hq')], [16, 18, 20], 'back to after the sale');
+    const hist = (await ledgerOf(a.id, 'erode-hq')).filter((l) => l.reason === 'Sales Return Reversed');
+    assert.equal(hist.length, 1); assert.equal(hist[0].quantityChange, -2);
+    assert.equal((await getInvoice(inv.id)).returns.length, 0);
+    // A void afterwards restores the whole sale once.
+    ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA', actor: 'QA' }), 'void');
+    assert.deepEqual([await stockOf(a.id, 'erode-hq'), await stockOf(b.id, 'erode-hq'), await stockOf(c.id, 'erode-hq')], [20, 20, 20]);
+  });
+
+  test('SAL3-2 reversing a damaged combo return changes no stock', async () => {
+    const date = await freshDay('erode-hq');
+    const a = await createItem({ stock: { 'erode-hq': 20 } });
+    const combo = await createCombo([{ item: a, qty: 3 }]);
+    const inv = await mustSell(saleBody({ date, lines: [comboLine(combo, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, reason: 'Damaged', actor: 'QA', refundMode: 'Cash',
+      returnLines: [{ itemId: combo.id, comboId: combo.id, isCombo: true, itemName: combo.comboName, returnQty: 1, comboComponents: [] }] }), 'damaged return');
+    assert.equal(await stockOf(a.id, 'erode-hq'), 14, 'damaged kit written off');
+    const res = ok(await post('/api/tx/reverse-return', { invoiceId: inv.id, returnId: (await getInvoice(inv.id)).returns[0].id }), 'reverse');
+    assert.equal(res.reversed.damaged, true);
+    assert.equal(res.reversed.stockOut, 0);
+    assert.equal(await stockOf(a.id, 'erode-hq'), 14, 'no stock change');
+    ok(await del(`/api/tx/invoice/${inv.id}`), 'delete');
+    assert.equal(await stockOf(a.id, 'erode-hq'), 20, 'delete restores the full sale once');
+  });
+
   test('INV3-3 a combo line with a made-up or missing combo id is refused', async () => {
     const date = await freshDay('erode-hq');
     const a = await createItem({ stock: { 'erode-hq': 20 } });

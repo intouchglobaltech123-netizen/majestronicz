@@ -1198,19 +1198,14 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     // ---- stock ---------------------------------------------------------------
     const items = await tx.item.findMany();
     const itemById = new Map(items.map((i: any) => [i.id, i]));
+    // Exactly the units the return put back: a combo return is expanded with the
+    // parts the bill sold it with — the same parts processReturn restocked and
+    // stored on the return (INV8-2) — so reversing a kit takes back its parts,
+    // never the combo id or the browser's idea of the kit.
     const out = new Map<string, number>();
     if (!damaged) {
-      for (const r of batch) {
-        const q = Number(r.returnedQuantity) || 0;
-        if (q <= 0) continue;
-        if (r.isCombo && Array.isArray(r.comboComponents)) {
-          for (const c of r.comboComponents) {
-            const u = (Number(c.quantity) || 0) * q;
-            if (u > 0 && itemById.has(c.itemId)) out.set(c.itemId, (out.get(c.itemId) || 0) + u);
-          }
-        } else if (r.itemId && itemById.has(r.itemId)) {
-          out.set(r.itemId, (out.get(r.itemId) || 0) + q);
-        }
+      for (const [itemId, qty] of expandReturnedUnits(batch, inv.items as any[]).entries()) {
+        if (itemById.has(itemId)) out.set(itemId, Math.round(qty * 1000) / 1000);
       }
     }
     const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
