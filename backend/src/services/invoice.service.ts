@@ -6,10 +6,8 @@ import { nextInvoiceNumber, nextPersistent, financialYear } from '../lib/sequenc
 import { serializableTx } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
-import { creditNotesForBill, legacyRefundId } from '../lib/returnRefunds.js';
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, invoiceDueRaw, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { legacyRefundId } from '../lib/returnRefunds.js';
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
@@ -18,6 +16,8 @@ import { isWholeUnit } from '../lib/units.js';
 import { roleFlags } from '../lib/auth.js';
 import { assertBusinessDate, assertDayOpen, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Recompute every line's tax and the invoice totals from raw inputs, overriding
@@ -1093,20 +1093,16 @@ export function processReturn(
     // How much to pay back (UPG9-5). A return credits the customer the goods
     // value, which FIRST reduces what they still owe; only what they have paid
     // beyond the (reduced) net bill goes back — less what was ALREADY paid back
-    // on this bill (earlier cash refunds and credit notes). So a return on an
-    // unpaid credit bill refunds ₹0, a return on a fully-paid bill refunds its
+    // on this bill (earlier cash refunds and credit given back). So a return on
+    // an unpaid credit bill refunds ₹0, a return on a fully-paid bill refunds its
     // full value, and a customer who still owes money (e.g. a receipt was
-    // deleted after an earlier refund) gets nothing back:
-    //   refund = max(0, (collected at billing + receipts − paid back) − (grand − returns after))
+    // deleted after an earlier refund) gets nothing back. It is the due formula
+    // itself (payment.service invoiceDueRaw) with this return included:
+    //   refund = max(0, −(owed at billing − collected beyond the total − receipts
+    //                     − returns after + refunds + credit given back))
     // (creditOriginal was anchored from the PRE-return state above.)
-    const grandR = Number(inv.grandTotal) || 0;
-    const creditOrig = Math.max(0, Number(inv.creditOriginal) || 0);
-    const receipts = await invoiceReceiptsTotal(tx, invoiceId);
-    const holder = inv.customerId ? await tx.customer.findUnique({ where: { id: inv.customerId }, select: { creditHistory: true } }) : null;
-    const alreadyPaidBack = round2((await invoiceRefundsTotal(tx, invoiceId)) + creditNotesForBill(holder?.creditHistory, invoiceId));
-    const paid = round2((grandR - creditOrig) + receipts - alreadyPaidBack);
-    const returnsAfter = (Number(inv.totalReturnedAmount) || 0) + totalRefund;
-    const cashRefund = Math.max(0, round2(paid - (grandR - returnsAfter)));
+    const returnsAfter = round2((Number(inv.totalReturnedAmount) || 0) + totalRefund);
+    const cashRefund = Math.max(0, round2(-(await invoiceDueRaw(tx, inv, { returns: returnsAfter }))));
 
     // 'Adjust to credit note' means: don't pay cash now. The goods value already
     // reduced the due above; the over-paid portion (what would otherwise be cash

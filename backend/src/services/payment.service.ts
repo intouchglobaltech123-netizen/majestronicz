@@ -8,6 +8,7 @@ import { roleCan } from '../lib/auth.js';
 import { nextPersistent } from '../lib/sequences.js';
 import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customerCredit.service.js';
 import { collectedAtBilling } from '../lib/billingSplit.js';
+import { creditBackForBill, overCollectedOf, billDueRaw } from '../lib/returnRefunds.js';
 import { istToday, assertBusinessDate } from '../lib/businessDate.js';
 import { poPayCap, poBalance, unappliedOf, poAdvance, poOpenValue } from '../lib/poMoney.js';
 
@@ -138,22 +139,7 @@ export async function ensureCreditOriginal(tx: any, invoiceId: string): Promise<
 export async function invoiceCreditBackTotal(tx: any, inv: any): Promise<number> {
   if (!inv?.customerId) return 0;
   const cust = await tx.customer.findUnique({ where: { id: inv.customerId }, select: { creditHistory: true } });
-  const hist: any[] = Array.isArray(cust?.creditHistory) ? (cust!.creditHistory as any[]) : [];
-  let total = 0;
-  for (const h of hist) {
-    const ref = String(h?.refId || '');
-    const mine = ref === inv.id || ref === `fix-overpay:${inv.id}` ||
-      (ref.startsWith('fix-adjust:') && !!inv.invoiceNumber && h?.refNumber === inv.invoiceNumber);
-    if (mine) total += Number(h?.amount) || 0;
-  }
-  return round2(total);
-}
-
-/** What the bill's own-day split collected BEYOND its (edited) total — an edit
- *  below the amount paid keeps that split and gives the excess back as store
- *  credit (CRM9-3), so it counts against the due like any other payment. */
-function overCollectedOf(inv: any): number {
-  return Math.max(0, round2(collectedAtBilling(inv) - (Number(inv.grandTotal) || 0)));
+  return creditBackForBill(cust?.creditHistory, inv);
 }
 
 /** The owed-at-billing credit for an invoice, preferring the stored anchor and
@@ -164,13 +150,23 @@ function creditOriginalOf(inv: any): number {
   return Math.max(0, round2(grand - collectedAtBilling(inv)));
 }
 
+/** An invoice's current outstanding before the ₹0 floor (billDueRaw): negative
+ *  when the customer has paid beyond the net bill and not been paid back.
+ *  `returns` overrides the stored returns total (a return about to be booked). */
+export async function invoiceDueRaw(tx: any, inv: any, opts: { returns?: number } = {}): Promise<number> {
+  return billDueRaw({
+    creditOriginal: creditOriginalOf(inv),
+    overCollected: overCollectedOf(inv),
+    receipts: await invoiceReceiptsTotal(tx, inv.id),
+    returns: opts.returns ?? (Number(inv.totalReturnedAmount) || 0),
+    refunds: await invoiceRefundsTotal(tx, inv.id),
+    creditBack: await invoiceCreditBackTotal(tx, inv),
+  });
+}
+
 /** An invoice's current outstanding: creditOriginal − receipts − returns + refunds + credit given back. */
 export async function computeInvoiceDue(tx: any, inv: any): Promise<number> {
-  const receipts = await invoiceReceiptsTotal(tx, inv.id);
-  const refunds = await invoiceRefundsTotal(tx, inv.id);
-  const creditBack = await invoiceCreditBackTotal(tx, inv);
-  const returns = Number(inv.totalReturnedAmount) || 0;
-  return Math.max(0, round2(creditOriginalOf(inv) - overCollectedOf(inv) - receipts - returns + refunds + creditBack));
+  return Math.max(0, await invoiceDueRaw(tx, inv));
 }
 
 /**
@@ -196,7 +192,7 @@ export async function recomputeInvoiceBalance(tx: any, invoiceId: string): Promi
     const storedDue = Math.max(0, Number(inv.balanceDue) || 0);
     creditOriginal = Math.max(0, round2(storedDue + receipts + returns - refunds - creditBack + over));
   }
-  const due = Math.max(0, round2(Number(creditOriginal) - over - receipts - returns + refunds + creditBack));
+  const due = Math.max(0, billDueRaw({ creditOriginal: Number(creditOriginal), overCollected: over, receipts, returns, refunds, creditBack }));
   await tx.invoice.update({
     where: { id: invoiceId },
     data: { creditOriginal, balanceDue: due, updatedAt: nowIso() },

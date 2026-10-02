@@ -401,6 +401,19 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
     near((await customerOf(inv.customerId)).creditBalance, 1180, 'excess is store credit');
   });
 
+  test('UPG9-5 a return on a bill edited below what was paid pays back the goods value (the refund uses the one due formula)', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, customerPhone: randomPhone(), lines: [line(item, 2)], splits: [{ mode: 'Cash', amount: 2360 }] }));
+    ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)], paymentSplits: [{ mode: 'Cash', amount: 1180 }] }), 'edit to 1 unit');
+    near((await customerOf(inv.customerId)).creditBalance, 1180, 'excess is store credit');
+    const rl = { itemId: item.id, itemCode: item.itemCode, itemName: item.itemName, returnQty: 1, unitPrice: 1000, taxRate: 18 };
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [rl], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return the last unit');
+    // Paid 2,360 on the day, 1,180 already handed back as credit, nothing left on the bill.
+    near((await paymentsFor(inv.id)).filter((p) => p.type === 'out').reduce((t, p) => t + p.amount, 0), 1180, 'the unit comes back in cash');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'nothing owed');
+  });
+
   test('CRM9-5 a walk-in bill cannot be edited below what was collected', async () => {
     const date = await freshDay('erode-hq');
     const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });

@@ -23,7 +23,8 @@ What the script does (all of it is in the report it writes):
    stored figures. If the history can't be replayed to exactly one answer, the
    bill is **not changed** and is listed as `REVIEW` (see step 4).
 2. Freezes that as the bill's payment split. Sets the bill's "owed at billing"
-   and recalculates the due: owed at billing − receipts − returns + refunds.
+   and recalculates the due exactly as the app does: owed at billing − receipts
+   − returns + refunds + store credit already given back on the bill.
 3. Receipts whose money was never applied to a bill go on to that bill. Any
    remainder becomes the customer's **store credit**. The same goes for old
    "on account" receipts.

@@ -41,9 +41,10 @@
  *      paid back for it, dated on the return day. Each older "Adjust (credit
  *      note)" refund row becomes ONE store-credit entry for the over-paid part
  *      (the row is removed — it was never cash).
- *   6. balanceDue = max(0, creditOriginal − receipts − returns + refunds); what
- *      the customer paid beyond the bill and was never paid back becomes store
- *      credit. Refunds an older build paid beyond the over-paid part → REVIEW.
+ *   6. balanceDue = max(0, creditOriginal − collected beyond the total − receipts
+ *      − returns + refunds + store credit given back on the bill) — the app's own
+ *      due formula (src/lib/returnRefunds.ts billDueRaw); what the customer paid
+ *      beyond the bill and was never paid back becomes store credit. Refunds an older build paid beyond the over-paid part → REVIEW.
  *   7. Adds one 'Opening Stock' history row per item/branch whose stock history
  *      does not add up to the current stock, dated before its first movement.
  *   8. Salaries marked Paid by older builds had no Payment 'out' row: one is
@@ -66,7 +67,7 @@ import { nextPersistent } from '../src/lib/sequences.js';
 import { buildOpeningStockRows } from '../src/lib/openingStock.js';
 import { istDateOf } from '../src/lib/businessDate.js';
 import { cashAtBilling } from '../src/lib/billingSplit.js';
-import { legacyRefundId, creditNotesForBill } from '../src/lib/returnRefunds.js';
+import { legacyRefundId, creditBackForBill, overCollectedOf, billDueRaw } from '../src/lib/returnRefunds.js';
 import { registerFigures } from '../src/services/cash.service.js';
 import { cleanPhone } from '../src/lib/stockLedger.js';
 
@@ -674,8 +675,13 @@ async function run(tx: any, overrides: Record<string, Override>) {
     stats.storeCreditAdded = r2(stats.storeCreditAdded + amount);
     return r2(amount);
   };
-  const dueOf = (inv: any) =>
-    r2(r2(inv.grandTotal) - (C0.get(inv.id) || 0) - receiptsOf(inv.id) - (Number(inv.totalReturnedAmount) || 0) + refundsOf(inv.id));
+  // Store credit given back against a bill — the app's own rule (invoiceCreditBackTotal).
+  const creditBackOf = (inv: any) => (inv.customerId ? creditBackForBill(customers.get(inv.customerId)?.creditHistory, inv) : 0);
+  // The app's due formula (payment.service invoiceDueRaw), unfloored.
+  const dueOf = (inv: any) => billDueRaw({
+    creditOriginal: r2(r2(inv.grandTotal) - (C0.get(inv.id) || 0)), overCollected: overCollectedOf(inv),
+    receipts: receiptsOf(inv.id), returns: Number(inv.totalReturnedAmount) || 0, refunds: refundsOf(inv.id), creditBack: creditBackOf(inv),
+  });
   const payMax = new Map<string, number>();
   const nextPayNo = async (date: string) => {
     const like = `PAY-${date.slice(0, 7).replace('-', '')}-`;
@@ -705,7 +711,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const over = Math.max(0, r2((C0.get(inv.id) || 0) + receiptsOf(inv.id) + capped - (G - (Number(inv.totalReturnedAmount) || 0))));
     const rows = refundRows(inv.id);
     const cash = rows.filter((p) => !isCreditNoteMode(p.paymentMode));
-    const paidBack = r2(cash.reduce((t, p) => t + allocTo(p, inv.id), 0) + creditNotesForBill(inv.customerId ? customers.get(inv.customerId)?.creditHistory : null, inv.id));
+    const paidBack = r2(cash.reduce((t, p) => t + allocTo(p, inv.id), 0) + creditBackOf(inv));
     if (paidBack <= over + 0.01) continue;
     // Rows booked by this release's return logic belong to a batch with an id.
     const newBuildIds = new Set(((inv.returns as any[]) || []).map((r) => r?.batchRefundPaymentId).filter(Boolean));
@@ -876,14 +882,18 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const R = receiptsOf(inv.id);
     const refunds = refundsOf(inv.id);
     const ret = r2(inv.totalReturnedAmount || 0);
-    const due = Math.max(0, r2(codDue - R - ret + refunds));
     // What the customer paid beyond the (net) bill and never got back — not as
     // a refund row, not as a credit note (this release's, or one converted
-    // above, or an earlier run's) — is store credit (client decision).
-    const holder = inv.customerId ? customers.get(inv.customerId) : null;
-    const notes = creditNotesForBill(holder?.creditHistory, inv.id);
+    // above, or an earlier run's) — is store credit (client decision). Both
+    // come from the app's one due formula, so the app recomputes the same due.
+    const notes = creditBackOf(inv);
     row.creditNotes = notes;
-    const unpaidBack = r2((c0 + R) - (G - ret) - refunds - notes);
+    const raw = billDueRaw({
+      creditOriginal: codDue, overCollected: overCollectedOf({ ...inv, paymentSplits: newSplits, partialAmount, isPartialPayment }),
+      receipts: R, returns: ret, refunds, creditBack: notes,
+    });
+    const due = Math.max(0, raw);
+    const unpaidBack = r2(-raw);
     let linked: string | null = null;
     if (unpaidBack > 0.009 && !inv.customerId) {
       // Store credit lives on a customer account. Link the bill to its customer
@@ -928,7 +938,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
     if (linked) changes.push('customer linked');
     row.action = same && !linked && !row.refundsBackfilled && !row.receiptsToppedUp && !row.storeCreditAdded ? 'no change' : `fix: ${changes.join(', ') || 'payment split'}`;
     if (!eq(inv.balanceDue ?? 0, due)) {
-      row.reason = `${row.reason}; due = owed at billing ${inr(codDue)} − receipts ${inr(R)} − returns ${inr(ret)} + refunds ${inr(refunds)}`;
+      row.reason = `${row.reason}; due = owed at billing ${inr(codDue)} − receipts ${inr(R)} − returns ${inr(ret)} + refunds ${inr(refunds)} + credit given back ${inr(notes)}`;
     }
     if (!same || linked) {
       const next = { ...inv, paymentSplits: newSplits, partialAmount, isPartialPayment };
