@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString } from '../lib/utils';
+import { reorderThresholdOf, stockStatusOf, ItemSales90d, StockStatus } from '../lib/stockThreshold';
 import { makeOpeningLookup } from '../lib/cashClosing';
 
 /**
@@ -497,6 +498,8 @@ interface ErpContextType {
   accessMatrix: AccessMatrix | null;
   updateAccessMatrix: (matrix: AccessMatrix) => Promise<void>;
   hasFlag: (flag: string) => boolean;
+  /** The role may adjust/transfer stock (stock:write) — INV5-6. */
+  canWriteStock: boolean;
 
   // Beta AI assistant
   askAi: (question: string) => Promise<{ answer: string; degraded?: boolean; retryAfterSec?: number }>;
@@ -520,6 +523,12 @@ interface ErpContextType {
   receiveStockTransfer: (transferId: string) => void;
   inventorySettings: InventorySettings;
   updateInventorySettings: (settings: Partial<InventorySettings>) => void;
+  /** Net units sold per item per branch over the last 90 days (server-computed, every role). */
+  itemSales90d: ItemSales90d;
+  /** The one low-stock threshold for an item in a branch scope (INV2-10). */
+  getReorderThreshold: (item: Item, branchScope?: BranchScope) => number;
+  /** Stock on hand, threshold and status of an item in a branch scope (INV2-10). */
+  getStockStatus: (item: Item, branchScope?: BranchScope) => { qty: number; threshold: number; status: StockStatus };
   getItemLastSaleInfo: (
     itemId: string,
     branchScope?: BranchScope
@@ -709,6 +718,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Multi-item transfer history + inventory config (hydrated from backend).
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
+  const [itemSales90d, setItemSales90d] = useState<ItemSales90d>({});
   // Party-ledger payments (receipts from customers / payments to vendors).
   const [payments, setPayments] = useState<Payment[]>([]);
   // Login UX + staff accounts.
@@ -797,6 +807,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.customers)) setCustomers(data.customers);
     if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
     if (Array.isArray(data.payments)) setPayments(data.payments);
+    if (data.itemSales90d && typeof data.itemSales90d === 'object') setItemSales90d(data.itemSales90d);
     if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
     if (data.accessMatrix && typeof data.accessMatrix === 'object') setAccessMatrix(data.accessMatrix);
     if (Array.isArray(data.categories)) setCategories(data.categories);
@@ -2007,6 +2018,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persist(apiPost('/api/stock/transfer-receive', { transferId, actor: userLabel }));
 
     toast.success('Transfer received', { description: `${transfer.totalQuantity} units added to ${toBranchName} stock.` });
+  };
+
+  // One low-stock rule for every screen and role (INV2-10).
+  const getReorderThreshold = (item: Item, branchScope: BranchScope = currentBranch): number =>
+    reorderThresholdOf(itemSales90d, item.id, branchScope === 'all' ? undefined : branchScope, item.reorderThreshold ?? 10);
+  const getStockStatus = (item: Item, branchScope: BranchScope = currentBranch) => {
+    const qty = branchScope === 'all'
+      ? branchStocks.filter((s) => s.itemId === item.id).reduce((t, s) => t + (s.quantity || 0), 0)
+      : branchStocks.find((s) => s.itemId === item.id && s.branchId === branchScope)?.quantity ?? 0;
+    const threshold = getReorderThreshold(item, branchScope);
+    return { qty, threshold, status: stockStatusOf(qty, threshold) };
   };
 
   // Dead-stock detection: last sale date for an item (client-side derivation).
@@ -4346,6 +4368,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuthModalOpen,
         canManageItems,
         canEditActiveBranchStock,
+        canWriteStock: hasCap('stock:write'),
         isReadOnly,
         canViewDashboard,
         estimates,
@@ -4529,6 +4552,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inventorySettings,
         updateInventorySettings,
         getItemLastSaleInfo,
+        getReorderThreshold,
+        getStockStatus,
+        itemSales90d,
         getCustomerOutstandingBalance,
         getCustomerUnpaidInvoices,
         inventoryMovementFilter,

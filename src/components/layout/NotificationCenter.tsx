@@ -27,7 +27,6 @@ import {
   purchaseOrderBalanceDue,
   OnlineOrderStatus,
 } from '../../types';
-import { dynamicReorderThreshold } from '../../lib/stockThreshold';
 import { cn, formatCurrency, getTodayDateString } from '../../lib/utils';
 import { playNotify, isSoundMuted, setSoundMuted } from '../../lib/sound';
 import { prefUserKey, readScoped, writeScoped } from '../../lib/userPrefs';
@@ -87,6 +86,7 @@ export const NotificationCenter: React.FC = () => {
     items,
     branchStocks,
     invoices,
+    getReorderThreshold,
     customers,
     purchaseOrders,
     setSelectedEnquiryForDetail,
@@ -214,7 +214,7 @@ export const NotificationCenter: React.FC = () => {
       const low = items
         .map((it) => {
           const qty = stockInScope(it.id);
-          const threshold = dynamicReorderThreshold(it.id, invoices, isAllBranches ? undefined : currentBranch, it.reorderThreshold ?? 10);
+          const threshold = getReorderThreshold(it, isAllBranches ? 'all' : currentBranch);
           return { it, qty, threshold };
         })
         .filter(({ qty, threshold }) => qty <= threshold)

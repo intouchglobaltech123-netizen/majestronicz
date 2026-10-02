@@ -386,7 +386,7 @@ export const AdjustStockModal: React.FC<Props> = ({
             <ShieldAlert className="h-4 w-4 text-red-700 shrink-0 mt-0.5" />
             <span>
               This operation will permanently log an adjustment attributed to{' '}
-              <strong className="text-slate-800 font-bold">{currentUser.name} ({currentUser.role})</strong>{' '}
+              <strong className="text-slate-800 font-bold">{currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}</strong>{' '}
               with the current timestamp.
             </span>
           </div>

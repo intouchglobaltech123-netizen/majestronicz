@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES } from '../../types';
-import { dynamicReorderThreshold } from '../../lib/stockThreshold';
 import {
   Layers,
   History,
@@ -42,7 +41,6 @@ export const InventoryView: React.FC = () => {
     currentBranch,
     currentBranchData,
     isAllBranches,
-    currentUser,
     inventoryFilterQuery,
     setInventoryFilterQuery,
     inventorySettings,
@@ -55,7 +53,8 @@ export const InventoryView: React.FC = () => {
     getTotalStockAcrossBranches,
     getBranchStock,
     activeSubTab,
-    invoices,
+    getReorderThreshold,
+    canWriteStock,
   } = useErp();
 
   // Search and Filters
@@ -106,7 +105,8 @@ export const InventoryView: React.FC = () => {
       } else if (tab === 'combos') {
         setActiveInventoryTab('combos');
       } else if (tab === 'transfer') {
-        setTransferState({});
+        // INV5-6: only roles that can move stock get the transfer form.
+        if (canWriteStock) setTransferState({});
       } else if (tab === 'transfer-history') {
         setActiveInventoryTab('transfer-history');
       } else if (tab === 'audit') {
@@ -124,14 +124,9 @@ export const InventoryView: React.FC = () => {
 
   // Compute stock and status for an item based on branch scope
   const getItemStockData = (item: Item) => {
-    // Dynamic low-stock threshold: the item's average monthly sales + 10 (falls back
-    // to the manual/static threshold when there's no sales history yet).
-    const threshold = dynamicReorderThreshold(
-      item.id,
-      invoices,
-      isAllBranches ? undefined : currentBranch,
-      item.reorderThreshold ?? 10
-    );
+    // The shared low-stock threshold (INV2-10): average monthly sales + 10 from the
+    // server's sales figures (the same for every role and screen), else the manual one.
+    const threshold = getReorderThreshold(item, isAllBranches ? 'all' : currentBranch);
 
     if (isAllBranches) {
       const branchCounts: Record<BranchId, number> = {
@@ -368,7 +363,6 @@ export const InventoryView: React.FC = () => {
     }
   };
 
-  const isBillingUser = currentUser.role === 'Billing';
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
@@ -977,6 +971,11 @@ export const InventoryView: React.FC = () => {
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all text-xs font-semibold text-slate-700 group"
                         >
                           <span>{stockData.threshold} {item.unit}</span>
+                          {/* Say which rule set the level, so an edited manual value that
+                              is overridden by sales history doesn't look unsaved (INV2-10). */}
+                          {stockData.threshold !== (item.reorderThreshold ?? 10) && (
+                            <span className="text-[10px] font-normal text-slate-400">(auto · manual {item.reorderThreshold ?? 10})</span>
+                          )}
                           <Edit3 className="h-3 w-3 text-slate-400 group-hover:text-blue-600" />
                         </button>
                       </td>
@@ -1065,8 +1064,8 @@ export const InventoryView: React.FC = () => {
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Adjust Stock Button (Gated if Billing) */}
-                          {!isBillingUser && (
+                          {/* Adjust Stock Button — only for roles with stock:write (INV5-6) */}
+                          {canWriteStock && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1082,8 +1081,8 @@ export const InventoryView: React.FC = () => {
                             </button>
                           )}
 
-                          {/* Transfer Button */}
-                          {!isBillingUser && (
+                          {/* Transfer Button — only for roles with stock:write (INV5-6) */}
+                          {canWriteStock && (
                             <button
                               type="button"
                               onClick={() => {

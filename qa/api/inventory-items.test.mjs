@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, del, ok, expectStatus, uid, createItem, createCombo, stockOf, ledgerOf, line, comboLine, saleBody,
-  sell, mustSell, getInvoice, resave, returnLine, freshDay,
+  sell, mustSell, getInvoice, resave, returnLine, freshDay, addDays, istToday, register,
 } from './lib.mjs';
 
 const ret = (invoiceId, returnLines, as = 'CEO') =>
@@ -283,6 +283,50 @@ describe('item master', () => {
     assert.equal(row.subcategory, null);
     assert.equal(row.description, null);
     assert.equal(row.imageUrl, null);
+  });
+});
+
+describe('stock reads and sales figures', () => {
+  test('INV7-2 Billing and Purchase can read their own branch stock history and transfers', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 10, coimbatore: 10 } });
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'coimbatore', quantityChange: -1, reason: 'Damage' }));
+    ok(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'coimbatore', toBranch: 'erode-hq', quantity: 2 }));
+    ok(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'coimbatore', toBranch: 'chennai', quantity: 1 }));
+    for (const role of ['Billing', 'Purchase']) {
+      const logs = ok(await get('/api/stock-adjustments', role), `${role} stock history`);
+      assert.ok(logs.some((l) => l.itemId === item.id && l.branchId === 'erode-hq'), `${role} sees Erode rows`);
+      assert.ok(logs.every((l) => l.branchId === 'erode-hq'), `${role} sees only Erode rows`);
+      const transfers = ok(await get('/api/stock-transfers', role), `${role} transfers`);
+      assert.ok(transfers.some((t) => t.toBranch === 'erode-hq' && t.items.some((li) => li.itemId === item.id)), `${role} sees the transfer into Erode`);
+      assert.ok(transfers.every((t) => t.fromBranch === 'erode-hq' || t.toBranch === 'erode-hq'), `${role} sees only Erode transfers`);
+      const boot = ok(await get('/api/bootstrap', role), `${role} bootstrap`);
+      assert.ok(boot.stockAdjustmentLogs.length > 0 && boot.stockAdjustmentLogs.every((l) => l.branchId === 'erode-hq'), `${role} bootstrap history`);
+    }
+    expectStatus(await get('/api/stock-adjustments', 'Sales'), 403, 'Sales has no stock screens');
+  });
+
+  test('INV2-10 / INV8-7 every role gets the same net 90-day sales figures (returns taken off, combos as parts)', async () => {
+    // A recent day (inside the 90-day window, not today) with no cash register.
+    let date;
+    for (let back = 30; back < 85 && !date; back++) {
+      const d = addDays(istToday(), -back);
+      if (!(await register('erode-hq', d))) date = d;
+    }
+    const item = await createItem({ stock: { 'erode-hq': 50 } });
+    const part = await createItem({ stock: { 'erode-hq': 50 } });
+    const combo = await createCombo([{ item: part, qty: 2 }]);
+    const inv = await mustSell(saleBody({ date, lines: [line(item, 30), comboLine(combo, 3)] }));
+    ok(await ret(inv.id, [returnLine(item, 30)]), 'return all 30');
+    const figures = {};
+    for (const role of ['CEO', 'Billing', 'Purchase', 'Sales']) {
+      const boot = ok(await get('/api/bootstrap', role), `${role} bootstrap`);
+      assert.ok(boot.itemSales90d && typeof boot.itemSales90d === 'object', `${role} gets sales figures`);
+      figures[role] = JSON.stringify([boot.itemSales90d[item.id] || {}, boot.itemSales90d[part.id] || {}]);
+    }
+    assert.equal(new Set(Object.values(figures)).size, 1, `same figures for every role: ${JSON.stringify(figures)}`);
+    const [sold, parts] = JSON.parse(figures.CEO);
+    assert.ok(!(sold['erode-hq'] > 0), `sold 30, returned 30: net 0 (got ${sold['erode-hq']})`);
+    assert.equal(parts['erode-hq'], 6, 'a combo sale counts its parts');
   });
 });
 

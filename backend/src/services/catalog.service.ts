@@ -8,6 +8,7 @@ import { GSTIN_RE } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { istToday, istTime } from '../lib/businessDate.js';
 import { isWholeUnit } from '../lib/units.js';
+import { roleCan } from '../lib/auth.js';
 import { receiveStockTransfer, isTransferChallan } from './stock.service.js';
 
 /**
@@ -192,6 +193,10 @@ export async function markChallanReceived(id: string, receiverName?: string, req
   if (ch.status === 'received') throw new AppError('ALREADY_RECEIVED', `Challan ${ch.challanNumber} is already marked received.`, 409);
   const actor = (reqUser?.name as string | undefined)?.trim() || receiverName || 'System';
   if (isTransferChallan(ch)) {
+    // Receiving a transfer moves stock — the same right as /stock/transfer-receive.
+    if (reqUser && !roleCan(reqUser.role, 'stock:write')) {
+      throw new AppError('FORBIDDEN', 'Receiving a stock transfer needs stock rights (a Manager or CEO at the destination branch).', 403);
+    }
     const transfer = await prisma.stockTransfer.findFirst({ where: { challanNumber: ch.challanNumber } });
     if (transfer) {
       const snap: any = await receiveStockTransfer(transfer.id, actor, reqUser);

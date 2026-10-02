@@ -29,7 +29,7 @@ interface DeliveryChallanViewProps {
 }
 
 export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initialTab = 'new' }) => {
-  const { challans, deleteChallan, markChallanReceived, activeSubTab, currentUser } = useErp();
+  const { challans, deleteChallan, markChallanReceived, activeSubTab, currentUser, canWriteStock } = useErp();
   const isManagerOrCeo = currentUser?.role === 'CEO' || currentUser?.role === 'Manager';
   // INV-13: a received challan is final; a transfer challan mirrors its transfer,
   // so only a Manager/CEO may touch it (and never once received).
@@ -344,7 +344,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
 
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            {challanStatusOf(ch) === 'pending' && (
+                            {challanStatusOf(ch) === 'pending' && (!isTransferChallan(ch) || canWriteStock) && (
                               <button
                                 onClick={() => confirmReceived(ch)}
                                 className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
