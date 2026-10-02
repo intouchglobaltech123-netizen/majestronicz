@@ -377,3 +377,69 @@ describe('round 10: purchases and access matrix', async () => {
     }
   });
 });
+
+describe('round 10: customer money', async () => {
+  const { uid } = await import('./lib.mjs');
+  const newEnquiry = async (phone, item, branchId = 'erode-hq') => {
+    const id = `enq-qa-${uid()}`;
+    ok(await post('/api/enquiry/save', {
+      enquiry: {
+        id, enquiryNumber: `ENQ-QA-${uid()}`, customerName: 'QA Enquiry Customer', customerPhone: phone, itemId: item.id,
+        itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1, branchId, date: istToday(), time: '10:00',
+        status: 'Open', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      },
+      actor: 'QA',
+    }), 'enquiry');
+    return id;
+  };
+
+  test('CRM10-2 editing a bill back up after an edit below what was paid uses the credit given, not a due on top of it', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, customerName: 'QA Edit Up', customerPhone: randomPhone(), lines: [line(item, 2)] }));
+    ok(await resave(await getInvoice(inv.id), { items: [line(item, 1)] }), 'edit down');
+    near((await customerOf(inv.customerId)).creditBalance, 1180, 'excess kept as credit');
+    ok(await resave(await getInvoice(inv.id), { items: [line(item, 2)], paymentSplits: [{ mode: 'Cash', amount: 2360 }] }), 'edit back up');
+    near((await getInvoice(inv.id)).balanceDue, 0, 'nothing owed');
+    near((await customerOf(inv.customerId)).creditBalance, 0, 'the credit went back into the bill');
+  });
+
+  test('CRM10-3 / SAL10-6 / PUR10-7 receipts, refunds and vendor payments take only real modes; "Cash " is the drawer\'s cash; ₹0 split parts are not stored', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 10 } });
+    const credit = await mustSell(saleBody({ date, transactionType: 'Credit', customerName: 'QA Modes', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
+    expectStatus(await receive(credit, 100, { mode: 'Bitcoin', date }), 400, 'receipt in Bitcoin');
+    const r = ok(await receive(credit, 100, { mode: 'cash ', date }), 'receipt typed "cash "');
+    assert.equal(r.paymentMode, 'Cash', 'stored as Cash');
+    const paid = await mustSell(saleBody({ date, lines: [line(item, 1)] }));
+    expectStatus(await post('/api/tx/sale-return', { invoiceId: paid.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Bitcoin' }), 400, 'refund in Bitcoin');
+    const v = await anyVendor();
+    expectStatus(await post('/api/payments', { type: 'out', partyType: 'vendor', partyId: v.id, partyName: v.vendorName, branchId: 'erode-hq', date, amount: 10, paymentMode: 'Gold' }), 400, 'vendor paid in gold');
+    const split = await mustSell(saleBody({ date, lines: [line(item, 1)], splits: [{ mode: 'Cash', amount: 1000 }, { mode: 'GPay', amount: 0 }, { mode: 'COD-Credit', amount: 180 }], transactionType: 'Credit', customerName: 'QA Split', customerPhone: randomPhone() }));
+    assert.deepEqual(split.paymentSplits.map((s) => s.mode), ['Cash', 'COD-Credit'], 'no ₹0 GPay part');
+  });
+
+  test('CRM10-4 deleting a pending-order advance receipt takes the advance off the order', async () => {
+    const item = await createItem({ price: 1000, stock: {} });
+    const enquiryId = await newEnquiry(randomPhone(), item);
+    const order = ok(await get('/api/pending-orders')).find((o) => o.enquiryId === enquiryId);
+    const adv = ok(await post('/api/payments/advance', { orderId: order.id, amount: 500, mode: 'Cash' }));
+    near(ok(await get('/api/pending-orders')).find((o) => o.id === order.id).advanceAmount, 500);
+    ok(await del(`/api/payments/${adv.payment.id}`), 'delete the advance receipt');
+    near(ok(await get('/api/pending-orders')).find((o) => o.id === order.id).advanceAmount, 0, 'order shows no advance');
+  });
+
+  test('CRM10-6 an enquiry closes only with a bill for its own customer, also when the bill names it as its source', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ price: 1000, stock: { 'erode-hq': 5 } });
+    const phone = randomPhone();
+    const enquiryId = await newEnquiry(phone, item);
+    expectStatus((await sell({ ...saleBody({ date, lines: [line(item, 1)] }), sourceEnquiryId: 'enq-does-not-exist' })).res, 400, 'a made-up enquiry');
+    const other = await mustSell({ ...saleBody({ date, customerName: 'Someone else', customerPhone: randomPhone(), lines: [line(item, 1)] }), sourceEnquiryId: enquiryId });
+    const res = await post('/api/enquiry/convert', { enquiryId, targetType: 'invoice', docId: other.id, docNumber: other.invoiceNumber });
+    expectStatus(res, 400, 'another customer\'s bill does not close it');
+    const mine = await mustSell({ ...saleBody({ date, customerName: 'QA Enquiry Customer', customerPhone: phone, lines: [line(item, 1)] }), sourceEnquiryId: enquiryId });
+    ok(await post('/api/enquiry/convert', { enquiryId, targetType: 'invoice', docId: mine.id, docNumber: mine.invoiceNumber }), 'the customer\'s bill closes it');
+  });
+
+});

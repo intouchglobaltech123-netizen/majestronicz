@@ -10,6 +10,7 @@ import { creditBalanceOf, applyCreditDelta, addCustomerCredit } from './customer
 import { collectedAtBilling } from '../lib/billingSplit.js';
 import { creditBackForBill, overCollectedOf, billDueRaw } from '../lib/returnRefunds.js';
 import { istToday, assertBusinessDate, assertDayOpen } from '../lib/businessDate.js';
+import { assertMode, RECEIPT_MODES, VENDOR_PAYMENT_MODES, STORE_CREDIT_MODE } from '../lib/paymentModes.js';
 import { poPayCap, poBalance, unappliedOf, poAdvance, poOpenValue } from '../lib/poMoney.js';
 
 /**
@@ -226,6 +227,10 @@ export async function recordPayment(
   }
   assertBranchAllowed(reqUser, input.branchId); // SEC2-1: a receipt is booked against a branch's ledger/drawer
 
+  // CRM10-3 / PUR10-7: only a real mode, stored in its canonical spelling.
+  input.paymentMode = input.type === 'in'
+    ? (/store\s*credit/i.test(String(input.paymentMode || '')) ? STORE_CREDIT_MODE : assertMode(RECEIPT_MODES, input.paymentMode || 'Cash', 'a receipt'))
+    : assertMode(VENDOR_PAYMENT_MODES, input.paymentMode || 'Cash', 'a payment');
   // One shared business-date rule: a real date, not after today (IST), not
   // absurdly old. The default is TODAY IN IST, not the UTC date (CASH7-11).
   const date = assertBusinessDate(input.date || istToday(), 'A payment');
@@ -740,6 +745,18 @@ async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
     if (payment.type === 'in') {
       for (const a of allocations) {
         await recomputeInvoiceBalance(tx, a.refId);
+      }
+      // CRM10-4: an advance taken on a pending order is gone with its receipt —
+      // the order no longer shows it as paid.
+      if (String(payment.notes || '').startsWith(ADVANCE_NOTE) && payment.reference) {
+        const order = await tx.pendingOrder.findFirst({ where: { orderNumber: payment.reference } });
+        if (order) {
+          const left = round2(Math.max(0, (Number(order.advanceAmount) || 0) - (Number(payment.amount) || 0)));
+          await tx.pendingOrder.update({
+            where: { id: order.id },
+            data: { advanceAmount: left, ...(left <= 0.009 ? { advanceMode: null, advancePaidAt: null } : {}), updatedAt: nowIso() },
+          });
+        }
       }
       return { ok: true };
     } else if (payment.type === 'out') {

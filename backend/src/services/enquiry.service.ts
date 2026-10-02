@@ -375,12 +375,16 @@ export function convertEnquiry(enquiryId: string, targetType: string, docId: str
     if (!doc || doc.isVoided) throw new AppError('DOC_NOT_FOUND', 'That bill / quotation does not exist. Save it first.', 400);
     if (doc.branchId !== enq.branchId) throw new AppError('DOC_MISMATCH', 'That document belongs to another branch.', 400);
     if (doc.sourceEnquiryId && doc.sourceEnquiryId !== enq.id) throw new AppError('DOC_MISMATCH', 'That document was made from a different enquiry.', 400);
-    // CRM9-10: a document NOT made from this enquiry must at least be for the
-    // enquiry's customer (same phone) — an unrelated bill can't close it.
-    if (!doc.sourceEnquiryId) {
+    // CRM9-10 / CRM10-6: the document must be for the enquiry's customer — same
+    // phone; a document that names this enquiry as its source (a link the
+    // browser sets) may instead carry no phone and the enquiry's customer name.
+    {
       const docPhone = cleanPhone(targetType === 'invoice' ? doc.customerPhone : doc.customerContact);
-      if (!docPhone || docPhone !== cleanPhone(enq.customerPhone)) {
-        throw new AppError('DOC_MISMATCH', "That document was not made from this enquiry and is not for the enquiry's customer.", 400);
+      const norm = (n: unknown) => String(n || '').toLowerCase().replace(/[.\s]+/g, ' ').trim();
+      const samePhone = !!docPhone && docPhone === cleanPhone(enq.customerPhone);
+      const sameNameFromEnquiry = doc.sourceEnquiryId === enq.id && !docPhone && !!norm(doc.customerName) && norm(doc.customerName) === norm(enq.customerName);
+      if (!samePhone && !sameNameFromEnquiry) {
+        throw new AppError('DOC_MISMATCH', doc.sourceEnquiryId ? "That document is not for the enquiry's customer." : "That document was not made from this enquiry and is not for the enquiry's customer.", 400);
       }
     }
     // CRM9-10: one document converts one enquiry.

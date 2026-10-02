@@ -6,6 +6,7 @@ import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
 import { serializableTx, lockPurchaseOrder } from '../lib/tx.js';
 import { withRetry } from '../lib/retry.js';
+import { assertMode, VENDOR_PAYMENT_MODES } from '../lib/paymentModes.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { allowsFractionalQty } from '../lib/units.js';
@@ -512,11 +513,12 @@ export function receivePurchaseOrderStock(
     const newAmountPaid = Math.round(((po.amountPaid || 0) + payNow) * 100) / 100;
     const payments = (po.payments as any[]) || [];
     let ledgerId: string | null = null;
+    const payMode = payNow > 0 ? assertMode(VENDOR_PAYMENT_MODES, payment?.mode || 'Cash', 'a vendor payment') : 'Cash'; // PUR10-7
     if (payNow > 0) {
       // A vendor payment at receiving hits the drawer today — refuse it on a closed day (CASH-2).
       await assertDayOpen(tx, po.branchId, today, 'pay this vendor');
       ledgerId = rid('pay');
-      payments.unshift({ id: rid('pay'), date: today, amount: payNow, mode: payment?.mode || 'Cash', by: actor, ledgerPaymentId: ledgerId });
+      payments.unshift({ id: rid('pay'), date: today, amount: payNow, mode: payMode, by: actor, ledgerPaymentId: ledgerId });
     }
 
     await tx.purchaseOrder.update({
@@ -541,7 +543,7 @@ export function receivePurchaseOrderStock(
         data: {
           id: ledgerId, receiptNumber,
           type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
-          branchId: po.branchId, date: today, amount: payNow, paymentMode: payment?.mode || 'Cash',
+          branchId: po.branchId, date: today, amount: payNow, paymentMode: payMode,
           reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber} (at receiving)`,
           allocations: [{ refId: po.id, refNumber: po.poNumber, amount: payNow }] as any,
           createdById: null, createdByName: actor, createdAt: ts,
@@ -858,7 +860,8 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     // Link the PO-embedded entry to its ledger row so deleting the payment can
     // remove BOTH (otherwise the deleted payment lingered in the PO history).
     const ledgerId = rid('pay');
-    const entry = { id: rid('pay'), date: today, amount: pay, mode: mode || 'Cash', by: actor, ledgerPaymentId: ledgerId };
+    const payMode = assertMode(VENDOR_PAYMENT_MODES, mode || 'Cash', 'a vendor payment'); // PUR10-7
+    const entry = { id: rid('pay'), date: today, amount: pay, mode: payMode, by: actor, ledgerPaymentId: ledgerId };
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
@@ -876,7 +879,7 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
       data: {
         id: ledgerId, receiptNumber,
         type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
-        branchId: po.branchId, date: today, amount: pay, paymentMode: mode || 'Cash',
+        branchId: po.branchId, date: today, amount: pay, paymentMode: payMode,
         reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber}`,
         allocations: [{ refId: po.id, refNumber: po.poNumber, amount: pay }] as any,
         createdById: null, createdByName: actor, createdAt: ts,

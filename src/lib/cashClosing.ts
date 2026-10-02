@@ -62,7 +62,7 @@ export function computeDayCashClosing(
   let cashSalaries = 0;
   for (const p of payments || []) {
     if (p.branchId !== branchId || p.date !== date) continue;
-    if ((p.paymentMode || '').toLowerCase() !== 'cash') continue;
+    if ((p.paymentMode || '').trim().toLowerCase() !== 'cash') continue; // CRM10-3: "Cash " is cash
     if (p.type === 'in') cashReceipts += Number(p.amount) || 0;
     else if (p.type === 'out') {
       cashPaid += Number(p.amount) || 0;
@@ -119,7 +119,7 @@ export function makeOpeningLookup(
   }
   for (const p of payments || []) {
     if (p.branchId !== branchId) continue;
-    if ((p.paymentMode || '').toLowerCase() !== 'cash') continue;
+    if ((p.paymentMode || '').trim().toLowerCase() !== 'cash') continue; // CRM10-3: "Cash " is cash
     if (p.type === 'in') add(p.date, Number(p.amount) || 0);
     else if (p.type === 'out') add(p.date, -(Number(p.amount) || 0));
   }

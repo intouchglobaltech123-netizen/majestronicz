@@ -16,6 +16,7 @@ import { isWholeUnit } from '../lib/units.js';
 import { roleFlags } from '../lib/auth.js';
 import { assertBusinessDate, assertDayOpen, closedDayFrom, istToday } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
+import { assertMode, REFUND_MODES } from '../lib/paymentModes.js';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -104,7 +105,8 @@ function reconcileInvoicePayment(inv: any) {
     // and the due is whatever the collection does not cover. If the client
     // over-stated collection (> grand), scale it down so cash can never exceed
     // the bill; the residual becomes the credit owed.
-    const nonCredit = splits.filter((s) => s.mode !== 'COD-Credit');
+    // SAL10-6: a ₹0 part of a split bill is not a payment — it isn't stored.
+    const nonCredit = splits.filter((s) => s.mode !== 'COD-Credit' && s.amount > 0.0049);
     let collected = round(nonCredit.reduce((t, s) => t + s.amount, 0));
     if (collected > grand && collected > 0) {
       const f = grand / collected;
@@ -442,6 +444,13 @@ export function createSale(inv: any, reqUser?: any) {
           throw new AppError('QUOTE_OTHER_BRANCH', `Quotation ${est.estimateNumber} belongs to another branch.`, 400);
         }
         inv.sourceEstimateNumber = est.estimateNumber;
+      }
+      // CRM10-6: a bill made from an enquiry must name a real enquiry of its
+      // branch (the link can close the enquiry and spend its advance).
+      if (inv.sourceEnquiryId) {
+        const enq = await tx.enquiry.findUnique({ where: { id: String(inv.sourceEnquiryId) } });
+        if (!enq) throw new AppError('ENQUIRY_NOT_FOUND', 'The enquiry this bill is made from does not exist.', 400);
+        if (enq.branchId !== inv.branchId) throw new AppError('ENQUIRY_OTHER_BRANCH', `Enquiry ${enq.enquiryNumber} belongs to another branch.`, 400);
       }
       // SAL3-1: a quotation can only become ONE live invoice. The client hides
       // the Convert button once converted, but that is bypassable and races, so
@@ -800,6 +809,21 @@ export function createSale(inv: any, reqUser?: any) {
         refNumber: inv.invoiceNumber ?? undefined,
         by: reqUser?.name,
       });
+    }
+    // CRM10-2: a bill edited back UP after an edit below what was paid had its
+    // excess handed back as store credit; that credit now pays the higher total
+    // again (taken back off the customer's balance) instead of leaving both a
+    // due and the credit.
+    if (!isNewSale && creditBackSoFar > 0.009 && inv.customerId) {
+      const fresh = await tx.invoice.findUnique({ where: { id: inv.id } });
+      const owing = await invoiceDueRaw(tx, fresh);
+      const take = round2(Math.min(creditBackSoFar, owing, await creditBalanceOf(tx, inv.customerId)));
+      if (take > 0.009) {
+        await applyCreditDelta(tx, inv.customerId, -take, {
+          type: 'adjust', reason: `Bill ${inv.invoiceNumber} edited up — store credit given on it applied back to the bill`,
+          refId: inv.id, refNumber: inv.invoiceNumber ?? undefined, by: reqUser?.name,
+        });
+      }
     }
     // Recompute the cached due from the (immutable) split, any receipts and any
     // returns — the single source of truth. On a new bill this equals the credit
@@ -1237,7 +1261,11 @@ export function processReturn(
       // CASH8-6: with no explicit choice, refund the way the bill was paid (its
       // first collected mode), not always Cash.
       const billMode = billingSplitsOf(inv).find((sp) => sp.mode !== 'COD-Credit' && (Number(sp.amount) || 0) > 0)?.mode;
-      const mode = String(refundMode || '').trim() || billMode || 'Cash';
+      // SAL10-6: a refund goes back as Cash, GPay or HDFC (or a credit note) —
+      // the bill's own mode when none is chosen, Cash if that isn't one of them.
+      const mode = String(refundMode || '').trim()
+        ? assertMode(REFUND_MODES, refundMode, 'a refund')
+        : (REFUND_MODES as readonly string[]).find((m) => m.toLowerCase() === String(billMode || '').trim().toLowerCase()) || 'Cash';
       // The refund is paid out TODAY in IST — the shop's cash day (CASH7-11 / CRM8-8).
       const today = istToday();
       // The refund is a cash payout dated TODAY. If today's drawer is already

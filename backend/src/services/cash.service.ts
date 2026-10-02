@@ -5,6 +5,7 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
 import { cashAtBilling } from '../lib/billingSplit.js';
 import { assertBusinessDate, assertDayOpen } from '../lib/businessDate.js';
+import { isCashModeName } from '../lib/paymentModes.js';
 
 const snap = async (tx: any) => ({
   cashRegisters: await registersWithLiveOpenings(tx),
@@ -14,7 +15,7 @@ const snap = async (tx: any) => ({
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const DEFAULT_OPENING = (branchId: string) => (branchId === 'erode-hq' ? 12000 : 8000);
 const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
-const isCashMode = (p: any) => String(p?.paymentMode || '').toLowerCase() === 'cash';
+const isCashMode = (p: any) => isCashModeName(p?.paymentMode); // CRM10-3: "Cash " is cash too
 const effectiveExpense = (e: any) => e && (e.approvalStatus == null || e.approvalStatus === 'approved');
 
 /**
