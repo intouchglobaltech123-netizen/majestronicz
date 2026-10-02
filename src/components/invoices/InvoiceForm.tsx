@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { effectiveTaxSlab } from '../../lib/tax';
+import { isWholeUnit } from '../../lib/units';
 import {
   Item,
   Invoice,
@@ -19,6 +20,10 @@ import {
   cleanCustomerName,
   PaymentSplit,
   getInvoicePaymentSplits,
+  INDIAN_STATES,
+  GST_STATE_CODES,
+  isInterStateSupply,
+  supplyFromGstin,
 } from '../../types';
 import {
   calculateLineTax,
@@ -262,6 +267,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // State of Supply
   const [stateOfSupply, setStateOfSupply] = useState('33-Tamil Nadu');
+  const isInterState = isInterStateSupply(stateOfSupply);
   // Salesperson incentive — manually assigned per bill.
   const [salespersonId, setSalespersonId] = useState<string>(initialInvoice?.salespersonId || '');
 
@@ -410,6 +416,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setCustomerPhone(convertedFromEstimate.customerContact || '');
       setCustomerAddress(convertedFromEstimate.customerAddress || '');
       setWithGst(convertedFromEstimate.withGst);
+      setStateOfSupply(convertedFromEstimate.stateOfSupply || '33-Tamil Nadu');
       setTerms(convertedFromEstimate.termsAndConditions);
       setSourceEstimateId(isEnquiryPrefill(convertedFromEstimate) ? undefined : convertedFromEstimate.id);
       setSourceEstimateNumber(isEnquiryPrefill(convertedFromEstimate) ? undefined : convertedFromEstimate.estimateNumber);
@@ -477,6 +484,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setCustomerPhone(initialEstimate.customerContact || '');
       setCustomerAddress(initialEstimate.customerAddress || '');
       setWithGst(initialEstimate.withGst);
+      setStateOfSupply(initialEstimate.stateOfSupply || '33-Tamil Nadu');
       setTerms(initialEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
       setSourceEnquiryId(initialEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(initialEstimate.sourceEnquiryNumber);
@@ -534,6 +542,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setCustomerId(undefined);
       setIsLoyaltyRewardApplied(false);
       setWithGst(duplicateSourceEstimate.withGst);
+      setStateOfSupply(duplicateSourceEstimate.stateOfSupply || '33-Tamil Nadu');
       setTerms(duplicateSourceEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
       setOverallDiscountType(duplicateSourceEstimate.overallDiscountType || '%');
       setOverallDiscountValue(duplicateSourceEstimate.overallDiscountValue || 0);
@@ -680,6 +689,26 @@ export const InvoiceForm: React.FC<Props> = ({
   // tax mode (incl./excl.) is applied consistently to whichever price is used.
   const isWholesaleCustomer = selectedCustomerObj?.customerType === 'Organization';
 
+  // SAL8-5 / E2E8-7: the place of supply follows the buyer's GSTIN state code
+  // (its first 2 digits) when the customer has one; it stays editable below.
+  const lastGstinRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const gstin = selectedCustomerObj?.gstin;
+    if (!gstin || gstin === lastGstinRef.current) return;
+    lastGstinRef.current = gstin;
+    const pos = supplyFromGstin(gstin);
+    if (pos) setStateOfSupply(pos);
+  }, [selectedCustomerObj?.gstin]);
+  const supplyOptions = useMemo(() => {
+    const list = [...INDIAN_STATES];
+    for (const [code, name] of Object.entries(GST_STATE_CODES)) {
+      const opt = `${code}-${name}`;
+      if (!list.includes(opt)) list.push(opt);
+    }
+    if (stateOfSupply && !list.includes(stateOfSupply)) list.unshift(stateOfSupply);
+    return list;
+  }, [stateOfSupply]);
+
   // The GST rate to charge for an item at the branch this bill belongs to.
   // A branch that corrected the rate while receiving stock (BranchStock.
   // gstTaxSlab) charges that rate; everywhere else the catalog slab stands.
@@ -702,6 +731,29 @@ export const InvoiceForm: React.FC<Props> = ({
     return Math.round(value * 100) / 100;
   };
 
+  // E2E-14: the item's standard (catalogue) discount is the line's default
+  // discount. It is stored as a % of the line so it scales with the quantity; an
+  // amount-off is turned into the same share of the item's sale price.
+  const standardDiscountFor = (item: Item): { discountType: DiscountType; discountValue: number } => {
+    const d = Number(item.discountOnSalePrice) || 0;
+    if (d <= 0) return { discountType: '%', discountValue: 0 };
+    if ((item.discountType || '%') === '%') return { discountType: '%', discountValue: Math.min(100, d) };
+    const base = Number(item.salePrice) || 0;
+    if (base <= 0) return { discountType: '%', discountValue: 0 };
+    return { discountType: '%', discountValue: Math.min(100, Math.round((d / base) * 100 * 10000) / 10000) };
+  };
+
+  // SAL2-8: a catalogue item's own unit decides whether fractions are allowed;
+  // a kit is always whole sets.
+  const lineIsWholeUnit = (li: InvoiceLineItem): boolean => {
+    if (li.isCombo) return true;
+    const master = li.itemId ? items.find((i) => i.id === li.itemId) : undefined;
+    return isWholeUnit(master?.unit || li.unit);
+  };
+  // SAL8-9: a line typed but never picked from the catalogue, with no price.
+  const isZeroFreeTextLine = (li: InvoiceLineItem): boolean =>
+    !li.isCombo && !li.itemId && !!li.itemName.trim() && !((Number(li.unitPrice) || 0) > 0);
+
   // The freshly-added blank row whose item search should auto-focus (POS-style).
   const [focusRowId, setFocusRowId] = useState<string | null>(null);
   // Salesperson/incentive is hidden by default to keep the billing header minimal.
@@ -713,7 +765,8 @@ export const InvoiceForm: React.FC<Props> = ({
 
     if (selectedItem) {
       const roundedPrice = getItemPreTaxPrice(selectedItem);
-      const calculated = calculateLineTax(1, roundedPrice, taxSlabFor(selectedItem), withGst);
+      const std = standardDiscountFor(selectedItem);
+      const calculated = calculateLineTax(1, roundedPrice, taxSlabFor(selectedItem), withGst, std.discountType, std.discountValue);
 
       newRow = {
         id: newId,
@@ -724,9 +777,9 @@ export const InvoiceForm: React.FC<Props> = ({
         quantity: 1,
         unit: selectedItem.unit,
         unitPrice: roundedPrice,
-        discountType: '%',
-        discountValue: 0,
-        discountAmount: 0,
+        discountType: std.discountType,
+        discountValue: std.discountValue,
+        discountAmount: calculated.discountAmount,
         taxRate: taxSlabFor(selectedItem),
         taxableAmount: calculated.taxableAmount,
         cgstAmount: calculated.cgstAmount,
@@ -844,6 +897,7 @@ export const InvoiceForm: React.FC<Props> = ({
       unit: item.unit,
       unitPrice: roundedPrice,
       taxRate: isBulkTaxOpen ? bulkTaxRate : taxSlabFor(item),
+      ...standardDiscountFor(item),
       isCombo: false,
       comboId: undefined,
       comboComponents: undefined,
@@ -1383,6 +1437,7 @@ export const InvoiceForm: React.FC<Props> = ({
       termsAndConditions: terms,
       sourceEnquiryId,
       sourceEnquiryNumber,
+      stateOfSupply,
       createdAt: initialEstimate ? initialEstimate.createdAt : new Date().toISOString(),
     };
 
@@ -1393,6 +1448,23 @@ export const InvoiceForm: React.FC<Props> = ({
     // Guard against negative prices / shipping and impossible discounts (SAL-17).
     if (lineItems.some((li) => (li.unitPrice || 0) < 0)) {
       toast.error('Item price cannot be negative');
+      return;
+    }
+    const filled = lineItems.filter((li) => li.itemName.trim() && li.quantity > 0);
+    // SAL8-9: a typed code that was never picked from the list bills ₹0.
+    const zeroLine = filled.find(isZeroFreeTextLine);
+    if (zeroLine) {
+      toast.error(`"${zeroLine.itemName}" has no price`, {
+        description: 'It is not a catalogue item. Pick it from the item list, or enter its price.',
+      });
+      return;
+    }
+    // SAL2-8: whole-unit items (PCS, NOS, SET…) can't be sold in fractions.
+    const fractional = filled.find((li) => lineIsWholeUnit(li) && !Number.isInteger(Number(li.quantity)));
+    if (fractional) {
+      toast.error(`"${fractional.itemName}": ${fractional.quantity} ${(fractional.unit || '').toUpperCase()} is not a whole number`, {
+        description: 'This item is counted in whole units.',
+      });
       return;
     }
     if ((shippingCharges || 0) < 0) {
@@ -1809,8 +1881,27 @@ export const InvoiceForm: React.FC<Props> = ({
             </button>
           )}
 
+          {/* Place of supply (SAL8-5): another state's code bills IGST instead of CGST + SGST */}
+          <label className="ml-auto flex items-center gap-1.5 shrink-0" title="Place of supply — taken from the buyer's GSTIN when known">
+            <span className="text-[11px] font-bold uppercase text-slate-400">Place of supply</span>
+            <select
+              data-testid="place-of-supply"
+              value={stateOfSupply}
+              onChange={(e) => setStateOfSupply(e.target.value)}
+              className={cn(
+                'px-2 py-1 rounded-lg border text-xs font-semibold focus:outline-none focus:border-blue-600',
+                isInterState ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-800'
+              )}
+            >
+              {supplyOptions.map((st) => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </select>
+            {isInterState && withGst && <span className="text-[10px] font-bold text-amber-700">IGST</span>}
+          </label>
+
           {/* GST toggle */}
-          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[11px] font-bold uppercase text-slate-400">GST</span>
             <button
               type="button"
@@ -1974,9 +2065,12 @@ export const InvoiceForm: React.FC<Props> = ({
                     <td className="py-2.5 px-3">
                       <input
                         type="number"
-                        min="1"
-                        step="1"
+                        min={lineIsWholeUnit(item) ? '1' : '0.01'}
+                        step={lineIsWholeUnit(item) ? '1' : '0.01'}
                         value={item.quantity}
+                        data-testid="line-qty"
+                        aria-invalid={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity))}
+                        title={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? `${(item.unit || '').toUpperCase()} is counted in whole numbers` : undefined}
                         onChange={(e) => updateLineItem(item.id, { quantity: Number(e.target.value) })}
                         onKeyDown={(e) => {
                           // Real-billing shortcut: Enter on the last row's qty adds a fresh item row.
@@ -1985,7 +2079,7 @@ export const InvoiceForm: React.FC<Props> = ({
                             addNewRow();
                           }
                         }}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono"
+                        className={cn("w-full px-2 py-1.5 rounded-lg bg-slate-50 border text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono", lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? "border-rose-500 bg-rose-50" : "border-slate-200")}
                       />
                     </td>
 
@@ -2011,6 +2105,11 @@ export const InvoiceForm: React.FC<Props> = ({
                         className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
                         title={hasFlag('bill.editPrice') ? 'Override price for this invoice. Never mutates catalog.' : 'Price editing is not permitted for your role.'}
                       />
+                      {isZeroFreeTextLine(item) && (
+                        <p className="mt-0.5 text-[10px] font-bold text-rose-600" data-testid="zero-price-warning">
+                          Not a catalogue item — pick it from the list or enter a price
+                        </p>
+                      )}
                     </td>
 
                     {/* Discount (% or Amount) */}
@@ -2598,18 +2697,29 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* GST Taxes (If With GST) */}
           {withGst && (
             <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs text-slate-600">
-              <div className="flex justify-between">
-                <span>SGST Total:</span>
-                <span className="font-mono font-semibold text-slate-800">
-                  {formatCurrency(totals.totalSgst)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>CGST Total:</span>
-                <span className="font-mono font-semibold text-slate-800">
-                  {formatCurrency(totals.totalCgst)}
-                </span>
-              </div>
+              {isInterState ? (
+                <div className="flex justify-between">
+                  <span>IGST Total ({stateOfSupply}):</span>
+                  <span className="font-mono font-semibold text-slate-800">
+                    {formatCurrency(totals.totalTax)}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <span>SGST Total:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatCurrency(totals.totalSgst)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>CGST Total:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatCurrency(totals.totalCgst)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between font-bold text-blue-700">
                 <span>Total Tax:</span>
                 <span className="font-mono">{formatCurrency(totals.totalTax)}</span>

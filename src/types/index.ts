@@ -657,6 +657,7 @@ export interface Estimate {
   termsAndConditions: string;
   sourceEnquiryId?: string; // If converted from an Enquiry
   sourceEnquiryNumber?: string;
+  stateOfSupply?: string; // place of supply; empty = 33-Tamil Nadu (another state → IGST)
   createdAt: string;
   // Quotation lifecycle. 'Open' by default; a bill converted from it also marks
   // it Converted (derived from invoice.sourceEstimateId); Cancelled carries a

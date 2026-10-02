@@ -55,6 +55,27 @@ export const GST_STATE_CODES: Record<string, string> = {
   '35': 'Andaman & Nicobar', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh',
 };
 
+/** The shop's own state (Tamil Nadu): any other place of supply is IGST. */
+export const HOME_STATE_CODE = '33';
+const normState = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+
+/** "29-Karnataka" / "Karnataka" → "29"; empty or unknown → home state (33).
+ *  Mirrors backend lib/supply.ts so the screen and the server agree (SAL8-5). */
+export function supplyStateCode(stateOfSupply?: string): string {
+  const raw = (stateOfSupply || '').trim();
+  if (!raw) return HOME_STATE_CODE;
+  const m = raw.match(/^(\d{1,2})\b/);
+  if (m) return m[1].padStart(2, '0');
+  const hit = Object.entries(GST_STATE_CODES).find(([, name]) => normState(name) === normState(raw));
+  return hit ? hit[0] : HOME_STATE_CODE;
+}
+export const isInterStateSupply = (stateOfSupply?: string): boolean => supplyStateCode(stateOfSupply) !== HOME_STATE_CODE;
+/** "29-Karnataka" for a GSTIN starting 29, or null. */
+export function supplyFromGstin(gstin?: string): string | null {
+  const info = gstStateInfo(gstin);
+  return info ? `${info.code}-${info.state}` : null;
+}
+
 /** Resolve the state (name + code) from a GSTIN's leading 2-digit state code. */
 export function gstStateInfo(gstin?: string): { code: string; state: string } | null {
   const g = (gstin || '').trim().toUpperCase();
