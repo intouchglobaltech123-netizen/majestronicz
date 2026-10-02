@@ -66,18 +66,19 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
     let convertedWithDates = 0;
 
     filteredEnquiries.forEach((e) => {
-      if (e.status === 'Converted') {
+      // CRM-18: only conversions with a real conversion time count — no
+      // invented "1 day" for older ones.
+      if (e.status === 'Converted' && e.convertedTo?.convertedAt) {
         const createDate = new Date(e.createdAt || e.date).getTime();
-        const convDate = e.convertedTo?.convertedAt
-          ? new Date(e.convertedTo.convertedAt).getTime()
-          : createDate + 86400000; // default 1 day
+        const convDate = new Date(e.convertedTo.convertedAt).getTime();
         const diffDays = Math.max(0, Math.round((convDate - createDate) / (1000 * 60 * 60 * 24)));
         totalDaysToConvert += diffDays;
         convertedWithDates++;
       }
     });
 
-    const avgDaysToConvert = convertedWithDates > 0 ? (totalDaysToConvert / convertedWithDates).toFixed(1) : '1.2';
+    // CRM-18: with no conversions there is no velocity to show.
+    const avgDaysToConvert = convertedWithDates > 0 ? (totalDaysToConvert / convertedWithDates).toFixed(1) : '—';
 
     return {
       total,
@@ -234,7 +235,7 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
             Avg Velocity
           </span>
           <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tabular-nums">
-            {metrics.avgDaysToConvert} <span className="text-xs font-semibold text-slate-500 font-sans">days</span>
+            {metrics.avgDaysToConvert} {metrics.avgDaysToConvert !== '—' && <span className="text-xs font-semibold text-slate-500 font-sans">days</span>}
           </p>
           <span className="text-[11px] text-slate-500 mt-0.5 block">Avg days to convert</span>
         </div>

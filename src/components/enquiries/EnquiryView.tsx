@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Enquiry, EnquiryStatus } from '../../types';
+import { Enquiry, EnquiryStatus, BRANCHES } from '../../types';
 import { cn } from '../../lib/utils';
 import { EnquiryConversionReportWidget } from './EnquiryConversionReportWidget';
 import { EnquiryFormModal } from './EnquiryFormModal';
@@ -168,7 +168,9 @@ export const EnquiryView: React.FC = () => {
               {activeTab === 'new-item-requests' ? 'New Item Catalog Requests' : 'Customer Enquiries'}
             </h1>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-none bg-red-50 text-red-700 border border-red-200">
-              {activeTab === 'new-item-requests' ? `${branchScopedNewItemRequests.length} Pending` : `${branchScopedEnquiries.length} Total`}
+              {activeTab === 'new-item-requests'
+                ? `${branchScopedNewItemRequests.length} Pending`
+                : `${branchScopedEnquiries.filter((e) => e.status === 'Follow-up').length} Open · ${branchScopedEnquiries.length} Total`}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -188,7 +190,7 @@ export const EnquiryView: React.FC = () => {
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold uppercase tracking-wider transition-colors shadow-none cursor-pointer"
             >
               <Clock className="h-3.5 w-3.5 text-slate-700" />
-              <span>Pending Orders ({pendingOrders.length})</span>
+              <span>Pending Orders ({branchScopedPendingOrders.filter((po) => po.status === 'Waiting' || po.status === 'Stock Arrived').length})</span>
             </button>
           )}
 
@@ -254,6 +256,7 @@ export const EnquiryView: React.FC = () => {
       <EnquiryConversionReportWidget
         enquiries={branchScopedEnquiries}
         pendingOrders={branchScopedPendingOrders}
+        branchLabel={isAllBranches ? undefined : BRANCHES.find((b) => b.id === currentBranch)?.name || String(currentBranch)}
       />
 
       {/* ENQUIRIES TABLE & FILTERS */}

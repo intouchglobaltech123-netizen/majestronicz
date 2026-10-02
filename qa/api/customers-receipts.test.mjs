@@ -445,4 +445,19 @@ describe('round 9: credit notes, edits below what was paid, receipt rules', () =
     ok(await post(`/api/catalog/customer/${c.id}/credit`, { amount: 100, reason: 'QA goodwill' }), 'grant on a new customer');
     expectStatus(await del(`/api/catalog/customer/${c.id}`), 409, 'delete a customer holding credit');
   });
+
+  test('CRM-8 a customer\'s purchase count is the number of their live bills (sale, void, delete)', async () => {
+    const phone = randomPhone();
+    const date = await freshDay('erode-hq');
+    const a = await mustSell(saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [serviceLine(1, 100)] }));
+    const b = await mustSell(saleBody({ date, customerName: 'QA Count', customerPhone: phone, lines: [serviceLine(1, 200)] }));
+    assert.equal((await customerOf(a.customerId)).purchaseCount, 2);
+    ok(await post('/api/tx/void-invoice', { invoiceId: a.id, reason: 'QA', actor: 'QA' }), 'void');
+    assert.equal((await customerOf(a.customerId)).purchaseCount, 1, 'voided bill no longer counts');
+    ok(await resave(await getInvoice(b.id), { items: [serviceLine(1, 300)] }), 'edit');
+    assert.equal((await customerOf(a.customerId)).purchaseCount, 1, 'an edit is not a new purchase');
+    ok(await del(`/api/tx/invoice/${b.id}`), 'delete');
+    assert.equal((await customerOf(a.customerId)).purchaseCount, 0, 'deleted bill no longer counts');
+  });
 });
+

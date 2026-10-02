@@ -1,7 +1,8 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { nowIso, rid } from '../lib/stockLedger.js';
-import { nextPendingOrderNumber } from '../lib/sequences.js';
+import { nowIso, rid, cleanPhone } from '../lib/stockLedger.js';
+import { nextPendingOrderNumber, nextEnquiryNumber } from '../lib/sequences.js';
+import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { roleCan } from '../lib/auth.js';
@@ -76,7 +77,9 @@ const tl = (type: string, title: string, description: string, actor: string) => 
 /** Save/edit an enquiry; auto-create a pending order on stock shortage; optional reminder. */
 export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | undefined, actor: string, reqUser?: any) {
   const e = cleanEnquiry(enquiry);
-  return prisma.$transaction(async (tx: any) => {
+  // Serializable + retry: the enquiry number is allocated here (CRM9-12), so two
+  // enquiries saved at the same moment must not take the same number.
+  return serializableTx(async (tx: any) => {
     // SEC5-2: on edit, authorize against the STORED enquiry's branch (not the
     // client-supplied one) and keep the branch immutable, so a branch-locked user
     // can't edit or reassign another branch's enquiry via the request body.
@@ -93,7 +96,9 @@ export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | u
     } else {
       assertBranchAllowed(reqUser, e.branchId);
       if (!isValidBranch(e.branchId)) throw new AppError('BAD_BRANCH', 'Choose a valid branch.', 400);
-      if (typeof e.enquiryNumber !== 'string' || !e.enquiryNumber.trim()) throw new AppError('BAD_REQUEST', 'Enquiry number is missing.', 400);
+      // CRM9-12: the number comes from the server's per-branch sequence — the
+      // browser's guess collided when two counters logged enquiries together.
+      e.enquiryNumber = await nextEnquiryNumber(tx, e.branchId);
       e.status = 'Follow-up';
       if (!e.createdAt) e.createdAt = nowIso();
     }
@@ -370,6 +375,18 @@ export function convertEnquiry(enquiryId: string, targetType: string, docId: str
     if (!doc || doc.isVoided) throw new AppError('DOC_NOT_FOUND', 'That bill / quotation does not exist. Save it first.', 400);
     if (doc.branchId !== enq.branchId) throw new AppError('DOC_MISMATCH', 'That document belongs to another branch.', 400);
     if (doc.sourceEnquiryId && doc.sourceEnquiryId !== enq.id) throw new AppError('DOC_MISMATCH', 'That document was made from a different enquiry.', 400);
+    // CRM9-10: a document NOT made from this enquiry must at least be for the
+    // enquiry's customer (same phone) — an unrelated bill can't close it.
+    if (!doc.sourceEnquiryId) {
+      const docPhone = cleanPhone(targetType === 'invoice' ? doc.customerPhone : doc.customerContact);
+      if (!docPhone || docPhone !== cleanPhone(enq.customerPhone)) {
+        throw new AppError('DOC_MISMATCH', "That document was not made from this enquiry and is not for the enquiry's customer.", 400);
+      }
+    }
+    // CRM9-10: one document converts one enquiry.
+    const others = await tx.enquiry.findMany({ where: { status: 'Converted', NOT: { id: enq.id } }, select: { enquiryNumber: true, convertedTo: true } });
+    const sharing = others.find((o: any) => (o.convertedTo as any)?.id === doc.id);
+    if (sharing) throw new AppError('DOC_MISMATCH', `That document already closed enquiry ${sharing.enquiryNumber}.`, 409);
     const docNumber = targetType === 'invoice' ? doc.invoiceNumber : doc.estimateNumber;
     const timeline = [tl('converted', `Converted to ${targetType === 'estimate' ? 'Quotation / Estimate' : 'Sales Invoice'}`, `Generated document #${docNumber}.`, actor), ...((enq.timeline as any[]) || [])];
     await tx.enquiry.update({

@@ -169,4 +169,27 @@ describe('enquiries & pending orders', () => {
     } }, 'Manager');
     expectStatus(res, 403);
   });
+
+  test('CRM9-12 enquiry numbers are allocated by the server (the browser\'s number is ignored)', async () => {
+    const a = await newEnquiry({ shortage: false, extra: { enquiryNumber: 'ENQ-SAME-1' } });
+    const b = await newEnquiry({ shortage: false, extra: { enquiryNumber: 'ENQ-SAME-1' } });
+    assert.ok(/^ENQ-ERD-\d+$/.test(a.enq.enquiryNumber), a.enq.enquiryNumber);
+    assert.notEqual(a.enq.enquiryNumber, b.enq.enquiryNumber, 'two enquiries saved together get different numbers');
+  });
+
+  test('CRM9-10 an enquiry cannot be closed with an unrelated bill or a bill that already closed another enquiry', async () => {
+    const { enq } = await newEnquiry({ shortage: false });
+    const date = await freshDay('erode-hq');
+    const unrelated = await mustSell(saleBody({ date, lines: [serviceLine(1, 500)], customerName: 'Someone Else', customerPhone: randomPhone() }));
+    expectStatus(await post('/api/enquiry/convert', { enquiryId: enq.id, targetType: 'invoice', docId: unrelated.id, docNumber: unrelated.invoiceNumber, actor: 'QA' }), 400, 'unrelated bill');
+    const own = await billFor(enq);
+    ok(await post('/api/enquiry/convert', { enquiryId: enq.id, targetType: 'invoice', docId: own.id, docNumber: own.invoiceNumber, actor: 'QA' }), 'its own bill');
+    // A second enquiry of the same customer can't be closed with that same bill.
+    const { enq: enq2 } = await newEnquiry({ shortage: false, extra: { customerPhone: enq.customerPhone } });
+    const sameCust = await mustSell(saleBody({ date, lines: [serviceLine(1, 500)], customerName: enq.customerName, customerPhone: enq.customerPhone }));
+    ok(await post('/api/enquiry/convert', { enquiryId: enq2.id, targetType: 'invoice', docId: sameCust.id, docNumber: sameCust.invoiceNumber, actor: 'QA' }), 'a bill for the same customer');
+    const { enq: enq3 } = await newEnquiry({ shortage: false, extra: { customerPhone: enq.customerPhone } });
+    expectStatus(await post('/api/enquiry/convert', { enquiryId: enq3.id, targetType: 'invoice', docId: sameCust.id, docNumber: sameCust.invoiceNumber, actor: 'QA' }), 409, 'shared bill');
+  });
 });
+

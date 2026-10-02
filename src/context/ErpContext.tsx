@@ -2980,17 +2980,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [updatedEnquiry, ...prev];
     });
 
-    persist(apiPost('/api/enquiry/save', { enquiry: newEnquiry, initialExpectedRestockDate, actor: currentUser.name }));
-
-    if (updatedEnquiry.isNewItemRequest && !updatedEnquiry.itemId) {
-      toast.success(`New Item Request ${updatedEnquiry.enquiryNumber} Logged`, {
-        description: `Sent to Manager/CEO queue for catalog review and procurement.`,
-      });
-    } else if (!isOutOfStock) {
-      toast.success(`Enquiry ${updatedEnquiry.enquiryNumber} Saved`, {
-        description: `${updatedEnquiry.customerName} • Stock available (${availableQty} in branch)`,
-      });
-    }
+    // CRM9-12: a NEW enquiry's number is allocated by the server; the toast
+    // names the number the server saved.
+    persist(apiPost<any>('/api/enquiry/save', { enquiry: newEnquiry, initialExpectedRestockDate, actor: currentUser.name }).then((snap) => {
+      const number = (snap?.enquiries as Enquiry[] | undefined)?.find((e) => e.id === newEnquiry.id)?.enquiryNumber || updatedEnquiry.enquiryNumber;
+      if (updatedEnquiry.isNewItemRequest && !updatedEnquiry.itemId) {
+        toast.success(`New Item Request ${number} Logged`, {
+          description: `Sent to Manager/CEO queue for catalog review and procurement.`,
+        });
+      } else if (!isOutOfStock) {
+        toast.success(`Enquiry ${number} Saved`, {
+          description: `${updatedEnquiry.customerName} • Stock available (${availableQty} in branch)`,
+        });
+      }
+      return snap;
+    }));
   };
 
   const linkItemToEnquiry = (enquiryId: string, newItem: Item) => {

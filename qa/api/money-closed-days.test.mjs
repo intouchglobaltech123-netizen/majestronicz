@@ -296,5 +296,33 @@ describe('customer money', () => {
     near((await customerOf(cust.id)).creditBalance, 0, 'advance used up');
     expectStatus(await post('/api/payments/advance/clear', { orderId: order.id }), 409, 'a used advance cannot be given back');
   });
+
+  test('CRM9-4 a pending-order advance is never applied from ANOTHER customer\'s store credit', async () => {
+    const branchId = 'erode-hq';
+    const item = await createItem({ price: 1000, stock: {} });
+    const payer = randomPhone();
+    const enquiryId = `enq-qa-${uid()}`;
+    ok(await post('/api/enquiry/save', {
+      enquiry: {
+        id: enquiryId, enquiryNumber: 'X', customerName: 'QA Advance Payer', customerPhone: payer, itemId: item.id,
+        itemName: item.itemName, itemCode: item.itemCode, unit: 'PCS', quantity: 1, branchId, date: istToday(), time: '10:00',
+        status: 'Open', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      },
+      actor: 'QA',
+    }), 'enquiry');
+    const order = ok(await get('/api/pending-orders')).find((o) => o.enquiryId === enquiryId);
+    ok(await post('/api/payments/advance', { orderId: order.id, amount: 500, mode: 'Cash' }), 'advance by the payer');
+    // Someone else, holding their own store credit, is billed from the same enquiry.
+    const other = await newCustomer('QA Other Holder');
+    ok(await post(`/api/catalog/customer/${other.id}/credit`, { amount: 800, reason: 'QA' }), 'other customer credit');
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId, quantityChange: 5, reason: 'QA restock' }), 'restock');
+    const bill = await mustSell({
+      ...saleBody({ branchId, date: istToday(), transactionType: 'Credit', customerName: other.name, customerPhone: other.phone, lines: [line(item, 1)],
+        splits: [{ mode: 'COD-Credit', amount: 1180 }] }),
+      sourceEnquiryId: enquiryId,
+    });
+    near((await getInvoice(bill.id)).balanceDue, 1180, 'nothing applied to the other customer\'s bill');
+    near((await customerOf(other.id)).creditBalance, 800, 'the other customer\'s credit is untouched');
+  });
 });
 

@@ -11,11 +11,14 @@ import {
 interface Props {
   enquiries: Enquiry[];
   pendingOrders: PendingOrder[];
+  /** CRM3-4: the branch the figures are for (undefined = all branches). */
+  branchLabel?: string;
 }
 
 export const EnquiryConversionReportWidget: React.FC<Props> = ({
   enquiries,
   pendingOrders,
+  branchLabel,
 }) => {
   const total = enquiries.length;
   const followUps = enquiries.filter((e) => e.status === 'Follow-up').length;
@@ -49,7 +52,7 @@ export const EnquiryConversionReportWidget: React.FC<Props> = ({
             Total Enquiries
           </span>
           <div className="text-lg sm:text-2xl lg:text-3xl font-bold font-mono text-slate-900">{total}</div>
-          <span className="text-[11px] text-slate-400">All branches logged</span>
+          <span className="text-[11px] text-slate-400">{branchLabel ? `Logged at ${branchLabel}` : 'All branches logged'}</span>
         </div>
 
         {/* Active Follow-ups */}

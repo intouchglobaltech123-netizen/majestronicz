@@ -1238,6 +1238,21 @@ export const InvoiceForm: React.FC<Props> = ({
     setPaymentSplits(rest > 0 ? [{ mode: 'Cash', amount: rest }, { mode: 'COD-Credit', amount: adv }] : [{ mode: 'COD-Credit', amount: adv }]);
   };
 
+  // CRM2-8: a bill made from an order that has an advance opens with that
+  // advance as the part settled from store credit (COD-Credit) and only the
+  // balance to collect — not the full amount as Cash. It follows the total
+  // until the cashier changes the split by hand.
+  const advanceSplitRef = useRef<'auto' | 'on' | 'off'>('auto');
+  useEffect(() => {
+    if (pendingAdvance <= 0 || totals.grandTotal <= 0 || advanceSplitRef.current === 'off') return;
+    const auto = paymentSplits.length === 1
+      || (advanceSplitRef.current === 'on' && paymentSplits.length === 2 && paymentSplits[1]?.mode === 'COD-Credit');
+    if (!auto) { advanceSplitRef.current = 'off'; return; }
+    applyPendingAdvanceToSplits();
+    advanceSplitRef.current = 'on';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAdvance, totals.grandTotal]);
+
   // Total allocated across payment splits
   const totalAllocated = useMemo(() => {
     if (paymentSplits.length === 1) {

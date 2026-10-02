@@ -30,6 +30,8 @@ export interface NavSub {
   cap: ActiveNavView; // permission view used for canAccessView()
   /** Only for logins that can manage masters (Manager/CEO) — e.g. recurring expense templates. */
   managersOnly?: boolean;
+  /** CRM5-8: only for logins that work with customers (not Purchase). */
+  customersOnly?: boolean;
 }
 
 export interface NavAction {
@@ -92,10 +94,10 @@ export const NAV_MODULES: NavModule[] = [
     title: 'Parties',
     icon: Users,
     items: [
-      { id: 'parties', subTabId: 'customers', label: 'Customers', cap: 'parties' },
+      { id: 'parties', subTabId: 'customers', label: 'Customers', cap: 'parties', customersOnly: true },
       { id: 'parties', subTabId: 'suppliers', label: 'Suppliers', cap: 'parties' },
       { id: 'parties', subTabId: 'all', label: 'All Parties', cap: 'parties' },
-      { id: 'parties', subTabId: 'loyalty', label: 'Loyalty Program', cap: 'parties' },
+      { id: 'parties', subTabId: 'loyalty', label: 'Loyalty Program', cap: 'parties', customersOnly: true },
     ],
   },
   {

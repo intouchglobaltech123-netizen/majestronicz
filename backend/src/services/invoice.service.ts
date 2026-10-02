@@ -259,6 +259,14 @@ async function snapshotLineCosts(tx: any, lines: any[], previous: any[]): Promis
   }
 }
 
+/** CRM-8: a customer's purchase count is the number of their LIVE bills (not a
+ *  running counter that drifted), so loyalty reads a true count. */
+async function liveBillCount(tx: any, customerId: string, excludeId?: string): Promise<number> {
+  return tx.invoice.count({
+    where: { customerId, ...(excludeId ? { NOT: { id: excludeId } } : {}), OR: [{ isVoided: null }, { isVoided: false }] },
+  });
+}
+
 export function createSale(inv: any, reqUser?: any) {
   if (reqUser && reqUser.role !== 'CEO' && reqUser.assignedBranchId && inv.branchId !== reqUser.assignedBranchId) {
     throw new AppError('FORBIDDEN', `You are only authorized to bill for branch ${reqUser.assignedBranchId}`, 403);
@@ -512,7 +520,7 @@ export function createSale(inv: any, reqUser?: any) {
       // back out an old spend they never had, and do bump their purchase count.
       const movedFromAnother = !!oldInvoice && oldCustomerId !== cust.id;
       const oldSpent = oldInvoice && !movedFromAnother ? oldInvoice.grandTotal : 0;
-      const newCount = isNewSale || movedFromAnother ? (cust.purchaseCount || 0) + 1 : cust.purchaseCount;
+      const newCount = (await liveBillCount(tx, cust.id, inv.id)) + 1;
       const newSpent = Math.max(0, (cust.totalSpent || 0) - oldSpent + inv.grandTotal);
       await tx.customer.update({
         where: { id: cust.id },
@@ -588,7 +596,7 @@ export function createSale(inv: any, reqUser?: any) {
         await tx.customer.update({
           where: { id: oldCustomerId },
           data: {
-            purchaseCount: Math.max(0, (oldCust.purchaseCount || 1) - 1),
+            purchaseCount: await liveBillCount(tx, oldCustomerId, oldInvoice.id),
             totalSpent: Math.max(0, (oldCust.totalSpent || 0) - (oldInvoice.grandTotal || 0)),
             updatedAt: ts,
           },
@@ -807,7 +815,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
         await tx.customer.update({
           where: { id: cust.id },
           data: {
-            purchaseCount: Math.max(0, (cust.purchaseCount || 1) - 1),
+            purchaseCount: await liveBillCount(tx, cust.id, invoiceId),
             totalSpent: Math.max(0, (cust.totalSpent || 0) - inv.grandTotal),
             updatedAt: ts,
           },
@@ -1205,6 +1213,20 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       await purgeReturnRefunds(tx, invoiceId);
       await tx.invoice.delete({ where: { id: invoiceId } });
       if (!inv.isVoided) await reopenSourceQuote(tx, inv);
+      // CRM-8: a deleted live bill no longer counts for its customer.
+      if (inv.customerId && !inv.isVoided) {
+        const cust = await tx.customer.findUnique({ where: { id: inv.customerId } });
+        if (cust) {
+          await tx.customer.update({
+            where: { id: cust.id },
+            data: {
+              purchaseCount: await liveBillCount(tx, cust.id),
+              totalSpent: Math.max(0, (cust.totalSpent || 0) - (inv.grandTotal || 0)),
+              updatedAt: nowIso(),
+            },
+          });
+        }
+      }
     }
     // SAL4-9: hand back what was deleted so the audit row can name it.
     const deleted = inv ? { invoiceNumber: inv.invoiceNumber, grandTotal: inv.grandTotal, branchId: inv.branchId, date: inv.date, customerName: inv.customerName, wasVoided: !!inv.isVoided } : null;

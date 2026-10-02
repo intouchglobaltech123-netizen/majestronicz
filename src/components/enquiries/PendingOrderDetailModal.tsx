@@ -58,7 +58,11 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
     canCancelEnquiry,
     canConvertEnquiry,
     canEditRestockDate,
+    payments,
   } = useErp();
+  const advanceReceipts = (payments || []).filter(
+    (p) => p.type === 'in' && !!pendingOrder && p.reference === pendingOrder.orderNumber && String(p.notes || '').startsWith('Advance on pending order'),
+  );
 
   const [isEditingExpectedDate, setIsEditingExpectedDate] = useState(false);
   const [newDateVal, setNewDateVal] = useState('');
@@ -367,7 +371,15 @@ export const PendingOrderDetailModal: React.FC<Props> = ({
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                     <div className="text-sm">
                       <span className="font-bold text-emerald-800 font-mono text-base">₹{(pendingOrder.advanceAmount).toLocaleString('en-IN')}</span>
-                      <span className="text-slate-500 text-xs"> advance received{pendingOrder.advanceMode ? ` · ${pendingOrder.advanceMode}` : ''}{pendingOrder.advancePaidAt ? ` · ${pendingOrder.advancePaidAt.slice(0, 10)}` : ''}</span>
+                      <span className="text-slate-500 text-xs"> advance received{advanceReceipts.length ? '' : `${pendingOrder.advanceMode ? ` · ${pendingOrder.advanceMode}` : ''}${pendingOrder.advancePaidAt ? ` · ${pendingOrder.advancePaidAt.slice(0, 10)}` : ''}`}</span>
+                      {/* CRM2-8: every advance receipt with its own mode, not just the last mode. */}
+                      {advanceReceipts.length > 0 && (
+                        <ul className="mt-1 space-y-0.5 text-[11px] text-slate-600 font-mono">
+                          {advanceReceipts.map((p) => (
+                            <li key={p.id}>₹{Number(p.amount).toLocaleString('en-IN')} · {p.paymentMode} · {p.date} · {p.receiptNumber}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     {isOpenOrder && (
                       <button type="button" onClick={handleClearAdvance} className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer">Clear</button>

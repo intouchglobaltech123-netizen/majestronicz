@@ -117,6 +117,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     }
   }, [activeSubTab]);
 
+  // CRM5-8: a role that doesn't work with customers (Purchase) gets no customer
+  // data — open the suppliers instead of an empty customer list.
+  useEffect(() => {
+    if (!canManageCustomers && (activeTab === 'customers' || activeTab === 'loyalty')) setActiveTab('suppliers');
+  }, [canManageCustomers, activeTab]);
+
   // Sync with selectedCustomerForDetail from context (e.g. from invoices or search)
   useEffect(() => {
     if (selectedCustomerForDetail) {
@@ -847,6 +853,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                     ? `No customers match your search "${searchQuery}".`
                     : 'Start registering customers during billing or add them directly.'}
                 </p>
+                {canManageCustomers && (
                 <button
                   type="button"
                   onClick={() => {
@@ -858,6 +865,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   <Plus className="h-4 w-4" />
                   <span>Add New Customer</span>
                 </button>
+                )}
               </div>
             )}
           </div>

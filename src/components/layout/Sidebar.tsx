@@ -50,8 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isAllBranches,
     currentBranch,
     canManageItems,
+    canManageCustomers,
   } = useErp();
-  const canSee = (it: NavSub) => canAccessView(it.cap) && (!it.managersOnly || canManageItems);
+  const canSee = (it: NavSub) => canAccessView(it.cap) && (!it.managersOnly || canManageItems) && (!it.customersOnly || canManageCustomers);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 

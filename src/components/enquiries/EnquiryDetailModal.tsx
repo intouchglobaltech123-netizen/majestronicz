@@ -55,6 +55,7 @@ export const EnquiryDetailModal: React.FC<Props> = ({
     canCancelEnquiry,
     canConvertEnquiry,
     canApproveCatalogRequests,
+    canAccessView,
   } = useErp();
 
   const [notes, setNotes] = useState('');
@@ -422,7 +423,9 @@ export const EnquiryDetailModal: React.FC<Props> = ({
                     )}
                   </div>
 
-                  {linkedPo && (
+                  {/* E2E6-9: only for a role that has the Pending Orders screen
+                      (Sales was sent to the Item Catalog instead). */}
+                  {linkedPo && canAccessView('pending-orders') && (
                     <button
                       type="button"
                       onClick={handleJumpToPendingOrder}

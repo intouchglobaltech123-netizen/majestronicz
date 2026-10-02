@@ -491,13 +491,17 @@ export const DashboardView: React.FC = () => {
         <HealthCard label="Dead Stock" count={inv.deadStock} unit="items" tone={inv.deadStock > 0 ? 'rose' : 'emerald'}
           icon={AlertOctagon} onClick={() => navigateToInventoryWithMovementFilter('not-moving')} hint={`no sale in ${inventorySettings.deadStockThresholdDays}+ days`} />
         <HealthCard label="Open Enquiries" count={
-          // Branch-scoped, and each shortage counted once: a Follow-up enquiry that
-          // already spawned a pending order is counted via the pending order only,
-          // not twice (CRM-16).
-          enquiries.filter((e) => e.status === 'Follow-up' && inScope(e.branchId) && !e.hasPendingOrder).length
-          + pendingOrders.filter((p) => p.status === 'Waiting' && inScope(p.branchId)).length
+          // Branch-scoped, and each open enquiry counted ONCE (CRM-16 / CRM3-4):
+          // every Follow-up enquiry, whatever its pending order's state, plus any
+          // open pending order that has no open enquiry behind it.
+          (() => {
+            const open = enquiries.filter((e) => e.status === 'Follow-up' && inScope(e.branchId));
+            const openIds = new Set(open.map((e) => e.id));
+            const orphanOrders = pendingOrders.filter((p) => (p.status === 'Waiting' || p.status === 'Stock Arrived') && inScope(p.branchId) && !openIds.has(p.enquiryId));
+            return open.length + orphanOrders.length;
+          })()
         } unit="active"
-          tone="blue" icon={ClipboardList} onClick={() => setCurrentView('enquiries')} hint="enquiries + waiting orders" />
+          tone="blue" icon={ClipboardList} onClick={() => setCurrentView('enquiries')} hint="open enquiries (each once)" />
       </div>
 
       {/* ---- Branch breakdown (all-branches only) ---- */}
