@@ -61,11 +61,15 @@ describe('stock & ledger', () => {
     await assertReconciles(item, 'erode-hq', 10, 'after /stock/update');
   });
 
-  test('INV2-4 an adjustment below zero logs the change that really happened', async () => {
+  test('INV2-4 / FIN-B-11 an adjustment below zero is refused with the real count; down to zero logs exactly', async () => {
     const item = await createItem({ stock: { 'erode-hq': 45 } });
-    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: -1000, reason: 'Damage', actor: 'QA' }));
-    assert.equal(await stockOf(item.id, 'erode-hq'), 0, 'stock clamps at 0');
-    await assertReconciles(item, 'erode-hq', 45, 'after -1000 adjustment');
+    const res = await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: -1000, reason: 'Damage', actor: 'QA' });
+    expectStatus(res, 409, 'over-removal');
+    assert.match(res.body.message, /Only 45 /);
+    assert.equal(await stockOf(item.id, 'erode-hq'), 45, 'nothing removed');
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: -45, reason: 'Damage', actor: 'QA' }));
+    assert.equal(await stockOf(item.id, 'erode-hq'), 0);
+    await assertReconciles(item, 'erode-hq', 45, 'after -45 adjustment');
   });
 
   test('ACT-1 a stock adjustment is stamped with the logged-in user, not the name sent in the body', async () => {

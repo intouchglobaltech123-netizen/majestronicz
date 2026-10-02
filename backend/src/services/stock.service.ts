@@ -256,6 +256,11 @@ export function adjustStock(
       where: { itemId_branchId: { itemId, branchId } },
     });
     const prevQty = existing?.quantity ?? 0;
+    // FIN-B-11: removing more than is in stock is refused with the real count —
+    // it used to be clamped to 0 silently, so "remove 1000" on 45 looked done.
+    if (prevQty + change < -1e-9) {
+      throw new AppError('INSUFFICIENT_STOCK', `Only ${prevQty} ${String(item.unit || 'units')} of "${String(item.itemName).slice(0, 80)}" in stock at this branch — can't remove ${-change}.`, 409);
+    }
     const newQty = Math.max(0, prevQty + change);
     // Stock clamps at 0, so the change that REALLY happened is newQty − prevQty
     // (e.g. a −1000 request on 45 units actually moves −45). Log the real change,
