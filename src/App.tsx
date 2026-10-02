@@ -173,7 +173,7 @@ const AppContent: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 print:overflow-visible print:h-auto">
         {/* Fullscreen top safety bar with live temporal clock & exit action */}
         {isFullscreen && (
-          <div className="bg-slate-900 text-slate-200 px-3.5 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50 shadow-sm">
+          <div className="print:hidden bg-slate-900 text-slate-200 px-3.5 py-1.5 flex items-center justify-between text-xs shrink-0 select-none border-b border-slate-800 z-50 shadow-sm">
             <div className="flex items-center gap-2.5 font-mono text-[11px] min-w-0">
               <span className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider shrink-0">
                 <span className="h-2 w-2 rounded-none bg-emerald-500 animate-pulse" />

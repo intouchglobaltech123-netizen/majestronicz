@@ -243,7 +243,7 @@ export const DailyCashRegisterView: React.FC = () => {
       <div className="hidden print:block border-b border-slate-400 pb-2">
         <h1 className="text-base font-bold text-slate-900">Daily Cash Register — {activeBranchObj.name}</h1>
         <p className="text-xs text-slate-700">
-          {formatDate(selectedDate)} · {currentRegister.isClosed ? `Closed by ${currentRegister.closedBy || 'Manager'}` : 'Open'} · printed {new Date().toLocaleString('en-IN')}
+          {formatDate(selectedDate)} · {currentRegister.isClosed ? `Closed by ${currentRegister.closedBy || 'Manager'}` : 'Open'} · printed {formatDate(new Date().toISOString())}, {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
       {/* Top Banner Header */}
