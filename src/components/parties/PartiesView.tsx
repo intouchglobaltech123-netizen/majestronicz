@@ -20,7 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, purchaseOrderBalanceDue } from '../../types';
+import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -59,6 +59,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     vendors,
     invoices,
     purchaseOrders,
+    payments,
     canManageCustomers,
     canManagePurchases,
     currentBranch,
@@ -136,17 +137,17 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     [purchaseOrders, isAllBranches, currentBranch]
   );
 
-  // Vendor payable = sum of unpaid PO balances (non-cancelled).
+  // Vendor payable = owed for goods received on the vendor's POs (the one PO
+  // formula, PUR8-1) less the advances that vendor holds (PUR6-3), in scope.
+  const vendorSummary = useMemo(
+    () => vendorPayables(scopedPOs, payments, (b) => isAllBranches || b === currentBranch),
+    [scopedPOs, payments, isAllBranches, currentBranch],
+  );
   const vendorPayable = useMemo(() => {
     const map = new Map<string, number>();
-    for (const po of scopedPOs) {
-      if (po.status === 'Cancelled') continue;
-      const bal = purchaseOrderBalanceDue(po);
-      if (bal <= 0.5) continue;
-      map.set(po.vendorId, (map.get(po.vendorId) || 0) + bal);
-    }
+    for (const [k, v] of vendorSummary) if (v.net > 0.5) map.set(k, v.net);
     return map;
-  }, [scopedPOs]);
+  }, [vendorSummary]);
 
   // Unified Parties List
   const parties: UnifiedParty[] = useMemo(() => {
@@ -999,6 +1000,13 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                                   {formatCurrency(payable)}
                                 </span>
                                 <div className="text-[10px] font-semibold text-rose-600">To Pay</div>
+                              </div>
+                            ) : (vendorSummary.get(vendor.id)?.net || 0) < -0.5 ? (
+                              <div>
+                                <span className="font-bold font-mono text-sm text-indigo-700">
+                                  {formatCurrency(-(vendorSummary.get(vendor.id)?.net || 0))}
+                                </span>
+                                <div className="text-[10px] font-semibold text-indigo-600">Advance with supplier</div>
                               </div>
                             ) : (
                               <span className="text-xs font-semibold text-slate-400">Settled</span>

@@ -162,6 +162,7 @@ export const NotificationCenter: React.FC = () => {
 
     // Vendor payments due
     if (canAccessView('purchases')) {
+      // Per PO, on the one PO formula (good units received incl. GST − paid).
       const owing = purchaseOrders
         .filter((po) => inScope(po.branchId) && po.status !== 'Cancelled' && purchaseOrderBalanceDue(po) > 0.5)
         .map((po) => ({ po, bal: purchaseOrderBalanceDue(po) }))

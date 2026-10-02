@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { PurchaseOrder, purchaseOrderBalanceDue, purchaseOrderGrandOwed } from '../../types';
+import { PurchaseOrder, purchaseOrderBalanceDue, purchaseOrderGrandOwed, vendorPayables } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { ArrowLeft, Wallet, Truck, ChevronDown, ChevronRight, CheckCircle2, Search, FileText } from 'lucide-react';
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal';
@@ -32,8 +32,9 @@ const fifoAllocate = (pos: { po: PurchaseOrder; balance: number }[], amount: num
  * paying. A payment is recorded against each PO the amounts cover.
  */
 export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
-  const { purchaseOrders, recordPurchaseOrderPayment, currentBranch, isAllBranches,
+  const { purchaseOrders, payments, recordPayment, currentBranch, isAllBranches,
     selectedPurchaseOrderForDetail, setSelectedPurchaseOrderForDetail } = useErp();
+  const [paying, setPaying] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   // Per-PO payment amount (keyed by po.id) — this is what gets paid.
@@ -44,17 +45,24 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
 
   // Group outstanding POs by vendor (branch-scoped, non-cancelled, balance > 0).
   const groups = useMemo(() => {
-    const byVendor = new Map<string, { vendorId: string; vendorName: string; pos: { po: PurchaseOrder; balance: number }[]; total: number }>();
+    const byVendor = new Map<string, { vendorId: string; partyId?: string; vendorName: string; pos: { po: PurchaseOrder; balance: number }[]; total: number; advance: number; net: number }>();
+    // Advances each supplier holds (paid ahead / unapplied payments) are netted
+    // so this page agrees with Parties and the Purchases KPI (PUR6-3).
+    const summary = vendorPayables(purchaseOrders, payments, (b) => isAllBranches || b === currentBranch);
     for (const po of purchaseOrders) {
       if (po.status === 'Cancelled') continue;
       if (!(isAllBranches || po.branchId === currentBranch)) continue;
       const balance = purchaseOrderBalanceDue(po);
       if (balance <= 0.5) continue;
       const key = po.vendorId || po.vendorName || 'unknown';
-      const g = byVendor.get(key) || { vendorId: key, vendorName: po.vendorName || 'Unknown supplier', pos: [], total: 0 };
+      const g = byVendor.get(key) || { vendorId: key, partyId: po.vendorId || undefined, vendorName: po.vendorName || 'Unknown supplier', pos: [], total: 0, advance: 0, net: 0 };
       g.pos.push({ po, balance });
       g.total = Math.round((g.total + balance) * 100) / 100;
       byVendor.set(key, g);
+    }
+    for (const g of byVendor.values()) {
+      g.advance = summary.get(g.vendorId)?.advance || 0;
+      g.net = Math.max(0, Math.round((g.total - g.advance) * 100) / 100);
     }
     const list = [...byVendor.values()];
     // Oldest PO first within each vendor (FIFO order).
@@ -63,9 +71,9 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
     list.sort((a, b) => b.total - a.total);
     const q = search.trim().toLowerCase();
     return q ? list.filter((g) => g.vendorName.toLowerCase().includes(q)) : list;
-  }, [purchaseOrders, currentBranch, isAllBranches, search]);
+  }, [purchaseOrders, payments, currentBranch, isAllBranches, search]);
 
-  const grandTotal = groups.reduce((s, g) => s + g.total, 0);
+  const grandTotal = groups.reduce((s, g) => s + g.net, 0);
 
   // Clamp a typed per-PO amount to that PO's outstanding balance.
   const setPoAmount = (poId: string, raw: string, balance: number) => {
@@ -97,23 +105,41 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
   const vendorPayTotal = (pos: { po: PurchaseOrder; balance: number }[]) =>
     Math.round(pos.reduce((s, { po }) => s + (Number(poPay[po.id]) || 0), 0) * 100) / 100;
 
-  const pay = (key: string, pos: { po: PurchaseOrder; balance: number }[]) => {
-    const mode = payMode[key] || 'Cash';
-    let paidAny = false;
+  // E2E8-17: the amounts for one supplier are paid as ONE payment voucher per
+  // branch drawer (one server call allocating across the POs), not one voucher
+  // per PO. A voucher never mixes branches (CASH8-5).
+  const pay = async (g: { vendorId: string; partyId?: string; vendorName: string }, pos: { po: PurchaseOrder; balance: number }[]) => {
+    if (paying) return;
+    const mode = payMode[g.vendorId] || 'Cash';
+    const byBranch = new Map<string, { refId: string; refNumber: string; amount: number }[]>();
     for (const { po, balance } of pos) {
-      const amt = Math.min(balance, Number(poPay[po.id]) || 0);
+      const amt = Math.round(Math.min(balance, Number(poPay[po.id]) || 0) * 100) / 100;
       if (amt <= 0.001) continue;
-      recordPurchaseOrderPayment(po.id, Math.round(amt * 100) / 100, mode);
-      paidAny = true;
+      const list = byBranch.get(po.branchId) || [];
+      list.push({ refId: po.id, refNumber: po.poNumber, amount: amt });
+      byBranch.set(po.branchId, list);
     }
-    if (!paidAny) return;
+    if (!byBranch.size) return;
+    setPaying(g.vendorId);
+    let allOk = true;
+    for (const [branchId, allocations] of byBranch) {
+      const amount = Math.round(allocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
+      const res = await recordPayment({
+        type: 'out', partyType: 'vendor', partyId: g.partyId, partyName: g.vendorName, branchId,
+        amount, paymentMode: mode, allocations,
+        notes: `To Pay — ${allocations.map((a) => a.refNumber).join(', ')}`,
+      });
+      if (!res) { allOk = false; break; }
+    }
+    setPaying(null);
+    if (!allOk) return;
     // Clear this vendor's inputs.
     setPoPay((p) => {
       const next = { ...p };
       for (const { po } of pos) delete next[po.id];
       return next;
     });
-    setLump((p) => ({ ...p, [key]: '' }));
+    setLump((p) => ({ ...p, [g.vendorId]: '' }));
   };
 
   return (
@@ -127,7 +153,7 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
           <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/60"><Wallet className="h-5 w-5" /></div>
           <div>
             <h2 className="text-base font-extrabold text-slate-900">To Pay — Suppliers</h2>
-            <p className="text-[11px] text-slate-500">Outstanding purchase orders grouped by vendor. Enter an amount per PO, or auto-fill a lump sum oldest-first and adjust.</p>
+            <p className="text-[11px] text-slate-500">Owed for goods received (incl. GST), grouped by vendor and net of advances. Enter an amount per PO, or auto-fill a lump sum oldest-first; one payment voucher per vendor and branch.</p>
           </div>
         </div>
         <div className="text-right">
@@ -164,7 +190,14 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                   <span className="text-sm font-bold text-slate-900 truncate">{g.vendorName}</span>
                   <span className="text-[11px] text-slate-400">· {g.pos.length} PO{g.pos.length > 1 ? 's' : ''}</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-rose-700 shrink-0">{formatCurrency(g.total)}</span>
+                <span className="text-right shrink-0">
+                  <span className="block text-sm font-bold font-mono text-rose-700">{formatCurrency(g.net)}</span>
+                  {g.advance > 0.005 && (
+                    <span className="block text-[10px] font-semibold text-indigo-600" title="Advance this supplier holds (paid ahead / not applied) — netted">
+                      {formatCurrency(g.total)} due − {formatCurrency(g.advance)} advance
+                    </span>
+                  )}
+                </span>
               </button>
 
               {isOpen && (
@@ -246,8 +279,8 @@ export const SupplierPayablesView: React.FC<Props> = ({ onBack }) => {
                       className="px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600">
                       <option>Cash</option><option>GPay</option><option>HDFC</option><option>Bank Transfer</option><option>Cheque</option>
                     </select>
-                    <button type="button" disabled={payTotal <= 0}
-                      onClick={() => pay(g.vendorId, g.pos)}
+                    <button type="button" disabled={payTotal <= 0 || paying === g.vendorId}
+                      onClick={() => void pay(g, g.pos)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 disabled:opacity-50">
                       <Wallet className="h-3.5 w-3.5" /> Allocate &amp; pay
                     </button>
