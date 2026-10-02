@@ -85,7 +85,13 @@ async function runRole(browser, { role, pin }) {
   });
   await context.addInitScript((ids) => {
     try {
-      localStorage.setItem('majestronicz_sidebar_expanded', JSON.stringify(Object.fromEntries(ids.map((m) => [m, true]))));
+      // The sidebar's expanded state is stored per logged-in user
+      // ("majestronicz_sidebar_expanded__u_<user>"), so answer every variant of the key.
+      const expanded = JSON.stringify(Object.fromEntries(ids.map((m) => [m, true])));
+      const get = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key) {
+        return String(key).startsWith('majestronicz_sidebar_expanded') ? expanded : get.call(this, key);
+      };
     } catch { /* ignore */ }
   }, MODULE_IDS);
   const page = await context.newPage();
