@@ -1,4 +1,5 @@
 import { AppError } from '../middleware/errorHandler.js';
+import { prisma } from '../db.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
@@ -139,6 +140,11 @@ async function ensureRegister(tx: any, branchId: string, date: string) {
   });
 }
 
+/** The register row(s) of one branch and day, as the screens see them (for audit summaries). */
+export async function listRegisters(branchId: string, date: string) {
+  return registersWithLiveOpenings(prisma, await prisma.dailyCashRegister.findMany({ where: { branchId, date } }));
+}
+
 export function addExpense(branchId: string, date: string, expense: any, actor: string) {
   // An expense needs a real date that is not in the future (IST) — VAL-1 / CASH6-2.
   assertBusinessDate(date, 'An expense');
@@ -247,6 +253,13 @@ export function closeDay(branchId: string, date: string, notes: string | undefin
     const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
     if (date > todayIST) throw new AppError('FUTURE_DAY', 'Cannot close a future day.', 400);
     const reg = await ensureRegister(tx, branchId, date);
+    // CASH6-3: a day can't be closed while a deposit (or any expense) still waits
+    // for approval — once closed it could never be decided, yet it would sit in
+    // the day's reports. Approve or reject it first.
+    const pending = ((reg.expenses as any[]) || []).filter((e) => e?.approvalStatus === 'pending');
+    if (pending.length) {
+      throw new AppError('PENDING_APPROVALS', `Approve or reject the ${pending.length} pending item(s) (e.g. "${pending[0].reason}") before closing this day.`, 409);
+    }
     // Freeze the live opening into the row as the day closes: from now on this
     // day's figures never move, whatever happens to earlier open days.
     const opening = reg.isClosed || reg.isOpeningOverridden ? reg.openingAmount : await effectiveOpening(tx, branchId, date);

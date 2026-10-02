@@ -148,3 +148,51 @@ describe('cash register', () => {
     near(rows[0]?.amount, 1500);
   });
 });
+
+describe('cash register audit and close rules (phase 6)', () => {
+  const auditRows = async (as = 'CEO') => ok(await get('/api/audit?limit=1000', as), 'audit');
+
+  test('CASH6-3 a day with a pending bank deposit cannot be closed until it is decided', async () => {
+    const d1 = await freshDay(BR);
+    const snap = ok(await post('/api/cash/expense', { branchId: BR, date: d1, expense: { reason: 'Bank', category: 'Deposit to Bank', cashAmount: 5000 } }));
+    const dep = snap.cashRegisters.find((r) => r.branchId === BR && r.date === d1).expenses[0];
+    expectStatus(await post('/api/cash/close', { branchId: BR, date: d1 }), 409, 'close with a pending deposit');
+    ok(await post('/api/cash/expense/approve', { branchId: BR, date: d1, expenseId: dep.id, decision: 'rejected' }));
+    ok(await post('/api/cash/close', { branchId: BR, date: d1 }), 'close once decided');
+  });
+
+  test('CASH-12 close, reopen, override and expenses are on the audit trail, named from the login', async () => {
+    const d1 = await freshDay('coimbatore');
+    ok(await post('/api/cash/override', { branchId: 'coimbatore', date: d1, amount: 4321, reason: 'QA count' }, 'Manager'));
+    const snap = ok(await post('/api/cash/expense', { branchId: 'coimbatore', date: d1, expense: { reason: 'QA tea', cashAmount: 60 }, actor: 'Someone Else' }, 'Manager'));
+    const exp = snap.cashRegisters.find((r) => r.branchId === 'coimbatore' && r.date === d1).expenses.find((e) => e.reason === 'QA tea');
+    assert.notEqual(exp.createdBy, 'Someone Else', 'createdBy comes from the token');
+    ok(await post('/api/cash/expense/delete', { branchId: 'coimbatore', date: d1, expenseId: exp.id }, 'Manager'));
+    const closed = ok(await post('/api/cash/close', { branchId: 'coimbatore', date: d1, actor: 'CEO', notes: 'QA' }, 'Manager'));
+    const reg = closed.cashRegisters.find((r) => r.branchId === 'coimbatore' && r.date === d1);
+    assert.notEqual(reg.closedBy, 'CEO', 'closedBy comes from the token, not the body');
+    ok(await post('/api/cash/reopen', { branchId: 'coimbatore', date: d1 }, 'Manager'));
+    const rows = (await auditRows()).filter((a) => a.entity === 'cashRegister' && a.entityId === `coimbatore:${d1}`);
+    for (const action of ['cash.override', 'cash.expense.add', 'cash.expense.delete', 'cash.close', 'cash.reopen']) {
+      assert.ok(rows.some((a) => a.action === action), `audit row for ${action}`);
+    }
+    assert.ok(rows.every((a) => a.branchId === 'coimbatore'), 'rows carry the branch');
+    assert.ok(rows.every((a) => /\[Manager\]/.test(a.actor)), 'actor is the logged-in manager');
+  });
+
+  test('RPT3-1 a Manager reads only their branch\'s audit trail; PO payments are on it', async () => {
+    const d1 = await freshDay('erode-hq');
+    ok(await post('/api/cash/override', { branchId: 'erode-hq', date: d1, amount: 1234, reason: 'QA erode' }));
+    const item = await createItem({ purchasePrice: 100 });
+    const po = await createPO([{ item, qty: 2, price: 100 }], { branchId: 'coimbatore' });
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 2 }], actor: 'QA' }));
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 50, mode: 'GPay' }));
+    const all = await auditRows();
+    assert.ok(all.some((a) => a.action === 'purchase.payment' && a.entityId === po.id && a.branchId === 'coimbatore'), 'PO payment audited');
+    const mine = await auditRows('Manager');
+    assert.ok(mine.length > 0, 'manager sees rows');
+    assert.ok(!mine.some((a) => a.entityId === `erode-hq:${d1}`), 'no Erode cash events');
+    assert.ok(mine.some((a) => a.action === 'purchase.payment' && a.entityId === po.id), 'own branch PO payment visible');
+    assert.ok(!mine.some((a) => a.entity === 'user' || a.entity === 'accessMatrix'), 'no branch-less admin events');
+  });
+});

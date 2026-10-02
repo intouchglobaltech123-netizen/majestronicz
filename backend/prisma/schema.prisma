@@ -544,6 +544,7 @@ model AuditLog {
   summary   String? // short human description
   before    Json?
   after     Json?
+  branchId  String? // branch the change belongs to, so a Manager's trail is branch-scoped (RPT3-1)
 
   @@index([timestamp])
   @@index([entity, entityId])

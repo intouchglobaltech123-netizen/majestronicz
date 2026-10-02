@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as hrm from '../services/hrm.service.js';
+import { recordAudit } from '../services/audit.service.js';
 
 export const verifyPin = async (req: Request, res: Response) => {
   const { employeeId, pin } = req.body;
@@ -20,5 +21,13 @@ export const payrollAdjustment = async (req: Request, res: Response) => {
 };
 export const markPaid = async (req: Request, res: Response) => {
   const { payrollId, paymentMode, paymentReference, record } = req.body;
-  res.json(await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record, (req as any).user?.name));
+  const user = (req as any).user;
+  const result: any = await hrm.markPayrollPaid(payrollId, paymentMode, paymentReference, record, user?.name);
+  const row = (result.payrollRecords || []).find((p: any) => p.id === payrollId || (record?.employeeId && p.employeeId === record.employeeId && p.month === record.month));
+  await recordAudit({
+    actor: user ? `${user.name} [${user.role}]` : 'unknown', action: 'payroll.paid', entity: 'payroll', entityId: row?.id || String(payrollId || ''),
+    summary: `Salary paid for ${row?.month || record?.month || ''} (${paymentMode}${paymentReference ? ` · ${paymentReference}` : ''})`,
+    branchId: row?.branchId ?? null,
+  });
+  res.json(result);
 };

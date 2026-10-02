@@ -189,7 +189,10 @@ router.delete('/staff/login/:employeeId', requireCapability('admin'), asyncHandl
 // endpoints that change the system.
 router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, res) => {
   const { entity, entityId, action, limit } = req.query as Record<string, string | undefined>;
-  res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined }));
+  // RPT3-1: a branch-locked reader (Manager) sees only their branch's events.
+  const user = (req as any).user;
+  const branchId = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+  res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined, branchId }));
 }));
 
 // Employee reads must never leak the login/kiosk PIN (SEC2-2). These dedicated
@@ -459,7 +462,7 @@ router.post('/payments', requireCapability('payment:write'), asyncHandler(async 
   const user = (req as any).user;
   const result: any = await recordPayment(req.body, { name: user?.name, id: user?.name }, user);
   await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
-    summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result });
+    summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result, branchId: result.branchId });
   broadcastChange('POST /api/payments');
   res.json(result);
 }));
@@ -489,8 +492,11 @@ router.post('/payments/vendor-advance/apply', requireCapability('purchase:write'
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {
+  const before = await prisma.payment.findUnique({ where: { id: req.params.id } });
   const result = await deletePayment(req.params.id, (req as any).user);
-  await recordAudit({ actor: actorOf(req), action: 'payment.delete', entity: 'payment', entityId: req.params.id, summary: 'Payment deleted / reversed' });
+  await recordAudit({ actor: actorOf(req), action: 'payment.delete', entity: 'payment', entityId: req.params.id,
+    summary: before ? `Payment ${before.receiptNumber} deleted · ₹${before.amount} · ${before.partyName} (${before.paymentMode}) · ${before.date}` : 'Payment deleted / reversed',
+    before: before || undefined, branchId: before?.branchId ?? null });
   broadcastChange('DELETE /api/payments');
   res.json(result);
 }));
