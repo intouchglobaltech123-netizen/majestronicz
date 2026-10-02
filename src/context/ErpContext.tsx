@@ -1599,10 +1599,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setItems((prev) => [newItem, ...prev]);
     setBranchStocks((prev) => [...prev, ...newStockRows]);
 
-    persist(apiPost('/api/catalog/item', { item: newItem, initialStocks, initialLocations }));
-
-    toast.success(`Item "${newItem.itemName}" added to catalog`, {
-      description: `Master price: ₹${newItem.salePrice.toLocaleString('en-IN')}`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/catalog/item', { item: newItem, initialStocks, initialLocations }), () => {
+      toast.success(`Item "${newItem.itemName}" added to catalog`, {
+        description: `Master price: ₹${newItem.salePrice.toLocaleString('en-IN')}`,
+      });
     });
 
     return newItem;
@@ -1676,11 +1677,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    persist(apiPost('/api/stock/update', { itemId, branchId, quantity, minStockAlert, location }));
-
-    const targetBranch = BRANCHES.find((b) => b.id === branchId);
-    toast.success(`Stock updated for ${targetBranch?.name || branchId}`, {
-      description: `New count: ${quantity} units`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/stock/update', { itemId, branchId, quantity, minStockAlert, location }), () => {
+      const targetBranch = BRANCHES.find((b) => b.id === branchId);
+      toast.success(`Stock updated for ${targetBranch?.name || branchId}`, {
+        description: `New count: ${quantity} units`,
+      });
     });
   };
 
@@ -1714,11 +1716,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    persist(apiPost('/api/stock/location', { itemId, branchId, location }));
-
-    const targetBranch = BRANCHES.find((b) => b.id === branchId);
-    toast.success(`Shelf location updated to "${trimmed || 'Unassigned'}"`, {
-      description: `Updated for ${targetBranch?.name || branchId}`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/stock/location', { itemId, branchId, location }), () => {
+      const targetBranch = BRANCHES.find((b) => b.id === branchId);
+      toast.success(`Shelf location updated to "${trimmed || 'Unassigned'}"`, {
+        description: `Updated for ${targetBranch?.name || branchId}`,
+      });
     });
   };
 
@@ -1826,14 +1829,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...prev,
       ];
     });
-    persist(apiPost('/api/catalog/combo', combo));
-    toast.success(`Combo bundle "${combo.comboName}" saved`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/catalog/combo', combo), () => {
+      toast.success(`Combo bundle "${combo.comboName}" saved`);
+    });
   };
 
   const deleteCombo = (comboId: string) => {
     setCombos((prev) => prev.filter((c) => c.id !== comboId));
-    persist(apiDelete(`/api/catalog/combo/${comboId}`));
-    toast.success('Combo bundle deleted');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiDelete(`/api/catalog/combo/${comboId}`), () => {
+      toast.success('Combo bundle deleted');
+    });
   };
 
   const updateItemThreshold = (itemId: string, threshold: number) => {
@@ -1918,12 +1925,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: now,
     };
 
-    setStockAdjustmentLogs((prev) => [logEntry, ...prev]);
+    setStockAdjustmentLogs((prev) => [pendingLog(logEntry), ...prev]);
 
-    persist(apiPost('/api/stock/adjust', { itemId, branchId, quantityChange, reason, notes, actor: actorLabel() }));
-
-    toast.success(`Stock adjusted for ${targetItem.itemName}`, {
-      description: `${branchObj?.name || branchId}: ${prevQty} → ${newQty} (${quantityChange > 0 ? '+' : ''}${quantityChange}) • ${reason}`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/stock/adjust', { itemId, branchId, quantityChange, reason, notes, actor: actorLabel() }), () => {
+      toast.success(`Stock adjusted for ${targetItem.itemName}`, {
+        description: `${branchObj?.name || branchId}: ${prevQty} → ${newQty} (${quantityChange > 0 ? '+' : ''}${quantityChange}) • ${reason}`,
+      });
     });
   };
 
@@ -2024,7 +2032,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkedChallanNumber: generatedChallanNo,
     };
 
-    setStockAdjustmentLogs((prev) => [logFrom, ...prev]);
+    setStockAdjustmentLogs((prev) => [pendingLog(logFrom), ...prev]);
 
     persistTransfer(apiPost('/api/stock/transfer', { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor: actorLabel() }));
 
@@ -2106,7 +2114,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     validatedLines.forEach(({ targetItem, quantity, fromPrevQty }, i) => {
       newLogs.push({ id: `adj-${Date.now()}-${i}-out`, itemId: targetItem.id, itemName: targetItem.itemName, itemCode: targetItem.itemCode, branchId: fromBranch, previousQuantity: fromPrevQty, quantityChange: -quantity, newQuantity: fromPrevQty - quantity, reason: 'Inter-branch Transfer', notes: `Dispatched to ${toBranchName} (in transit)${notes ? ` • ${notes}` : ''}`, adjustedBy: userLabel, timestamp: now, transferRef, linkedChallanNumber: generatedChallanNo });
     });
-    setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
+    setStockAdjustmentLogs((prev) => [...newLogs.map(pendingLog), ...prev]);
 
     // Persist to backend (authoritative) and reconcile.
     persistTransfer(apiPost('/api/stock/transfer-batch', { items: itemsToTransfer, fromBranch, toBranch, notes, autoGenerateChallan, actor: userLabel }));
@@ -2144,13 +2152,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const toPrevQty = branchStocks.find((s) => s.itemId === line.itemId && s.branchId === transfer.toBranch)?.quantity ?? 0;
       return { id: `adj-${Date.now()}-${i}-in`, itemId: line.itemId, itemName: line.itemName, itemCode: line.itemCode, branchId: transfer.toBranch, previousQuantity: toPrevQty, quantityChange: line.quantity, newQuantity: toPrevQty + line.quantity, reason: 'Inter-branch Transfer', notes: `Received from ${fromBranchName}`, adjustedBy: userLabel, timestamp: now, transferRef: transfer.transferNumber, linkedChallanNumber: transfer.challanNumber };
     });
-    setStockAdjustmentLogs((prev) => [...inLogs, ...prev]);
+    setStockAdjustmentLogs((prev) => [...inLogs.map(pendingLog), ...prev]);
 
     setStockTransfers((prev) => prev.map((t) => t.id === transferId ? { ...t, status: 'received', receivedAt: now, receivedBy: userLabel } : t));
 
-    persist(apiPost('/api/stock/transfer-receive', { transferId, actor: userLabel }));
-
-    toast.success('Transfer received', { description: `${transfer.totalQuantity} units added to ${toBranchName} stock.` });
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/stock/transfer-receive', { transferId, actor: userLabel }), () => {
+      toast.success('Transfer received', { description: `${transfer.totalQuantity} units added to ${toBranchName} stock.` });
+    });
   };
 
   // One low-stock rule for every screen and role (INV2-10).
@@ -2501,8 +2510,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setRecurringExpenses((prev) => [newTemplate, ...prev]);
-    persist(apiPost('/api/recurring-expenses', newTemplate));
-    toast.success(`Recurring template "${template.name}" created`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/recurring-expenses', newTemplate), () => {
+      toast.success(`Recurring template "${template.name}" created`);
+    });
   };
 
   const updateRecurringExpenseTemplate = (
@@ -2618,8 +2629,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCustomer = (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
-    persist(apiDelete(`/api/catalog/customer/${customerId}`));
-    toast.success('Customer removed from records');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiDelete(`/api/catalog/customer/${customerId}`), () => {
+      toast.success('Customer removed from records');
+    });
   };
 
   const updateLoyaltySettings = (newSettings: Partial<LoyaltySettings>) => {
@@ -2639,6 +2652,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // state so the UI reflects the server-committed result without a reload.
   // Applies whatever collections a backend endpoint returns to local state so
   // the UI reflects the server-committed, authoritative result.
+  /** A stock-history row shown before the server confirms it (replaced by the
+   *  server's own row when the reply arrives — SAL10-1 deltas merge rows). */
+  const pendingLog = <T,>(l: T): T => ({ ...(l as any), _pending: true });
   // SAL10-1: the sale chain answers with only the rows it changed (`delta`).
   const upsertRows = <T,>(prev: T[], rows: T[] | undefined, key: (r: T) => string, removed: string[] = []): T[] => {
     if (!(rows && rows.length) && !removed.length) return prev;
@@ -2653,7 +2669,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (d.invoices?.length || rm.invoices?.length) setInvoices((prev) => upsertRows(prev, d.invoices, byId, rm.invoices || []));
     if (d.customers?.length) setCustomers((prev) => upsertRows(prev, d.customers, byId));
     if (d.branchStocks?.length) setBranchStocks((prev) => upsertRows(prev, d.branchStocks, (r: any) => `${r.itemId}@${r.branchId}`));
-    if (d.stockAdjustmentLogs?.length) setStockAdjustmentLogs((prev) => upsertRows(prev, d.stockAdjustmentLogs, byId));
+    // The server's own history rows replace the screen's provisional ones.
+    if (d.stockAdjustmentLogs?.length) setStockAdjustmentLogs((prev) => upsertRows(prev.filter((r: any) => !r._pending), d.stockAdjustmentLogs, byId));
     if (d.payments?.length || rm.payments?.length) setPayments((prev) => upsertRows(prev, d.payments, byId, rm.payments || []));
   };
   /** SAL10-1: re-read just these rows; `full` (vendor payments move POs too)
@@ -2705,12 +2722,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Fire a granular persistence call to the backend and reconcile local state
   // with the server-committed (authoritative) result. Optimistic local updates
   // still run first for instant UI; this replaces them with server truth.
-  const persist = (p: Promise<any>) =>
-    p.then(applySnapshot).catch((e) => {
+  // SAL2-5: `onOk` (the success message) runs only once the server has saved
+  // the change; a refusal shows the server's reason and reloads the server's
+  // state, so the screen never keeps a change that was not saved.
+  const persist = (p: Promise<any>, onOk?: () => void) =>
+    p.then((snap) => { applySnapshot(snap); onOk?.(); }).catch((e) => {
       console.error('Backend persist failed:', e);
-      toast.error('Could not save to server', {
-        description: 'Your change is local only — check the backend connection.',
+      toast.error('Could not save the change', {
+        description: e?.status ? String(e?.message || 'The server refused it.') : 'The server could not be reached — the change was not saved.',
       });
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
     });
 
   // A transfer persists like any other change, then names the challan number
@@ -2727,6 +2748,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((e) => {
       console.error('Backend persist failed:', e);
       toast.error('Could not save the transfer', { description: e?.message ?? 'Backend error' });
+      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {}); // SAL2-5: back to the server's state
     });
 
   const actorLabel = () => nameWithRole(currentUser.name, currentUser.role);
@@ -3218,9 +3240,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setPendingOrders((prev) => [newPo, ...prev]);
 
-    persist(apiPost('/api/enquiry/link-item', { enquiryId, item: newItem, actor: currentUser.name }));
-    toast.success(`Item "${newItem.itemName}" added to catalog & linked to Enquiry ${targetEnquiry.enquiryNumber}`);
-    toast.warning(`Backlog Pending Order ${newPoNumber} automatically created for procurement.`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/link-item', { enquiryId, item: newItem, actor: currentUser.name }), () => {
+      toast.success(`Item "${newItem.itemName}" added to catalog & linked to Enquiry ${targetEnquiry.enquiryNumber}`);
+      toast.warning(`Backlog Pending Order ${newPoNumber} automatically created for procurement.`);
+    });
   };
 
   const updatePendingOrder = (orderId: string, updates: Partial<PendingOrder>) => {
@@ -3234,8 +3258,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? { ...prev, ...updates, updatedAt: new Date().toISOString() }
         : prev
     );
-    persist(apiPost('/api/enquiry/pending/update', { orderId, updates }));
-    toast.success('Pending order updated');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/pending/update', { orderId, updates }), () => {
+      toast.success('Pending order updated');
+    });
   };
 
   // CRM2-8: an advance is a real receipt (kept as the customer's store credit and
@@ -3328,9 +3354,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
-    persist(apiPost('/api/enquiry/cancel', { enquiryId, reason, actor: currentUser.name }));
-    toast.info('Enquiry marked as Cancelled', {
-      description: `Reason: ${reason}`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/cancel', { enquiryId, reason, actor: currentUser.name }), () => {
+      toast.info('Enquiry marked as Cancelled', {
+        description: `Reason: ${reason}`,
+      });
     });
   };
 
@@ -3359,9 +3387,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
-    persist(apiPost('/api/enquiry/pending/cancel', { orderId, reason }));
-    toast.info('Pending order cancelled', {
-      description: `Reason: ${reason}`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/pending/cancel', { orderId, reason }), () => {
+      toast.info('Pending order cancelled', {
+        description: `Reason: ${reason}`,
+      });
     });
   };
 
@@ -3430,9 +3460,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
-    persist(apiPost('/api/enquiry/reminder', { enquiryId, dueDate, dueTime, notes, actor: currentUser.name }));
-    toast.success(`Follow-up Reminder Set for ${enq.enquiryNumber}`, {
-      description: `Scheduled for ${dueDate} at ${dueTime}. Notification bell will alert on due date.`,
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/reminder', { enquiryId, dueDate, dueTime, notes, actor: currentUser.name }), () => {
+      toast.success(`Follow-up Reminder Set for ${enq.enquiryNumber}`, {
+        description: `Scheduled for ${dueDate} at ${dueTime}. Notification bell will alert on due date.`,
+      });
     });
   };
 
@@ -3444,14 +3476,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : r
       )
     );
-    persist(apiPost('/api/enquiry/reminder/complete', { reminderId }));
-    toast.success('Reminder marked as completed');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/reminder/complete', { reminderId }), () => {
+      toast.success('Reminder marked as completed');
+    });
   };
 
   const deleteFollowUpReminder = (reminderId: string) => {
     setReminders((prev) => prev.filter((r) => r.id !== reminderId));
-    persist(apiPost('/api/enquiry/reminder/delete', { reminderId }));
-    toast.info('Reminder removed');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/reminder/delete', { reminderId }), () => {
+      toast.info('Reminder removed');
+    });
   };
 
   const updateEnquiryNotes = (enquiryId: string, notes: string) => {
@@ -3488,8 +3524,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : prev
     );
 
-    persist(apiPost('/api/enquiry/notes', { enquiryId, notes, actor: currentUser.name }));
-    toast.success('Enquiry notes updated');
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/enquiry/notes', { enquiryId, notes, actor: currentUser.name }), () => {
+      toast.success('Enquiry notes updated');
+    });
   };
 
   const updateEnquiryStatus = (enquiryId: string, status: EnquiryStatus, reason?: string) => {
@@ -3671,8 +3709,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const ven = vendors.find((v) => v.id === vendorId);
     setVendors((prev) => prev.filter((v) => v.id !== vendorId));
-    persist(apiDelete(`/api/vendors/${vendorId}`));
-    toast.success(`Vendor "${ven?.vendorName || vendorId}" deleted`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiDelete(`/api/vendors/${vendorId}`), () => {
+      toast.success(`Vendor "${ven?.vendorName || vendorId}" deleted`);
+    });
   };
 
   // Purchase Order Actions
@@ -3894,8 +3934,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteEmployee = (employeeId: string) => {
     const emp = employees.find((e) => e.id === employeeId);
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
-    persist(apiDelete(`/api/employees/${employeeId}`));
-    toast.success(`Employee "${emp?.name || employeeId}" removed`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiDelete(`/api/employees/${employeeId}`), () => {
+      toast.success(`Employee "${emp?.name || employeeId}" removed`);
+    });
   };
 
   const clockIn = (
@@ -4062,8 +4104,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return [newRecord, ...prev];
       }
     });
-    persist(apiPost('/api/hrm/payroll-adjustment', { employeeId, month, adjustment, reason, standardHoursPerMonth: payrollSettings.standardHoursPerMonth }));
-    toast.success(`Adjustment of ₹${adjustment > 0 ? '+' : ''}${adjustment} applied`);
+    // SAL2-5: the success message only once the server has saved it.
+    persist(apiPost('/api/hrm/payroll-adjustment', { employeeId, month, adjustment, reason, standardHoursPerMonth: payrollSettings.standardHoursPerMonth }), () => {
+      toast.success(`Adjustment of ₹${adjustment > 0 ? '+' : ''}${adjustment} applied`);
+    });
   };
 
   const markPayrollPaid = async (
