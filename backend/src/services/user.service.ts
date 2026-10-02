@@ -104,7 +104,7 @@ export async function provisionUserEmployees(): Promise<number> {
           designation: DESIGNATION_BY_ROLE[u.role] || u.role,
           branchId: u.assignedBranchId || 'erode-hq',
           monthlySalary: 0, // attendance-enabled; not on hourly payroll by default
-          pin: String(1000 + Math.floor(Math.random() * 9000)),
+          pin: hashPin(String(1000 + Math.floor(Math.random() * 9000))), // SEC10-2: stored hashed
           status: 'Active',
           phone: null,
           email: null,
@@ -118,6 +118,20 @@ export async function provisionUserEmployees(): Promise<number> {
     linked++;
   }
   return linked;
+}
+
+/** SEC10-2: one-time upgrade of plaintext attendance/kiosk PINs (Employee.pin) to
+ *  the same hashed form as login PINs. Runs on every start; a no-op once done. */
+export async function migrateEmployeePins(): Promise<number> {
+  const emps = await prisma.employee.findMany({ select: { id: true, pin: true } });
+  let migrated = 0;
+  for (const e of emps) {
+    if (e.pin && !isPinHashed(e.pin)) {
+      await prisma.employee.update({ where: { id: e.id }, data: { pin: hashPin(e.pin) } });
+      migrated++;
+    }
+  }
+  return migrated;
 }
 
 /** One-time upgrade of any legacy plaintext login PINs to hashed form. */
@@ -213,7 +227,7 @@ export async function createUser(input: CreateUserInput) {
         designation: DESIGNATION_BY_ROLE[input.role] || input.role,
         branchId,
         monthlySalary: Number(input.monthlySalary) || 0,
-        pin: input.pin,
+        pin: hashPin(input.pin), // SEC10-2: the kiosk PIN is stored hashed, like the login PIN
         // Employee status is 'Active'/'Inactive' (capitalized). Saving lowercase
         // 'active' meant attendance's `status !== 'Active'` check rejected every
         // new staff login with "attendance profile is inactive" (HRM3-6).
@@ -291,7 +305,7 @@ export async function updateUser(id: string, input: UpdateUserInput) {
 /** Sync a new PIN onto the linked employee so login & attendance stay one PIN. */
 async function syncEmployeePin(employeeId: string | null | undefined, newPin: string) {
   if (!employeeId) return;
-  await prisma.employee.updateMany({ where: { id: employeeId }, data: { pin: newPin, updatedAt: nowIso() } });
+  await prisma.employee.updateMany({ where: { id: employeeId }, data: { pin: hashPin(newPin), updatedAt: nowIso() } }); // SEC10-2
 }
 
 /** CEO resets a staff member's PIN to a new default; forces reset on next login. */
@@ -359,7 +373,7 @@ export async function linkLoginToEmployee(input: {
   const status = input.status === 'Inactive' ? 'disabled' : 'active';
   const assignedBranchId = input.role === 'Manager' ? (input.assignedBranchId || emp?.branchId || 'coimbatore') : (input.assignedBranchId ?? null);
   // Employee attendance PIN stays PLAINTEXT (used by the kiosk); only the login PIN is hashed.
-  await prisma.employee.updateMany({ where: { id: input.employeeId }, data: { pin: input.pin, updatedAt: nowIso() } });
+  await prisma.employee.updateMany({ where: { id: input.employeeId }, data: { pin: hashed, updatedAt: nowIso() } }); // SEC10-2
 
   if (existing) {
     const pinChanged = existing.pin !== hashed;

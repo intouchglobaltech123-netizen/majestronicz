@@ -62,8 +62,9 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setName(employeeToEdit.name);
       setDesignation(employeeToEdit.designation);
       setBranchId(employeeToEdit.branchId);
-      setMonthlySalary(employeeToEdit.monthlySalary);
-      setIncentivePercent(employeeToEdit.incentivePercent || 0);
+      // HRM10-2: a Manager receives no salary fields (SEC10-1) — never NaN.
+      setMonthlySalary(Number(employeeToEdit.monthlySalary) || 0);
+      setIncentivePercent(Number(employeeToEdit.incentivePercent) || 0);
       // The PIN is no longer sent to the client (SEC2-2), so on edit it starts
       // blank and is only changed if the user types a new one ("leave blank to keep").
       setPin(employeeToEdit.pin || '');
@@ -104,7 +105,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     // current one" (the PIN is no longer sent to the client — SEC2-2).
     if (!employeeToEdit && (!pin.trim() || pin.length < 4)) errs.pin = '4-digit attendance PIN is required';
     if (pin.trim() && !/^\d{4}$/.test(pin.trim())) errs.pin = 'PIN must be exactly 4 digits';
-    if (monthlySalary <= 0) errs.salary = 'Monthly salary must be greater than 0';
+    // Salary is the CEO's to set (HRM10-1); other roles don't send it.
+    if (canEditSalaries && monthlySalary <= 0) errs.salary = 'Monthly salary must be greater than 0';
     if (phone.trim()) {
       const clean = cleanPhoneDigits(phone);
       if (clean.length !== 10) errs.phone = 'Please enter a valid 10-digit mobile number';
@@ -118,7 +120,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     if (!validate() || submitting) return;
     setSubmitting(true);
 
-    const saved = saveEmployee({
+    const saved = await saveEmployee({
       id: employeeToEdit?.id,
       name: name.trim(),
       designation: designation.trim(),
@@ -131,6 +133,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       email: email.trim() || undefined,
       joinedDate,
     });
+    if (!saved) { setSubmitting(false); return; } // keep the form open on a refusal
 
     // Attach / update / remove the app login (CEO only).
     if (isCEO) {
@@ -284,7 +287,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 type="number"
                 min={0}
                 step={1}
-                value={monthlySalary}
+                value={canEditSalaries ? monthlySalary : ''}
                 onChange={(e) => setMonthlySalary(Number(e.target.value))}
                 disabled={!canEditSalaries}
                 placeholder="20000"
@@ -292,7 +295,9 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               />
             </div>
             <p className="text-[11px] text-slate-400 mt-1 font-mono">
-              Agreed full-month remuneration for {standardHours} working hours (₹{(monthlySalary / standardHours).toFixed(2)}/hr)
+              {canEditSalaries
+                ? `Agreed full-month remuneration for ${standardHours} working hours (₹${((Number(monthlySalary) || 0) / standardHours).toFixed(2)}/hr)`
+                : 'Set by the CEO (payroll).'}
             </p>
           </div>
 
@@ -314,7 +319,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 min={0}
                 max={100}
                 step={0.5}
-                value={incentivePercent}
+                value={canEditSalaries ? incentivePercent : ''}
                 onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
                 disabled={!canEditSalaries}
                 placeholder="0"

@@ -63,7 +63,8 @@ const router = Router();
 // rows. Only object replies are touched; known collection keys are filtered.
 router.use((req, res, next) => {
   const user = (req as any).user;
-  if (!user || user.role === 'CEO' || !user.assignedBranchId) return next();
+  // SEC10-1: also callers with no branch lock, so payroll data is stripped for them.
+  if (!user || user.role === 'CEO') return next();
   const json = res.json.bind(res);
   res.json = ((body: any) => json(system.scopePayload(body, user))) as any;
   next();
@@ -214,6 +215,14 @@ router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, r
 // Employee reads must never leak the login/kiosk PIN (SEC2-2). These dedicated
 // GETs strip `pin` and are declared BEFORE the generic crudRouter mount below so
 // they take precedence over its all-columns response.
+// SEC10-1: salary and incentive are payroll data — only a payroll:admin (CEO)
+// receives them; everyone else gets the employee without those fields.
+const safeEmployee = (e: any, user: any) => {
+  const { pin, ...rest } = e || {};
+  if (user && roleCan(user.role, 'payroll:admin')) return rest;
+  const { monthlySalary, incentivePercent, ...noPay } = rest;
+  return noPay;
+};
 router.get('/employees', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
   const user = (req as any).user;
   const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
@@ -221,17 +230,17 @@ router.get('/employees', requireCapability('hrm:write'), asyncHandler(async (req
   res.json(
     emps
       .filter((e: any) => !branch || e.branchId == null || String(e.branchId) === branch) // SEC2-3
-      .map((e: any) => { const { pin, ...rest } = e; return rest; })
+      .map((e: any) => safeEmployee(e, user))
   );
 }));
 router.get('/employees/:id', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
   const e: any = await prisma.employee.findUnique({ where: { id: req.params.id } });
-  if (!e) return res.json({ error: 'Not found' });
+  // ERR-1: an unknown employee is a 404, not a 200 with an error body.
+  if (!e) throw new AppError('NOT_FOUND', 'Employee not found', 404);
   const user = (req as any).user;
   const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
-  if (branch && e.branchId != null && String(e.branchId) !== branch) return res.json({ error: 'Not found' }); // SEC2-3
-  const { pin, ...rest } = e;
-  res.json(rest);
+  if (branch && e.branchId != null && String(e.branchId) !== branch) throw new AppError('NOT_FOUND', 'Employee not found', 404); // SEC2-3
+  res.json(safeEmployee(e, user));
 }));
 
 // ── Dedicated, validated create/update for the three tables the frontend creates
@@ -278,7 +287,6 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   const b = req.body || {};
   if (!String(b.name || '').trim()) throw new AppError('NAME_REQUIRED', 'Employee name is required', 400);
   if (!String(b.designation || '').trim()) throw new AppError('DESIGNATION_REQUIRED', 'Designation is required', 400);
-  if (b.monthlySalary != null && Number(b.monthlySalary) < 0) throw new AppError('BAD_SALARY', 'Salary cannot be negative', 400);
   const setPin = b.pin != null && String(b.pin) !== '';
   if (setPin && !/^\d{4}$/.test(String(b.pin))) throw new AppError('BAD_PIN', 'PIN must be exactly 4 digits', 400);
   // SEC5-1: a branch-locked user must not create or reassign an employee into
@@ -286,21 +294,40 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   // stored branch so another branch's employee can't be touched.
   assertBranchAllowed((req as any).user, b.branchId);
   const id = String(b.id || `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const user = (req as any).user;
+  const canPay = !user || roleCan(user.role, 'payroll:admin');
+  const existing = await prisma.employee.findUnique({ where: { id } });
   const allowed = pick(b, ['name', 'designation', 'branchId', 'monthlySalary', 'incentivePercent', 'status', 'phone', 'email', 'joinedDate']);
+  // HRM10-1: salary and incentive are set by payroll (CEO) only. A Manager's
+  // form leaves them out; a value that would change them is refused.
+  for (const k of ['monthlySalary', 'incentivePercent'] as const) {
+    if (allowed[k] === undefined) continue;
+    if (allowed[k] === null || allowed[k] === '') { delete allowed[k]; continue; }
+    const v = Number(allowed[k]);
+    if (!Number.isFinite(v) || v < 0 || (k === 'incentivePercent' && v > 100) || v > 10_000_000) {
+      throw new AppError('BAD_SALARY', k === 'monthlySalary' ? 'Monthly salary must be a number of zero or more.' : 'Incentive must be a percentage between 0 and 100.', 400);
+    }
+    if (!canPay) {
+      const stored = existing ? Number((existing as any)[k]) || 0 : 0;
+      if (Math.abs(v - stored) > 0.001) throw new AppError('FORBIDDEN', 'Only the CEO (payroll) can set salary or incentive.', 403);
+      delete allowed[k];
+      continue;
+    }
+    allowed[k] = v;
+  }
+  if (!existing && allowed.monthlySalary === undefined) allowed.monthlySalary = 0;
   // The kiosk PIN is stored HASHED, never in plain text (SEC6-2).
   const base = { ...allowed, updatedAt: nowIso(), ...(setPin ? { pin: hashPin(String(b.pin)) } : {}) };
-  const existing = await prisma.employee.findUnique({ where: { id } });
   let employee;
   if (existing) {
-    assertBranchAllowed((req as any).user, existing.branchId);
+    assertBranchAllowed(user, existing.branchId);
     employee = await prisma.employee.update({ where: { id }, data: base }); // blank PIN keeps the existing one
   } else {
     if (!setPin) throw new AppError('PIN_REQUIRED', 'A 4-digit PIN is required for a new employee', 400);
     employee = await prisma.employee.create({ data: { id, createdAt: nowIso(), ...base } });
   }
   broadcastChange('POST /api/employees');
-  const { pin, ...safe } = employee as any;
-  res.json({ ok: true, employee: safe });
+  res.json({ ok: true, employee: safeEmployee(employee, user) });
 }));
 
 router.post('/recurring-expenses', requireManagerOrCEO, asyncHandler(async (req, res) => {

@@ -8,7 +8,7 @@ import {
   INITIAL_CUSTOMERS, INITIAL_LOYALTY_SETTINGS,
 } from '../data/seedData.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
-import { buildDefaultMatrix } from '../lib/auth.js';
+import { buildDefaultMatrix, hashPin, isPinHashed } from '../lib/auth.js';
 import { buildOpeningStockRows } from '../lib/openingStock.js';
 import { provisionUserEmployees } from './user.service.js';
 import { cleanPhone } from '../lib/stockLedger.js';
@@ -89,7 +89,8 @@ export async function reseedDatabase() {
   await prisma.recurringExpenseTemplate.createMany({ data: INITIAL_RECURRING_EXPENSE_TEMPLATES as any });
   await prisma.vendor.createMany({ data: INITIAL_VENDORS as any });
   await prisma.purchaseOrder.createMany({ data: INITIAL_PURCHASE_ORDERS as any });
-  await prisma.employee.createMany({ data: INITIAL_EMPLOYEES as any });
+  // SEC10-2: demo kiosk PINs are stored hashed, never as plain text.
+  await prisma.employee.createMany({ data: (INITIAL_EMPLOYEES as any[]).map((e) => ({ ...e, pin: e.pin && !isPinHashed(e.pin) ? hashPin(e.pin) : e.pin })) });
   await prisma.attendanceRecord.createMany({ data: INITIAL_ATTENDANCE_RECORDS as any });
   await prisma.payrollRecord.createMany({ data: INITIAL_PAYROLL_RECORDS as any });
   await prisma.customer.createMany({ data: INITIAL_CUSTOMERS as any });

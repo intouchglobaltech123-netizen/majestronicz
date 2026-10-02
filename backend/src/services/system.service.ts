@@ -122,6 +122,8 @@ export function scopePayload(data: any, user: SessionUser | null | undefined) {
     out.stockTransfers = out.stockTransfers.filter((t: any) => t?.fromBranch === branch || t?.toBranch === branch);
   }
   if (Array.isArray(out.payments)) out.payments = maskStaffPayments(byBranch(out.payments), user);
+  // SEC10-1: payroll rows are payroll data — only a payroll:admin receives them.
+  if (Array.isArray(out.payrollRecords) && !roleCan(user.role, 'payroll:admin')) out.payrollRecords = [];
   if (Array.isArray(out.employees)) {
     out.employees = out.employees
       .filter((e: any) => !branch || e?.branchId === branch)

@@ -3,7 +3,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { serializableTx } from '../lib/tx.js';
-import { hashPin } from '../lib/auth.js';
+import { hashPin, hashPinCandidates, isPinHashed } from '../lib/auth.js';
 import { istToday, assertDayOpen } from '../lib/businessDate.js';
 import { nextReceiptNumber } from './payment.service.js';
 
@@ -42,7 +42,13 @@ export async function verifyKioskPin(employeeId: string, pin: string, reqUser?: 
   // Stored PIN is hashed (SEC6-2); match the hash, or a legacy plaintext value.
   const entered = String(pin || '').trim();
   const stored = String(emp?.pin || '');
-  const ok = !!emp && (stored === hashPin(entered) || stored === entered);
+  const legacyPlain = !!emp && !!stored && !isPinHashed(stored) && stored === entered;
+  const ok = !!emp && (hashPinCandidates(entered).includes(stored) || legacyPlain);
+  // SEC10-2: a plaintext (older) PIN, or one hashed with a previous secret, is
+  // re-stored hashed on its first successful check.
+  if (ok && emp && stored !== hashPin(entered)) {
+    await prisma.employee.update({ where: { id: emp.id }, data: { pin: hashPin(entered) } });
+  }
 
   if (ok) {
     kioskPinAttempts.delete(key);

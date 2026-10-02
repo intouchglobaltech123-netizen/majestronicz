@@ -98,3 +98,57 @@ describe('round 10: closed days and ended months', () => {
     assert.ok(!(await getInvoice(c.id)).isVoided);
   });
 });
+
+describe('round 10: staff, salary and PINs', () => {
+  const emps = async (as) => ok(await get('/api/employees', as));
+  test('HRM10-1 / SEC10-1 a Manager can edit staff but not set salary or incentive, and never receives them', async () => {
+    const pin = String(1000 + Math.floor(Math.random() * 9000));
+    const created = ok(await post('/api/employees', { name: `QA Staff ${Date.now()}`, designation: 'QA', branchId: 'coimbatore', monthlySalary: 18000, incentivePercent: 2, status: 'Active', joinedDate: '2026-01-01', pin }), 'CEO creates');
+    const id = created.employee.id;
+    assert.equal(created.employee.monthlySalary, 18000, 'the CEO sees the salary');
+    // Manager: salary changes are refused…
+    for (const body of [{ monthlySalary: 99000 }, { incentivePercent: 50 }]) {
+      const res = await post('/api/employees', { id, name: created.employee.name, designation: 'QA', branchId: 'coimbatore', status: 'Active', ...body }, 'Manager');
+      expectStatus(res, 403, JSON.stringify(body));
+    }
+    // …an edit without them works and keeps the salary.
+    const edited = ok(await post('/api/employees', { id, name: `${created.employee.name} B`, designation: 'QA Lead', branchId: 'coimbatore', status: 'Active' }, 'Manager'), 'Manager edits');
+    assert.equal(edited.employee.monthlySalary, undefined, 'no salary in the Manager reply');
+    assert.equal(edited.employee.incentivePercent, undefined);
+    const mine = (await emps('Manager')).find((e) => e.id === id);
+    assert.ok(mine && mine.designation === 'QA Lead');
+    assert.ok(!('monthlySalary' in mine) && !('incentivePercent' in mine), 'GET /employees has no salary for a Manager');
+    const one = ok(await get(`/api/employees/${id}`, 'Manager'));
+    assert.ok(!('monthlySalary' in one) && !('pin' in one), 'GET /employees/:id has no salary or PIN');
+    const ceo = (await emps('CEO')).find((e) => e.id === id);
+    assert.equal(ceo.monthlySalary, 18000, 'salary unchanged');
+    assert.equal(ceo.incentivePercent, 2);
+    expectStatus(await get('/api/employees/emp-does-not-exist'), 404, 'unknown employee');
+    // A bad salary from the CEO is a 400, never NaN in the database.
+    expectStatus(await post('/api/employees', { id, name: ceo.name, designation: 'QA', branchId: 'coimbatore', status: 'Active', monthlySalary: 'abc' }), 400);
+  });
+
+  test('SEC10-1 payroll rows never reach a caller without payroll rights', async () => {
+    const boot = ok(await get('/api/bootstrap', 'Manager'));
+    assert.deepEqual(boot.payrollRecords, [], 'bootstrap');
+    const staff = (await emps('Manager')).find((e) => e.branchId === 'coimbatore' && e.status === 'Active');
+    if (!staff) return;
+    const res = await post('/api/hrm/clock-in', { employeeId: staff.id, photoDataUrl: '', location: null }, 'Manager');
+    if (res.status === 200) assert.deepEqual(res.body.payrollRecords || [], [], 'clock-in reply');
+  });
+
+  test('SEC10-2 attendance PINs are stored hashed and still verify', async () => {
+    if (!sql('SELECT 1')) return;
+    const pin = String(1000 + Math.floor(Math.random() * 9000));
+    const created = ok(await post('/api/employees', { name: `QA Pin ${Date.now()}`, designation: 'QA', branchId: 'erode-hq', monthlySalary: 1000, status: 'Active', joinedDate: '2026-01-01', pin }));
+    const stored = sql(`SELECT pin FROM "Employee" WHERE id='${created.employee.id}'`)[0][0];
+    assert.match(stored, /^[0-9a-f]{64}$/, 'hashed');
+    assert.equal(ok(await post('/api/hrm/verify-pin', { employeeId: created.employee.id, pin })).ok, true, 'verifies');
+    // An older plaintext PIN still works and is re-stored hashed on first use.
+    sql(`UPDATE "Employee" SET pin='${pin}' WHERE id='${created.employee.id}'`);
+    assert.equal(ok(await post('/api/hrm/verify-pin', { employeeId: created.employee.id, pin })).ok, true, 'plaintext verifies');
+    assert.match(sql(`SELECT pin FROM "Employee" WHERE id='${created.employee.id}'`)[0][0], /^[0-9a-f]{64}$/, 're-hashed');
+    // Demo/staff rows: none in plain text.
+    assert.equal(sql(`SELECT count(*) FROM "Employee" WHERE pin !~ '^[0-9a-f]{64}$'`)[0][0], '0', 'no plaintext PINs');
+  });
+});

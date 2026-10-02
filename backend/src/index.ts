@@ -73,9 +73,9 @@ app.listen(port, async () => {
     await ensureAccessMatrix();
     await migrateAccessMatrix();
     console.log('Access-control matrix loaded.');
-    const { ensureUsers, migrateUserPins, provisionUserEmployees, resetSystemPins } = await import('./services/user.service.js');
+    const { ensureUsers, migrateUserPins, migrateEmployeePins, provisionUserEmployees, resetSystemPins } = await import('./services/user.service.js');
     await ensureUsers();
-    const migrated = await migrateUserPins();
+    const migrated = (await migrateUserPins()) + (await migrateEmployeePins());
     const linked = await provisionUserEmployees();
     console.log(`Staff accounts ready.${migrated ? ` Secured ${migrated} legacy PIN(s).` : ''}${linked ? ` Linked ${linked} attendance profile(s).` : ''}`);
     // Recovery hatch (SEC3-4): re-hash preset PINs to the current AUTH_SECRET

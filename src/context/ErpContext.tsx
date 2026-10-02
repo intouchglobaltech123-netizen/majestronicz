@@ -460,7 +460,7 @@ interface ErpContextType {
   attendanceRecords: AttendanceRecord[];
   payrollSettings: PayrollSettings;
   payrollRecords: PayrollRecord[];
-  saveEmployee: (emp: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Employee;
+  saveEmployee: (emp: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<Employee | null>;
   deleteEmployee: (employeeId: string) => void;
   clockIn: (
     employeeId: string,
@@ -3720,35 +3720,27 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // HRM & Attendance Actions
-  const saveEmployee = (empData: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Employee => {
-    const now = new Date().toISOString();
-    if (empData.id) {
-      const updated: Employee = {
-        ...(employees.find((e) => e.id === empData.id) as Employee),
-        ...empData,
-        id: empData.id,
-        updatedAt: now,
-      };
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      // Never send a blank PIN on edit — the client no longer holds the PIN
-      // (SEC2-2), and a blank would overwrite the stored one. Omitting it makes
-      // the server keep the existing PIN.
-      const payload: any = { ...updated };
-      if (!payload.pin) delete payload.pin;
-      persist(apiPost('/api/employees', payload));
-      toast.success(`Employee "${updated.name}" updated`);
-      return updated;
-    } else {
-      const newEmp: Employee = {
-        ...empData,
-        id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setEmployees((prev) => [newEmp, ...prev]);
-      persist(apiPost('/api/employees', newEmp));
-      toast.success(`Employee "${newEmp.name}" enrolled`);
-      return newEmp;
+  // HRM10-2 / SAL2-5: the employee list changes and the success toast shows
+  // only once the server has saved it; a refusal leaves the list as it was.
+  const saveEmployee = async (empData: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Employee | null> => {
+    const isEdit = !!empData.id;
+    const payload: any = { ...empData, id: empData.id || `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}` };
+    // Never send a blank PIN on edit — the client no longer holds the PIN
+    // (SEC2-2), and a blank would overwrite the stored one. Omitting it makes
+    // the server keep the existing PIN.
+    if (!payload.pin) delete payload.pin;
+    // Salary and incentive are the CEO's (payroll) to set (HRM10-1) — other
+    // roles never send them.
+    if (!canEditSalaries) { delete payload.monthlySalary; delete payload.incentivePercent; }
+    try {
+      const res = await apiPost<any>('/api/employees', payload);
+      const saved = res?.employee as Employee;
+      setEmployees((prev) => (prev.some((e) => e.id === saved.id) ? prev.map((e) => (e.id === saved.id ? { ...e, ...saved } : e)) : [saved, ...prev]));
+      toast.success(`Employee "${saved.name}" ${isEdit ? 'updated' : 'enrolled'}`);
+      return saved;
+    } catch (e: any) {
+      toast.error(isEdit ? 'Could not update the employee' : 'Could not enroll the employee', { description: String(e?.message || 'Backend error').replace(/^API \d+[^:]*: /, '') });
+      return null;
     }
   };
 
