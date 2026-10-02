@@ -1149,10 +1149,16 @@ export const InvoiceForm: React.FC<Props> = ({
         const rate = item.taxRate || 0;
         const factor = 1 + rate / 100;
         let unitPrice = item.unitPrice;
+        let discountValue = item.discountValue;
+        let stdDiscountPerUnit = item.stdDiscountPerUnit;
+        const convert = (v: number) => (newWithGst ? Math.round((v / factor) * 100) / 100 : Math.round(v * factor * 100) / 100);
         if (rate > 0 && newWithGst !== withGst) {
-          unitPrice = newWithGst
-            ? Math.round((item.unitPrice / factor) * 100) / 100 // off → on: drop to pre-tax
-            : Math.round(item.unitPrice * factor * 100) / 100; // on → off: back to full price
+          // off → on: drop to pre-tax; on → off: back to full price
+          unitPrice = convert(item.unitPrice);
+          // SAL10-3: a ₹-off discount is in the same tax basis as the price, so it
+          // converts with it — otherwise the bill's total rose when GST was hidden.
+          if (item.discountType === 'amount' && Number(item.discountValue) > 0) discountValue = convert(Number(item.discountValue));
+          if (stdDiscountPerUnit != null) stdDiscountPerUnit = convert(Number(stdDiscountPerUnit));
         }
         const calculated = calculateLineTax(
           item.quantity,
@@ -1160,11 +1166,14 @@ export const InvoiceForm: React.FC<Props> = ({
           rate,
           newWithGst,
           item.discountType,
-          item.discountValue
+          discountValue
         );
         return {
           ...item,
           unitPrice,
+          discountValue,
+          stdDiscountPerUnit,
+          discountAmount: calculated.discountAmount,
           taxableAmount: calculated.taxableAmount,
           cgstAmount: calculated.cgstAmount,
           sgstAmount: calculated.sgstAmount,

@@ -108,6 +108,27 @@ try {
     check('SAL10-1 it arrives through /api/sync, without re-downloading the bootstrap', calls.sync > before.sync && calls.bootstrap === before.bootstrap, JSON.stringify(calls));
     await ctx.close();
   }
+
+  // ---------- SAL10-3: hiding GST never changes the bill total (₹ discounts convert too) ----------
+  if (want('SAL10-3')) {
+    const item = await createItem(1180, { 'erode-hq': 20 }, { discountOnSalePrice: 118, discountType: 'amount' });
+    const { ctx, page } = await login('Billing');
+    await nav(page, 'New Sale');
+    const s = page.getByPlaceholder('Type or search product or combo...').first();
+    await s.click(); await s.fill(item.itemCode); await page.waitForTimeout(800);
+    await page.locator(`text=${item.itemCode}`).first().click(); await page.waitForTimeout(800);
+    const qty = page.locator('table tbody tr').first().locator('input[type="number"]').first();
+    await qty.fill('2'); await page.waitForTimeout(500);
+    const grand = async () => Number(((await page.locator('body').innerText()).match(/GRAND TOTAL\s*₹([\d,\.]+)/)?.[1] || 'NaN').replace(/,/g, ''));
+    const on = await grand();
+    await page.locator('button', { hasText: /^On$/ }).first().click(); await page.waitForTimeout(800);
+    const off = await grand();
+    await page.screenshot({ path: path.join(SHOTS, 'r10-gst-off.png') });
+    await page.locator('button', { hasText: /^Off$/ }).first().click(); await page.waitForTimeout(800);
+    const back = await grand();
+    check('SAL10-3 GST off keeps the total of a line with a ₹ standard discount', Math.abs(on - off) < 0.02 && Math.abs(on - back) < 0.02, `on ₹${on}, off ₹${off}, on again ₹${back}`);
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }
