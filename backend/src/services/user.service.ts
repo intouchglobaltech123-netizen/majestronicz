@@ -276,7 +276,10 @@ export async function updateUser(id: string, input: UpdateUserInput) {
     if (input.name !== undefined) empData.name = input.name.trim();
     if (input.assignedBranchId !== undefined && input.assignedBranchId) empData.branchId = input.assignedBranchId;
     if (input.role !== undefined) empData.designation = DESIGNATION_BY_ROLE[input.role] || input.role;
-    if (input.status !== undefined) empData.status = input.status;
+    // HRM6-4: employee status is 'Active'/'Inactive' (capitalised), not the login's
+    // 'active'/'disabled' — re-enabling a login stored 'active' and clock-in then
+    // refused the profile as inactive.
+    if (input.status !== undefined) empData.status = input.status === 'disabled' ? 'Inactive' : 'Active';
     await prisma.employee.updateMany({ where: { id: existing.employeeId }, data: empData });
   }
 
@@ -390,7 +393,7 @@ export async function deleteUser(id: string) {
   await prisma.user.delete({ where: { id } });
   // Preserve the employee's attendance/payroll history but disable the record.
   if (existing.employeeId) {
-    await prisma.employee.updateMany({ where: { id: existing.employeeId }, data: { status: 'disabled', updatedAt: nowIso() } });
+    await prisma.employee.updateMany({ where: { id: existing.employeeId }, data: { status: 'Inactive', updatedAt: nowIso() } });
   }
   return { ok: true };
 }

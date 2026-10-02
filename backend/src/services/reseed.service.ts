@@ -9,6 +9,7 @@ import {
 } from '../data/seedData.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
 import { buildDefaultMatrix } from '../lib/auth.js';
+import { provisionUserEmployees } from './user.service.js';
 
 /**
  * Resets the database to the demo dataset. Shared by the CLI seed script and
@@ -100,6 +101,12 @@ export async function reseedDatabase() {
       { key: 'accessMatrix', value: buildDefaultMatrix() as any },
     ],
   });
+
+  // HRM3-8: the reset wiped every employee, including the attendance profiles
+  // linked to staff logins, so e.g. Billing got "No attendance profile" on
+  // self check-in until the server restarted. Re-link them now (a no-op when
+  // there are no logins yet, as on the very first seed).
+  await provisionUserEmployees();
 }
 
 /**
