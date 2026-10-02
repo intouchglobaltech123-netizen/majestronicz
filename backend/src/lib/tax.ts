@@ -1,3 +1,6 @@
+import { GST_RATES } from './constants.js';
+
+const GST_SLAB_RATES = new Set<number>(GST_RATES.map((g) => g.rate));
 /**
  * One place that answers "what GST rate applies to this item, at this branch?".
  *
@@ -17,7 +20,8 @@ export const GST_SLABS = [0, 0.25, 3, 5, 12, 18, 28] as const;
 
 export function isValidTaxPercent(value: unknown): boolean {
   const n = Number(value);
-  return Number.isFinite(n) && n >= 0 && n <= 100;
+  // FIN-B-5: a GST rate is one of the slabs (0, 5, 12, 18, 28) — a PO line at 7% was accepted.
+  return Number.isFinite(n) && GST_SLAB_RATES.has(n);
 }
 
 /**

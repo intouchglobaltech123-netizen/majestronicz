@@ -66,7 +66,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
         throw new AppError('BAD_QTY', `"${item?.itemName || l.itemName || 'Item'}" is counted in whole ${item?.unit || l.unit || 'units'} — enter a whole quantity, not ${qty}.`, 400);
       }
       if (!Number.isFinite(Number(l.purchasePrice ?? 0)) || Number(l.purchasePrice) < 0) throw new AppError('BAD_PRICE', 'Purchase price cannot be negative.', 400);
-      if (l.taxPercent != null && !isValidTaxPercent(l.taxPercent)) throw new AppError('BAD_TAX', 'Tax % must be between 0 and 100.', 400);
+      if (l.taxPercent != null && !isValidTaxPercent(l.taxPercent)) throw new AppError('BAD_TAX', 'GST % must be one of the slabs: 0, 5, 12, 18 or 28.', 400);
     }
     // The vendor must exist.
     const vendor = await tx.vendor.findUnique({ where: { id: poData.vendorId }, select: { id: true, vendorName: true, gstin: true, contactNo: true, address: true } });
@@ -97,9 +97,11 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       'otherCharges', 'totalAmount', 'totalTax', 'createdAt', 'updatedAt',
     ];
     // Price × ordered qty and the tax on it, recomputed from the line itself.
-    const priced = (l: any, price: number, qty: number, taxPercent: number) => {
+    // FIN-B-5: a line sent without a GST rate keeps "no rate" (null) — an
+    // explicit 0% is an exempt line and caps its supplier bill's GST at 0.
+    const priced = (l: any, price: number, qty: number, taxPercent: number | null) => {
       const amount = Math.round(price * qty * 100) / 100;
-      const taxAmount = taxAmountFor(amount, taxPercent);
+      const taxAmount = taxAmountFor(amount, taxPercent ?? 0);
       return { ...l, quantityOrdered: qty, purchasePrice: price, taxPercent, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
     };
     const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -165,7 +167,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
           throw new AppError('QTY_BELOW_RECEIVED', `"${db.itemName || db.itemId}" already has ${settled} received/settled — the ordered quantity cannot go below that.`, 400);
         }
         const price = Number(cl.purchasePrice) || 0;
-        const taxPercent = cl.taxPercent != null ? Number(cl.taxPercent) : (db?.taxPercent ?? 0);
+        const taxPercent = cl.taxPercent != null ? Number(cl.taxPercent) : (db?.taxPercent ?? null);
         const line: any = priced({ ...(db || {}), ...cl, id: db?.id || cl.id || lineId() }, price, qty, taxPercent);
         // Received state is authoritative from the DB, never the client.
         line.receivedQuantity = db?.receivedQuantity ?? 0;
@@ -209,7 +211,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       // an inflated payable (₹1,98,480 shown vs ₹89,048 actually owed). A new PO
       // has nothing received, whatever the client sent.
       clean.items = lineItems.map((l: any) => {
-        const line: any = priced({ ...l, id: l.id || lineId() }, Number(l.purchasePrice) || 0, Number(l.quantityOrdered), isValidTaxPercent(l.taxPercent) ? Number(l.taxPercent) : 0);
+        const line: any = priced({ ...l, id: l.id || lineId() }, Number(l.purchasePrice) || 0, Number(l.quantityOrdered), l.taxPercent != null && isValidTaxPercent(l.taxPercent) ? Number(l.taxPercent) : null);
         line.receivedQuantity = 0;
         line.damagedQuantity = 0;
         line.missingQuantity = 0;
@@ -359,7 +361,7 @@ export function receivePurchaseOrderStock(
         throw new AppError('BAD_QTY', `"${line.itemName || rec.itemId}" is counted in whole ${String(unit || 'units').toUpperCase()} — enter whole quantities.`, 400);
       }
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
-        throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be between 0 and 100.`, 400);
+        throw new AppError('BAD_TAX', `Tax % for "${line.itemName || rec.itemId}" must be one of the GST slabs: 0, 5, 12, 18 or 28.`, 400);
       }
       if (rec.purchasePrice != null && !(Number.isFinite(rec.purchasePrice) && rec.purchasePrice >= 0)) {
         throw new AppError('BAD_PRICE', `Price for "${line.itemName || rec.itemId}" cannot be negative.`, 400);
@@ -748,8 +750,11 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     if (!Number.isFinite(gst) || gst < 0) throw new AppError('BAD_BILL', 'GST cannot be negative.', 400);
     // PUR3-8: GST can't be more than the highest GST rate on the PO's lines
     // (28%, the top slab, when the lines carry no rate).
-    const lineRates = ((po.items as any[]) || []).map((l: any) => Number(l?.taxPercent)).filter((r: number) => Number.isFinite(r) && r > 0);
-    const capRate = lineRates.length ? Math.min(28, Math.max(...lineRates)) : 28;
+    // FIN-B-5: an explicit 0% line counts too — a PO of only 0% lines caps GST at
+    // 0; a line with no rate set leaves the top slab possible.
+    const poLines = (po.items as any[]) || [];
+    const lineRates = poLines.map((l: any) => (l?.taxPercent == null || l?.taxPercent === '' ? NaN : Number(l.taxPercent)));
+    const capRate = poLines.length && lineRates.every((r: number) => Number.isFinite(r)) ? Math.min(28, Math.max(...lineRates)) : 28;
     if (gst > Math.round(taxable * (capRate / 100) * 100) / 100 + 1) {
       throw new AppError('BAD_BILL', `GST of ₹${gst} is more than ${capRate}% (the highest GST rate on this purchase order) of the taxable value ₹${taxable}.`, 400);
     }

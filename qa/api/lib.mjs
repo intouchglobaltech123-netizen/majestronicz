@@ -336,7 +336,7 @@ export async function createPO(lines, { branchId = 'erode-hq', as = 'CEO', vendo
     vendorId: v.id, vendorName: v.vendorName, branchId, date: '2026-09-15', expectedDeliveryDate: '2026-09-30',
     items: lines.map((l) => ({
       itemId: l.item.id, itemName: l.item.itemName, itemCode: l.item.itemCode,
-      quantityOrdered: l.qty, receivedQuantity: 0, purchasePrice: l.price ?? l.item.purchasePrice, taxPercent: l.tax ?? 0,
+      quantityOrdered: l.qty, receivedQuantity: 0, purchasePrice: l.price ?? l.item.purchasePrice, taxPercent: l.tax, // no rate unless given (FIN-B-5: 0% is exempt)
     })),
     totalAmount: 0,
     notes: 'QA',
