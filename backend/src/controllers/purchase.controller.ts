@@ -54,3 +54,7 @@ export const recordBill = async (req: Request, res: Response) => {
   const { poId, bill } = req.body;
   res.json(await purchase.recordPurchaseBill(poId, bill, (req as any).user));
 };
+export const deleteBill = async (req: Request, res: Response) => {
+  const { poId, billId } = req.body;
+  res.json(await purchase.deletePurchaseBill(String(poId || ''), String(billId || ''), (req as any).user));
+};

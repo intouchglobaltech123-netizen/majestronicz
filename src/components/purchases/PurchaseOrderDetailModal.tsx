@@ -32,9 +32,11 @@ import {
   purchaseOrderAdvance,
   purchaseOrderPayCap,
   purchaseOrderOrderedTotal,
+  SupplierBill,
+  supplierBillsOf,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
-import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
+import { formatCurrency, formatDate, cn, getTodayDateString } from '../../lib/utils';
 import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { toast } from 'sonner';
 import { ReceiveStockModal } from './ReceiveStockModal';
@@ -76,6 +78,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     deletePurchaseOrderAttachment,
     recordPurchaseOrderPayment,
     recordPurchaseBill,
+    deletePurchaseBill,
     savePurchaseOrder,
     pendingOrders,
     setSelectedPendingOrderForDetail,
@@ -111,18 +114,27 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const [payAmt, setPayAmt] = React.useState<string>('');
   const [paying, setPaying] = React.useState(false);
   const [payMode, setPayMode] = React.useState<string>('Cash');
+  // Supplier bills (E2E5-11): a PO can carry one bill per delivery. The form
+  // adds a new bill, or edits the one picked from the list.
   const [billNo, setBillNo] = React.useState<string>('');
   const [billDate, setBillDate] = React.useState<string>('');
   const [billTaxable, setBillTaxable] = React.useState<string>('');
   const [billGst, setBillGst] = React.useState<string>('');
-  React.useEffect(() => {
-    if (purchaseOrder) {
-      setBillNo(purchaseOrder.supplierBillNumber || '');
-      setBillDate(purchaseOrder.supplierBillDate || '');
-      setBillTaxable(purchaseOrder.supplierBillTaxable ? String(purchaseOrder.supplierBillTaxable) : '');
-      setBillGst(purchaseOrder.supplierBillGst ? String(purchaseOrder.supplierBillGst) : '');
-    }
-  }, [purchaseOrder?.id, purchaseOrder?.supplierBillNumber]);
+  const [billAttachmentId, setBillAttachmentId] = React.useState<string>('');
+  const [editingBillId, setEditingBillId] = React.useState<string | null>(null);
+  const [savingBill, setSavingBill] = React.useState(false);
+  const resetBillForm = () => {
+    setBillNo(''); setBillDate(''); setBillTaxable(''); setBillGst(''); setBillAttachmentId(''); setEditingBillId(null);
+  };
+  React.useEffect(() => { resetBillForm(); }, [purchaseOrder?.id]);
+  const editBill = (b: SupplierBill) => {
+    setEditingBillId(b.id);
+    setBillNo(b.number || '');
+    setBillDate(b.date || '');
+    setBillTaxable(b.taxable ? String(b.taxable) : '');
+    setBillGst(b.gst ? String(b.gst) : '');
+    setBillAttachmentId(b.attachmentId || '');
+  };
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isUploading, setIsUploading] = useState(false);
@@ -651,42 +663,98 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 </div>
               </div>
 
-              {/* Supplier tax invoice (bill) → Input Tax Credit */}
+              {/* Supplier tax invoices (bills) → Input Tax Credit. One per delivery (E2E5-11). */}
+              {(() => {
+                const bills = supplierBillsOf(purchaseOrder);
+                const itcTotal = Math.round(bills.reduce((t, b) => t + (Number(b.gst) || 0), 0) * 100) / 100;
+                const fileName = (id?: string | null) => (id ? attachments.find((a) => a.id === id)?.name : undefined);
+                return (
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Supplier Bill (Input Tax Credit)</span>
-                  {purchaseOrder.supplierBillGst ? (
-                    <span className="text-[11px] font-bold text-emerald-700">ITC: {formatCurrency(purchaseOrder.supplierBillGst)}</span>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Supplier Bills (Input Tax Credit)</span>
+                  {bills.length ? (
+                    <span className="text-[11px] font-bold text-emerald-700">{bills.length} bill{bills.length > 1 ? 's' : ''} · ITC: {formatCurrency(itcTotal)}</span>
                   ) : (
                     <span className="text-[11px] font-bold text-amber-700">No bill entered</span>
                   )}
                 </div>
-                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                {bills.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs" data-testid="supplier-bills">
+                      <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-3 py-1.5 text-left">Bill No.</th>
+                          <th className="px-3 py-1.5 text-left">Date</th>
+                          <th className="px-3 py-1.5 text-right">Taxable</th>
+                          <th className="px-3 py-1.5 text-right">GST / ITC</th>
+                          <th className="px-3 py-1.5 text-left">File</th>
+                          {canManagePurchases && <th className="px-3 py-1.5" />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bills.map((b) => (
+                          <tr key={b.id} className={cn('border-t border-slate-100', editingBillId === b.id && 'bg-amber-50')}>
+                            <td className="px-3 py-1.5 font-semibold text-slate-900">{b.number}</td>
+                            <td className="px-3 py-1.5 text-slate-700">{formatDate(b.date)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">{formatCurrency(b.taxable)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-emerald-800">{formatCurrency(b.gst)}</td>
+                            <td className="px-3 py-1.5 text-slate-600 truncate max-w-[140px]">{fileName(b.attachmentId) || '—'}</td>
+                            {canManagePurchases && (
+                              <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                <button type="button" onClick={() => editBill(b)} className="text-[11px] font-bold text-slate-700 hover:text-red-700 mr-2 cursor-pointer">Edit</button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!window.confirm(`Remove supplier bill ${b.number}?`)) return;
+                                    if (await deletePurchaseBill(purchaseOrder.id, b.id) && editingBillId === b.id) resetBillForm();
+                                  }}
+                                  className="text-[11px] font-bold text-red-700 hover:text-red-800 cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {canManagePurchases && (
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end border-t border-slate-100">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill No.</label>
-                    <input value={billNo} onChange={(e) => setBillNo(e.target.value)} placeholder="INV-1234"
+                    <label htmlFor="po-bill-no" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill No.</label>
+                    <input id="po-bill-no" value={billNo} onChange={(e) => setBillNo(e.target.value)} placeholder="INV-1234"
                       className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill Date</label>
-                    <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)}
+                    <label htmlFor="po-bill-date" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill Date</label>
+                    <input id="po-bill-date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)}
                       className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Taxable (₹)</label>
-                    <input type="number" min={0} value={billTaxable} onChange={(e) => setBillTaxable(e.target.value)} placeholder="0"
+                    <label htmlFor="po-bill-taxable" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Taxable (₹)</label>
+                    <input id="po-bill-taxable" type="number" min={0} value={billTaxable} onChange={(e) => setBillTaxable(e.target.value)} placeholder="0"
                       className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-red-600" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">GST / ITC (₹)</label>
-                    <input type="number" min={0} value={billGst} onChange={(e) => setBillGst(e.target.value)} placeholder="0"
+                    <label htmlFor="po-bill-gst" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">GST / ITC (₹)</label>
+                    <input id="po-bill-gst" type="number" min={0} value={billGst} onChange={(e) => setBillGst(e.target.value)} placeholder="0"
                       className="w-full px-2.5 py-1.5 rounded-none border border-slate-300 text-xs font-bold font-mono text-emerald-800 focus:outline-none focus:border-red-600" />
                   </div>
-                  {canManagePurchases && (
-                    <div className="col-span-2 sm:col-span-4">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label htmlFor="po-bill-file" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Bill file</label>
+                    <select id="po-bill-file" value={billAttachmentId} onChange={(e) => setBillAttachmentId(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-none border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:border-red-600">
+                      <option value="">{attachments.length ? 'None' : 'No files attached'}</option>
+                      {attachments.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                    <div className="col-span-2 sm:col-span-5">
                       <button
                         type="button"
-                        onClick={() => {
+                        disabled={savingBill}
+                        onClick={async () => {
                           // PUR3-8: same rules as the server, with a message before sending.
                           const t = Number(billTaxable) || 0;
                           const g = Number(billGst) || 0;
@@ -695,17 +763,28 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                           if (billDate > getTodayDateString()) { toast.error('A supplier bill cannot be dated in the future.'); return; }
                           if (t < 0 || g < 0) { toast.error('Taxable value and GST cannot be negative.'); return; }
                           if (g > Math.round(t * 0.28 * 100) / 100 + 1) { toast.error('GST cannot be more than 28% of the taxable value.'); return; }
-                          void recordPurchaseBill(purchaseOrder.id, { number: billNo.trim(), date: billDate, taxable: t, gst: g });
+                          setSavingBill(true);
+                          const saved = await recordPurchaseBill(purchaseOrder.id, {
+                            ...(editingBillId ? { id: editingBillId } : {}),
+                            number: billNo.trim(), date: billDate, taxable: t, gst: g, attachmentId: billAttachmentId || null,
+                          });
+                          setSavingBill(false);
+                          if (saved) resetBillForm();
                         }}
-                        className="px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold border border-red-700 transition-colors cursor-pointer"
+                        className="px-3 py-1.5 rounded-none bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-bold border border-red-700 transition-colors cursor-pointer"
                       >
-                        Save Bill
+                        {editingBillId ? 'Save Changes' : bills.length ? 'Add Another Bill' : 'Save Bill'}
                       </button>
-                      <span className="text-[11px] text-slate-400 ml-2">Enter the supplier's tax invoice so the GST counts as input tax credit in GSTR‑3B.</span>
+                      {editingBillId && (
+                        <button type="button" onClick={resetBillForm} className="ml-2 px-3 py-1.5 rounded-none border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
+                      )}
+                      <span className="text-[11px] text-slate-500 ml-2">Enter each supplier tax invoice (one per delivery) so its GST counts as input tax credit in GSTR‑3B.</span>
                     </div>
-                  )}
                 </div>
+                )}
               </div>
+                );
+              })()}
 
               {/* Vendor payments — how much paid to the vendor, how much still due */}
               {(() => {

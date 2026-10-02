@@ -95,3 +95,32 @@ export const allocatedOf = (p: any): number =>
 
 /** Part of a vendor payment not applied to any PO — a vendor advance. */
 export const unappliedOf = (p: any): number => Math.max(0, r2(num(p?.amount) - allocatedOf(p)));
+
+/** One supplier tax invoice (bill) recorded on a PO (E2E5-11). */
+export interface SupplierBill {
+  id: string;
+  number: string;
+  date: string;
+  taxable: number;
+  gst: number;
+  attachmentId?: string | null;
+  recordedAt?: string;
+  recordedBy?: string | null;
+}
+
+/**
+ * The supplier bills on a PO: its list, or — on a PO saved before several bills
+ * were allowed — its single bill from the old supplierBill* fields.
+ * Mirrored by supplierBillsOf in src/types/index.ts.
+ */
+export function supplierBillsOf(po: any): SupplierBill[] {
+  if (Array.isArray(po?.supplierBills)) return po.supplierBills as SupplierBill[];
+  if (!po?.supplierBillNumber && !(num(po?.supplierBillGst) > 0)) return [];
+  return [{
+    id: 'bill-legacy', number: String(po.supplierBillNumber || ''), date: String(po.supplierBillDate || po.date || ''),
+    taxable: num(po.supplierBillTaxable), gst: num(po.supplierBillGst),
+  }];
+}
+
+/** A bill number compared the way people retype it: case, spaces and dashes ignored. */
+export const billNumberKey = (n: unknown) => String(n ?? '').toUpperCase().replace(/[\s\-_/.]+/g, '');

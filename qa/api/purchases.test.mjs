@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, near, createItem, stockOf, createPO, getPO, anyVendor, together, paymentsFor,
-  uid, randomPhone, addDays,
+  uid, randomPhone, addDays, sql,
 } from './lib.mjs';
 
 /** A fresh supplier, so advances / payables of other tests can't interfere. */
@@ -420,5 +420,64 @@ describe('purchases', () => {
     expectStatus(await post('/api/vendors', { vendorName: `Other ${uid()}`, contactNo: randomPhone(), address: '', gstin }), 409, 'same GSTIN');
     expectStatus(await post('/api/vendors', { vendorName: v.vendorName.toUpperCase(), contactNo: `+91 ${v.contactNo}`, address: '' }), 409, 'same name + phone');
     ok(await post('/api/vendors', { ...v, address: 'edited' }), 'editing the supplier itself is fine');
+  });
+});
+
+describe('several supplier bills per PO', () => {
+  test('E2E5-11 a PO keeps one supplier bill per delivery; the totals and old fields add them up; edit and remove work', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 10, price: 100, tax: 18 }], { vendor });
+    const n1 = `DEL-${uid()}`, n2 = `DEL-${uid()}`;
+    ok(await post('/api/purchase/attachment', { poId: po.id, attachment: { name: 'bill1.pdf', type: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0=' }, actor: 'QA' }));
+    const file = (await getPO(po.id)).attachments[0];
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: n1, date: '2026-09-16', taxable: 600, gst: 108, attachmentId: file.id } }), 'first delivery bill');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: n2, date: '2026-09-20', taxable: 400, gst: 72 } }), 'second delivery bill');
+    let after = await getPO(po.id);
+    assert.equal(after.supplierBills.length, 2, 'both bills kept');
+    assert.equal(after.supplierBills[0].attachmentId, file.id, 'bill linked to its file');
+    near(after.supplierBillGst, 180, 'old field carries the total GST');
+    near(after.supplierBillTaxable, 1000);
+    assert.equal(after.supplierBillDate, '2026-09-20');
+    // A file that isn't on the PO can't be linked.
+    expectStatus(await post('/api/purchase/bill', { poId: po.id, bill: { number: `X-${uid()}`, date: '2026-09-20', taxable: 1, gst: 0, attachmentId: 'att-nope' } }), 400);
+    // Edit the second bill, then remove the first.
+    const second = after.supplierBills[1];
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { id: second.id, number: n2, date: '2026-09-21', taxable: 500, gst: 90 } }), 'edit keeps its own number');
+    ok(await post('/api/purchase/bill/delete', { poId: po.id, billId: after.supplierBills[0].id }), 'remove first');
+    after = await getPO(po.id);
+    assert.deepEqual(after.supplierBills.map((b) => [b.number, b.date, b.gst]), [[n2, '2026-09-21', 90]]);
+    near(after.supplierBillGst, 90);
+  });
+
+  test('E2E5-11 the same supplier bill number cannot be recorded twice for one vendor', async () => {
+    const vendor = await newVendor();
+    const other = await newVendor();
+    const item = await createItem();
+    const po1 = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    const po2 = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    const po3 = await createPO([{ item, qty: 2, price: 100 }], { vendor: other });
+    const n = `INV-${uid()}`;
+    ok(await post('/api/purchase/bill', { poId: po1.id, bill: { number: n, date: '2026-09-16', taxable: 100, gst: 18 } }));
+    const dupSame = await post('/api/purchase/bill', { poId: po1.id, bill: { number: n, date: '2026-09-17', taxable: 100, gst: 18 } });
+    expectStatus(dupSame, 409, 'same PO');
+    assert.equal(dupSame.body.error, 'DUPLICATE_SUPPLIER_BILL');
+    expectStatus(await post('/api/purchase/bill', { poId: po2.id, bill: { number: ` ${n.toLowerCase()} `, date: '2026-09-17', taxable: 100, gst: 18 } }), 409, 'other PO, retyped');
+    ok(await post('/api/purchase/bill', { poId: po3.id, bill: { number: n, date: '2026-09-17', taxable: 100, gst: 18 } }), 'another vendor may use the same number');
+  });
+
+  test('E2E5-11 an older PO with only the single-bill fields still reads as one bill and gains a second', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    const old = `OLD-${uid()}`;
+    if (!sql('SELECT 1')) return; // needs DATABASE_URL to fake the older row
+    sql(`UPDATE "PurchaseOrder" SET "supplierBillNumber"='${old}', "supplierBillDate"='2026-09-10', "supplierBillTaxable"=200, "supplierBillGst"=36, "supplierBills"=NULL WHERE id='${po.id}'`);
+    expectStatus(await post('/api/purchase/bill', { poId: po.id, bill: { number: old, date: '2026-09-12', taxable: 1, gst: 0 } }), 409, 'old bill number is known');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: `NEW-${uid()}`, date: '2026-09-12', taxable: 100, gst: 18 } }));
+    const after = await getPO(po.id);
+    assert.equal(after.supplierBills.length, 2, 'the old bill is kept as the first entry');
+    assert.equal(after.supplierBills[0].number, old);
+    near(after.supplierBillGst, 54);
   });
 });

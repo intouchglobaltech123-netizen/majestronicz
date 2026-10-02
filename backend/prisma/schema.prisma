@@ -384,6 +384,11 @@ model PurchaseOrder {
   supplierBillDate    String?
   supplierBillTaxable Float?
   supplierBillGst     Float?
+  // E2E5-11: several supplier bills per PO (one per delivery):
+  // [{ id, number, date, taxable, gst, attachmentId?, recordedAt, recordedBy }].
+  // NULL on POs saved before — those keep their single supplierBill* fields,
+  // which are also kept as the totals of this list for older screens.
+  supplierBills       Json?
   createdAt           String
   updatedAt           String
 }

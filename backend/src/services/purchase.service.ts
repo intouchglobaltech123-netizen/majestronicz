@@ -9,7 +9,7 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { allowsFractionalQty } from '../lib/units.js';
 import { archivedItemError } from '../lib/lineValidation.js';
-import { lineSettled, lineGoodValue, poPayCap } from '../lib/poMoney.js';
+import { lineSettled, lineGoodValue, poPayCap, supplierBillsOf, billNumberKey, SupplierBill } from '../lib/poMoney.js';
 
 const poSnapshot = async (tx: any) => ({
   purchaseOrders: await tx.purchaseOrder.findMany(),
@@ -66,7 +66,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     // are added by receipts only, and totals are always recomputed from lines.
     const SERVER_MANAGED = [
       'status', 'amountPaid', 'poNumber', 'receivingHistory', 'debitNotes', 'payments',
-      'supplierBillNumber', 'supplierBillDate', 'supplierBillTaxable', 'supplierBillGst', 'attachments',
+      'supplierBillNumber', 'supplierBillDate', 'supplierBillTaxable', 'supplierBillGst', 'supplierBills', 'attachments',
       'otherCharges', 'totalAmount', 'totalTax', 'createdAt', 'updatedAt',
     ];
     // Price × ordered qty and the tax on it, recomputed from the line itself.
@@ -611,6 +611,10 @@ export function deleteAttachment(poId: string, attachmentId: string, reqUser?: a
       where: { id: poId },
       data: {
         attachments: ((po.attachments as any[]) || []).filter((a) => a.id !== attachmentId),
+        // A supplier bill that pointed at this file keeps its figures, not the link.
+        ...(Array.isArray(po.supplierBills)
+          ? { supplierBills: (po.supplierBills as any[]).map((b) => (b?.attachmentId === attachmentId ? { ...b, attachmentId: null } : b)) }
+          : {}),
         updatedAt: nowIso(),
       },
     });
@@ -618,7 +622,12 @@ export function deleteAttachment(poId: string, attachmentId: string, reqUser?: a
   });
 }
 
-/** Save the supplier's tax invoice (bill) details on a PO — enables Input Tax Credit. */
+/**
+ * Add or edit one supplier tax invoice (bill) on a PO — enables Input Tax
+ * Credit. A PO can carry several bills, one per delivery (E2E5-11): a bill with
+ * an `id` already on the PO is edited, otherwise it is added. The same bill
+ * number can't be recorded twice for one supplier (on this or another PO).
+ */
 export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
@@ -640,18 +649,61 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     if (gst > Math.round(taxable * 0.28 * 100) / 100 + 1) {
       throw new AppError('BAD_BILL', `GST of ₹${gst} is more than 28% of the taxable value ₹${taxable}.`, 400);
     }
-    await tx.purchaseOrder.update({
-      where: { id: poId },
-      data: {
-        supplierBillNumber: number,
-        supplierBillDate: date,
-        supplierBillTaxable: Math.round(taxable * 100) / 100,
-        supplierBillGst: Math.round(gst * 100) / 100,
-        updatedAt: nowIso(),
-      },
-    });
+    const attachmentId = bill?.attachmentId ? String(bill.attachmentId) : null;
+    if (attachmentId && !((po.attachments as any[]) || []).some((a: any) => a?.id === attachmentId)) {
+      throw new AppError('BAD_ATTACHMENT', 'The attached file is not on this purchase order.', 400);
+    }
+    const bills = supplierBillsOf(po).map((b) => ({ ...b }));
+    const editId = bill?.id ? String(bill.id) : '';
+    const at = editId ? bills.findIndex((b) => b.id === editId) : -1;
+    if (editId && at < 0) throw new AppError('NOT_FOUND', 'That supplier bill is not on this purchase order.', 404);
+    // The same supplier bill can't be claimed twice (double ITC).
+    const key = billNumberKey(number);
+    const others = await tx.purchaseOrder.findMany({ where: { vendorId: po.vendorId, NOT: { status: 'Cancelled' } } });
+    for (const other of others) {
+      for (const b of supplierBillsOf(other)) {
+        if (other.id === po.id && b.id === editId) continue;
+        if (billNumberKey(b.number) === key) {
+          throw new AppError('DUPLICATE_SUPPLIER_BILL', `Bill ${b.number} from this supplier is already recorded on ${other.poNumber || 'another PO'}.`, 409);
+        }
+      }
+    }
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const entry = {
+      ...(at >= 0 ? bills[at] : {}),
+      id: at >= 0 ? bills[at].id : rid('sbill'),
+      number, date, taxable: r2(taxable), gst: r2(gst), attachmentId,
+      recordedAt: nowIso(), recordedBy: reqUser?.name ?? null,
+    };
+    if (at >= 0) bills[at] = entry; else bills.push(entry);
+    await tx.purchaseOrder.update({ where: { id: poId }, data: { ...billFields(bills), updatedAt: nowIso() } });
     return poSnapshot(tx);
   });
+}
+
+/** Remove one supplier bill from a PO (a wrong entry). */
+export function deletePurchaseBill(poId: string, billId: string, reqUser?: any) {
+  return prisma.$transaction(async (tx: any) => {
+    const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
+    if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+    assertBranchAllowed(reqUser, po.branchId);
+    const bills = supplierBillsOf(po);
+    if (!bills.some((b) => b.id === billId)) throw new AppError('NOT_FOUND', 'That supplier bill is not on this purchase order.', 404);
+    await tx.purchaseOrder.update({ where: { id: poId }, data: { ...billFields(bills.filter((b) => b.id !== billId)), updatedAt: nowIso() } });
+    return poSnapshot(tx);
+  });
+}
+
+/** The bill list plus the old single-bill fields kept as its totals (older screens read those). */
+function billFields(bills: SupplierBill[]) {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    supplierBills: bills as any,
+    supplierBillNumber: bills.length ? bills.map((b) => b.number).join(', ').slice(0, 250) : null,
+    supplierBillDate: bills.length ? bills.map((b) => b.date).sort().pop() : null,
+    supplierBillTaxable: bills.length ? r2(bills.reduce((t, b) => t + (Number(b.taxable) || 0), 0)) : null,
+    supplierBillGst: bills.length ? r2(bills.reduce((t, b) => t + (Number(b.gst) || 0), 0)) : null,
+  };
 }
 
 /** Record a payment made to the vendor against a PO (increments Paid, logs history). */

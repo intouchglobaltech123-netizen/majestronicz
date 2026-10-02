@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope, BRANCHES } from '../../types';
+import { BranchScope, BRANCHES, supplierBillsOf } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
@@ -26,22 +26,25 @@ export const InputTaxCreditReportTab: React.FC<Props> = ({ startDate, endDate, b
     for (const po of purchaseOrders) {
       if (po.status === 'Cancelled') continue;
       if (branchScope !== 'all' && po.branchId !== branchScope) continue;
-      const hasBill = !!po.supplierBillNumber || (po.supplierBillGst || 0) > 0;
-      if (!hasBill) {
+      const bills = supplierBillsOf(po);
+      if (!bills.length) {
         // Received POs that still have no supplier bill (no ITC possible yet).
         if (po.status === 'Received' || po.status === 'Partially Received') missingBills += 1;
         continue;
       }
-      const d = po.supplierBillDate || po.date;
-      if (startDate && d < startDate) continue;
-      if (endDate && d > endDate) continue;
-      const t = po.supplierBillTaxable || 0;
-      const g = po.supplierBillGst || 0;
-      rows.push({
-        billDate: d, billNo: po.supplierBillNumber || '—', vendor: po.vendorName,
-        gstin: po.vendorGstin || '', poNumber: po.poNumber, taxable: t, gst: g,
-      });
-      taxable += t; gst += g;
+      // One row per supplier bill (a PO delivered in parts has several, E2E5-11).
+      for (const b of bills) {
+        const d = b.date || po.date;
+        if (startDate && d < startDate) continue;
+        if (endDate && d > endDate) continue;
+        const t = Number(b.taxable) || 0;
+        const g = Number(b.gst) || 0;
+        rows.push({
+          billDate: d, billNo: b.number || '—', vendor: po.vendorName,
+          gstin: po.vendorGstin || '', poNumber: po.poNumber, taxable: t, gst: g,
+        });
+        taxable += t; gst += g;
+      }
     }
     rows.sort((a, b) => (a.billDate < b.billDate ? 1 : -1));
     return { rows, totals: { taxable, gst, count: rows.length }, missingBills };

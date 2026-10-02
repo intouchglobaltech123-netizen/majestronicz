@@ -1077,9 +1077,37 @@ export interface PurchaseOrder {
   supplierBillDate?: string; // YYYY-MM-DD
   supplierBillTaxable?: number; // taxable value on the supplier bill
   supplierBillGst?: number; // total GST on the supplier bill (eligible ITC)
+  // Several supplier bills (one per delivery, E2E5-11). Absent on older POs —
+  // read them through supplierBillsOf(), which falls back to the fields above.
+  supplierBills?: SupplierBill[] | null;
   createdAt: string;
   updatedAt: string;
 }
+
+/** One supplier tax invoice (bill) recorded on a PO. */
+export interface SupplierBill {
+  id: string;
+  number: string;
+  date: string; // YYYY-MM-DD
+  taxable: number;
+  gst: number; // eligible ITC
+  attachmentId?: string | null;
+  recordedAt?: string;
+  recordedBy?: string | null;
+}
+
+/**
+ * The supplier bills on a PO: its list, or — on a PO saved before several bills
+ * were allowed — its single bill. Mirrors supplierBillsOf in backend/src/lib/poMoney.ts.
+ */
+export const supplierBillsOf = (po: Pick<PurchaseOrder, 'supplierBills' | 'supplierBillNumber' | 'supplierBillDate' | 'supplierBillTaxable' | 'supplierBillGst' | 'date'>): SupplierBill[] => {
+  if (Array.isArray(po.supplierBills)) return po.supplierBills;
+  if (!po.supplierBillNumber && !((Number(po.supplierBillGst) || 0) > 0)) return [];
+  return [{
+    id: 'bill-legacy', number: po.supplierBillNumber || '', date: po.supplierBillDate || po.date,
+    taxable: Number(po.supplierBillTaxable) || 0, gst: Number(po.supplierBillGst) || 0,
+  }];
+};
 
 /** A single payment made to the vendor against a PO. */
 export interface POPayment {

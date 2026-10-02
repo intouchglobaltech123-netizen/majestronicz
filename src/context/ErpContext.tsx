@@ -442,7 +442,8 @@ interface ErpContextType {
   ) => Promise<boolean>;
   recordPurchaseOrderPayment: (poId: string, amount: number, mode: string) => Promise<boolean>;
   applyVendorAdvance: (vendorId: string, poId: string, amount?: number) => Promise<boolean>;
-  recordPurchaseBill: (poId: string, bill: { number: string; date: string; taxable: number; gst: number }) => Promise<boolean>;
+  recordPurchaseBill: (poId: string, bill: { id?: string; number: string; date: string; taxable: number; gst: number; attachmentId?: string | null }) => Promise<boolean>;
+  deletePurchaseBill: (poId: string, billId: string) => Promise<boolean>;
   addPurchaseOrderAttachment: (
     poId: string,
     attachment: Omit<PurchaseOrderAttachment, 'id' | 'uploadedAt' | 'uploadedBy'>
@@ -3625,11 +3626,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recordPurchaseBill = async (
     poId: string,
-    bill: { number: string; date: string; taxable: number; gst: number }
+    bill: { id?: string; number: string; date: string; taxable: number; gst: number; attachmentId?: string | null }
   ): Promise<boolean> => {
     const snap = await runPurchase(() => apiPost('/api/purchase/bill', { poId, bill }), 'Could not save the supplier bill');
     if (!snap) return false;
     toast.success('Supplier bill saved — input tax credit updated');
+    return true;
+  };
+
+  const deletePurchaseBill = async (poId: string, billId: string): Promise<boolean> => {
+    const snap = await runPurchase(() => apiPost('/api/purchase/bill/delete', { poId, billId }), 'Could not remove the supplier bill');
+    if (!snap) return false;
+    toast.success('Supplier bill removed');
     return true;
   };
 
@@ -4083,6 +4091,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordPurchaseOrderPayment,
         applyVendorAdvance,
         recordPurchaseBill,
+        deletePurchaseBill,
         addPurchaseOrderAttachment,
         deletePurchaseOrderAttachment,
         getNextPoNumber,

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchScope } from '../../types';
+import { BranchScope, supplierBillsOf } from '../../types';
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
@@ -54,12 +54,14 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     for (const po of purchaseOrders) {
       if (po.status === 'Cancelled') continue;
       if (branchScope !== 'all' && po.branchId !== branchScope) continue;
-      const g = po.supplierBillGst || 0;
-      if (g <= 0) continue;
-      const d = po.supplierBillDate || po.date;
-      if (startDate && d < startDate) continue;
-      if (endDate && d > endDate) continue;
-      total += g;
+      for (const b of supplierBillsOf(po)) {
+        const g = Number(b.gst) || 0;
+        if (g <= 0) continue;
+        const d = b.date || po.date;
+        if (startDate && d < startDate) continue;
+        if (endDate && d > endDate) continue;
+        total += g;
+      }
     }
     return Math.round(total * 100) / 100;
   }, [purchaseOrders, startDate, endDate, branchScope]);
