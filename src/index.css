@@ -542,6 +542,23 @@ table tbody tr:hover {
     break-inside: avoid;
   }
 
+  /* Toasts never print (E2E6-10). */
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+  /* Long bills/quotes (E2E5-17): the goods table's header repeats on every
+     page and no row is cut across a page break. */
+  #printable-invoice-doc thead,
+  #printable-estimate-doc thead,
+  #printable-po-doc thead {
+    display: table-header-group;
+  }
+  #printable-invoice-doc tr,
+  #printable-estimate-doc tr,
+  #printable-po-doc tr {
+    break-inside: avoid;
+  }
+
   #printable-estimate-doc,
   #printable-invoice-doc {
     width: 100% !important;

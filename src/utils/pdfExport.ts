@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { toast } from 'sonner';
 // html2canvas-pro (drop-in fork) understands CSS Color 4 functions like oklch()
 // and lab(), which Tailwind v4 emits. The legacy html2canvas 1.4.1 throws
 // "unsupported color function 'oklch'" and aborts the whole export (SAL-3).
@@ -51,6 +52,8 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
       backgroundColor: '#ffffff',
       windowWidth: A4_WIDTH_PX,
       width: A4_WIDTH_PX,
+      // Never paint an on-screen toast into the document (E2E6-10).
+      ignoreElements: (el) => el.hasAttribute?.('data-sonner-toaster') || el.hasAttribute?.('data-sonner-toast'),
     });
   } finally {
     // Always restore the on-screen layout, even if capture threw.
@@ -96,16 +99,36 @@ async function renderElementToPdf(elementId: string, options: ExportPdfOptions =
 const ensurePdfExt = (filename: string) => (filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
 
 /**
- * Captures an HTML element and triggers a direct PDF file download in the browser
- * without opening the native print dialog.
+ * Print a document through the browser's own print pipeline (E2E5-17 / SAL4-6).
+ * `bodyClass` is the print scope in index.css that hides the app and lets the
+ * document flow across A4 pages — selectable text, the goods-table header
+ * repeated on every page and no row cut in half.
+ *
+ * With `saveAsPdf`, the same layout is what "Save as PDF" produces: the print
+ * dialog opens with the file name preset (Chromium names the PDF after the
+ * page title) and a hint to choose "Save as PDF" as the destination. That
+ * replaces the old image capture, which sliced one screenshot into pages.
  */
-export async function exportElementToPdf(
-  elementId: string,
-  filename: string,
-  options: ExportPdfOptions = {}
-): Promise<void> {
-  const pdf = await renderElementToPdf(elementId, options);
-  pdf.save(ensurePdfExt(filename));
+export function printDocument(bodyClass: string, opts: { saveAsPdf?: string } = {}): void {
+  const previousTitle = document.title;
+  if (opts.saveAsPdf) {
+    document.title = opts.saveAsPdf.replace(/\.pdf$/i, '').replace(/[\\/:*?"<>|]+/g, '-');
+    toast.info('Choose "Save as PDF" as the destination in the print window.', { id: 'save-as-pdf', duration: 6000 });
+  }
+  document.body.classList.add(bodyClass);
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    document.body.classList.remove(bodyClass);
+    document.title = previousTitle;
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => {
+    window.print();
+    setTimeout(cleanup, 1000);
+  }, 50);
 }
 
 /**

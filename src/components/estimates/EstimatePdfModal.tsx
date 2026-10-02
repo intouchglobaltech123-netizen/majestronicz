@@ -15,7 +15,7 @@ import {
   Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportElementToPdf } from '../../utils/pdfExport';
+import { printDocument } from '../../utils/pdfExport';
 
 interface Props {
   estimate: Estimate | null;
@@ -26,7 +26,6 @@ interface Props {
 export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose }) => {
   const { items } = useErp();
   const [copied, setCopied] = React.useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
 
   // Inter-state quote → IGST; intra-state → SGST + CGST (SAL8-5).
   const interState = isInterStateSupply(estimate?.stateOfSupply);
@@ -54,39 +53,10 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   // and the GST on the discounted value are shown once, in the summary.
   const overallDiscountAmount = estimate.overallDiscountAmount || 0;
 
-  const handlePrint = () => {
-    // Hide the app during print so a long quote flows across pages (SAL4-7).
-    document.body.classList.add('invoice-printing');
-    const cleanup = () => {
-      document.body.classList.remove('invoice-printing');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    setTimeout(() => {
-      window.print();
-      setTimeout(cleanup, 1000);
-    }, 50);
-  };
-
-  const handleSavePdf = async () => {
-    try {
-      setIsDownloadingPdf(true);
-      toast.loading('Generating PDF document...', { id: 'estimate-pdf' });
-      await exportElementToPdf('printable-estimate-doc', `${estimate.estimateNumber}.pdf`);
-      toast.success('PDF saved successfully', {
-        id: 'estimate-pdf',
-        description: `Downloaded ${estimate.estimateNumber}.pdf`,
-      });
-    } catch (err) {
-      console.error('Failed to export PDF:', err);
-      toast.error('Failed to generate PDF', {
-        id: 'estimate-pdf',
-        description: 'Please try using the Print button to save as PDF.',
-      });
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
+  // Print and "Save as PDF" share one layout: the browser's print pipeline
+  // (#root hidden, the document flowing across A4 pages — SAL4-7, E2E5-17).
+  const handlePrint = () => printDocument('invoice-printing');
+  const handleSavePdf = () => printDocument('invoice-printing', { saveAsPdf: `${estimate.estimateNumber}.pdf` });
 
   const handleShareWhatsApp = () => {
     const text = `*ESTIMATE / QUOTATION — ${COMPANY_PROFILE.name}*\nEstimate No: ${estimate.estimateNumber}\nDate: ${estimate.date}\nCustomer: ${estimate.customerName}\nGrand Total: ₹${estimate.grandTotal.toLocaleString('en-IN')}\n\nThank you for business with Majestronicz!`;
@@ -519,15 +489,11 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
             <button
               type="button"
               onClick={handleSavePdf}
-              disabled={isDownloadingPdf}
+              title='Opens the print window — choose "Save as PDF" as the destination'
               className="h-10 px-5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
             >
-              {isDownloadingPdf ? (
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-none animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 text-white" />
-              )}
-              <span>{isDownloadingPdf ? 'Generating PDF...' : 'Save as PDF'}</span>
+              <Download className="h-4 w-4 text-white" />
+              <span>Save as PDF</span>
             </button>
 
             {/* 5. Close */}

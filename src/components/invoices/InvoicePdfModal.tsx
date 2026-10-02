@@ -16,7 +16,7 @@ import {
   Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportElementToPdf, exportElementToPdfFile } from '../../utils/pdfExport';
+import { exportElementToPdfFile, printDocument } from '../../utils/pdfExport';
 
 interface Props {
   invoice: Invoice | null;
@@ -83,41 +83,10 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const sellerBranch = BRANCHES.find((b) => b.id === invoice.branchId);
   const companyState = gstStateInfo(COMPANY_PROFILE.gstin);
 
-  const handlePrint = () => {
-    // Hide the whole app (#root) during print via @media print, so a long
-    // invoice flows across pages instead of being clipped to one page by the
-    // fixed, scrollable modal overlay (SAL4-7). Mirrors the barcode print scope.
-    document.body.classList.add('invoice-printing');
-    const cleanup = () => {
-      document.body.classList.remove('invoice-printing');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    setTimeout(() => {
-      window.print();
-      setTimeout(cleanup, 1000);
-    }, 50);
-  };
-
-  const handleSavePdf = async () => {
-    try {
-      setIsDownloadingPdf(true);
-      toast.loading('Generating PDF document...', { id: 'invoice-pdf' });
-      await exportElementToPdf('printable-invoice-doc', `${invoice.invoiceNumber}.pdf`);
-      toast.success('PDF saved successfully', {
-        id: 'invoice-pdf',
-        description: `Downloaded ${invoice.invoiceNumber}.pdf`,
-      });
-    } catch (err) {
-      console.error('Failed to export PDF:', err);
-      toast.error('Failed to generate PDF', {
-        id: 'invoice-pdf',
-        description: 'Please try using the Print button to save as PDF.',
-      });
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
+  // Print and "Save as PDF" share one layout: the browser's print pipeline
+  // (#root hidden, the document flowing across A4 pages — SAL4-7, E2E5-17).
+  const handlePrint = () => printDocument('invoice-printing');
+  const handleSavePdf = () => printDocument('invoice-printing', { saveAsPdf: `${invoice.invoiceNumber}.pdf` });
 
   // Normalise an Indian mobile number for wa.me (expects country code, no +/spaces).
   const waNumber = (phone?: string | null): string => {
@@ -176,7 +145,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     }
     // Fallback (desktop / unsupported): open WhatsApp with the text + rating link.
     openWhatsAppText();
-    toast.info('Opening WhatsApp with invoice details. Use “Download PDF” to attach the bill.', { duration: 5000 });
+    toast.info('Opening WhatsApp with invoice details. Use “Save as PDF” to attach the bill.', { duration: 5000 });
   };
 
   const handleCopySummary = () => {
@@ -638,15 +607,11 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <button
               type="button"
               onClick={handleSavePdf}
-              disabled={isDownloadingPdf}
+              title='Opens the print window — choose "Save as PDF" as the destination'
               className="h-10 px-5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded-none transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
             >
-              {isDownloadingPdf ? (
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-none animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 text-white" />
-              )}
-              <span>{isDownloadingPdf ? 'Generating PDF...' : 'Save as PDF'}</span>
+              <Download className="h-4 w-4 text-white" />
+              <span>Save as PDF</span>
             </button>
 
             {/* 5. Close */}
