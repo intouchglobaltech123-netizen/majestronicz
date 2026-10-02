@@ -91,6 +91,9 @@ export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | u
       // linked pending order (re-saving must not spawn a second one).
       e.enquiryNumber = existingEnq.enquiryNumber;
       e.createdAt = existingEnq.createdAt;
+      // The status is server-owned too; the upsert's create branch needs it, so
+      // an edit without it was refused (400) — keep the stored one.
+      e.status = existingEnq.status;
       e.hasPendingOrder = existingEnq.hasPendingOrder;
       e.pendingOrderId = existingEnq.pendingOrderId;
     } else {
@@ -100,7 +103,7 @@ export function saveEnquiry(enquiry: any, initialExpectedRestockDate: string | u
       // browser's guess collided when two counters logged enquiries together.
       e.enquiryNumber = await nextEnquiryNumber(tx, e.branchId);
       e.status = 'Follow-up';
-      if (!e.createdAt) e.createdAt = nowIso();
+      e.createdAt = nowIso(); // ACT-1: when it was logged is the server's clock, not the request's
     }
     e.updatedAt = nowIso();
     const newReminder = !!(e.reminderDate && e.reminderTime) &&
