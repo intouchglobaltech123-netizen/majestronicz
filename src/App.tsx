@@ -26,6 +26,7 @@ import { Toaster } from 'sonner';
 import { Minimize2 } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
 import { readScoped, writeScoped } from './lib/userPrefs';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const SIDEBAR_COLLAPSED_KEY = 'majestronicz_sidebar_collapsed';
 
@@ -215,12 +216,20 @@ const AppContent: React.FC = () => {
           {/* Billing (Sales / Quotations) stays MOUNTED even when you switch to
               another section, so any open bill tabs and their in-progress work are
               still there when you come back. It is just hidden while off-screen. */}
+          {/* Each screen has its own error boundary (PLT3-2): a crash in one
+              screen shows an error panel in the content area only, so the sidebar,
+              top bar and Sign out keep working and the user can move on. The
+              boundary resets when they navigate. The root boundary in main.tsx
+              stays as the last resort. */}
           <div className={isBilling ? undefined : 'hidden'}>
-            <InvoiceView initialTab={currentView === 'estimates' ? 'estimates' : 'ledger'} />
+            <ErrorBoundary variant="screen" resetKey={currentView}>
+              <InvoiceView initialTab={currentView === 'estimates' ? 'estimates' : 'ledger'} />
+            </ErrorBoundary>
           </div>
 
           {!isBilling && (
-            currentView === 'dashboard' ? (
+            <ErrorBoundary variant="screen" resetKey={currentView}>
+            {currentView === 'dashboard' ? (
               <DashboardView />
             ) : currentView === 'parties' ? (
               <PartiesView />
@@ -254,7 +263,8 @@ const AppContent: React.FC = () => {
               <AppSettingsView />
             ) : (
               <ItemMasterView />
-            )
+            )}
+            </ErrorBoundary>
           )}
         </main>
       </div>

@@ -2,6 +2,14 @@ import React from 'react';
 
 interface Props {
   children: React.ReactNode;
+  /**
+   * 'screen' renders the fallback inside the content area only, so the sidebar,
+   * top bar and Sign out stay usable (PLT3-2). 'page' (default) is the last-resort
+   * full-page fallback at the app root.
+   */
+  variant?: 'page' | 'screen';
+  /** When this value changes (e.g. the user navigates elsewhere) the error is cleared. */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -25,6 +33,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidUpdate(prev: Props) {
+    // Moving to another screen gives it a fresh start instead of keeping the
+    // previous screen's error up.
+    if (this.state.hasError && prev.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined });
+    }
+  }
+
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Keep the detail in the console for debugging; never surface stack traces
     // to the user.
@@ -39,14 +55,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (!this.state.hasError) return this.props.children;
+    const isScreen = this.props.variant === 'screen';
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className={isScreen ? 'flex items-center justify-center p-6 py-16' : 'min-h-screen flex items-center justify-center bg-slate-50 p-6'}>
         <div className="max-w-md w-full bg-white border border-slate-300 rounded-lg shadow-sm p-6 text-center space-y-4">
           <div className="text-2xl font-extrabold text-slate-900">Something went wrong</div>
           <p className="text-sm text-slate-600">
             This screen hit an unexpected error. Your data is safe — nothing was lost.
-            Try again, or reload the app.
+            {isScreen ? ' Try again, or pick another screen from the menu.' : ' Try again, or reload the app.'}
           </p>
           {this.state.error?.message && (
             <p className="text-xs font-mono text-rose-700 bg-rose-50 border border-rose-200 rounded px-3 py-2 break-words">
