@@ -4,6 +4,7 @@ import { BranchScope, BRANCHES, PaymentMode, getInvoicePaymentSplits } from '../
 import { exportToCsv } from '../../utils/csvExport';
 import { exportToExcel, exportToPdf, ExportFormat } from '../../utils/exportHelpers';
 import { ReportExportButtons } from './ReportExportButtons';
+import { SALES_EXPORT_HEADERS, salesExportRows } from '../../lib/salesExport';
 import {
   Receipt,
 
@@ -160,52 +161,12 @@ export const SalesReportTab: React.FC<Props> = ({
       : (BRANCHES.find((b) => b.id === branchScope)?.shortCode || branchScope);
     const filename = `Sales_Report_${branchName}_${startDate}_to_${endDate}.csv`;
 
-    const headers = [
-      'Invoice Number',
-      'Date',
-      'Branch',
-      'Customer Name',
-      'Phone',
-      'Payment Mode',
-      'Subtotal (₹)',
-      'CGST (₹)',
-      'SGST (₹)',
-      'Loyalty Reward Applied',
-      'Loyalty Discount (₹)',
-      'Total Amount (₹)',
-      'Returned (₹)',
-      'Net (₹)',
-      'Status',
-    ];
-
-    const rows: (string | number)[][] = filteredInvoices.map((inv) => {
-      const bObj = BRANCHES.find((b) => b.id === inv.branchId);
-      const discountGiven = inv.isLoyaltyRewardApplied
-        ? (inv.loyaltyRewardDiscountAmount || inv.overallDiscountAmount || 0)
-        : 0;
-      const returned = inv.totalReturnedAmount || 0;
-      const net = Math.max(0, (inv.grandTotal || 0) - returned);
-      const status = returned > 0
-        ? (net <= 0 ? 'Fully Returned' : 'Partially Returned')
-        : (inv.isPartialPayment ? 'Partial Payment' : 'Fully Billed');
-      return [
-        inv.invoiceNumber,
-        inv.date,
-        bObj?.name || inv.branchId,
-        inv.customerName,
-        inv.customerPhone || '—',
-        inv.paymentMode,
-        inv.subtotal.toFixed(2),
-        inv.totalCgst.toFixed(2),
-        inv.totalSgst.toFixed(2),
-        inv.isLoyaltyRewardApplied ? 'Yes' : 'No',
-        discountGiven.toFixed(2),
-        inv.grandTotal.toFixed(2),
-        returned.toFixed(2),
-        net.toFixed(2),
-        status,
-      ];
-    });
+    // One layout with the Sales list (SAL6-9 / RPT-4): status for every bill,
+    // every payment mode of a split, returns, net, received, due and a totals row.
+    const headers = SALES_EXPORT_HEADERS;
+    const rows: (string | number)[][] = salesExportRows(
+      [...filteredInvoices].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.invoiceNumber || '').localeCompare(b.invoiceNumber || '')),
+    );
 
     // Add empty row separator and Summary section
     rows.push([]);

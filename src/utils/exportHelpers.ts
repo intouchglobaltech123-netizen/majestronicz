@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { buildXlsx } from './xlsxWriter';
 
 type Cell = string | number | boolean | null | undefined;
 
@@ -15,38 +16,15 @@ function triggerDownload(blob: Blob, filename: string) {
 
 const baseName = (filename: string) => filename.replace(/\.(csv|xls|xlsx|pdf)$/i, '');
 
-/**
- * Export to a real Excel-openable file (.xls) using an HTML table — no library,
- * opens directly in Excel / Google Sheets with basic formatting.
- */
-// Neutralize spreadsheet formula injection: a cell starting with = + - @ (or tab/CR)
-// is prefixed with an apostrophe so Excel/Sheets treat it as text, not a formula.
-const deFormula = (v: Cell) => {
-  const s = String(v ?? '');
-  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-};
-
+/** Export to Excel as a real .xlsx workbook (text stays text — never a formula). */
 export function exportToExcel(filename: string, headers: string[], rows: Cell[][]): void {
-  const esc = (v: Cell) => deFormula(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // Columns whose header mentions a date: force TEXT format so Excel shows the
-  // value in full (e.g. 2026-08-28) instead of parsing it into a date that a
-  // narrow column renders as "########", and give them a wide column.
-  const isDateCol = headers.map((h) => /date/i.test(String(h)));
-  const colgroup = `<colgroup>${headers
-    .map((_, i) => `<col style="width:${isDateCol[i] ? 92 : 110}px">`)
-    .join('')}</colgroup>`;
-  const cellStyle = (i: number) => (isDateCol[i] ? ` style="mso-number-format:'\\@'"` : '');
-  const thead = `<tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>`;
-  const tbody = rows
-    .map((r) => `<tr>${r.map((c, i) => `<td${cellStyle(i)}>${esc(c)}</td>`).join('')}</tr>`)
-    .join('');
-  const html =
-    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">` +
-    `<head><meta charset="utf-8"><style>` +
-    `table{border-collapse:collapse}td,th{border:1px solid #cbd5e1;padding:5px 8px;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap}` +
-    `th{background:#e2e8f0;font-weight:bold;text-align:left}</style></head>` +
-    `<body><table>${colgroup}${thead}${tbody}</table></body></html>`;
-  triggerDownload(new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' }), `${baseName(filename)}.xls`);
+  // A real .xlsx workbook (SAL6-9 / RPT-4) — the old HTML-table ".xls" made
+  // Excel warn that the file format and extension don't match.
+  const bytes = buildXlsx(headers, rows, baseName(filename).slice(0, 31) || 'Sheet1');
+  triggerDownload(
+    new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `${baseName(filename)}.xlsx`,
+  );
 }
 
 /**

@@ -3,6 +3,7 @@ import { useErp } from '../../context/ErpContext';
 import { Invoice, Estimate, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
+import { SALES_EXPORT_HEADERS, salesExportRows } from '../../lib/salesExport';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
 import { calculateInvoiceTotals } from '../../lib/taxCalculations';
 import { InvoiceForm } from './InvoiceForm';
@@ -979,21 +980,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
             {/* Take the report out: pick a date range → PDF / Excel / CSV */}
             <ListExportBar
-              build={(from, to) => {
-                const rows = invoices
-                  .filter((inv) => (isAllBranches || inv.branchId === currentBranch) && (!from || (inv.date || '') >= from) && (!to || (inv.date || '') <= to))
-                  .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1))
-                  .map((inv) => [
-                    inv.date, inv.invoiceNumber, inv.customerName, inv.customerPhone || '',
-                    BRANCHES.find((b) => b.id === inv.branchId)?.shortCode || inv.branchId,
-                    inv.paymentMode, inv.transactionType,
-                    (inv.grandTotal || 0).toFixed(2), inv.isVoided ? 'VOIDED' : '',
-                  ]);
-                return {
-                  headers: ['Date', 'Invoice No', 'Customer', 'Phone', 'Branch', 'Mode', 'Type', 'Total (₹)', 'Status'],
-                  rows, title: 'Sales Invoices', filename: `sales-invoices-${from || 'all'}_to_${to || 'all'}`,
-                };
-              }}
+              build={(from, to) => ({
+                // SAL6-9: status for every bill, all payment modes, returns, net,
+                // received, due and a totals row (voided bills listed, not totalled).
+                headers: SALES_EXPORT_HEADERS,
+                rows: salesExportRows(
+                  invoices
+                    .filter((inv) => (isAllBranches || inv.branchId === currentBranch) && (!from || (inv.date || '') >= from) && (!to || (inv.date || '') <= to))
+                    .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1)),
+                ),
+                title: 'Sales Invoices', filename: `sales-invoices-${from || 'all'}_to_${to || 'all'}`,
+              })}
             />
           </div>
 
