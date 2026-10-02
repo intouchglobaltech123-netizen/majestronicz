@@ -65,7 +65,7 @@ Run against a freshly seeded database. Tests use random past dates for cash days
 | `api/cash-register.test.mjs` | Carry-forward of cash sales, down-payments, receipts and expenses; deposit approval; day close; recurring approvals; vendor cash leaving the drawer |
 | `api/purchases.test.mjs` | PO totals and validation, receiving (damaged, missing, duplicate lines, at once), cancel/delete rules, Edit Prices, payments (incl. at once) |
 | `api/stock-ledger.test.mjs` | Stock history matches stock after every kind of change, transfers, branch rules, item delete rules |
-| `api/reports-arithmetic.test.mjs` | GST split, discount before GST, grand total identity, amount in words, splits and dues add up, IGST, invalid values |
+| `api/reports-arithmetic.test.mjs` | GST split, discount before GST, grand total identity, amount in words, splits and dues add up, IGST, invalid values; the screens' own report maths (profit at sale-time cost, write-offs, payroll, one GST figure, collections by receipt mode, Payments Log refunds, exports), imported from `src/` through `api/lib-ts.mjs` |
 | `api/staff-payroll.test.mjs` | Mark Paid (incl. at once), payroll locks, clock-in/out, kiosk PIN lockout and branch check |
 | `smoke/smoke.mjs` | Logs in as each role and opens every sidebar screen. Fails on page errors, the "Something went wrong" screen, or API responses of 500 and above. It first adds a check-in without a location (HRM6-1). |
 | `run.sh` | Reset, seed, start, test, stop. |

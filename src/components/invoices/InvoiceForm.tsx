@@ -2734,7 +2734,7 @@ export const InvoiceForm: React.FC<Props> = ({
                   {gstBreakdown.map((row, i) => (
                     <div key={i} className="flex justify-between font-mono text-slate-700">
                       <span>{row.taxType} @ {row.rate}%:</span>
-                      <span>₹{row.taxAmount.toFixed(2)}</span>
+                      <span>{formatCurrency(row.taxAmount)}</span>
                     </div>
                   ))}
                 </div>
