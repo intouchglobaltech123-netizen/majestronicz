@@ -9,6 +9,7 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { allowsFractionalQty } from '../lib/units.js';
 import { archivedItemError } from '../lib/lineValidation.js';
+import { nextReceiptNumber } from './payment.service.js';
 import { lineSettled, lineGoodValue, poPayCap, supplierBillsOf, billNumberKey, SupplierBill } from '../lib/poMoney.js';
 
 /**
@@ -511,13 +512,12 @@ export function receivePurchaseOrderStock(
     // A vendor payment made while receiving must also hit the cash drawer / Payments
     // Log via a Payment 'out' ledger row (CASH3-5) — not only the PO-embedded entry.
     if (payNow > 0 && ledgerId) {
-      const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
-      const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
-      let maxNo = 0;
-      for (const r of existingRows) { const k = parseInt(String(r.receiptNumber).slice(like.length), 10); if (!Number.isNaN(k)) maxNo = Math.max(maxNo, k); }
+      // CASH9-4: the same persistent PAY- sequence as every other voucher, so a
+      // deleted voucher's number is never reissued.
+      const receiptNumber = await nextReceiptNumber(tx, 'out', today);
       await tx.payment.create({
         data: {
-          id: ledgerId, receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+          id: ledgerId, receiptNumber,
           type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
           branchId: po.branchId, date: today, amount: payNow, paymentMode: payment?.mode || 'Cash',
           reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber} (at receiving)`,
@@ -812,16 +812,10 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     // cash drawer / Payments Log (CASH3-5). The PO page and To Pay previously only
     // wrote the PO-embedded entry, which the drawer never sees, so vendor cash
     // paid there never left the drawer. Booked against the PO's branch.
-    const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
-    const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
-    let maxNo = 0;
-    for (const r of existingRows) {
-      const n = parseInt(String(r.receiptNumber).slice(like.length), 10);
-      if (!Number.isNaN(n)) maxNo = Math.max(maxNo, n);
-    }
+    const receiptNumber = await nextReceiptNumber(tx, 'out', today); // CASH9-4
     await tx.payment.create({
       data: {
-        id: ledgerId, receiptNumber: `${like}${String(maxNo + 1).padStart(4, '0')}`,
+        id: ledgerId, receiptNumber,
         type: 'out', partyType: 'vendor', partyId: po.vendorId ?? null, partyName: po.vendorName || 'Vendor',
         branchId: po.branchId, date: today, amount: pay, paymentMode: mode || 'Cash',
         reference: po.poNumber ?? null, notes: `Vendor payment on PO ${po.poNumber}`,

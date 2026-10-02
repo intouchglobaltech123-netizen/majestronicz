@@ -196,3 +196,40 @@ describe('cash register audit and close rules (phase 6)', () => {
     assert.ok(!mine.some((a) => a.entity === 'user' || a.entity === 'accessMatrix'), 'no branch-less admin events');
   });
 });
+
+describe('round 9: cash endpoints', () => {
+  test('CASH9-2 close/reopen/expense/override need a real date and branch (a missing date never picks a random day)', async () => {
+    const d1 = await freshDay('erode-hq');
+    ok(await post('/api/cash/expense', { branchId: 'erode-hq', date: d1, expense: { reason: 'Tea', cashAmount: 10 } }), 'expense on d1');
+    expectStatus(await post('/api/cash/close', { branchId: 'erode-hq' }), 400, 'close without a date');
+    expectStatus(await post('/api/cash/reopen', { branchId: 'erode-hq' }), 400, 'reopen without a date');
+    expectStatus(await post('/api/cash/close', { branchId: 'erode-hq', date: '2026-13-45' }), 400, 'bad date');
+    expectStatus(await post('/api/cash/expense', { branchId: 'erode-hq', date: 'hello', expense: { reason: 'x', cashAmount: 1 } }), 400, 'bad expense date');
+    assert.equal((await register('erode-hq', d1)).isClosed, false, 'nothing was closed');
+  });
+
+  test('CASH9-3 / SEC9-2 an unknown branch or an absurd amount is refused on every cash action', async () => {
+    const d1 = await freshDay('erode-hq');
+    expectStatus(await post('/api/cash/expense', { branchId: 'mars', date: d1, expense: { reason: 'x', cashAmount: 1 } }), 400, 'expense mars');
+    expectStatus(await post('/api/cash/override', { branchId: 'mars', date: d1, amount: 100, reason: 'x' }), 400, 'override mars');
+    expectStatus(await post('/api/cash/close', { branchId: 'mars', date: d1 }), 400, 'close mars');
+    expectStatus(await post('/api/cash/reopen', { branchId: 'mars', date: d1 }), 400, 'reopen mars');
+    expectStatus(await post('/api/cash/override', { branchId: 'erode-hq', date: d1, amount: 1e15, reason: 'x' }), 400, 'override 1e15');
+    assert.equal(ok(await get('/api/cash-registers')).filter((r) => r.branchId === 'mars').length, 0, 'no register for mars');
+  });
+
+  test('CASH9-4 a vendor voucher number from the PO page is never reissued after a delete', async () => {
+    const item = await createItem({ price: 1000, purchasePrice: 500, stock: {} });
+    const po = await createPO([{ item, qty: 4, price: 500 }]);
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 4 }], actor: 'QA' }), 'receive');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 100, mode: 'GPay' }), 'pay 1');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 100, mode: 'GPay' }), 'pay 2');
+    const vouchers = (await paymentsFor(po.id)).filter((p) => p.type === 'out').sort((a, b) => String(a.receiptNumber).localeCompare(String(b.receiptNumber)));
+    const last = vouchers[vouchers.length - 1];
+    ok(await del(`/api/payments/${last.id}`), 'delete the last voucher');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 100, mode: 'GPay' }), 'pay 3');
+    const after = (await paymentsFor(po.id)).filter((p) => p.type === 'out');
+    assert.ok(!after.some((p) => p.receiptNumber === last.receiptNumber), `${last.receiptNumber} was reissued`);
+    assert.equal(new Set(after.map((p) => p.receiptNumber)).size, after.length, 'unique numbers');
+  });
+});

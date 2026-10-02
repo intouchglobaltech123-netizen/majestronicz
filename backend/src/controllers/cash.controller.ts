@@ -3,6 +3,8 @@ import * as cash from '../services/cash.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { cleanRecurringFields, MAX_AMOUNT } from '../lib/validate.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { isValidBranch } from '../lib/constants.js';
+import { isValidYmd } from '../lib/businessDate.js';
 import { recordAudit } from '../services/audit.service.js';
 
 // CASH-12: who did it comes from the login token, never the request body (a
@@ -15,11 +17,22 @@ const auditActor = (req: Request): string => {
 const audit = (req: Request, action: string, branchId: string, date: string, summary: string, extra: { before?: unknown; after?: unknown } = {}) =>
   recordAudit({ actor: auditActor(req), action, entity: 'cashRegister', entityId: `${branchId}:${date}`, summary, branchId, ...extra });
 const rupees = (n: unknown) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+/** CASH9-2 / CASH9-3 / SEC9-2: every cash action names a real branch and a real
+ *  day — a missing date matched ANY register of the branch (close/reopen acted
+ *  on an arbitrary day), a bad one was a 500, and 'mars' was accepted. */
+const assertCashTarget = (branchId: unknown, date: unknown) => {
+  if (typeof branchId !== 'string' || !isValidBranch(branchId)) throw new AppError('BAD_BRANCH', 'Choose a real branch.', 400);
+  if (!isValidYmd(date)) throw new AppError('BAD_DATE', 'A cash action needs a real date (YYYY-MM-DD).', 400);
+};
+const assertAmountCap = (n: unknown, what: string) => {
+  if ((Number(n) || 0) > MAX_AMOUNT) throw new AppError('BAD_AMOUNT', `${what} is too large.`, 400);
+};
 const registerOf = (snap: any, branchId: string, date: string) =>
   (snap?.cashRegisters || []).find((r: any) => r.branchId === branchId && r.date === date);
 
 export const addExpense = async (req: Request, res: Response) => {
   const { branchId, date, expense } = req.body;
+  assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   // VAL-1: an upper bound on a single expense (₹1e15 used to be accepted).
   if ((Number(expense?.cashAmount) || 0) > MAX_AMOUNT || (Number(expense?.gpayAmount) || 0) > MAX_AMOUNT) {
@@ -32,6 +45,7 @@ export const addExpense = async (req: Request, res: Response) => {
 };
 export const deleteExpense = async (req: Request, res: Response) => {
   const { branchId, date, expenseId } = req.body;
+  assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   const gone = (registerOf({ cashRegisters: await cash.listRegisters(branchId, date) }, branchId, date)?.expenses || [])
     .find((e: any) => e.id === expenseId);
@@ -43,6 +57,7 @@ export const deleteExpense = async (req: Request, res: Response) => {
 };
 export const approveExpense = async (req: Request, res: Response) => {
   const { branchId, date, expenseId, decision } = req.body;
+  assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   const result = await cash.approveExpense(branchId, date, expenseId, decision, actorName(req));
   const e = (registerOf(result, branchId, date)?.expenses || []).find((x: any) => x.id === expenseId);
@@ -52,6 +67,8 @@ export const approveExpense = async (req: Request, res: Response) => {
 };
 export const overrideOpening = async (req: Request, res: Response) => {
   const { branchId, date, amount, reason } = req.body;
+  assertCashTarget(branchId, date);
+  assertAmountCap(amount, 'The opening balance');
   assertBranchAllowed((req as any).user, branchId);
   const before = registerOf({ cashRegisters: await cash.listRegisters(branchId, date) }, branchId, date);
   const result = await cash.overrideOpening(branchId, date, amount, reason);
@@ -61,6 +78,7 @@ export const overrideOpening = async (req: Request, res: Response) => {
 };
 export const closeDay = async (req: Request, res: Response) => {
   const { branchId, date, notes } = req.body;
+  assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   const result = await cash.closeDay(branchId, date, notes, actorName(req));
   const reg = registerOf(result, branchId, date);
@@ -69,6 +87,7 @@ export const closeDay = async (req: Request, res: Response) => {
 };
 export const reopenDay = async (req: Request, res: Response) => {
   const { branchId, date } = req.body;
+  assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   const result = await cash.reopenDay(branchId, date);
   await audit(req, 'cash.reopen', branchId, date, 'Reopened the cash day');
@@ -76,6 +95,8 @@ export const reopenDay = async (req: Request, res: Response) => {
 };
 export const approveRecurring = async (req: Request, res: Response) => {
   const { templateId, branchId, date, amount, paymentMode } = req.body;
+  assertCashTarget(branchId, date);
+  assertAmountCap(amount, 'The approved amount');
   // The recurring approval posts to the template's own branch (see service);
   // still guard the branch the caller claims to be operating on. The service
   // re-guards against the TEMPLATE's branch so a cross-branch template can't be
