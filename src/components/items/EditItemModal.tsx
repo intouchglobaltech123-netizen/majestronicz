@@ -170,7 +170,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
 
   const effective = calculateEffectiveCustomerPrice();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canManageItems) {
       toast.error('Permission denied: You do not have permission to edit items');
       return;
@@ -217,8 +217,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       return;
     }
 
-    // Update Item and Pricing (Stock changes stay exclusively in Inventory)
-    updateItem(item.id, {
+    // Update Item and Pricing (Stock changes stay exclusively in Inventory).
+    // The context shows the one success toast once the server saved it (TOAST-1).
+    const saved = await updateItem(item.id, {
       itemName: itemName.trim(),
       itemHSN: itemHSN.trim(),
       category,
@@ -254,8 +255,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       reorderThreshold: reorderThreshold === '' ? 10 : Math.max(0, Number(reorderThreshold)),
     });
 
-    toast.success('Item details updated successfully');
-    onClose();
+    if (saved) onClose();
   };
 
   const handleNavigateToInventory = () => {

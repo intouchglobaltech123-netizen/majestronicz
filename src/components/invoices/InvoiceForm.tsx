@@ -477,6 +477,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setInvoiceNumber(generated);
       toast.info(isEnquiryPrefill(convertedFromEstimate) ? `Pre-filled from Enquiry ${convertedFromEstimate.sourceEnquiryNumber}` : `Pre-filled from Estimate ${convertedFromEstimate.estimateNumber}`, {
         description: 'All customer details, items, and pricing loaded. Review and save.',
+        id: `prefill-${convertedFromEstimate.id}`, // one toast even if the effect runs twice (TOAST-1)
       });
     } else if (initialEstimate) {
       // Pre-fill from existing Estimate (editing a quotation)

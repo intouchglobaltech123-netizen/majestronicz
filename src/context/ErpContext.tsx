@@ -375,8 +375,9 @@ interface ErpContextType {
       subcategory?: string | null;
       description?: string | null;
       imageUrl?: string | null;
-    }
-  ) => void;
+    },
+    opts?: { successMessage?: string; description?: string }
+  ) => Promise<boolean>;
   deleteItem: (itemId: string) => Promise<void>;
 
   // Combo Items (Bundled offers with live computed availability, no independent stock)
@@ -1477,7 +1478,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newItem;
   };
 
-  const updateItem = (
+  const updateItem = async (
     itemId: string,
     updates: Partial<Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'vendorId' | 'vendorCode' | 'vendors' | 'marginCategory' | 'subcategory' | 'description' | 'imageUrl'>> & {
       vendorId?: string | null;
@@ -1487,28 +1488,29 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subcategory?: string | null;
       description?: string | null;
       imageUrl?: string | null;
-    }
-  ) => {
+    },
+    opts: { successMessage?: string; description?: string } = {}
+  ): Promise<boolean> => {
     // Reject editing an item's code to one already used by another item (INV-2).
     if (updates.itemCode != null) {
       const newCode = updates.itemCode.trim().toUpperCase();
-      if (!newCode) { toast.error('Item code cannot be blank'); return; }
+      if (!newCode) { toast.error('Item code cannot be blank'); return false; }
       if (items.some((i) => i.id !== itemId && (i.itemCode || '').trim().toUpperCase() === newCode)) {
         toast.error(`Item code "${updates.itemCode}" is already used by another item`);
-        return;
+        return false;
       }
     }
+    // Server first (TOAST-1): one toast, after the server has saved it; a
+    // refusal shows the server's reason and keeps the form open.
     const now = new Date().toISOString();
-    // For the local (optimistic) copy, treat a cleared field (null) as absent so
-    // the in-memory Item keeps its shape; the server receives the null and clears it.
-    const localPatch = Object.fromEntries(
-      Object.entries(updates).map(([k, v]) => [k, v === null ? undefined : v])
-    );
-    setItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, ...localPatch, updatedAt: now } : item))
-    );
-    persist(apiPut(`/api/catalog/item/${itemId}`, { ...updates, updatedAt: now }));
-    toast.success('Master catalog item updated');
+    try {
+      applySnapshot(await apiPut(`/api/catalog/item/${itemId}`, { ...updates, updatedAt: now }));
+      toast.success(opts.successMessage || 'Item details updated', opts.description ? { description: opts.description } : undefined);
+      return true;
+    } catch (e: any) {
+      toast.error('Could not update the item', { description: serverMessage(e) });
+      return false;
+    }
   };
 
   const updateBranchStock = (
@@ -1706,8 +1708,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateItemThreshold = (itemId: string, threshold: number) => {
     const safeThreshold = Math.max(0, Math.floor(threshold));
-    updateItem(itemId, { reorderThreshold: safeThreshold });
-    toast.success('Low stock alert threshold updated', {
+    void updateItem(itemId, { reorderThreshold: safeThreshold }, {
+      successMessage: 'Low stock alert threshold updated',
       description: `New threshold: ${safeThreshold} units across all branches`,
     });
   };
@@ -2572,7 +2574,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // The server assigns the authoritative id, invoice number and reconciled
       // payment split — use that saved row for the toast and the preview (SAL4-1).
       const saved: Invoice = (snap?.savedInvoice as Invoice) || newInvoice;
-      toast.success(`Invoice ${saved.invoiceNumber} saved & stock decremented`, {
+      // TOAST-1: an edit is "updated" (the stock moves only by the difference, if any).
+      const wasEdit = invoices.some((i) => i.id === newInvoice.id);
+      toast.success(`Invoice ${saved.invoiceNumber} ${wasEdit ? 'updated' : 'saved'}`, {
         description: `${saved.customerName} • ₹${(saved.grandTotal || 0).toLocaleString('en-IN')} [${saved.paymentMode}]`,
       });
       return saved;

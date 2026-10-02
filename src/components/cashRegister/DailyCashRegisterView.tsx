@@ -104,12 +104,13 @@ export const DailyCashRegisterView: React.FC = () => {
       if (tab === 'register') {
         setActiveSubView('register');
       } else if (tab === 'recurring') {
-        setActiveSubView('recurring');
+        // Only a login that can manage templates gets the recurring screen (E2E8-14).
+        setActiveSubView(canManageItems ? 'recurring' : 'register');
       } else if (tab === 'history') {
         setIsHistoryModalOpen(true);
       }
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, canManageItems]);
 
   // Pending scheduled expenses count for badge (frequency aware)
   const pendingRecurringCount = useMemo(() => {

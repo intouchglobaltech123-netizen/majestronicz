@@ -28,6 +28,8 @@ export interface NavSub {
   subTabId?: string;
   label: string;
   cap: ActiveNavView; // permission view used for canAccessView()
+  /** Only for logins that can manage masters (Manager/CEO) — e.g. recurring expense templates. */
+  managersOnly?: boolean;
 }
 
 export interface NavAction {
@@ -123,7 +125,8 @@ export const NAV_MODULES: NavModule[] = [
     icon: Wallet,
     items: [
       { id: 'cash-register', subTabId: 'register', label: 'Daily Cash Register', cap: 'cash-register' },
-      { id: 'cash-register', subTabId: 'recurring', label: 'Recurring Expenses', cap: 'cash-register' },
+      // E2E8-14: Billing can't manage templates — the entry opened the register.
+      { id: 'cash-register', subTabId: 'recurring', label: 'Recurring Expenses', cap: 'cash-register', managersOnly: true },
       { id: 'cash-register', subTabId: 'history', label: 'Register History', cap: 'cash-register' },
     ],
   },

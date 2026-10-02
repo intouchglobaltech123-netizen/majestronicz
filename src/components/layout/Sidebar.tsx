@@ -49,7 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     getStockStatus,
     isAllBranches,
     currentBranch,
+    canManageItems,
   } = useErp();
+  const canSee = (it: NavSub) => canAccessView(it.cap) && (!it.managersOnly || canManageItems);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -61,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [items, isAllBranches, currentBranch, getStockStatus]);
   const isMobileDrawerOpen = Boolean(mobileOpen);
 
-  const modules = NAV_MODULES.filter((m) => m.items.some((it) => canAccessView(it.cap)));
+  const modules = NAV_MODULES.filter((m) => m.items.some(canSee));
   const activeModuleId = modules.find((m) => isModuleActive(m, currentView))?.id ?? null;
 
   // Accordion expanded state persisted across refresh (per-user — see userPrefs)
@@ -107,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const goModuleDefault = (mod: NavModule) => {
-    const first = mod.items.find((it) => canAccessView(it.cap));
+    const first = mod.items.find(canSee);
     if (first) goSub(first);
   };
 
@@ -166,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {modules.map((mod) => {
               const Icon = mod.icon;
               const active = isModuleActive(mod, currentView);
-              const visItems = mod.items.filter((it) => canAccessView(it.cap));
+              const visItems = mod.items.filter(canSee);
               const single = visItems.length <= 1;
 
               // Single-item module → one clickable row
