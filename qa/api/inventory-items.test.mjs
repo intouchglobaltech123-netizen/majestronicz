@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, del, ok, expectStatus, uid, createItem, createCombo, stockOf, ledgerOf, line, comboLine, saleBody,
-  sell, mustSell, getInvoice, resave, returnLine, freshDay, thisMonthDay, addDays, istToday, register,
+  sell, mustSell, getInvoice, resave, returnLine, freshDay, thisMonthDay, addDays, istToday, register, randomPhone,
 } from './lib.mjs';
 
 const ret = (invoiceId, returnLines, as = 'CEO') =>
@@ -288,11 +288,11 @@ describe('item master', () => {
   });
 
   test('INV4-12 a supplier linked to items cannot be deleted', async () => {
-    const vendor = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, phone: '9876543210' })).vendor;
+    const vendor = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, contactNo: randomPhone() })).vendor;
     ok(await post('/api/catalog/item', { item: itemBody({ vendorId: vendor.id }), initialStocks: {} }), 'item with vendor');
     expectStatus(await del(`/api/vendors/${vendor.id}`), 409, 'delete linked vendor');
     assert.ok(ok(await get('/api/vendors')).some((v) => v.id === vendor.id), 'vendor kept');
-    const listed = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, phone: '9876543211' })).vendor;
+    const listed = ok(await post('/api/vendors', { vendorName: `QA vendor ${uid()}`, contactNo: randomPhone() })).vendor;
     ok(await post('/api/catalog/item', { item: itemBody({ vendors: [{ vendorId: listed.id }] }), initialStocks: {} }), 'item listing the vendor');
     expectStatus(await del(`/api/vendors/${listed.id}`), 409, 'delete vendor in an item supplier list');
   });

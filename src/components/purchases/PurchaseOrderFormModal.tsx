@@ -42,7 +42,6 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
 }) => {
   const {
     vendors,
-    saveVendor,
     items: masterItems,
     currentBranch,
     currentUser,
@@ -520,11 +519,8 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     if (formErrors.vendor) setFormErrors((prev) => ({ ...prev, vendor: '' }));
                   }}
                   placeholder="Search supplier by name / GST / phone…"
-                  onAddNew={(name) => {
-                    const newV = saveVendor({ vendorName: name, contactNo: '', address: '' });
-                    setSelectedVendorId(newV.id);
-                    return newV.id;
-                  }}
+                  // FIN-B-9: no bare supplier from a typed name — a new supplier is
+                  // added with its contact details under Parties → Suppliers.
                 />
                 {formErrors.vendor && (
                   <p className="text-xs text-rose-600">{formErrors.vendor}</p>

@@ -110,6 +110,9 @@ export const VendorSearchSelect: React.FC<Props> = ({ vendors, value, onChange, 
           {filtered.length === 0 && !query.trim() && (
             <div className="px-3 py-2 text-xs text-slate-400">No suppliers yet.</div>
           )}
+          {filtered.length === 0 && !!query.trim() && !onAddNew && (
+            <div className="px-3 py-2 text-xs text-slate-500">No supplier matches — add it with its contact details under Parties → Suppliers.</div>
+          )}
           {filtered.map((v, i) => (
             <button
               key={v.id}

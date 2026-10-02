@@ -284,7 +284,12 @@ router.post('/vendors', requireCapability('purchase:write'), asyncHandler(async 
   // PUR6-5: the same name with another phone is the same supplier too, unless
   // both carry (different) GSTINs that tell them apart.
   const nameKey = (n: string) => n.toLowerCase().replace(/[.,&\s]+/g, ' ').replace(/\b(pvt|private|ltd|limited|co|company)\b/g, '').replace(/\s+/g, ' ').trim();
-  const storedRow = await prisma.vendor.findUnique({ where: { id }, select: { vendorName: true } });
+  const storedRow = await prisma.vendor.findUnique({ where: { id }, select: { vendorName: true, contactNo: true } });
+  // FIN-B-9: a new supplier needs a real 10-digit contact number (the PO screen
+  // made bare suppliers from a typed name). Older rows stay editable as they are.
+  if ((!storedRow || digits(storedRow.contactNo || '') !== phone) && !/^[6-9]\d{9}$/.test(phone)) {
+    throw new AppError('BAD_PHONE', 'Enter the supplier\'s 10-digit contact number.', 400);
+  }
   const nameChanged = !storedRow || nameKey(storedRow.vendorName) !== nameKey(data.vendorName); // an older duplicate stays editable
   const sameName = nameChanged && others.find((v) => nameKey(v.vendorName) === nameKey(data.vendorName) && !(data.gstin && v.gstin && v.gstin.toUpperCase() !== data.gstin));
   if (sameName) {
