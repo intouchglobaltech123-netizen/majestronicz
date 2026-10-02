@@ -52,3 +52,9 @@ export async function lockStockRows(tx: any, branchId: string, itemIds: Iterable
   await tx.$queryRaw`SELECT "itemId" FROM "BranchStock" WHERE "branchId" = ${branchId} AND "itemId" = ANY(${list}::text[]) ORDER BY "itemId" FOR UPDATE`;
   return tx.branchStock.findMany({ where: { branchId, itemId: { in: list } } });
 }
+
+/** PUR10-1: lock one purchase order row before a read-modify-write of its
+ *  attachment / supplier-bill lists, so two uploads at once can't lose one. */
+export async function lockPurchaseOrder(tx: any, id: string | null | undefined): Promise<void> {
+  if (id) await tx.$queryRaw`SELECT id FROM "PurchaseOrder" WHERE id = ${String(id)} FOR UPDATE`;
+}

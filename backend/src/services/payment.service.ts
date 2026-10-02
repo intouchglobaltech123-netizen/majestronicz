@@ -612,24 +612,30 @@ export async function releasePoOverpayment(input: { poId?: string }, actor?: { n
       .filter((p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === po.id));
     const ts = nowIso();
     let moved = 0;
+    // PUR10-6: one history row per payment the money came off, linked to it, so
+    // deleting that payment later removes its "moved" row too.
+    const movedRows: any[] = [];
     for (const p of rows) {
       if (excess <= 0.005) break;
       const allocs = (p.allocations as any[]).map((a) => ({ ...a }));
+      let fromThis = 0;
       for (const a of allocs) {
         if (a.refId !== po.id || excess <= 0.005) continue;
         const take = round2(Math.min(Number(a.amount) || 0, excess));
         a.amount = round2((Number(a.amount) || 0) - take);
         excess = round2(excess - take);
         moved = round2(moved + take);
+        fromThis = round2(fromThis + take);
       }
       await tx.payment.update({ where: { id: p.id }, data: { allocations: allocs.filter((a) => a.refId !== po.id || (Number(a.amount) || 0) > 0.005) as any, updatedAt: ts } });
+      if (fromThis > 0.005) movedRows.push({ id: rid('pay'), date: istToday(), amount: -fromThis, mode: 'Moved to supplier advance', by: actor?.name || 'System', ledgerPaymentId: p.id, receiptNumber: p.receiptNumber });
     }
     if (moved <= 0.005) throw new AppError('NOTHING_TO_RELEASE', 'The payments on this PO were recorded by an older build without ledger rows and cannot be moved.', 409);
     await tx.purchaseOrder.update({
       where: { id: po.id },
       data: {
         amountPaid: round2((Number(po.amountPaid) || 0) - moved),
-        payments: [{ id: rid('pay'), date: istToday(), amount: -moved, mode: 'Moved to supplier advance', by: actor?.name || 'System' }, ...((po.payments as any[]) || [])],
+        payments: [...movedRows, ...((po.payments as any[]) || [])],
         updatedAt: ts,
       },
     });
@@ -737,6 +743,17 @@ async function deletePaymentTx(tx: any, id: string, reqUser?: any) {
       }
       return { ok: true };
     } else if (payment.type === 'out') {
+      // PUR10-6: a PO this payment no longer settles (its part was moved to the
+      // supplier's advance) still lists the payment's "moved" row — drop it.
+      const allocatedPoIds = new Set(allocations.map((a) => a.refId));
+      const mentioning = await tx.purchaseOrder.findMany({ where: { payments: { array_contains: [{ ledgerPaymentId: id }] } } });
+      for (const po of mentioning) {
+        if (allocatedPoIds.has(po.id)) continue;
+        await tx.purchaseOrder.update({
+          where: { id: po.id },
+          data: { payments: ((po.payments as any[]) || []).filter((e) => e?.ledgerPaymentId !== id), updatedAt: nowIso() },
+        });
+      }
       for (const a of allocations) {
         const po = await tx.purchaseOrder.findUnique({ where: { id: a.refId } });
         if (!po) continue;

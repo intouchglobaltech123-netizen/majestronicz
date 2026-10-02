@@ -8,7 +8,7 @@ import {
   INITIAL_CUSTOMERS, INITIAL_LOYALTY_SETTINGS,
 } from '../data/seedData.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
-import { buildDefaultMatrix, hashPin, isPinHashed } from '../lib/auth.js';
+import { buildDefaultMatrix, hashPin, isPinHashed, setLiveMatrix } from '../lib/auth.js';
 import { buildOpeningStockRows } from '../lib/openingStock.js';
 import { provisionUserEmployees } from './user.service.js';
 import { cleanPhone } from '../lib/stockLedger.js';
@@ -26,7 +26,7 @@ export async function reseedDatabase() {
     prisma.stockAdjustmentLog.deleteMany(), prisma.estimate.deleteMany(), prisma.deliveryChallan.deleteMany(),
     prisma.invoice.deleteMany(), prisma.enquiry.deleteMany(), prisma.pendingOrder.deleteMany(),
     prisma.followUpReminder.deleteMany(), prisma.dailyCashRegister.deleteMany(),
-    prisma.recurringExpenseTemplate.deleteMany(), prisma.vendor.deleteMany(), prisma.purchaseOrder.deleteMany(),
+    prisma.recurringExpenseTemplate.deleteMany(), prisma.vendor.deleteMany(), prisma.poAttachment.deleteMany(), prisma.purchaseOrder.deleteMany(),
     prisma.employee.deleteMany(), prisma.attendanceRecord.deleteMany(), prisma.payrollRecord.deleteMany(),
     prisma.customer.deleteMany(), prisma.stockTransfer.deleteMany(),
     // Clear payments + audit trail too, otherwise old receipts survive a reset and
@@ -113,6 +113,8 @@ export async function reseedDatabase() {
       { key: 'migration:fix-existing-bills', value: { runs: [], seededAlreadyCorrect: true } as any },
     ],
   });
+  // SEC10-4: the server's live (in-memory) rights follow the reset matrix at once.
+  setLiveMatrix(buildDefaultMatrix());
 
   // HRM3-8: the reset wiped every employee, including the attendance profiles
   // linked to staff logins, so e.g. Billing got "No attendance profile" on

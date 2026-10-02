@@ -306,3 +306,74 @@ describe('round 10: report period rule and retry (unit)', async () => {
     assert.equal(retry.isRetryableTxError(new Error('boom')), false);
   });
 });
+
+describe('round 10: purchases and access matrix', async () => {
+  const b64 = (x) => Buffer.from(typeof x === 'string' ? x : Uint8Array.from(x)).toString('base64');
+  const pdf = (kb) => `data:application/pdf;base64,${b64(Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(kb * 1024, 65)]))}`;
+  const { createPO, getPO, uid } = await import('./lib.mjs');
+  const newVendor = async () => ok(await post('/api/vendors', { vendorName: `QA Vendor ${uid()}`, contactNo: randomPhone(), address: 'QA' })).vendor;
+
+  test('PUR10-1 uploads and supplier bills sent at the same time all land; the 10 MB limit holds', async () => {
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const po = await createPO([{ item, qty: 50, price: 100, tax: 18 }]);
+    const ups = await Promise.all(Array.from({ length: 4 }, (_, i) => post('/api/purchase/attachment', { poId: po.id, attachment: { name: `f${i}.pdf`, dataUrl: pdf(4) }, actor: 'QA' })));
+    assert.deepEqual(ups.map((r) => r.status), [200, 200, 200, 200]);
+    assert.equal((await getPO(po.id)).attachments.length, 4, 'every file is listed');
+    const bills = await Promise.all(Array.from({ length: 3 }, (_, i) => post('/api/purchase/bill', { poId: po.id, bill: { number: `B-${uid()}-${i}`, date: '2026-09-16', taxable: 100, gst: 18 } })));
+    assert.deepEqual(bills.map((r) => r.status), [200, 200, 200]);
+    assert.equal((await getPO(po.id)).supplierBills.length, 3, 'every bill is kept');
+    // 10 MB per PO: two 4 MB files fit, a third at the same time does not.
+    const po2 = await createPO([{ item, qty: 5, price: 100, tax: 18 }]);
+    const big = await Promise.all(Array.from({ length: 3 }, (_, i) => post('/api/purchase/attachment', { poId: po2.id, attachment: { name: `big${i}.pdf`, dataUrl: pdf(4 * 1024) }, actor: 'QA' })));
+    assert.equal(big.filter((r) => r.status === 200).length, 2, `two fit, one is refused (${big.map((r) => r.status)})`);
+  });
+
+  test('PUR3-8 a supplier bill\'s GST cannot exceed the highest GST rate on the PO lines', async () => {
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const po = await createPO([{ item, qty: 10, price: 100, tax: 5 }]);
+    expectStatus(await post('/api/purchase/bill', { poId: po.id, bill: { number: `B-${uid()}`, date: '2026-09-16', taxable: 1000, gst: 180 } }), 400, '18% on a 5% PO');
+    ok(await post('/api/purchase/bill', { poId: po.id, bill: { number: `B-${uid()}`, date: '2026-09-16', taxable: 1000, gst: 50 } }), '5%');
+  });
+
+  test('PUR10-6 deleting a vendor payment also removes its "moved to supplier advance" history row', async () => {
+    const vendor = await newVendor();
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const po = await createPO([{ item, qty: 2, price: 100, tax: 0 }], { vendor });
+    const pay = ok(await post('/api/payments', { type: 'out', partyType: 'vendor', partyId: vendor.id, partyName: vendor.vendorName, branchId: 'erode-hq', amount: 200, paymentMode: 'GPay', allocations: [{ refId: po.id, amount: 200 }] }));
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 1, damagedQuantity: 1 }], actor: 'QA' }));
+    ok(await post('/api/payments/vendor-advance/release', { poId: po.id }), 'release');
+    assert.ok((await getPO(po.id)).payments.some((e) => e.mode === 'Moved to supplier advance'));
+    ok(await del(`/api/payments/${pay.id}`), 'delete the payment');
+    const after = await getPO(po.id);
+    assert.ok(!after.payments.some((e) => e.mode === 'Moved to supplier advance'), 'no orphan history row');
+    near(after.amountPaid, 0);
+  });
+
+  test('UPG10-8 an older attachment whose bytes are not the image/PDF it claims is served only as a download', async () => {
+    if (!sql('SELECT 1')) return;
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const po = await createPO([{ item, qty: 1, price: 100, tax: 0 }]);
+    const id = `po-att-old-${uid()}`;
+    sql(`INSERT INTO "PoAttachment" (id, "poId", name, "mimeType", bytes, "dataUrl", "uploadedAt") VALUES ('${id}', '${po.id}', 'old.pdf', 'application/pdf', 30, 'data:application/pdf;base64,${b64('<html><script>alert(1)</script>')}', '2026-01-01T00:00:00.000Z')`);
+    sql(`UPDATE "PurchaseOrder" SET attachments = '[{"id":"${id}","name":"old.pdf","fileType":"pdf","mimeType":"application/pdf"}]'::jsonb WHERE id='${po.id}'`);
+    const res = ok(await get(`/api/purchase/attachment/${po.id}/${id}`));
+    assert.equal(res.mimeType, 'application/octet-stream');
+    assert.ok(res.dataUrl.startsWith('data:application/octet-stream;base64,'));
+  });
+
+  test('SAL10-10 the access-matrix PUT refuses a malformed body and never wipes the roles it leaves out', async () => {
+    const before = ok(await get('/api/access-matrix')).matrix;
+    expectStatus(await put('/api/access-matrix', { Billing: 'everything' }), 400, 'role not an object');
+    expectStatus(await put('/api/access-matrix', { Billing: { views: 'all', caps: [] } }), 400, 'views not a list');
+    expectStatus(await put('/api/access-matrix', []), 400, 'array');
+    expectStatus(await put('/api/access-matrix', { nobody: {} }), 400, 'no role');
+    try {
+      ok(await put('/api/access-matrix', { Sales: before.Sales }), 'one role only');
+      const after = ok(await get('/api/access-matrix')).matrix;
+      assert.deepEqual(after.Billing, before.Billing, 'Billing kept');
+      assert.deepEqual(after.Manager, before.Manager, 'Manager kept');
+    } finally {
+      ok(await put('/api/access-matrix', before), 'restore');
+    }
+  });
+});

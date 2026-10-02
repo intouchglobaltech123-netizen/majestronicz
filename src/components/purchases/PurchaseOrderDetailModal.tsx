@@ -50,7 +50,9 @@ import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 // else resolves to '' — the link/preview simply does nothing.
 const safeAttachmentDataUrl = (raw: unknown): string => {
   const s = typeof raw === 'string' ? raw.trim() : '';
-  return /^data:(image\/[a-z0-9.+-]+|application\/pdf);base64,/i.test(s) ? s : '';
+  // UPG10-8: a file the server could not confirm is a real image/PDF comes back
+  // as application/octet-stream — it can only be downloaded, never shown inline.
+  return /^data:(image\/[a-z0-9.+-]+|application\/pdf|application\/octet-stream);base64,/i.test(s) ? s : '';
 };
 
 /** PUR2-12: the PO list carries only the file list — a file's body is loaded
@@ -307,6 +309,12 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     const safe = await loadAttachmentBody(purchaseOrder.id, attachment).catch(() => '');
     if (!safe) {
       toast.error('This attachment is not a valid file and cannot be opened.');
+      return;
+    }
+    // UPG10-8: not a confirmed image/PDF — offered as a download only.
+    if (/^data:application\/octet-stream/i.test(safe)) {
+      toast.warning('This older file is not a recognised image or PDF, so it is downloaded instead of opened.');
+      await handleDownloadAttachment(attachment);
       return;
     }
     if (attachment.fileType === 'image') {

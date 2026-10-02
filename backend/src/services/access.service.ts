@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { AppError } from '../middleware/errorHandler.js';
 import {
   AccessMatrix, buildDefaultMatrix, setLiveMatrix, getLiveMatrix,
   ALL_VIEWS, ALL_CAPS, ALL_FLAGS, Role, Capability,
@@ -77,9 +78,23 @@ export async function migrateAccessMatrix(): Promise<AccessMatrix> {
 /** Sanitize + persist an updated matrix. CEO is always forced to full access. */
 export async function updateAccessMatrix(input: AccessMatrix): Promise<AccessMatrix> {
   const roles = Object.keys(buildDefaultMatrix()) as Role[];
+  // SAL10-10 / SEC10-3: a malformed body is refused, and a role the body leaves
+  // out keeps its current rights — a partial PUT used to wipe every other role.
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !roles.some((r) => r in (input as any))) {
+    throw new AppError('BAD_MATRIX', 'Send the access matrix as { Role: { views: [...], caps: [...], flags: [...] } }.', 400);
+  }
+  const current = getLiveMatrix();
+  for (const role of roles) {
+    const v: any = (input as any)[role];
+    if (v === undefined) continue;
+    const listOk = (x: unknown, optional = false) => (optional && x === undefined) || (Array.isArray(x) && x.every((e) => typeof e === 'string'));
+    if (!v || typeof v !== 'object' || Array.isArray(v) || !listOk(v.views) || !listOk(v.caps) || !listOk(v.flags, true)) {
+      throw new AppError('BAD_MATRIX', `The rights for ${role} must be lists of views, caps and flags.`, 400);
+    }
+  }
   const clean = {} as AccessMatrix;
   for (const role of roles) {
-    const incoming = input?.[role] || { views: [], caps: [] };
+    const incoming: { views?: string[]; caps?: string[]; flags?: string[] } = (input as any)[role] ?? current[role] ?? { views: [], caps: [] };
     // Whitelist against known views/caps to prevent junk.
     const views = (incoming.views || []).filter((v) => ALL_VIEWS.includes(v));
     const caps = (incoming.caps || []).filter((c) => ALL_CAPS.includes(c as Capability)) as Capability[];

@@ -4,7 +4,8 @@ import { AppError } from '../middleware/errorHandler.js';
 import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { nextPoNumber } from '../lib/sequences.js';
-import { serializableTx } from '../lib/tx.js';
+import { serializableTx, lockPurchaseOrder } from '../lib/tx.js';
+import { withRetry } from '../lib/retry.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { isValidBranch } from '../lib/constants.js';
 import { allowsFractionalQty } from '../lib/units.js';
@@ -621,9 +622,12 @@ function sniffMime(buf: Buffer): string | null {
   return null;
 }
 
-/** Decoded size of the files already on a PO (new table + older in-row files). */
+/** Decoded size of the files already on a PO (new table + older in-row files).
+ *  PUR10-1: only files the PO still lists count — a body left behind by an
+ *  older lost write is not on the PO and no longer eats into its 10 MB. */
 async function poAttachmentBytes(tx: any, po: any): Promise<number> {
-  const rows = await tx.poAttachment.findMany({ where: { poId: po.id }, select: { bytes: true } });
+  const listed = ((po.attachments as any[]) || []).map((a: any) => String(a?.id || '')).filter(Boolean);
+  const rows = listed.length ? await tx.poAttachment.findMany({ where: { poId: po.id, id: { in: listed } }, select: { bytes: true } }) : [];
   let total = rows.reduce((t: number, r: any) => t + (Number(r.bytes) || 0), 0);
   for (const a of (po.attachments as any[]) || []) {
     const b64 = String(a?.dataUrl || '').split(',')[1] || '';
@@ -649,7 +653,8 @@ export function addAttachment(poId: string, attachmentData: any, actor: string, 
     throw new AppError('BAD_ATTACHMENT', `This file is not a real ${claimed === 'application/pdf' ? 'PDF' : claimed.replace('image/', '').toUpperCase() + ' image'}. Only PDF, PNG, JPEG, WEBP or GIF files can be attached.`, 400);
   }
   const fileType = actual === 'application/pdf' ? 'pdf' : 'image';
-  return prisma.$transaction(async (tx: any) => {
+  return withRetry(() => prisma.$transaction(async (tx: any) => {
+    await lockPurchaseOrder(tx, poId); // PUR10-1: uploads to one PO queue here
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
@@ -667,7 +672,7 @@ export function addAttachment(poId: string, attachmentData: any, actor: string, 
       data: { attachments: [meta, ...((po.attachments as any[]) || [])], updatedAt: uploadedAt },
     });
     return poSnapshot(tx);
-  }, { timeout: 20_000 });
+  }, { timeout: 20_000 }));
 }
 
 /** PUR2-12: one attached file's body, fetched on demand by the viewer. */
@@ -680,11 +685,21 @@ export async function getAttachment(poId: string, attachmentId: string, reqUser?
   const row = await prisma.poAttachment.findFirst({ where: { id: String(attachmentId), poId: po.id } });
   const dataUrl = row?.dataUrl || meta.dataUrl;
   if (!dataUrl) throw new AppError('NOT_FOUND', 'The file could not be found.', 404);
-  return { id: meta.id, name: meta.name, fileType: meta.fileType, mimeType: row?.mimeType || meta.mimeType || null, dataUrl };
+  // UPG10-8: files attached by older builds were never checked. A body whose
+  // first bytes are not the image/PDF it claims is handed out only as a plain
+  // download (application/octet-stream), never shown inline.
+  const m = /^data:([^;,]+)?(?:;base64)?,(.*)$/s.exec(String(dataUrl));
+  const claimed = String(m?.[1] || row?.mimeType || meta.mimeType || '').toLowerCase().replace('image/jpg', 'image/jpeg');
+  const actual = m ? sniffMime(Buffer.from(m[2].slice(0, 64).replace(/\s/g, ''), 'base64')) : null;
+  if (!m || !actual || actual !== claimed) {
+    return { id: meta.id, name: meta.name, fileType: 'other', mimeType: 'application/octet-stream', download: true, dataUrl: `data:application/octet-stream;base64,${m ? m[2] : ''}` };
+  }
+  return { id: meta.id, name: meta.name, fileType: meta.fileType, mimeType: actual, dataUrl };
 }
 
 export function deleteAttachment(poId: string, attachmentId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    await lockPurchaseOrder(tx, poId); // PUR10-1
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
@@ -712,6 +727,7 @@ export function deleteAttachment(poId: string, attachmentId: string, reqUser?: a
  */
 export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    await lockPurchaseOrder(tx, poId); // PUR10-1: two bills at once both land
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
@@ -728,8 +744,12 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     if (date > istToday()) throw new AppError('BAD_DATE', 'A supplier bill cannot be dated in the future.', 400);
     if (!Number.isFinite(taxable) || taxable < 0) throw new AppError('BAD_BILL', 'Taxable value cannot be negative.', 400);
     if (!Number.isFinite(gst) || gst < 0) throw new AppError('BAD_BILL', 'GST cannot be negative.', 400);
-    if (gst > Math.round(taxable * 0.28 * 100) / 100 + 1) {
-      throw new AppError('BAD_BILL', `GST of ₹${gst} is more than 28% of the taxable value ₹${taxable}.`, 400);
+    // PUR3-8: GST can't be more than the highest GST rate on the PO's lines
+    // (28%, the top slab, when the lines carry no rate).
+    const lineRates = ((po.items as any[]) || []).map((l: any) => Number(l?.taxPercent)).filter((r: number) => Number.isFinite(r) && r > 0);
+    const capRate = lineRates.length ? Math.min(28, Math.max(...lineRates)) : 28;
+    if (gst > Math.round(taxable * (capRate / 100) * 100) / 100 + 1) {
+      throw new AppError('BAD_BILL', `GST of ₹${gst} is more than ${capRate}% (the highest GST rate on this purchase order) of the taxable value ₹${taxable}.`, 400);
     }
     const attachmentId = bill?.attachmentId ? String(bill.attachmentId) : null;
     if (attachmentId && !((po.attachments as any[]) || []).some((a: any) => a?.id === attachmentId)) {
@@ -756,7 +776,9 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
     if (billedTaxable > capTaxable * 1.01 + 1) {
       throw new AppError('BILL_ABOVE_GOODS', `The supplier bills on this PO add up to a taxable ₹${Math.round(billedTaxable * 100) / 100}, more than the goods it covers (₹${Math.round(capTaxable * 100) / 100}). Check the bill.`, 400);
     }
-    // The same supplier bill can't be claimed twice (double ITC).
+    // The same supplier bill can't be claimed twice (double ITC). PUR10-1: the
+    // supplier's row is locked so two POs can't record the same number at once.
+    if (po.vendorId) await tx.$queryRaw`SELECT id FROM "Vendor" WHERE id = ${String(po.vendorId)} FOR UPDATE`;
     const key = billNumberKey(number);
     const others = await tx.purchaseOrder.findMany({ where: { vendorId: po.vendorId, NOT: { status: 'Cancelled' } } });
     for (const other of others) {
@@ -783,6 +805,7 @@ export function recordPurchaseBill(poId: string, bill: any, reqUser?: any) {
 /** Remove one supplier bill from a PO (a wrong entry). */
 export function deletePurchaseBill(poId: string, billId: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    await lockPurchaseOrder(tx, poId); // PUR10-1
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId);
