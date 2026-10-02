@@ -111,7 +111,9 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
    `pg_restore --no-owner --no-privileges -d "<COPY URL>" majestronicz-before-upgrade.dump`.
 3. **Bring the schema up to date.** From `backend/` in this release:
    `DATABASE_URL="<URL>" npx prisma db push --skip-generate`. It only adds
-   empty columns and must not ask about data loss. If it does, stop.
+   seven empty columns, the `PoAttachment` table and five indexes (see the
+   table under Rolling back; on a large database the indexes take a few
+   seconds), and must not ask about data loss. If it does, stop.
 4. **Check what needs a decision.**
    `DATABASE_URL="<URL>" npm run fix:existing-bills -- --check`
    It changes nothing and prints only what needs a person (no SQL needed):
@@ -141,13 +143,27 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
    - **`CHECK: … no customer account to hold it`** (no usable phone on the
      bill): pay the amount back, or put the customer's phone on the bill, then
      run again.
+   - A bill that needs **both** an amount and a refund decision takes one
+     entry with both: `{ "MZERD26-27/7311": { "collectedAtBilling": 5000, "keepRefunds": true } }`
+     (or `"trimRefunds": true`). One file holds every bill, e.g.
+     `{ "MZCBE26-27/7308": 5000, "MZERD26-27/7311": { "collectedAtBilling": 5000, "keepRefunds": true } }`.
+   Amounts are plain numbers (`5000`, not `"5,000"`). The script reads the file
+   strictly: a bill number that is not in the database, an amount that is not a
+   number of ₹0 or more, a misspelt field or `true`/`false` written as text
+   stops the run (exit code 2) and lists every problem — nothing is changed.
    Run `--check` again with `--overrides` until it says "Needs a decision: nothing".
 5. **Dry run and review.**
    `DATABASE_URL="<URL>" npm run fix:existing-bills -- --overrides that.json`
-   It prints totals and writes `fix-existing-bills-report/dry-run-*.csv` (one
-   row per bill: method and reason, old and new due, collected at billing,
-   receipts, returns, refunds, credit notes, action) and a `.json` with more
-   detail. Look at:
+   It prints totals and writes `dry-run-*.csv` (one row per bill: method and
+   reason, old and new due, collected at billing, receipts, returns, refunds,
+   credit notes, action) and a `.json` with more detail into the folder
+   `fix-existing-bills-report/` **inside the folder you run the command from**
+   (`backend/fix-existing-bills-report/` with `npm run`); the last line prints
+   the full path. Add `--out <folder>` to write them elsewhere — keep the
+   reports of the live run with the backup. Every run (`--check`, dry run,
+   `--apply`) writes its own pair of files, named by mode and time. A dry run
+   works inside a transaction that is rolled back, so its progress lines say
+   `would write …`; only `--apply` says `written`. Look at:
    - **bills whose due changes** — each is printed with how its collected
      amount was found and the due formula with its figures.
    - `closedDays`: closed days whose closing changes, each with its reasons and
@@ -185,18 +201,24 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
      A gap does not change any figure by itself. If the cash in the drawer
      today agrees with the app, nothing needs doing; if it doesn't, a Manager
      can override the opening of the first **open** day after the gap.
-   - `openDays`: register days that were **never closed** (often days staff
-     forgot to close). The new build shows such a day's opening **live** — the
-     previous register day's closing plus the cash of register-less days in
-     between — not the figure an older build stored when the register was
-     opened, so after the upgrade these days can show a different opening and
-     closing than before, including the script's corrections on earlier days.
-     The report lists each one with its stored opening, the opening the app
-     will show, and (`changedByFix`) whether the fix itself moves it. Review
-     them on the copy (step 7, Cash Register, each listed day): if a day's
-     figures are right, close it; if the drawer really held something else
-     that day, a Manager overrides that day's opening (an overridden opening
-     is kept, like a closed day's).
+   - `openDays`: cash-register days that were opened but **never closed**
+     (often days staff forgot to close). For such a day the new build does
+     not use the opening an older build saved when the register was opened;
+     it works the opening out each time the day is shown — the closing of the
+     previous register day plus the cash of any days in between that have no
+     register. So after the upgrade such a day can show a different opening
+     (and closing) than before, also because of the script's corrections on
+     earlier days. The console lists them under "day(s) never closed whose
+     opening the app shows live"; each `openDays` entry has `storedOpening`
+     (what the older build saved), `openingShownAfterFix` (what the app will
+     show), `changedByFix` (true when the script's own corrections move it —
+     then `openingShownBeforeFix` and `closingBeforeFix` → `closingAfterFix`
+     say by how much) and `openingOverridden` (a Manager typed the opening —
+     kept as it is). Nothing is changed for them. Open each listed day on the
+     copy (step 7, Cash Register, that branch and date): if the figures are
+     right, close the day; if the drawer really held something else, a
+     Manager overrides that day's opening (an overridden opening is kept,
+     like a closed day's).
    - `legacyPendingOrderAdvances`: advances taken before advances became real
      receipts. Nothing is changed. Check them by hand.
 6. **Apply.**
@@ -209,7 +231,18 @@ Do steps 3–7 on a **copy** first (made in step 2), then repeat them on live.
    run re-checks every bill from scratch.)
    On the copy, also start this backend against it (and the UI against that
    backend) and look at a few dues (Parties, To Collect), the Cash Register for
-   some closed days and today, and Stock history.
+   some closed days and today, and Stock history. To do that on your own
+   machine, from this release:
+
+   ```
+   cd backend
+   DATABASE_URL="<COPY URL>" PORT=4000 AUTH_SECRET="<any long local value>" CORS_ORIGINS=http://localhost:5173 npm run dev
+   # in a second terminal, at the repository root:
+   VITE_API_URL=http://localhost:4000 npm run dev
+   ```
+
+   and open http://localhost:5173 (log in with the copy's PINs). Never point
+   this at the live `DATABASE_URL`, and don't use the live `AUTH_SECRET`.
 8. **Start the new backend** (Railway, this release). Its start-up
    `prisma db push` finds nothing to do. Then deploy the UI (Vercel).
 9. **Ask every user to reload** open browser tabs. Old tabs keep the old screens
@@ -225,21 +258,27 @@ left it.
 Rolling back means going back to the previous build (the one in production
 before this release). The previous build starts with `prisma db push
 --skip-generate` (without `--accept-data-loss`), which compares the database
-with its own schema. This release added one table and some columns (from
-`git diff <previous build> <this release> -- backend/prisma/schema.prisma`):
+with its own schema. This release added one table, seven columns and five
+indexes (from `git diff <previous build> <this release> -- backend/prisma/schema.prisma`):
 
 | Where | Added |
 | --- | --- |
 | new table `PoAttachment` | supplier-bill files attached to purchase orders (`id`, `poId`, `name`, `mimeType`, `bytes`, `dataUrl`, `uploadedAt`, `uploadedBy`, index on `poId`) |
-| `Item` | `isArchived`, `archivedAt`, `archivedBy` |
-| `Estimate` | `stateOfSupply` |
-| `PurchaseOrder` | `supplierBills` |
-| `User` | `tokensValidAfter` |
-| `AuditLog` | `branchId` (filled on every logged action) |
+| `Item` | columns `isArchived`, `archivedAt`, `archivedBy` |
+| `Estimate` | column `stateOfSupply` |
+| `PurchaseOrder` | column `supplierBills` |
+| `User` | column `tokensValidAfter` |
+| `AuditLog` | column `branchId` (filled on every logged action) |
+| `StockAdjustmentLog` | index on `timestamp` |
+| `Invoice` | indexes on `customerId`, on `date` and on `branchId, date` |
+| `Payment` | GIN index on `allocations` (`jsonb_path_ops`) |
 
-The previous build refuses to start while any of these holds data, and it does
-not understand the corrected data either (it rewrites the part-payment on the
-next receipt). Choose one of:
+The previous build refuses to start while the new table or columns hold data
+(dropping them would lose it). The five indexes hold no data: the previous
+build's start-up `db push` drops them without asking and starts — that is
+harmless (only some lookups get slower; upgrading again re-creates them). It
+does not understand the corrected data either (it rewrites the part-payment on
+the next receipt). Choose one of:
 
 ### A. Restore the step-2 backup (everything entered since is lost)
 
@@ -277,15 +316,36 @@ step 3 already holds the corrected data.
 ### B. Keep the data entered on this release
 
 1. Stop the backend.
-2. In the previous build's `backend/prisma/schema.prisma` add everything in
-   the table above, exactly as in this release: the six columns as optional
-   fields (`isArchived Boolean?`, `archivedAt String?`, `archivedBy String?`,
-   `stateOfSupply String?`, `supplierBills Json?`, `tokensValidAfter Float?`,
-   `branchId String?`) and the whole `model PoAttachment { … }` block. Check
-   with `npx prisma migrate diff --from-schema-datamodel <this release's
-   schema.prisma> --to-schema-datamodel prisma/schema.prisma` — it must print
-   an empty migration — and `DATABASE_URL="<DATABASE_URL>" npx prisma db push
-   --skip-generate` must say the database is already in sync.
+2. In the previous build's `backend/prisma/schema.prisma` add the new table and
+   columns, exactly as in this release: the seven columns as optional fields
+   (`Item`: `isArchived Boolean?`, `archivedAt String?`, `archivedBy String?`;
+   `Estimate`: `stateOfSupply String?`; `PurchaseOrder`: `supplierBills Json?`;
+   `User`: `tokensValidAfter Float?`; `AuditLog`: `branchId String?`) and the
+   whole `model PoAttachment { … }` block (with its `@@index([poId])`). Check
+   from that `backend/`:
+
+   ```
+   npx prisma migrate diff --from-schema-datamodel <this release's backend/prisma/schema.prisma> --to-schema-datamodel prisma/schema.prisma --script
+   ```
+
+   It must print **only** these five lines (the indexes, dropped harmlessly as
+   above) and nothing that drops a table or a column:
+
+   ```
+   DROP INDEX "StockAdjustmentLog_timestamp_idx";
+   DROP INDEX "Invoice_customerId_idx";
+   DROP INDEX "Invoice_date_idx";
+   DROP INDEX "Invoice_branchId_date_idx";
+   DROP INDEX "Payment_allocations_idx";
+   ```
+
+   Then `DATABASE_URL="<DATABASE_URL>" npx prisma db push --skip-generate`
+   must not ask about data loss: it says `Your database is now in sync with
+   your Prisma schema` (it dropped the five indexes); run it once more and it
+   says `The database is already in sync with the Prisma schema`. (To keep the
+   indexes, also copy this release's five `@@index` lines into those three
+   models — then the diff prints `-- This is an empty migration.` and the
+   first push already says the database is in sync.)
 3. Redeploy that build. What to expect on it:
    - **Supplier-bill files uploaded on this release can't be opened**: this
      release keeps them in `PoAttachment`, which the previous build never
