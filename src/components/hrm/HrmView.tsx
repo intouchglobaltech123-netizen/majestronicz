@@ -29,7 +29,10 @@ export const HrmView: React.FC = () => {
     currentBranch,
     canViewHrm,
     activeSubTab,
+    canViewPayrollReport,
   } = useErp();
+  // FIN-B-2: payroll figures reach payroll (CEO) only; others never see made-up ₹0 pay.
+  const canSeePay = canViewPayrollReport;
 
   const [activeTab, setActiveTab] = useState<'attendance' | 'payroll' | 'employees' | 'salary'>('attendance');
   const [isKioskModalOpen, setIsKioskModalOpen] = useState(false);
@@ -40,14 +43,14 @@ export const HrmView: React.FC = () => {
     if (activeSubTab?.view === 'hrm') {
       const tab = activeSubTab.tab;
       if (tab === 'attendance' || tab === 'payroll' || tab === 'employees' || tab === 'salary') {
-        setActiveTab(tab);
+        setActiveTab((tab === 'payroll' || tab === 'salary') && !canSeePay ? 'attendance' : tab);
       } else if (tab === 'kiosk') {
         setIsKioskModalOpen(true);
       } else if (tab === 'new-employee') {
         setIsEmployeeModalOpen(true);
       }
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, canSeePay]);
 
   const todayStr = getTodayDateString();
   const currentMonthStr = todayStr.slice(0, 7); // current month, not hard-coded (PLT-5)
@@ -159,6 +162,7 @@ export const HrmView: React.FC = () => {
           <span>Staff Attendance</span>
         </button>
 
+        {canSeePay && (
         <button
           type="button"
           onClick={() => setActiveTab('payroll')}
@@ -172,6 +176,7 @@ export const HrmView: React.FC = () => {
           <DollarSign className="h-3.5 w-3.5" />
           <span>Payroll Processing</span>
         </button>
+        )}
 
         <button
           type="button"
@@ -193,6 +198,7 @@ export const HrmView: React.FC = () => {
           </span>
         </button>
 
+        {canSeePay && (
         <button
           type="button"
           onClick={() => setActiveTab('salary')}
@@ -206,6 +212,7 @@ export const HrmView: React.FC = () => {
           <Percent className="h-3.5 w-3.5" />
           <span>Salary Structure</span>
         </button>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -297,9 +304,9 @@ export const HrmView: React.FC = () => {
               Payroll Expense
             </p>
             <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
-              {formatCurrency(Math.round(monthPayrollExpense))}
+              {canSeePay ? formatCurrency(Math.round(monthPayrollExpense)) : <span className="text-base font-sans italic text-slate-400" data-testid="payroll-confidential">Confidential</span>}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Net pay incl. incentives &amp; adjustments</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{canSeePay ? <>Net pay incl. incentives &amp; adjustments</> : 'Visible to payroll (CEO) only'}</p>
           </div>
         </div>
       </div>
@@ -307,9 +314,9 @@ export const HrmView: React.FC = () => {
       {/* Active Tab View */}
       {activeTab === 'attendance' ? (
         <AttendanceLogView />
-      ) : activeTab === 'payroll' ? (
+      ) : activeTab === 'payroll' && canSeePay ? (
         <PayrollSummaryView />
-      ) : activeTab === 'salary' ? (
+      ) : activeTab === 'salary' && canSeePay ? (
         <SalaryDetailsView />
       ) : (
         <EmployeeMasterView />

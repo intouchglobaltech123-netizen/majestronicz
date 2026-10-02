@@ -163,9 +163,10 @@ export const NAV_MODULES: NavModule[] = [
     icon: CalendarCheck,
     items: [
       { id: 'hrm', subTabId: 'attendance', label: 'Attendance', cap: 'hrm' },
-      { id: 'hrm', subTabId: 'payroll', label: 'Payroll', cap: 'hrm' },
+      // FIN-B-2: pay figures are for payroll (CEO) only — a Manager gets no salaries.
+      { id: 'hrm', subTabId: 'payroll', label: 'Payroll', cap: 'hrm', payrollOnly: true },
       { id: 'hrm', subTabId: 'employees', label: 'Staff Directory', cap: 'hrm' },
-      { id: 'hrm', subTabId: 'salary', label: 'Salary Structure', cap: 'hrm' },
+      { id: 'hrm', subTabId: 'salary', label: 'Salary Structure', cap: 'hrm', payrollOnly: true },
     ],
   },
   // NOTE: "Online Store" (shopify) moved to the top bar — it is no longer a left-nav

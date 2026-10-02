@@ -290,7 +290,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 value={canEditSalaries ? monthlySalary : ''}
                 onChange={(e) => setMonthlySalary(Number(e.target.value))}
                 disabled={!canEditSalaries}
-                placeholder="20000"
+                placeholder={canEditSalaries ? '20000' : 'Confidential'}
                 className="w-full pl-8 pr-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
@@ -322,7 +322,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 value={canEditSalaries ? incentivePercent : ''}
                 onChange={(e) => setIncentivePercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
                 disabled={!canEditSalaries}
-                placeholder="0"
+                placeholder={canEditSalaries ? '0' : '—'}
                 className="w-full pr-7 pl-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 bg-white focus:outline-none focus:border-red-600 disabled:bg-slate-100 disabled:text-slate-500"
               />
               <span className="absolute right-3 top-2 text-sm font-bold text-slate-400">%</span>
