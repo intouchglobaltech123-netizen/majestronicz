@@ -239,8 +239,28 @@ async function assertPayrollBranch(tx: any, reqUser: any, employeeId: string | u
   assertBranchAllowed(reqUser, rowBranchId ?? null);
 }
 
+/** HRM10-3: a payroll month is a real YYYY-MM. */
+const assertPayrollMonth = (month: unknown): string => {
+  const m = String(month ?? '');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(m) || m < '2010-01') throw new AppError('BAD_MONTH', 'The payroll month must be a real month (YYYY-MM).', 400);
+  return m;
+};
+/** HRM10-3: a money figure on a payroll row — a real number within reason. */
+const assertPayrollAmount = (v: unknown, what: string, { min = 0 } = {}): number => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < min || Math.abs(n) > 10_000_000) throw new AppError('BAD_AMOUNT', `${what} must be a number${min >= 0 ? ' of zero or more' : ''}, at most ₹1 crore.`, 400);
+  return Math.round(n * 100) / 100;
+};
+export const PAYROLL_MODES = ['Cash', 'Bank Transfer'] as const;
+
 export function updatePayrollAdjustment(employeeId: string, month: string, adjustment: number, reason: string | undefined, standardHoursPerMonth: number, reqUser?: any) {
+  month = assertPayrollMonth(month);
+  adjustment = assertPayrollAmount(adjustment, 'The adjustment', { min: -10_000_000 });
+  const hours = Number(standardHoursPerMonth);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 744) throw new AppError('BAD_HOURS', 'Standard hours per month must be between 1 and 744.', 400);
   return prisma.$transaction(async (tx: any) => {
+    // HRM10-3: only a real employee has a payroll.
+    if (!(await tx.employee.findUnique({ where: { id: String(employeeId || '') }, select: { id: true } }))) throw new AppError('NOT_FOUND', 'Employee not found', 404);
     const existing = await tx.payrollRecord.findFirst({ where: { employeeId, month } });
     await assertPayrollBranch(tx, reqUser, employeeId, existing?.branchId);
     if (existing) {
@@ -278,6 +298,19 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
   const id = typeof payrollId === 'string' ? payrollId.trim() : '';
   if (!id) throw new AppError('PAYROLL_ID_REQUIRED', 'Choose the payroll row to mark as paid.', 400);
   if (!String(paymentMode || '').trim()) throw new AppError('PAYMENT_MODE_REQUIRED', 'Choose how the salary was paid.', 400);
+  // HRM10-3: a salary is paid in Cash or by Bank Transfer (not "Bitcoin"), and
+  // the figures sent with the row are real (no negative final pay).
+  const asked = String(paymentMode).trim().toLowerCase();
+  const mode = PAYROLL_MODES.find((m) => m.toLowerCase() === asked) ?? (asked === 'bank' ? 'Bank Transfer' : undefined);
+  if (!mode) throw new AppError('BAD_MODE', "A salary is paid in Cash or by Bank Transfer.", 400);
+  paymentMode = mode;
+  if (record) {
+    if (record.month !== undefined) assertPayrollMonth(record.month);
+    for (const k of ['monthlySalary', 'computedPay', 'finalPayable', 'totalHoursWorked', 'totalDaysPresent', 'hourlyRate', 'standardHoursPerMonth']) {
+      if (record[k] !== undefined && record[k] !== null) assertPayrollAmount(record[k], k);
+    }
+    if (record.manualAdjustment !== undefined && record.manualAdjustment !== null) assertPayrollAmount(record.manualAdjustment, 'manualAdjustment', { min: -10_000_000 });
+  }
   // Serializable + retry so two people pressing "Mark Paid" at the same moment
   // can't both pay the row — the second serialises after the first and sees it as
   // already Paid (HRM6-3).
@@ -324,13 +357,16 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
     } else if (record?.employeeId && record?.month) {
       // No persisted record yet — create one straight into Paid state using the
       // client's computed figures so the disbursement actually sticks.
+      // HRM10-3: only for a real employee; name and branch from the master.
+      const emp = await tx.employee.findUnique({ where: { id: String(record.employeeId) } });
+      if (!emp) throw new AppError('NOT_FOUND', 'Employee not found', 404);
       await tx.payrollRecord.create({
         data: {
           id: rid('pay'),
-          employeeId: record.employeeId,
-          employeeName: record.employeeName ?? '',
-          designation: record.designation ?? '',
-          branchId: record.branchId ?? '',
+          employeeId: emp.id,
+          employeeName: emp.name,
+          designation: emp.designation ?? '',
+          branchId: emp.branchId,
           month: record.month,
           monthlySalary: Number(record.monthlySalary) || 0,
           standardHoursPerMonth: Number(record.standardHoursPerMonth) || 0,

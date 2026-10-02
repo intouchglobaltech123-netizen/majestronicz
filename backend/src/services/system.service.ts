@@ -83,7 +83,8 @@ async function itemLastSale(): Promise<Record<string, Record<string, string>>> {
 export async function branchStockHistory(user: SessionUser, sinceIso: string | null = null) {
   const branch = user.role === 'CEO' ? null : user.assignedBranchId || null;
   const [stockAdjustmentLogs, stockTransfers] = await Promise.all([
-    prisma.stockAdjustmentLog.findMany({ where: { ...(branch ? { branchId: branch } : {}), ...(sinceIso ? { timestamp: { gte: sinceIso } } : {}) } }),
+    // INV10-2: newest first.
+    prisma.stockAdjustmentLog.findMany({ where: { ...(branch ? { branchId: branch } : {}), ...(sinceIso ? { timestamp: { gte: sinceIso } } : {}) }, orderBy: [{ timestamp: 'desc' }, { id: 'desc' }] }),
     prisma.stockTransfer.findMany(branch ? { where: { OR: [{ fromBranch: branch }, { toBranch: branch }] } } : undefined),
   ]);
   return { stockAdjustmentLogs, stockTransfers };

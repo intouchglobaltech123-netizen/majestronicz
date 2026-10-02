@@ -93,7 +93,8 @@ export const StockHistoryModal: React.FC<Props> = ({
     }
 
     return true;
-  });
+  // INV10-2: newest first (ties in the order the rows were written).
+  }).sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')) || String(b.id).localeCompare(String(a.id)));
 
   const formatTimestamp = (iso: string) => {
     try {

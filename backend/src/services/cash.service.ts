@@ -149,6 +149,8 @@ export async function listRegisters(branchId: string, date: string) {
 export function addExpense(branchId: string, date: string, expense: any, actor: string) {
   // An expense needs a real date that is not in the future (IST) — VAL-1 / CASH6-2.
   assertBusinessDate(date, 'An expense');
+  // ERR-1: a missing expense is a 400, never a 500.
+  if (!expense || typeof expense !== 'object' || Array.isArray(expense)) throw new AppError('BAD_REQUEST', 'Send the expense (reason and amount).', 400);
   return serializableTx(async (tx: any) => {
     await assertDayOpen(tx, branchId, date, 'add an expense'); // CASH10-1: also any day before a closed one
     const reg = await ensureRegister(tx, branchId, date);

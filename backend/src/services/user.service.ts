@@ -1,5 +1,6 @@
 import { istDateOf } from '../lib/businessDate.js';
 import { prisma } from '../db.js';
+import { isValidBranch } from '../lib/constants.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { nowIso } from '../lib/stockLedger.js';
 import { ROLE_DEFS, Role, SessionUser, hashPin, hashPinCandidates, pinNeedsRehash, isPinHashed } from '../lib/auth.js';
@@ -272,6 +273,12 @@ export async function updateUser(id: string, input: UpdateUserInput) {
   }
   if (input.role && !CREATABLE_ROLES.includes(input.role) && !existing.isSystem) {
     throw new AppError('BAD_REQUEST', 'Role must be Manager, Billing, Purchase or Sales', 400);
+  }
+  // HRM10-3: a real name, status and branch — not "", "banana" or "mars".
+  if (input.name !== undefined && (typeof input.name !== 'string' || !input.name.trim())) throw new AppError('BAD_REQUEST', 'Name cannot be empty', 400);
+  if (input.status !== undefined && input.status !== 'active' && input.status !== 'disabled') throw new AppError('BAD_REQUEST', "Status must be 'active' or 'disabled'", 400);
+  if (input.assignedBranchId !== undefined && input.assignedBranchId !== null && !isValidBranch(String(input.assignedBranchId))) {
+    throw new AppError('BAD_BRANCH', `Unknown branch: ${String(input.assignedBranchId).slice(0, 40)}`, 400);
   }
   const data: any = { updatedAt: nowIso() };
   if (input.name !== undefined) data.name = input.name.trim();

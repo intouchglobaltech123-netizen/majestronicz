@@ -158,19 +158,26 @@ export const ItemHistoryTab: React.FC<ItemHistoryTabProps> = ({
       }
     });
 
-    // Most Frequent Customer
-    const customerCounts: Record<string, number> = {};
+    // Most Frequent Customer — INV10-3: live bills only, each bill once (two
+    // lines or a kit on one bill are one purchase), the customer by account /
+    // phone, named from the bill (not the "· in kit" line label).
+    const customerBills = new Map<string, { name: string; bills: Set<string> }>();
     allItemSales.forEach((s) => {
-      if (s.customerName && s.customerName.trim() && s.customerName.toLowerCase() !== 'walk-in customer') {
-        customerCounts[s.customerName] = (customerCounts[s.customerName] || 0) + 1;
-      }
+      if (s.isVoided) return;
+      const inv = s.invoice;
+      const name = (inv.customerName || '').trim();
+      if (!name || /^walk-?in/i.test(name)) return;
+      const key = inv.customerId || (inv.customerPhone || '').replace(/\D/g, '').slice(-10) || name.toLowerCase();
+      const cur = customerBills.get(key) || { name, bills: new Set<string>() };
+      cur.bills.add(inv.id);
+      customerBills.set(key, cur);
     });
     let topCustomer = 'None yet';
     let topCustomerCount = 0;
-    Object.entries(customerCounts).forEach(([cName, count]) => {
-      if (count > topCustomerCount) {
-        topCustomerCount = count;
-        topCustomer = `${cName} (${count} bill${count > 1 ? 's' : ''})`;
+    customerBills.forEach(({ name, bills }) => {
+      if (bills.size > topCustomerCount) {
+        topCustomerCount = bills.size;
+        topCustomer = `${name} (${bills.size} bill${bills.size > 1 ? 's' : ''})`;
       }
     });
 

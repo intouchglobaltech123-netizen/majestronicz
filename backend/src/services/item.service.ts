@@ -1,6 +1,9 @@
 import { prisma } from '../db.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
-import { BRANCHES } from '../lib/constants.js';
+import { BRANCHES, STANDARD_UNITS, GST_RATES } from '../lib/constants.js';
+import { isWholeUnit } from '../lib/units.js';
+
+const GST_SLABS = new Set<number>(GST_RATES.map((g: any) => Number(g.rate)));
 import { AppError } from '../middleware/errorHandler.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { stockQty } from '../lib/units.js';
@@ -18,7 +21,7 @@ const ARCHIVE_FIELDS = ['isArchived', 'archivedAt', 'archivedBy'];
  * wholesale quantity of 0 or more, a discount within 100% / the sale price,
  * and a supplier that exists. Text fields are trimmed.
  */
-async function assertItemFields(tx: any, d: any, isAdd: boolean): Promise<void> {
+async function assertItemFields(tx: any, d: any, isAdd: boolean, currentUnit?: string | null): Promise<void> {
   const has = (k: string) => isAdd || d[k] !== undefined;
   if (has('itemName')) {
     d.itemName = String(d.itemName ?? '').trim().replace(/\s+/g, ' ');
@@ -30,11 +33,35 @@ async function assertItemFields(tx: any, d: any, isAdd: boolean): Promise<void> 
   if (has('unit')) {
     d.unit = String(d.unit ?? '').trim();
     if (!d.unit) throw new AppError('UNIT_REQUIRED', 'Choose the unit the item is counted in.', 400);
+    // INV10-5: a unit from the units list (standard + ones added in Settings).
+    const custom = ((await tx.appConfig.findUnique({ where: { key: 'unitsList' } }))?.value as any[]) || [];
+    const units = new Set([...STANDARD_UNITS, ...custom].map((u: any) => String(u?.value ?? u ?? '').trim().toUpperCase()).filter(Boolean));
+    const hit = [...units].find((u) => u === d.unit.toUpperCase());
+    if (!hit) throw new AppError('BAD_UNIT', `"${d.unit.slice(0, 20)}" is not a unit in the units list.`, 400);
+    d.unit = hit;
+  }
+  // INV10-5: the item code is required (blank codes can't be searched or printed).
+  if (isAdd && !String(d.itemCode ?? '').trim()) throw new AppError('CODE_REQUIRED', 'Item code is required.', 400);
+  if (!isAdd && d.itemCode !== undefined && !String(d.itemCode ?? '').trim()) throw new AppError('CODE_REQUIRED', 'Item code cannot be blank.', 400);
+  // INV10-5: prices within ₹1 crore; GST one of the slabs.
+  for (const [k, label] of [['salePrice', 'Sale price'], ['purchasePrice', 'Purchase price'], ['wholesalePrice', 'Wholesale price']] as const) {
+    if (d[k] === undefined || d[k] === null || d[k] === '') continue;
+    const n = Number(d[k]);
+    if (!Number.isFinite(n) || n < 0 || n > 10_000_000) throw new AppError('BAD_PRICE', `${label} must be a number from 0 to ₹1 crore.`, 400);
+    d[k] = n;
+  }
+  if (has('gstTaxSlab') && d.gstTaxSlab !== undefined) {
+    const g = Number(d.gstTaxSlab);
+    if (!GST_SLABS.has(g)) throw new AppError('BAD_GST', `GST must be one of the slabs (${[...GST_SLABS].join(', ')}%).`, 400);
+    d.gstTaxSlab = g;
   }
   for (const [k, label] of [['reorderThreshold', 'The low-stock threshold'], ['minWholesaleQty', 'The minimum wholesale quantity']] as const) {
     if (d[k] === undefined || d[k] === null || d[k] === '') continue;
     const n = Number(d[k]);
     if (!Number.isFinite(n) || n < 0 || n > 1_000_000) throw new AppError('BAD_NUMBER', `${label} must be a number of 0 or more.`, 400);
+    // INV10-5: thresholds and wholesale quantities of a counted item are whole.
+    const unit = d.unit ?? currentUnit;
+    if (!Number.isInteger(n) && (!unit || isWholeUnit(String(unit)))) throw new AppError('BAD_NUMBER', `${label} must be a whole number for an item counted in ${String(unit || 'units')}.`, 400);
     d[k] = n;
   }
   if (d.discountOnSalePrice !== undefined && d.discountOnSalePrice !== null && d.discountOnSalePrice !== '') {
@@ -57,6 +84,10 @@ async function assertItemFields(tx: any, d: any, isAdd: boolean): Promise<void> 
 
 /** Create a catalog item + initialize per-branch stock rows (atomic). */
 export function addItem(itemData: any, initialStocks: Record<string, number> = {}, initialLocations: Record<string, string> = {}, reqUser?: any) {
+  // ERR-1: a missing item is a 400, never a 500.
+  if (!itemData || typeof itemData !== 'object' || Array.isArray(itemData)) throw new AppError('BAD_REQUEST', 'Send the item to add.', 400);
+  if (initialStocks == null || typeof initialStocks !== 'object') initialStocks = {};
+  if (initialLocations == null || typeof initialLocations !== 'object') initialLocations = {};
   // A branch-locked user can only set opening stock for their own branch (INV4-5).
   for (const b of BRANCHES) {
     if ((initialStocks[b.id] ?? 0) > 0) assertBranchAllowed(reqUser, b.id);
@@ -134,7 +165,17 @@ export function updateItem(itemId: string, updates: any) {
   return serializableTx(async (tx: any) => {
     const existing = await tx.item.findUnique({ where: { id: itemId } });
     if (!existing) throw new AppError('NOT_FOUND', 'Item not found', 404);
-    await assertItemFields(tx, { salePrice: existing.salePrice, discountType: existing.discountType, ...updates }, false);
+    const checked: any = { salePrice: existing.salePrice, discountType: existing.discountType, ...updates };
+    await assertItemFields(tx, checked, false, existing.unit);
+    for (const k of Object.keys(updates)) updates[k] = checked[k]; // the cleaned values are saved
+    // INV10-4: an item measured in fractions (MTR, KGS…) can only become a
+    // counted one (PCS, NOS…) when every branch holds a whole number of it.
+    if (updates.unit !== undefined && isWholeUnit(updates.unit) && !isWholeUnit(existing.unit)) {
+      const odd = (await tx.branchStock.findMany({ where: { itemId } })).find((r: any) => !Number.isInteger(Number(r.quantity) || 0));
+      if (odd) {
+        throw new AppError('FRACTIONAL_STOCK', `${odd.branchId} holds ${odd.quantity} ${existing.unit} of this item — a counted unit (${updates.unit}) needs whole numbers. Adjust the stock to a whole number first.`, 409);
+      }
+    }
     // INV4-6: the cleaned (trimmed) values are what is saved.
     if (typeof updates.itemName === 'string') updates.itemName = updates.itemName.trim().replace(/\s+/g, ' ');
     if (typeof updates.unit === 'string') updates.unit = updates.unit.trim();

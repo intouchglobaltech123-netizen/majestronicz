@@ -480,3 +480,48 @@ describe('round 10: sign-in rules', async () => {
     ok(await call('GET', '/api/bootstrap', { as: { token } }), 'works once the PIN is changed');
   });
 });
+
+describe('round 10: item, stock and payroll validation', async () => {
+  const { uid, ledgerOf } = await import('./lib.mjs');
+  const itemBody = (over = {}) => ({ itemName: `QA v ${uid()}`, itemHSN: '85371000', category: 'QA', itemCode: `QA-${uid()}`.toUpperCase(), unit: 'PCS', salePrice: 100, salePriceTaxMode: 'exclusive', wholesalePrice: 100, minWholesaleQty: 10, purchasePrice: 60, gstTaxSlab: 18, ...over });
+
+  test('INV10-5 / ERR-1 the item API refuses a fractional threshold for PCS, absurd prices, a non-slab GST, unknown units and blank codes; a missing body is a 400', async () => {
+    for (const [over, what] of [[{ reorderThreshold: 2.5 }, 'threshold 2.5 PCS'], [{ salePrice: 1e12 }, 'price 1e12'], [{ gstTaxSlab: 7 }, 'GST 7%'], [{ unit: 'BANANA' }, 'unit BANANA'], [{ itemCode: '  ' }, 'blank code']]) {
+      expectStatus(await post('/api/catalog/item', { item: itemBody(over), initialStocks: {} }), 400, what);
+    }
+    ok(await post('/api/catalog/item', { item: itemBody({ unit: 'mtr', reorderThreshold: 2.5 }), initialStocks: {} }), '2.5 MTR is fine (unit spelled in lower case)');
+    expectStatus(await post('/api/catalog/item', {}), 400, 'no item');
+    expectStatus(await post('/api/cash/expense', { branchId: 'erode-hq', date: istToday(), expense: null }), 400, 'expense null');
+  });
+
+  test('INV10-4 an item measured in metres becomes a counted item only when every branch holds whole units', async () => {
+    const item = ok(await post('/api/catalog/item', { item: itemBody({ unit: 'MTR' }), initialStocks: { 'erode-hq': 2.5 } })).item;
+    const res = await put(`/api/catalog/item/${item.id}`, { item: { unit: 'PCS' } });
+    expectStatus(res, 409, 'MTR → PCS with 2.5 in stock');
+    ok(await post('/api/stock/update', { itemId: item.id, branchId: 'erode-hq', quantity: 3 }), 'stock set to 3');
+    ok(await put(`/api/catalog/item/${item.id}`, { item: { unit: 'PCS' } }), 'now it can change');
+  });
+
+  test('INV10-2 the stock history comes newest first', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: 1, reason: 'QA 1' }));
+    ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange: 1, reason: 'QA 2' }));
+    const rows = await ledgerOf(item.id, 'erode-hq');
+    const ts = rows.map((r) => r.timestamp);
+    assert.deepEqual(ts, [...ts].sort().reverse(), 'sorted newest first');
+  });
+
+  test('HRM10-3 payroll and staff-account inputs are validated (month, amounts, mode, real employee, status, branch)', async () => {
+    const emp = ok(await get('/api/employees')).find((e) => e.status === 'Active');
+    expectStatus(await post('/api/hrm/payroll-adjustment', { employeeId: emp.id, month: 'banana', adjustment: 100, standardHoursPerMonth: 208 }), 400, 'month banana');
+    expectStatus(await post('/api/hrm/payroll-adjustment', { employeeId: emp.id, month: '2026-05', adjustment: 1e12, standardHoursPerMonth: 208 }), 400, 'adjustment 1e12');
+    expectStatus(await post('/api/hrm/payroll-adjustment', { employeeId: 'emp-ghost', month: '2026-05', adjustment: 10, standardHoursPerMonth: 208 }), 404, 'ghost employee');
+    expectStatus(await post('/api/hrm/payroll-paid', { payrollId: `calc-${uid()}`, paymentMode: 'Bitcoin', record: { employeeId: emp.id, month: '2026-05', finalPayable: 10 } }), 400, 'Bitcoin');
+    expectStatus(await post('/api/hrm/payroll-paid', { payrollId: `calc-${uid()}`, paymentMode: 'Cash', record: { employeeId: emp.id, month: '2026-05', finalPayable: -5 } }), 400, 'final pay -5');
+    expectStatus(await post('/api/hrm/payroll-paid', { payrollId: `calc-${uid()}`, paymentMode: 'Cash', record: { employeeId: 'emp-ghost', month: '2026-05', finalPayable: 5 } }), 404, 'ghost employee paid');
+    const users = ok(await get('/api/users'));
+    const staff = users.find((u) => !u.isSystem && u.role !== 'CEO') || users.find((u) => u.role === 'Billing');
+    expectStatus(await put(`/api/users/${staff.id}`, { status: 'banana' }), 400, 'status banana');
+    expectStatus(await put(`/api/users/${staff.id}`, { assignedBranchId: 'mars' }), 400, 'branch mars');
+  });
+});
