@@ -20,8 +20,11 @@ interface Props {
   initialValues?: {
     itemName?: string;
     imageUrl?: string;
+    unit?: string;
   };
   onItemAdded?: (newItem: Item) => void;
+  /** Refuse to create the item without a sale price above ₹0 (enquiry linking, CRM3-3). */
+  requirePositivePrice?: boolean;
 }
 
 const COMMON_HSN_CODES = [
@@ -39,6 +42,7 @@ export const AddItemModal: React.FC<Props> = ({
   onClose,
   initialValues,
   onItemAdded,
+  requirePositivePrice,
 }) => {
   const {
     items,
@@ -97,6 +101,9 @@ export const AddItemModal: React.FC<Props> = ({
     if (isOpen && initialValues) {
       if (initialValues.itemName) setItemName(initialValues.itemName);
       if (initialValues.imageUrl) setImageUrl(initialValues.imageUrl);
+      // Pre-fill the unit the customer asked in, when it is a catalogue unit (CRM3-3).
+      const wanted = (initialValues.unit || '').trim().toUpperCase();
+      if (wanted && unitsList.some((u) => u.value === wanted)) setUnit(wanted);
     }
   }, [isOpen, initialValues]);
 
@@ -230,6 +237,12 @@ export const AddItemModal: React.FC<Props> = ({
     // corrupts every downstream total (INV-9).
     if (Number(salePrice) < 0 || Number(purchasePrice) < 0 || Number(wholesalePrice) < 0) {
       toast.error('Prices cannot be negative.');
+      return;
+    }
+    // Checked BEFORE the item is created — the enquiry flow used to reject a ₹0
+    // item only after it was already in the catalogue (CRM3-3).
+    if (requirePositivePrice && !(Number(salePrice) > 0)) {
+      toast.error('Set a sale price greater than ₹0 before adding this item to the catalog.');
       return;
     }
 

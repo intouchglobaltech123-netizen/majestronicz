@@ -89,6 +89,8 @@ export const InvoiceForm: React.FC<Props> = ({
     saveInvoice,
     getNextEstimateNumber,
     saveEstimate,
+    markEnquiryConverted,
+    estimates,
     branchStocks,
     getComboAvailability,
     paymentTermsOptions,
@@ -323,12 +325,21 @@ export const InvoiceForm: React.FC<Props> = ({
   const [attachments, setAttachments] = useState<{ name: string; size?: string }[]>([]);
   const [attachmentInput, setAttachmentInput] = useState('');
 
-  // Track if converted from an estimate or enquiry
+  // Track if converted from an estimate or enquiry. An enquiry conversion opens
+  // the form with a pre-filled stand-in quote (id "est-conv-…") that was never
+  // saved — it is not a source estimate, so the bill must not claim "Created
+  // from Estimate ENQ-…" or link a quote that does not exist (CRM-2 / E2E6-8).
+  // (A quote that was saved from an enquiry keeps that id, but it is then in the
+  // saved list, so it still counts as a real source estimate.)
+  const isEnquiryPrefill = (e?: Estimate | null): boolean =>
+    !!e && e.id.startsWith('est-conv-') && !!e.sourceEnquiryId && !estimates.some((x) => x.id === e.id);
+  const fromEnquiryPrefill = isEnquiryPrefill(convertedFromEstimate) || isEnquiryPrefill(initialEstimate);
+  const realSourceEstimate = isEnquiryPrefill(convertedFromEstimate) ? undefined : convertedFromEstimate;
   const [sourceEstimateId, setSourceEstimateId] = useState<string | undefined>(
-    initialInvoice?.sourceEstimateId || convertedFromEstimate?.id
+    initialInvoice?.sourceEstimateId || realSourceEstimate?.id
   );
   const [sourceEstimateNumber, setSourceEstimateNumber] = useState<string | undefined>(
-    initialInvoice?.sourceEstimateNumber || convertedFromEstimate?.estimateNumber
+    initialInvoice?.sourceEstimateNumber || realSourceEstimate?.estimateNumber
   );
   const [sourceEnquiryId, setSourceEnquiryId] = useState<string | undefined>(
     initialInvoice?.sourceEnquiryId || convertedFromEstimate?.sourceEnquiryId
@@ -398,8 +409,8 @@ export const InvoiceForm: React.FC<Props> = ({
       setCustomerAddress(convertedFromEstimate.customerAddress || '');
       setWithGst(convertedFromEstimate.withGst);
       setTerms(convertedFromEstimate.termsAndConditions);
-      setSourceEstimateId(convertedFromEstimate.id);
-      setSourceEstimateNumber(convertedFromEstimate.estimateNumber);
+      setSourceEstimateId(isEnquiryPrefill(convertedFromEstimate) ? undefined : convertedFromEstimate.id);
+      setSourceEstimateNumber(isEnquiryPrefill(convertedFromEstimate) ? undefined : convertedFromEstimate.estimateNumber);
       setSourceEnquiryId(convertedFromEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(convertedFromEstimate.sourceEnquiryNumber);
       // Carry document-level adjustments (overall discount / freight / round-off)
@@ -449,7 +460,7 @@ export const InvoiceForm: React.FC<Props> = ({
       // Generate invoice number for this branch
       const generated = getNextInvoiceNumber(convertedFromEstimate.branchId);
       setInvoiceNumber(generated);
-      toast.info(`Pre-filled from Estimate ${convertedFromEstimate.estimateNumber}`, {
+      toast.info(isEnquiryPrefill(convertedFromEstimate) ? `Pre-filled from Enquiry ${convertedFromEstimate.sourceEnquiryNumber}` : `Pre-filled from Estimate ${convertedFromEstimate.estimateNumber}`, {
         description: 'All customer details, items, and pricing loaded. Review and save.',
       });
     } else if (initialEstimate) {
@@ -1374,6 +1385,10 @@ export const InvoiceForm: React.FC<Props> = ({
       // Use the server-saved estimate (authoritative number) for the preview,
       // not the provisional one — saveEstimate emits its own success toast.
       const saved = await saveEstimate(est);
+      // The enquiry is closed only now that the quotation really exists (CRM-2).
+      if (fromEnquiryPrefill && saved?.sourceEnquiryId) {
+        await markEnquiryConverted(saved.sourceEnquiryId, 'estimate', saved.id, saved.estimateNumber);
+      }
       if (onSavedEstimate) {
         onSavedEstimate(saved);
       }
@@ -1388,6 +1403,11 @@ export const InvoiceForm: React.FC<Props> = ({
       // object, or the user prints a "DRAFT"/wrong number for a sale that was
       // never recorded (SAL2-5).
       if (!saved) return;
+      // The enquiry / pending order is closed only now that a real bill exists —
+      // "+ Bill" without saving no longer fulfils the order (CRM-2).
+      if (fromEnquiryPrefill && !initialInvoice && saved.sourceEnquiryId) {
+        await markEnquiryConverted(saved.sourceEnquiryId, 'invoice', saved.id, saved.invoiceNumber);
+      }
       onSaved(saved);
     }
   };
