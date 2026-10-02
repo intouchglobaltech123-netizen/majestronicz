@@ -202,6 +202,10 @@ export function calculateInvoiceTotals(
   if (withGst && overallDiscountAmount > 0 && subtotal > 0) {
     const netRatio = netTaxable / subtotal;
     totalTax = Math.round(totalTax * netRatio * 100) / 100;
+  }
+  // SAL9-13 (mirrors the server): the bill's tax is split once — SGST half of
+  // it rounded, CGST the rest, so they differ by at most ₹0.01.
+  if (withGst) {
     totalSgst = Math.round((totalTax / 2) * 100) / 100;
     totalCgst = Math.round((totalTax - totalSgst) * 100) / 100;
   }

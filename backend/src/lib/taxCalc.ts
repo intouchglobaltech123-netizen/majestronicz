@@ -75,6 +75,11 @@ export function calculateInvoiceTotals(
   if (withGst && overallDiscountAmount > 0 && subtotal > 0) {
     const netRatio = netTaxable / subtotal;
     totalTax = r2(totalTax * netRatio);
+  }
+  // SAL9-13: the bill's tax is split ONCE: SGST is half of it rounded to the
+  // paisa and CGST the rest, so the two differ by at most ₹0.01 (summing each
+  // line's own split let CGST run several paisa ahead on long bills).
+  if (withGst) {
     totalSgst = r2(totalTax / 2);
     totalCgst = r2(totalTax - totalSgst);
   }

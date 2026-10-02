@@ -25,6 +25,14 @@ function recomputeEstimateMoney(est: any) {
   if (!est || typeof est !== 'object' || !Array.isArray(est.items)) {
     throw new AppError('BAD_REQUEST', 'A quotation needs its line items.', 400);
   }
+  // SAL9-5: a quote line carries ONE GST rate. The check read taxRate and the
+  // maths gstRate, so a line could pass at 18% and be charged 0%.
+  for (const li of est.items as any[]) {
+    if (li && li.gstRate != null && li.taxRate != null && Number(li.gstRate) !== Number(li.taxRate)) {
+      throw new AppError('BAD_GST', `"${String(li.itemName || 'A line').slice(0, 80)}" has two different GST rates (${li.gstRate}% / ${li.taxRate}%).`, 400);
+    }
+    if (li) { const r = li.gstRate ?? li.taxRate ?? 0; li.gstRate = r; li.taxRate = r; }
+  }
   assertLineInputs(est, 'quotation');
   est.items = (est.items || []).map((li: any) => {
     const rate = li.gstRate ?? li.taxRate ?? 0;

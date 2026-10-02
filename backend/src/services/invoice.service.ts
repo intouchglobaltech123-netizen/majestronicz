@@ -141,14 +141,20 @@ async function snapshot(tx: any) {
  * cash already banked (CRM6-4), so those actions are refused while a receipt
  * exists — the receipt must be deleted/reversed first, or a return issued.
  */
-async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> {
-  const receipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+async function invoiceHasReceipts(tx: any, invoiceId: string, opts: { ignoreTakeBacks?: boolean } = {}): Promise<boolean> {
+  const receipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true, notes: true } });
   return receipts.some(
     (p: any) =>
+      !(opts.ignoreTakeBacks && isRefundTakeBack(p)) &&
       Array.isArray(p.allocations) &&
       p.allocations.some((a: any) => a?.refId === invoiceId && (Number(a?.amount) || 0) > 0)
   );
 }
+
+/** SAL9-12: the receipt a return reversal books when the refund it undoes was
+ *  paid on a closed day ("Refund PAY-… taken back"). With its refund it nets
+ *  to ₹0 — it is not a customer payment of the bill. */
+const isRefundTakeBack = (p: any): boolean => /^Refund \S+ taken back/.test(String(p?.notes || ''));
 
 /**
  * Remove the cash-refund ledger rows a RETURN booked against this invoice. When a
@@ -157,9 +163,14 @@ async function invoiceHasReceipts(tx: any, invoiceId: string): Promise<boolean> 
  * Payment 'out' row points at a bill that no longer exists (money-model cleanup).
  */
 async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
-  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, branchId: true, date: true, allocations: true } });
+  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, branchId: true, date: true, allocations: true, receiptNumber: true } });
+  // SAL9-12: a refund already taken back by a reversal (its take-back receipt
+  // exists) is a settled pair that nets to ₹0 in the drawers — both stay as they
+  // are (the refund's day may be closed) and the void goes ahead.
+  const takeBacks = (await tx.payment.findMany({ where: { type: 'in' }, select: { notes: true } })).filter(isRefundTakeBack);
+  const takenBack = (p: any) => !!p.receiptNumber && takeBacks.some((t: any) => String(t.notes).startsWith(`Refund ${p.receiptNumber} taken back`));
   const targets = outRows.filter(
-    (p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId),
+    (p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId) && !takenBack(p),
   );
   if (!targets.length) return;
   // A refund was a cash payout on its own day. If that day's drawer is already
@@ -766,7 +777,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('ALREADY_VOIDED', 'Sale already voided', 409);
-    if (await invoiceHasReceipts(tx, invoiceId)) {
+    if (await invoiceHasReceipts(tx, invoiceId, { ignoreTakeBacks: true })) {
       throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first, or issue a return instead of voiding.', 409); // CRM6-4
     }
     await assertDayOpen(tx, inv.branchId, inv.date, 'void this bill'); // CASH-2

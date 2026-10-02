@@ -1152,7 +1152,11 @@ export interface PODebitNote {
 
 export function getNextPurchaseOrderSequence(purchaseOrders: PurchaseOrder[], branchId: BranchId): string {
   const branchCode = branchId === 'erode-hq' ? 'ERD' : branchId === 'coimbatore' ? 'CBE' : 'CHE';
-  const prefix = `PO-${branchCode}-2026-`;
+  // PLT9-1 (preview only — the server assigns the number): named by the
+  // financial year it starts in, as the server does.
+  const now = new Date();
+  const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const prefix = `PO-${branchCode}-${fyStart}-`;
   const relevant = purchaseOrders.filter((p) => p.poNumber.startsWith(prefix));
   let nextSeq = 1;
   if (relevant.length > 0) {

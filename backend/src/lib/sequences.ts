@@ -50,15 +50,27 @@ export async function nextPersistent(tx: any, key: string, fromRowsMax: number):
   return next;
 }
 
+/**
+ * SAL2-15: the shop's bill series continued from its old software at /7307 in
+ * the year it went live (FY 26-27). Only THAT year starts there; every other
+ * financial year starts its own series at 0001. The go-live year and start can
+ * be configured (AppConfig 'invoiceSeriesStart' = { fy: '26-27', start: 7307 }).
+ */
+const DEFAULT_SERIES_START = { fy: '26-27', start: 7307 };
+
 export async function nextInvoiceNumber(tx: any, branchId: string, date?: string): Promise<string> {
-  const prefix = `MZ${invBranchCode(branchId)}${financialYear(date)}/`;
+  const fy = financialYear(date);
+  const prefix = `MZ${invBranchCode(branchId)}${fy}/`;
   const rows = await tx.invoice.findMany({
     where: { invoiceNumber: { startsWith: prefix } },
     select: { invoiceNumber: true },
   });
-  const fromRows = maxSeq(rows.map((r: any) => r.invoiceNumber), prefix, 7306);
+  const cfg = (await tx.appConfig.findUnique({ where: { key: 'invoiceSeriesStart' } }))?.value as any;
+  const series = cfg && typeof cfg.fy === 'string' && Number(cfg.start) > 0 ? { fy: cfg.fy, start: Number(cfg.start) } : DEFAULT_SERIES_START;
+  const floor = fy === series.fy ? series.start - 1 : 0;
+  const fromRows = maxSeq(rows.map((r: any) => r.invoiceNumber), prefix, floor);
   const next = await nextPersistent(tx, `seq:inv:${prefix}`, fromRows);
-  return `${prefix}${next}`;
+  return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
 export async function nextEstimateNumber(tx: any, branchId: string, date?: string): Promise<string> {
@@ -94,8 +106,11 @@ export async function nextComboCode(tx: any): Promise<string> {
   return `CB-${String(next).padStart(4, '0')}`;
 }
 
-export async function nextPoNumber(tx: any, branchId: string): Promise<string> {
-  const prefix = `PO-${poBranchCode(branchId)}-2026-`;
+/** PLT9-1: the PO series is per financial year, named by the year it starts
+ *  (PO-ERD-2026-… for FY 26-27, PO-ERD-2027-… for FY 27-28); it was "-2026-"
+ *  for ever. */
+export async function nextPoNumber(tx: any, branchId: string, date?: string): Promise<string> {
+  const prefix = `PO-${poBranchCode(branchId)}-20${financialYear(date).slice(0, 2)}-`;
   const rows = await tx.purchaseOrder.findMany({
     where: { poNumber: { startsWith: prefix } },
     select: { poNumber: true },

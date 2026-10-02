@@ -779,6 +779,11 @@ export const InvoiceForm: React.FC<Props> = ({
     // GST on → store the pre-tax portion (tax is shown on top, total = charged price).
     // GST off → store the full charged price (no tax line, same total).
     const value = withGst ? preOn : preOn * factor;
+    // SAL-12: an ex-tax price worked back from a tax-INCLUSIVE price keeps its
+    // full precision (₹28,500 incl. 18% → 24,152.542373), so the bill comes back
+    // to exactly ₹28,500.00 at any quantity — rounding it to the paisa first
+    // lost money on larger quantities.
+    if (withGst && item.salePriceTaxMode === 'with') return Math.round(value * 1e6) / 1e6;
     return Math.round(value * 100) / 100;
   };
 

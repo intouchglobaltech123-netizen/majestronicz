@@ -198,7 +198,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       saved = await tx.purchaseOrder.update({ where: { id }, data: { ...rest, updatedAt: ts } });
     } else {
       const id = poData.id || `po-order-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-      const poNumber = await nextPoNumber(tx, poData.branchId); // authoritative, collision-free
+      const poNumber = await nextPoNumber(tx, poData.branchId, poData.date); // authoritative, collision-free, per FY (PLT9-1)
       const clean = { ...poData };
       for (const k of SERVER_MANAGED) delete (clean as any)[k];
       // PUR5-2: never trust the client's totals. Recompute each line's amount/tax

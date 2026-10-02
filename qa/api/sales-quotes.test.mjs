@@ -3,7 +3,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, del, ok, expectStatus, near, uid, createItem, stockOf, line, comboLine, createCombo, saleBody, sell,
-  mustSell, getInvoice, resave, returnLine, receive, freshDay, utcToday, together, paymentsFor,
+  mustSell, getInvoice, resave, returnLine, receive, freshDay, freshDays, utcToday, together, paymentsFor,
   serviceLine, randomPhone, istToday, addDays, sql, ledgerOf,
 } from './lib.mjs';
 
@@ -721,6 +721,56 @@ describe('round 9: sales', () => {
     } finally {
       ok(await post('/api/cash/reopen', { branchId: 'chennai', date: today }));
     }
+  });
+
+  test('SAL9-12 a bill whose closed-day refund was taken back by a reversal can still be voided', async () => {
+    if (!sql('SELECT 1')) return; // needs DATABASE_URL to put the refund on a closed day
+    const [d1, d2] = await freshDays('erode-hq', 2);
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const inv = await mustSell(saleBody({ date: d1, lines: [line(item, 2)] }));
+    ok(await post('/api/tx/sale-return', { invoiceId: inv.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    const refund = (await paymentsFor(inv.id)).find((p) => p.type === 'out');
+    sql(`UPDATE "Payment" SET "date"='${d2}' WHERE id='${refund.id}'`);
+    ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d2 }), 'the refund day is closed');
+    const res = ok(await post('/api/tx/reverse-return', { invoiceId: inv.id, returnId: lastReturn(await getInvoice(inv.id)).id }), 'reverse');
+    assert.equal(res.reversed.refund.kind, 'collected', 'taken back with a receipt today');
+    ok(await post('/api/tx/void-invoice', { invoiceId: inv.id, reason: 'QA' }), 'void is allowed');
+    const rows = await paymentsFor(inv.id);
+    assert.equal(rows.length, 2, 'the refund and its take-back stay as a pair');
+    ok(await post('/api/cash/reopen', { branchId: 'erode-hq', date: d2 }));
+  });
+
+  test('SAL9-5 a quote line with two different GST rates is refused; the one rate is stored on both fields', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const res = await post('/api/catalog/estimate', {
+      id: `est-qa-${uid()}`, branchId: 'erode-hq', date, time: '10:00', customerName: 'QA', withGst: true, termsAndConditions: 'QA',
+      items: [{ id: `li-${uid()}`, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, itemHSN: item.itemHSN, unit: 'PCS', quantity: 1, unitPrice: item.salePrice, gstRate: 0, taxRate: 18 }],
+    });
+    expectStatus(res, 400, 'gstRate 0 + taxRate 18');
+    const quote = await createQuote(item, 1, 'erode-hq', date);
+    assert.equal(quote.items[0].taxRate, quote.items[0].gstRate);
+  });
+
+  test('SAL9-13 a bill\'s CGST and SGST differ by at most one paisa and add up to its tax', async () => {
+    const date = await freshDay('erode-hq');
+    const inv = await mustSell(saleBody({ date, lines: Array.from({ length: 5 }, () => serviceLine(1, 100.05, 18)) }));
+    assert.ok(Math.abs(inv.totalCgst - inv.totalSgst) <= 0.0101, `CGST ${inv.totalCgst} vs SGST ${inv.totalSgst}`);
+    near(inv.totalCgst + inv.totalSgst, inv.totalTax);
+  });
+
+  test('SAL2-15 / PLT9-1 each financial year has its own series: only the go-live year continues from /7307; POs are named by their year', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const old = await mustSell(saleBody({ date: '2019-06-15', lines: [line(item, 1)] }));
+    const m = /^MZERD19-20\/(\d+)$/.exec(old.invoiceNumber);
+    assert.ok(m, old.invoiceNumber);
+    assert.ok(Number(m[1]) < 7000 && m[1].length >= 4, `an earlier year starts its own series: ${old.invoiceNumber}`);
+    const now = await mustSell(saleBody({ date: istToday(), lines: [line(item, 1)] }));
+    assert.ok(Number(now.invoiceNumber.split('/')[1]) >= 7307, `the go-live year continues: ${now.invoiceNumber}`);
+    const v = ok(await get('/api/vendors'))[0];
+    const po = ok(await post('/api/purchase/save', { po: { vendorId: v.id, branchId: 'erode-hq', date: '2025-09-01', expectedDeliveryDate: '2025-09-30',
+      items: [{ itemId: item.id, quantityOrdered: 1, receivedQuantity: 0, purchasePrice: 10, taxPercent: 18 }], totalAmount: 0 }, actor: 'QA' })).saved;
+    assert.ok(po.poNumber.startsWith('PO-ERD-2025-'), po.poNumber);
   });
 });
 
