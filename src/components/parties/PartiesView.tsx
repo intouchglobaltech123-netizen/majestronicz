@@ -20,7 +20,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, Vendor, Invoice, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables, isInvoiceForCustomer } from '../../types';
+import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables, isInvoiceForCustomer, customerSalesSummary } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -197,28 +197,20 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       });
   }, [parties, searchQuery]);
 
-  // Lifetime spent per customer, computed the SAME way as CustomerDetailModal:
-  // the sum of computeInvoiceFinance(inv).net (grandTotal minus returns) over the
-  // customer's non-voided invoices. This replaces the stored `totalSpent` figure
-  // so the list row, sort, export and the detail view agree and reflect returns (CRM-8).
-  const customerLifetimeSpent = useMemo(() => {
-    const map = new Map<string, number>();
-    const nonVoided = invoices.filter((i) => !i.isVoided);
-    const belongsToCustomer = (inv: Invoice, c: Customer) => {
-      if (inv.customerId && inv.customerId === c.id) return true;
-      const cleanPhone = (c.phone || '').trim().replace(/\D/g, '');
-      if (cleanPhone && inv.customerPhone && inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
-      if (c.name && inv.customerName && inv.customerName.trim().toLowerCase() === c.name.trim().toLowerCase()) return true;
-      return false;
-    };
+  // Lifetime spent and purchase count per customer, from the bills themselves:
+  // matched by id (or phone on older unlinked bills — never by name, CRM3-5),
+  // net of returns, voided bills left out (CRM-8). The list, sort, export and
+  // the detail view all use customerSalesSummary.
+  const customerSales = useMemo(() => {
+    const map = new Map<string, { count: number; spent: number }>();
     for (const c of customers) {
-      const spent = nonVoided
-        .filter((inv) => belongsToCustomer(inv, c))
-        .reduce((s, inv) => s + computeInvoiceFinance(inv).net, 0);
-      map.set(c.id, spent);
+      const { count, spent } = customerSalesSummary(c, invoices);
+      map.set(c.id, { count, spent });
     }
     return map;
   }, [invoices, customers]);
+  const customerLifetimeSpent = useMemo(() => new Map([...customerSales].map(([id, v]) => [id, v.spent])), [customerSales]);
+  const purchasesOf = (c: Customer) => customerSales.get(c.id)?.count ?? 0;
 
   // Filtered & Sorted Customers
   const filteredCustomers = useMemo(() => {
@@ -246,7 +238,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     }
 
     result.sort((a, b) => {
-      if (customerSortBy === 'purchases') return (b.purchaseCount || 0) - (a.purchaseCount || 0);
+      if (customerSortBy === 'purchases') return purchasesOf(b) - purchasesOf(a);
       if (customerSortBy === 'spent') return (customerLifetimeSpent.get(b.id) || 0) - (customerLifetimeSpent.get(a.id) || 0);
       if (customerSortBy === 'name') return a.name.localeCompare(b.name);
       if (customerSortBy === 'recent') {
@@ -256,7 +248,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     });
 
     return result;
-  }, [customers, searchQuery, customerTypeFilter, customerStatusFilter, customerSortBy, loyaltySettings, customerLifetimeSpent]);
+  }, [customers, searchQuery, customerTypeFilter, customerStatusFilter, customerSortBy, loyaltySettings, customerLifetimeSpent, customerSales]);
 
   // Filtered Suppliers
   const filteredSuppliers = useMemo(() => {
@@ -311,9 +303,9 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
 
   const avgPurchases = useMemo(() => {
     if (totalCustomers === 0) return 0;
-    const totalPurchases = customers.reduce((sum, c) => sum + (c.purchaseCount || 0), 0);
+    const totalPurchases = customers.reduce((sum, c) => sum + purchasesOf(c), 0);
     return Math.round((totalPurchases / totalCustomers) * 10) / 10;
-  }, [customers, totalCustomers]);
+  }, [customers, totalCustomers, customerSales]);
 
   const orgCount = useMemo(
     () => customers.filter((c) => (c.customerType || 'Retail') === 'Organization').length,
@@ -569,7 +561,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                 headers: ['Name', 'Phone', 'Type', 'GSTIN', 'Address', 'Purchases', 'Total Spent (₹)'],
                 rows: filteredCustomers.map((c) => [
                   c.name, c.phone, c.customerType || 'Retail', c.gstin || '', c.address || '',
-                  c.purchaseCount || 0, (customerLifetimeSpent.get(c.id) || 0).toFixed(2),
+                  purchasesOf(c), (customerLifetimeSpent.get(c.id) || 0).toFixed(2),
                 ]),
                 title: 'Customers', filename: `customers-${getTodayDateString()}`,
               })}
@@ -745,7 +737,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
 
                           <td className="p-4 text-center">
                             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-900 font-extrabold text-xs">
-                              {cust.purchaseCount}
+                              {purchasesOf(cust)}
                             </span>
                           </td>
 

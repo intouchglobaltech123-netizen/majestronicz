@@ -24,6 +24,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [gstin, setGstin] = useState('');
+  const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -48,7 +49,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -82,7 +83,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       customerType,
       phone: normalizedPhone,
       address: address.trim(),
-      gstin: gstin.trim().toUpperCase() || undefined,
+      // CRM5-4: a cleared GSTIN is sent as null so the server clears it too.
+      gstin: (gstin.trim().toUpperCase() || null) as any,
       notes: notes.trim() || undefined,
       firstPurchaseDate: customerToEdit?.firstPurchaseDate || getTodayDateString(),
       purchaseCount: customerToEdit?.purchaseCount ?? 0,
@@ -92,7 +94,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    const res = saveCustomer(payload);
+    setSaving(true);
+    const res = await saveCustomer(payload);
+    setSaving(false);
     if (!res.success) {
       setErrorMessage(res.error || 'Failed to save customer');
       return;
@@ -297,9 +301,10 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 cursor-pointer shadow-2xs transition-colors"
+              disabled={saving}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-none border border-red-700 cursor-pointer shadow-2xs transition-colors"
             >
-              {customerToEdit ? 'Save Changes' : 'Create Customer'}
+              {saving ? 'Saving…' : customerToEdit ? 'Save Changes' : 'Create Customer'}
             </button>
           </div>
         </form>

@@ -264,6 +264,10 @@ export function createSale(inv: any, reqUser?: any) {
   if (!inv || typeof inv !== 'object' || !Array.isArray(inv.items)) {
     throw new AppError('BAD_REQUEST', 'A sale needs its line items.', 400);
   }
+  // E2E8-12: "Skip" on the sale form's new-customer prompt bills the number as a
+  // walk-in — no customer master is created for it. Not a bill column.
+  const skipCustomerSave = inv.skipCustomerSave === true;
+  delete inv.skipCustomerSave;
   // CASH8-7: a bill must carry a real date that is not in the future (IST).
   // An edit sent without a date keeps the stored bill's own date (SEC7-1,
   // filled in inside the transaction below).
@@ -489,11 +493,19 @@ export function createSale(inv: any, reqUser?: any) {
           updatedAt: ts,
         },
       });
+    } else if (skipCustomerSave && !inv.customerId) {
+      // The cashier chose Skip: bill the typed number as a walk-in (E2E8-12).
+      inv.customerId = null;
     } else if (phoneClean || inv.customerId) {
       // Only create/link a customer master when there is a real phone or an explicit
       // customerId. A walk-in with no phone must NOT create a phone:'' record — the
       // phone column is unique, so the second such walk-in would 409 (SAL2-2). The
       // invoice still keeps customerName for display.
+      // E2E-13: a new customer needs a real 10-digit Indian mobile — a mistyped
+      // 9-digit number created a second "Lakshmi Tex Mills" and put the bill on it.
+      if (phoneClean && !/^[6-9]\d{9}$/.test(phoneClean)) {
+        throw new AppError('BAD_PHONE', `"${String(inv.customerPhone).slice(0, 20)}" is not a 10-digit mobile number. Correct it, pick the customer from the list, or clear the phone for a walk-in.`, 400);
+      }
       const newCustId = inv.customerId || rid('cust');
       inv.customerId = newCustId;
       await tx.customer.create({

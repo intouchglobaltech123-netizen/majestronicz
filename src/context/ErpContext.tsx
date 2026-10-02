@@ -541,7 +541,7 @@ interface ErpContextType {
   // Customer Master & Loyalty
   customers: Customer[];
   loyaltySettings: LoyaltySettings;
-  saveCustomer: (customer: Customer) => { success: boolean; error?: string; customer?: Customer };
+  saveCustomer: (customer: Customer) => Promise<{ success: boolean; error?: string; customer?: Customer }>;
   deleteCustomer: (customerId: string) => void;
   updateLoyaltySettings: (settings: Partial<LoyaltySettings>) => void;
   canManageLoyalty: boolean;
@@ -2443,15 +2443,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
   };
 
-  const saveCustomer = (customerData: Customer): { success: boolean; error?: string; customer?: Customer } => {
+  const saveCustomer = async (customerData: Customer): Promise<{ success: boolean; error?: string; customer?: Customer }> => {
     // Normalize (country code / leading 0) so equivalent formats are caught as duplicates.
     const cleanPhone = normalizePhone(customerData.phone);
     if (!cleanPhone) {
-      toast.error('Phone number is required');
       return { success: false, error: 'Phone number is required' };
     }
     if (!customerData.name.trim()) {
-      toast.error('Customer name is required');
       return { success: false, error: 'Customer name is required' };
     }
 
@@ -2460,43 +2458,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (c) => c.id !== customerData.id && normalizePhone(c.phone) === cleanPhone
     );
     if (duplicate) {
-      toast.error(`A customer with phone ${customerData.phone} already exists (${duplicate.name})`);
       return {
         success: false,
         error: `Customer with phone ${customerData.phone} already exists (${duplicate.name})`,
       };
     }
 
-    let savedCust: Customer;
-    const now = new Date().toISOString();
-    const existingIdx = customers.findIndex((c) => c.id === customerData.id);
-
-    if (existingIdx >= 0) {
-      savedCust = {
-        ...customers[existingIdx],
-        ...customerData,
-        updatedAt: now,
-      };
-      setCustomers((prev) => {
-        const next = [...prev];
-        next[existingIdx] = savedCust;
-        return next;
-      });
-      toast.success(`Customer "${savedCust.name}" updated`);
-    } else {
-      savedCust = {
-        ...customerData,
-        id: customerData.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        purchaseCount: customerData.purchaseCount ?? 0,
-        totalSpent: customerData.totalSpent ?? 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setCustomers((prev) => [savedCust, ...prev]);
-      toast.success(`Customer "${savedCust.name}" added`);
+    // Server first (TOAST-1): one toast, after the server has saved it — the
+    // server checks the GSTIN check digit and phone uniqueness too.
+    const isEdit = customers.some((c) => c.id === customerData.id);
+    const id = customerData.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    try {
+      const snap = await apiPost<any>('/api/catalog/customer', { ...customerData, id });
+      applySnapshot(snap);
+      const savedCust: Customer = (Array.isArray(snap?.customers) ? (snap.customers as Customer[]).find((c) => c.id === id) : null)
+        || { ...customerData, id };
+      toast.success(`Customer "${savedCust.name}" ${isEdit ? 'updated' : 'added'}`);
+      return { success: true, customer: savedCust };
+    } catch (e: any) {
+      return { success: false, error: serverMessage(e) || 'Could not save the customer' };
     }
-    persist(apiPost('/api/catalog/customer', savedCust));
-    return { success: true, customer: savedCust };
   };
 
   const deleteCustomer = (customerId: string) => {

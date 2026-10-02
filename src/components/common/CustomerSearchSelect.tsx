@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Customer, CustomerType, cleanCustomerName, isLoyaltyMilestoneEligible, getLoyaltyProgress, getCustomerOutstandingSummary } from '../../types';
+import { Customer, CustomerType, cleanCustomerName, isLoyaltyMilestoneEligible, getLoyaltyProgress, getCustomerOutstandingSummary, isInvoiceForCustomer, customerSalesSummary, computeInvoiceFinance } from '../../types';
 import {
   Search,
   User,
@@ -95,32 +95,17 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     return null;
   }, [customers, selectedCustomerId, customerPhone, customerName]);
 
-  // Customer Invoices & stats calculation for selected customer
+  // The selected customer's bills and lifetime spent: the shared rule — by id or
+  // phone (never by name), net of returns, voided bills left out (CRM6-8).
   const selectedCustomerInvoices = useMemo(() => {
     if (!selectedCustomer) return [];
-    const cleanPhone = (selectedCustomer.phone || '').trim().replace(/\D/g, '');
-    return invoices.filter((inv) => {
-      if (inv.customerId && inv.customerId === selectedCustomer.id) return true;
-      if (cleanPhone && inv.customerPhone) {
-        if (inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
-      }
-      if (selectedCustomer.name && inv.customerName) {
-        if (inv.customerName.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase()) {
-          return true;
-        }
-      }
-      return false;
-    });
+    return invoices.filter((inv) => isInvoiceForCustomer(inv, selectedCustomer));
   }, [invoices, selectedCustomer]);
-
-  const selectedCustomerTotalSpent = useMemo(() => {
-    if (!selectedCustomer) return 0;
-    const nonVoided = selectedCustomerInvoices.filter((i) => !i.isVoided);
-    if (nonVoided.length > 0) {
-      return nonVoided.reduce((sum, i) => sum + i.grandTotal, 0);
-    }
-    return selectedCustomer.totalSpent || 0;
-  }, [selectedCustomer, selectedCustomerInvoices]);
+  const selectedCustomerSales = useMemo(
+    () => (selectedCustomer ? customerSalesSummary(selectedCustomer, invoices) : { bills: [], count: 0, spent: 0 }),
+    [selectedCustomer, invoices],
+  );
+  const selectedCustomerTotalSpent = selectedCustomerSales.spent;
 
   // Selected customer total outstanding balance across Credit/Partial sales
   const selectedCustomerOutstanding = useMemo(() => {
@@ -129,6 +114,9 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   }, [selectedCustomer, invoices]);
 
   // Filtered customer options matching both Name and Phone
+  // Bills per customer for the list rows, by the shared matching rule.
+  const billCount = (c: Customer) => customerSalesSummary(c, invoices).count;
+
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return customers.slice(0, 15);
@@ -175,7 +163,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     setIsOpen(false);
   };
 
-  const handleSaveQuickAdd = (e: React.FormEvent) => {
+  const handleSaveQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setQuickAddError('');
 
@@ -199,7 +187,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     }
 
     const now = new Date().toISOString();
-    const res = saveCustomer({
+    const res = await saveCustomer({
       id: `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: cleanName,
       customerType: newType,
@@ -239,7 +227,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               </span>
             ) : (
               <span className="text-[11px] font-bold text-red-700 font-mono">
-                #{selectedCustomer.purchaseCount} purchases
+                #{selectedCustomerSales.count} purchases
               </span>
             )
           )}
@@ -481,7 +469,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                           </span>
                         )}
                         <span className="text-slate-400 ml-auto shrink-0 font-medium">
-                          {isOrg ? `${cust.purchaseCount || 0} orders` : `${cust.purchaseCount} bills`}
+                          {isOrg ? `${billCount(cust)} orders` : `${billCount(cust)} bills`}
                         </span>
                       </div>
                     </div>
@@ -738,18 +726,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                       </div>
                       <span className="text-[11px] text-slate-400 font-medium block">{inv.paymentMode}</span>
                       {(() => {
-                        let due = 0;
-                        let paid = inv.grandTotal;
-                        if (inv.isPartialPayment) {
-                          paid = inv.partialAmount || 0;
-                          due = inv.balanceDue !== undefined ? inv.balanceDue : Math.max(0, inv.grandTotal - paid);
-                        } else if (inv.transactionType === 'Credit' || inv.paymentMode === 'COD-Credit') {
-                          paid = 0;
-                          due = inv.balanceDue !== undefined ? inv.balanceDue : inv.grandTotal;
-                        } else if (inv.balanceDue && inv.balanceDue > 0) {
-                          due = inv.balanceDue;
-                          paid = Math.max(0, inv.grandTotal - due);
-                        }
+                        // The shared due: net of returns and receipts (CRM6-8).
+                        const due = inv.isVoided ? 0 : computeInvoiceFinance(inv).due;
                         if (due > 0) {
                           return (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-0.5">

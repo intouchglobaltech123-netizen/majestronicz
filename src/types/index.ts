@@ -1643,6 +1643,18 @@ export const isInvoiceForCustomer = (inv: Invoice, customer: Customer): boolean 
 };
 
 /**
+ * A customer's live bills, purchase count and lifetime spent (net of returns) —
+ * one rule for the Customers list, the detail view and the POS popup (CRM3-5 /
+ * CRM-8 / CRM6-8): bills matched by customer id (or normalised phone for older
+ * unlinked bills, never by name), voided bills left out.
+ */
+export const customerSalesSummary = (customer: Customer, invoices: Invoice[]): { bills: Invoice[]; count: number; spent: number } => {
+  const bills = invoices.filter((inv) => !inv.isVoided && isInvoiceForCustomer(inv, customer));
+  const spent = Math.round(bills.reduce((t, inv) => t + computeInvoiceFinance(inv).net, 0) * 100) / 100;
+  return { bills, count: bills.length, spent };
+};
+
+/**
  * The payment split of a bill AS IT WAS AT BILLING — what was collected in each
  * mode on the bill's own day plus the 'COD-Credit' part left owing. Mirrors the
  * backend lib/billingSplit.ts billingSplitsOf exactly, so the screen and the

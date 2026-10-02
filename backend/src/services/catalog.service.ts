@@ -4,7 +4,7 @@ import { nowIso, cleanPhone } from '../lib/stockLedger.js';
 import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
-import { GSTIN_RE } from './gstin.service.js';
+import { GSTIN_RE, gstinChecksumValid } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { archivedItemError, assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
 import { applySupplySplit } from '../lib/supply.js';
@@ -355,6 +355,11 @@ export function saveCustomer(data: any) {
 
     const ts = nowIso();
     const existing = data.id ? await tx.customer.findUnique({ where: { id: String(data.id) } }) : null;
+    // CRM5-7: the last character is a check digit — a mistyped GSTIN fails it.
+    // A GSTIN already on the record (older data) is not re-judged on other edits.
+    if (fields.gstin && fields.gstin !== existing?.gstin && !gstinChecksumValid(fields.gstin)) {
+      throw new AppError('INVALID_GSTIN', `GSTIN ${fields.gstin} fails its check digit — please re-check it, or leave it blank.`, 400);
+    }
     if (existing) {
       await tx.customer.update({ where: { id: existing.id }, data: { ...fields, updatedAt: ts } });
     } else {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance, getInvoicePaymentSplits } from '../../types';
+import { Customer, Invoice, BRANCHES, cleanCustomerName, getCustomerOutstandingSummary, computeInvoiceFinance, isInvoiceForCustomer, getInvoicePaymentSplits } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -65,23 +65,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
     return customers.find((c) => c.id === customer.id) || customer;
   }, [customers, customer]);
 
-  // Filter this customer's invoices
+  // This customer's bills: by id, or phone on older unlinked bills — never by
+  // name, which pulled in another person's bills (CRM3-5).
   const customerInvoices = useMemo(() => {
     if (!currentCustomer) return [];
-    const cleanPhone = (currentCustomer.phone || '').trim().replace(/\D/g, '');
-
-    return invoices.filter((inv) => {
-      if (inv.customerId && inv.customerId === currentCustomer.id) return true;
-      if (cleanPhone && inv.customerPhone) {
-        if (inv.customerPhone.trim().replace(/\D/g, '') === cleanPhone) return true;
-      }
-      if (currentCustomer.name && inv.customerName) {
-        if (inv.customerName.trim().toLowerCase() === currentCustomer.name.trim().toLowerCase()) {
-          return true;
-        }
-      }
-      return false;
-    });
+    return invoices.filter((inv) => isInvoiceForCustomer(inv, currentCustomer));
   }, [invoices, currentCustomer]);
 
   // Outstanding Balance summary & breakdown
@@ -95,7 +83,8 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
     if (!currentCustomer) return [];
     return payments.filter((p) => {
       if (p.type !== 'in' || p.partyType !== 'customer') return false;
-      if (p.partyId && p.partyId === currentCustomer.id) return true;
+      if (p.partyId) return p.partyId === currentCustomer.id;
+      // Only receipts saved without an account fall back to the name.
       if (currentCustomer.name && p.partyName && p.partyName.trim().toLowerCase() === currentCustomer.name.trim().toLowerCase()) return true;
       return false;
     });
@@ -302,7 +291,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'Total Orders' : 'Total Purchases'}
               </span>
               <div className="text-xl font-extrabold text-slate-900 mt-1">
-                {(currentCustomer.customerType || 'Retail') === 'Organization' ? nonVoidedInvoices.length : currentCustomer.purchaseCount}{' '}
+                {nonVoidedInvoices.length}{' '}
                 <span className="text-xs text-slate-500 font-semibold">
                   {(currentCustomer.customerType || 'Retail') === 'Organization' ? 'orders' : 'bills'}
                 </span>

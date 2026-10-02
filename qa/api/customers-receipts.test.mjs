@@ -263,3 +263,46 @@ describe('customers & receipts', () => {
     assert.ok(ok(await get('/api/customers')).some((c) => c.id === inv.customerId), 'customer still exists');
   });
 });
+
+describe('customers created from a sale', () => {
+  test('E2E-13 a 9-digit phone does not create a duplicate customer; the existing one is matched by its normalised number', async () => {
+    const phone = randomPhone();
+    ok(await post('/api/catalog/customer', { name: 'Lakshmi Tex Mills QA', phone, address: 'QA' }));
+    const before = ok(await get('/api/customers')).length;
+    const date = await freshDay('erode-hq');
+    const bad = await post('/api/tx/sale', saleBody({ date, lines: [serviceLine(1, 100)], customerName: 'Lakshmi Tex Mills QA', customerPhone: phone.slice(0, 9) }));
+    expectStatus(bad, 400, '9-digit phone');
+    assert.equal(bad.body.error, 'BAD_PHONE');
+    // +91 and spaces are the same number: the bill lands on the existing customer.
+    const inv = await mustSell(saleBody({ date, lines: [serviceLine(1, 100)], customerName: 'Lakshmi', customerPhone: `+91 ${phone.slice(0, 5)} ${phone.slice(5)}` }));
+    const all = ok(await get('/api/customers'));
+    assert.equal(all.length, before, 'no new customer');
+    assert.equal(inv.customerId, all.find((c) => c.phone === phone).id);
+  });
+
+  test('E2E8-12 "Skip" on the new-customer prompt bills a walk-in and creates no customer', async () => {
+    const phone = randomPhone();
+    const date = await freshDay('erode-hq');
+    const inv = await mustSell({ ...saleBody({ date, lines: [serviceLine(1, 100)], customerName: 'Walk-in QA', customerPhone: phone }), skipCustomerSave: true });
+    assert.equal(inv.customerId ?? null, null, 'no customer link');
+    assert.equal(inv.customerPhone, phone, 'the number stays on the bill');
+    assert.ok(!ok(await get('/api/customers')).some((c) => c.phone === phone), 'no customer created');
+  });
+});
+
+describe('customer GSTIN', () => {
+  test('CRM5-7 a GSTIN that fails its check digit is refused on customers', async () => {
+    const res = await post('/api/catalog/customer', { name: 'QA GST check', phone: randomPhone(), address: '', gstin: '33ABZFM5739L1ZE' });
+    expectStatus(res, 400, 'wrong check digit');
+    assert.equal(res.body.error, 'INVALID_GSTIN');
+  });
+
+  test('CRM5-4 clearing a customer GSTIN (null) clears the stored value', async () => {
+    const phone = randomPhone();
+    ok(await post('/api/catalog/customer', { name: 'QA GST clear', phone, address: '', gstin: '33ABZFM5739L1ZD' }));
+    const c = ok(await get('/api/customers')).find((x) => x.phone === phone);
+    assert.equal(c.gstin, '33ABZFM5739L1ZD');
+    ok(await post('/api/catalog/customer', { ...c, gstin: null }), 'clear GSTIN');
+    assert.equal(ok(await get('/api/customers')).find((x) => x.id === c.id).gstin, null);
+  });
+});

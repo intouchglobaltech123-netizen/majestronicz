@@ -188,6 +188,9 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // A new/unknown 10-digit mobile prompts a small "add customer" card.
   const [showNewCustomerPrompt, setShowNewCustomerPrompt] = useState(false);
+  // "Skip" on that card bills the number as a walk-in: no customer is created (E2E8-12).
+  const [skipCustomerSave, setSkipCustomerSave] = useState(false);
+  useEffect(() => { setSkipCustomerSave(false); }, [customerPhone]);
 
   // Phone-first entry: typing a full 10-digit mobile auto-fills the matching
   // customer's name + address; an unknown number offers a quick add.
@@ -220,9 +223,9 @@ export const InvoiceForm: React.FC<Props> = ({
   }, [customerPhone, customers]);
 
   // Save the typed mobile + name/address as a new customer master record.
-  const handleQuickAddCustomer = () => {
+  const handleQuickAddCustomer = async () => {
     if (!customerName.trim()) { toast.error('Enter a name for the new customer'); return; }
-    const res = saveCustomer({
+    const res = await saveCustomer({
       id: '',
       name: customerName.trim(),
       phone: customerPhone,
@@ -237,6 +240,8 @@ export const InvoiceForm: React.FC<Props> = ({
     if (res.success && res.customer) {
       setCustomerId(res.customer.id);
       setShowNewCustomerPrompt(false);
+    } else {
+      toast.error('Could not save the customer', { description: res.error });
     }
   };
 
@@ -1325,6 +1330,7 @@ export const InvoiceForm: React.FC<Props> = ({
       customerName: customerName.trim() ? cleanCustomerName(customerName) : 'Walk-in Customer',
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
+      ...(skipCustomerSave && !(customerId || selectedCustomerObj?.id) ? { skipCustomerSave: true } : {}),
       date,
       time,
       paymentTerms,
@@ -1951,7 +1957,7 @@ export const InvoiceForm: React.FC<Props> = ({
             </button>
             <button
               type="button"
-              onClick={() => setShowNewCustomerPrompt(false)}
+              onClick={() => { setShowNewCustomerPrompt(false); setSkipCustomerSave(true); }}
               className="px-2.5 py-1.5 rounded-md bg-white hover:bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-300 transition-colors"
               title="Bill without saving (walk-in)"
             >
