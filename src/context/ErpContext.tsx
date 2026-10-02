@@ -2980,7 +2980,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // vs. the due that was just reduced (E2E8-13), and units restocked vs.
       // written off as damaged (E2E-15).
       const sum = snap?.returnSummary;
-      const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+      const inr = (n: number) => formatCurrency(Number(n) || 0); // FIN-E-5: ₹1,793.60, not ₹1,793.6
       const parts: string[] = [];
       if (sum) {
         if (sum.cashRefund > 0) parts.push(`Refunded ${inr(sum.cashRefund)}${sum.refundMode ? ` (${sum.refundMode})` : ''}`);
@@ -3004,7 +3004,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const snap = await apiPost<any>('/api/tx/reverse-return', { invoiceId, returnId });
       applySaleSnapshot(snap);
       const r = snap?.reversed;
-      const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+      const inr = (n: number) => formatCurrency(Number(n) || 0); // FIN-E-5: ₹1,793.60, not ₹1,793.6
       const money = r?.refund
         ? r.refund.kind === 'deleted'
           ? `Refund of ${inr(r.refund.amount)} cancelled.`

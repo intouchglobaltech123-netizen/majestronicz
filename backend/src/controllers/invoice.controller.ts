@@ -64,12 +64,14 @@ export const reverseReturn = async (req: Request, res: Response) => {
   const { invoiceId, returnId } = req.body || {};
   const result: any = await invoiceService.reverseReturn(invoiceId, returnId, actorName(req), (req as any).user);
   const r = result?.reversed;
+  // FIN-E-5: amounts as ₹1,793.60, the way the screens show them.
+  const inr = (n: unknown) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const money = r?.refund
-    ? ` · refund ₹${r.refund.amount} ${r.refund.kind === 'deleted' ? `removed from ${r.refund.date}` : `collected back on ${r.refund.date}`}`
-    : r?.creditTakenBack ? ` · credit note ₹${r.creditTakenBack} taken back` : '';
+    ? ` · refund ${inr(r.refund.amount)} ${r.refund.kind === 'deleted' ? `removed from ${r.refund.date}` : `collected back on ${r.refund.date}`}`
+    : r?.creditTakenBack ? ` · credit note ${inr(r.creditTakenBack)} taken back` : '';
   await recordAudit({
     actor: actorOf(req), action: 'sale.return-reverse', entity: 'invoice', entityId: invoiceId,
-    summary: `Reversed return on ${r?.invoiceNumber} (${r?.branchId}) · ${r?.units} unit(s) · ₹${r?.value}${r?.damaged ? ' · damaged (no stock change)' : ` · ${r?.stockOut} unit(s) back out of stock`}${money}`,
+    summary: `Reversed return on ${r?.invoiceNumber} (${r?.branchId}) · ${r?.units} unit(s) · ${inr(r?.value)}${r?.damaged ? ' · damaged (no stock change)' : ` · ${r?.stockOut} unit(s) back out of stock`}${money}`,
     after: r,
   });
   res.json(withChanges(res, result));
