@@ -91,18 +91,19 @@ describe('enquiries & pending orders', () => {
       ['unknown field', { bogusField: 1 }],
       ['status Fulfilled', { status: 'Fulfilled' }],
       ['negative advance', { advanceAmount: -500 }],
+      ['advance typed onto the order', { advanceAmount: 300, advanceMode: 'GPay' }],
       ['bad date', { expectedRestockDate: '2026-13-45' }],
     ]) {
       const res = await post('/api/enquiry/pending/update', { orderId: order.id, updates }, 'Billing');
       expectStatus(res, 400, what);
       assert.doesNotMatch(JSON.stringify(res.body), /prisma|invocation/i, `${what}: leaks database detail`);
     }
-    const snap = ok(await post('/api/enquiry/pending/update', { orderId: order.id, updates: { expectedRestockDate: tomorrow(), advanceAmount: 300, advanceMode: 'GPay', advancePaidAt: new Date().toISOString() } }, 'Billing'), 'valid update');
+    const snap = ok(await post('/api/enquiry/pending/update', { orderId: order.id, updates: { expectedRestockDate: tomorrow(), notes: 'QA note' } }, 'Billing'), 'valid update');
     const after = snap.pendingOrders.find((p) => p.id === order.id);
     assert.equal(after.orderNumber, order.orderNumber);
     assert.equal(after.quantityNeeded, order.quantityNeeded);
     assert.equal(after.branchId, order.branchId);
-    assert.equal(after.advanceAmount, 300);
+    assert.equal(after.advanceAmount || 0, order.advanceAmount || 0, 'the advance is untouched — it is only taken as a receipt');
     assert.equal(after.expectedRestockDate, tomorrow());
   });
 

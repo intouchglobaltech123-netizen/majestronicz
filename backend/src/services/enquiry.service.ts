@@ -187,8 +187,11 @@ export function linkItemToEnquiry(enquiryId: string, itemInput: any, actor: stri
   });
 }
 
-/** Pending-order fields editable through /enquiry/pending/update. */
-const PENDING_EDITABLE = ['status', 'expectedRestockDate', 'advanceAmount', 'advanceMode', 'advancePaidAt', 'notes'];
+/** Pending-order fields editable through /enquiry/pending/update. The advance is
+ *  NOT one of them: it is real money, taken only through POST /api/payments/advance
+ *  (a receipt kept as store credit), never typed onto the order. */
+const PENDING_EDITABLE = ['status', 'expectedRestockDate', 'notes'];
+const ADVANCE_FIELDS = ['advanceAmount', 'advanceMode', 'advancePaidAt'];
 
 export function updatePendingOrder(orderId: string, updates: any, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
@@ -196,10 +199,13 @@ export function updatePendingOrder(orderId: string, updates: any, reqUser?: any)
     if (!order) throw new AppError('NOT_FOUND', 'Pending order not found', 404);
     assertBranchAllowed(reqUser, order.branchId); // SEC2-1
     // CRM2-9 / CRM8-6 / PLT7-1: an allow-list, not a deny-list. Only the restock
-    // date, the advance and notes are editable here (plus Waiting <-> Stock
+    // date and notes are editable here (plus Waiting <-> Stock
     // Arrived); the number, quantity, branch and fulfilment are server-owned. An
     // unknown field used to reach Prisma and come back as a 500.
     const u = updates && typeof updates === 'object' ? updates : {};
+    if (ADVANCE_FIELDS.some((k) => u[k] !== undefined)) {
+      throw new AppError('USE_ADVANCE_RECEIPT', 'An advance is recorded as a receipt (Record Advance), not edited on the order.', 400);
+    }
     const unknown = Object.keys(u).filter((k) => !PENDING_EDITABLE.includes(k) && u[k] !== undefined);
     if (unknown.length) throw new AppError('FIELD_NOT_EDITABLE', `These fields can't be changed here: ${unknown.join(', ')}.`, 400);
     if (!OPEN_ORDER.includes(order.status)) {
@@ -219,21 +225,6 @@ export function updatePendingOrder(orderId: string, updates: any, reqUser?: any)
         throw new AppError('BAD_DATE', 'Expected restock date must be a valid date (YYYY-MM-DD).', 400);
       }
       rest.expectedRestockDate = u.expectedRestockDate || null;
-    }
-    if (u.advanceAmount !== undefined) {
-      const adv = u.advanceAmount === null ? 0 : Number(u.advanceAmount);
-      if (typeof u.advanceAmount === 'boolean' || !Number.isFinite(adv) || adv < 0) throw new AppError('BAD_ADVANCE', 'Advance amount cannot be negative.', 400);
-      if (adv > 1e8) throw new AppError('BAD_ADVANCE', 'Advance amount is too large.', 400);
-      rest.advanceAmount = adv;
-      if (adv === 0) { rest.advanceMode = null; rest.advancePaidAt = null; }
-    }
-    if (u.advanceMode !== undefined && rest.advanceAmount !== 0) {
-      if (u.advanceMode !== null && (typeof u.advanceMode !== 'string' || u.advanceMode.length > 40)) throw new AppError('BAD_MODE', 'Invalid advance payment mode.', 400);
-      rest.advanceMode = u.advanceMode;
-    }
-    if (u.advancePaidAt !== undefined && rest.advanceAmount !== 0) {
-      if (u.advancePaidAt !== null && (typeof u.advancePaidAt !== 'string' || Number.isNaN(Date.parse(u.advancePaidAt)))) throw new AppError('BAD_DATE', 'Invalid advance date.', 400);
-      rest.advancePaidAt = u.advancePaidAt;
     }
     if (u.notes !== undefined) {
       if (u.notes !== null && typeof u.notes !== 'string') throw new AppError('BAD_REQUEST', 'Notes must be text.', 400);
