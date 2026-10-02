@@ -52,6 +52,9 @@ export function hsnRateSummary(
   const rateRows = calculateTaxBreakdown(items as any, overallDiscountAmount, subtotal, false, billTax);
   const rateTax = new Map<number, number>();
   for (const r of rateRows) rateTax.set(r.rate * 2, r2((rateTax.get(r.rate * 2) || 0) + r.taxAmount));
+  // FIN-A-7: each rate's SGST as the tax lines print it (the bill's own split).
+  const rateSgst = new Map<number, number>();
+  for (const r of rateRows) if (r.taxType === 'SGST') rateSgst.set(r.rate * 2, r2((rateSgst.get(r.rate * 2) || 0) + r.taxAmount));
   const base = subtotal || items.reduce((s, it) => s + (Number(it.taxableAmount) || 0), 0);
   const netRatio = overallDiscountAmount > 0 && base > 0 ? Math.max(0, (base - overallDiscountAmount) / base) : 1;
 
@@ -72,10 +75,14 @@ export function hsnRateSummary(
     const total = rate > 0 ? rateTax.get(rate) || 0 : 0;
     const taxableSum = rows.reduce((s, g) => s + g.taxable, 0);
     let left = total;
+    let sgstLeft = rateSgst.get(rate) ?? r2(total / 2);
     rows.forEach((g, i) => {
       const tax = i === rows.length - 1 ? r2(left) : r2(taxableSum > 0 ? (total * g.taxable) / taxableSum : 0);
       left = r2(left - tax);
-      const sgst = interState ? 0 : r2(tax / 2);
+      // The rate's last HSN row takes the SGST residue, so the HSN table's SGST
+      // and CGST add up to the tax lines (FIN-A-7).
+      const sgst = interState ? 0 : i === rows.length - 1 ? r2(sgstLeft) : r2(tax / 2);
+      sgstLeft = r2(sgstLeft - sgst);
       const cgst = interState ? 0 : r2(tax - sgst);
       out.push({ hsn: g.hsn, rate, taxable: g.taxable, cgst, sgst, igst: interState ? tax : 0, tax });
     });

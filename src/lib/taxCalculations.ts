@@ -117,6 +117,19 @@ export function calculateTaxBreakdown(
     }
   }
 
+  // FIN-A-7: the bill's SGST is stored as half its tax rounded (CGST the rest),
+  // the server's split. Each rate row is split the same way, and the odd paisa
+  // left between the rows and the bill's own SGST goes on the largest row — so
+  // the printed SGST and CGST add up to the stored ones, not swapped.
+  const sgstOf = new Map<number, number>(sortedRates.map((rate) => [rate, r2((taxOf.get(rate) || 0) / 2)]));
+  if (billTax != null && Number.isFinite(Number(billTax)) && sortedRates.length) {
+    const residue = r2(r2(Number(billTax) / 2) - [...sgstOf.values()].reduce((t, v) => t + v, 0));
+    if (Math.abs(residue) > 0 && Math.abs(residue) < 0.05) {
+      const top = sortedRates.reduce((a, b) => ((taxOf.get(b) || 0) > (taxOf.get(a) || 0) ? b : a));
+      sgstOf.set(top, r2((sgstOf.get(top) || 0) + residue));
+    }
+  }
+
   sortedRates.forEach((rate) => {
     const taxable = Math.round((rateMap.get(rate) || 0) * netRatio * 100) / 100;
     const halfRate = rate / 2;
@@ -127,7 +140,7 @@ export function calculateTaxBreakdown(
       rows.push({ taxType: 'IGST', rate, taxableAmount: taxable, taxAmount: totalTax });
       return;
     }
-    const sgst = Math.round((totalTax / 2) * 100) / 100;
+    const sgst = sgstOf.get(rate) || 0;
     const cgst = Math.round((totalTax - sgst) * 100) / 100;
 
     // SGST
