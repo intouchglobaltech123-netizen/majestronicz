@@ -17,7 +17,7 @@ import hrmRoutes from './hrm.routes.js';
 import enquiryRoutes from './enquiry.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
-import { sseHandler, broadcastChange } from '../lib/events.js';
+import { sseHandler, broadcastChange, closeUserStreams } from '../lib/events.js';
 import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
@@ -120,6 +120,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
 router.post('/auth/logout', requireAuth, asyncHandler(async (req, res) => {
   const actor = (req as any).user;
   await prisma.user.update({ where: { id: actor.userId }, data: { tokensValidAfter: Date.now(), updatedAt: nowIso() } });
+  closeUserStreams(String(actor.userId)); // SEC9-1: open live-update streams end too
   await recordAudit({ actor: actorOf(req), action: 'auth.logout', entity: 'user', entityId: actor.userId, summary: 'Signed out' });
   res.json({ ok: true });
 }));
@@ -485,6 +486,7 @@ router.get('/events', (req, res, next) => {
   // Same revocation as every other request (disabled / role changed / signed out).
   sessionIsLive(session).then((live) => {
     if (!live) return next(new AppError('UNAUTHENTICATED', 'Login required', 401));
+    (res.locals as any).userId = session.userId; // SEC9-1: closed again on sign-out
     next();
   }, next);
 }, sseHandler);

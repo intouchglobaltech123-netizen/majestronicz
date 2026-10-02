@@ -339,4 +339,20 @@ describe('write replies are branch-scoped', () => {
     const boot = ok(await get('/api/bootstrap', 'Manager'));
     for (const k of ['invoices', 'payments', 'attendanceRecords', 'stockAdjustmentLogs', 'purchaseOrders', 'cashRegisters']) onlyBranch(boot[k], 'coimbatore', `bootstrap ${k}`);
   });
+
+  test('SEC9-1 signing out closes that user\'s open live-updates stream', async () => {
+    const { pin } = await createStaff('Billing', 'erode-hq');
+    const token = await loginPin(pin);
+    const res = await fetch(`${API}/api/events?token=${encodeURIComponent(token)}`);
+    assert.equal(res.status, 200);
+    const reader = res.body.getReader();
+    await reader.read(); // the retry hint
+    ok(await api('POST', '/api/auth/logout', { as: { token } }), 'sign out');
+    const ended = await Promise.race([
+      (async () => { for (;;) { const { done } = await reader.read(); if (done) return true; } })(),
+      new Promise((r) => setTimeout(() => r(false), 3000)),
+    ]);
+    assert.equal(ended, true, 'the stream ended after sign-out');
+  });
 });
+

@@ -7,6 +7,8 @@ import { Request, Response } from 'express';
  * for the others within a fraction of a second.
  */
 const clients = new Set<Response>();
+/** SEC9-1: whose stream each one is, so signing out can close it. */
+const owners = new Map<Response, string>();
 
 export function broadcastChange(reason = 'mutation') {
   const payload = `data: ${JSON.stringify({ type: 'data-changed', reason, at: Date.now() })}\n\n`;
@@ -28,6 +30,8 @@ export function sseHandler(req: Request, res: Response) {
   res.write('retry: 3000\n\n'); // client auto-reconnect hint
 
   clients.add(res);
+  const owner = (res.locals as any)?.userId;
+  if (owner) owners.set(res, String(owner));
 
   // Keep-alive comment every 25s so proxies/browsers don't drop the stream.
   const keepAlive = setInterval(() => {
@@ -41,7 +45,22 @@ export function sseHandler(req: Request, res: Response) {
   req.on('close', () => {
     clearInterval(keepAlive);
     clients.delete(res);
+    owners.delete(res);
   });
+}
+
+/** SEC9-1: end every open live-updates stream of this user (on sign-out), so a
+ *  stream opened before the sign-out stops receiving events at once. */
+export function closeUserStreams(userId: string): number {
+  let n = 0;
+  for (const [res, owner] of owners) {
+    if (owner !== userId) continue;
+    clients.delete(res);
+    owners.delete(res);
+    try { res.end(); } catch { /* already closed */ }
+    n++;
+  }
+  return n;
 }
 
 export const liveClientCount = () => clients.size;
