@@ -9,8 +9,14 @@ interface Props {
   branchName: string;
   openingAmount: number;
   cashSales: number;
+  cashReceipts?: number;
+  cashRefunds?: number;
+  cashVendorPaid?: number;
+  cashSalaries?: number;
   cashExpenses: number;
   closingBalance: number;
+  /** Expenses still waiting for approval — the day can't close until decided (CASH6-3). */
+  pendingApprovals?: string[];
   onConfirmClose: (notes?: string) => void;
 }
 
@@ -21,16 +27,33 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
   branchName,
   openingAmount,
   cashSales,
+  cashReceipts = 0,
+  cashRefunds = 0,
+  cashVendorPaid = 0,
+  cashSalaries = 0,
   cashExpenses,
   closingBalance,
+  pendingApprovals = [],
   onConfirmClose,
 }) => {
   const [notes, setNotes] = useState('');
 
   if (!isOpen) return null;
 
+  // Every line the closing uses (CASH4-4), so the sum on screen adds up.
+  const lines: { label: string; amount: number; sign: '+' | '-' }[] = [
+    { label: 'Cash Sales Collected', amount: cashSales, sign: '+' },
+    { label: 'Cash Receipts (dues / advances)', amount: cashReceipts, sign: '+' },
+    { label: 'Cash Refunds Paid', amount: cashRefunds, sign: '-' },
+    { label: 'Cash Paid to Suppliers', amount: cashVendorPaid, sign: '-' },
+    { label: 'Salaries Paid in Cash', amount: cashSalaries, sign: '-' },
+    { label: 'Cash Expenses Paid', amount: cashExpenses, sign: '-' },
+  ].filter((l, i) => i === 0 || i === 5 || Math.abs(l.amount) > 0.004) as { label: string; amount: number; sign: '+' | '-' }[];
+  const blocked = pendingApprovals.length > 0;
+
   const handleConfirm = (e: React.FormEvent) => {
     e.preventDefault();
+    if (blocked) return;
     onConfirmClose(notes.trim() || undefined);
     onClose();
   };
@@ -69,18 +92,14 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
                 {formatCurrency(openingAmount)}
               </span>
             </div>
-            <div className="flex items-center justify-between text-emerald-700">
-              <span>+ Cash Sales Collected:</span>
-              <span className="font-mono font-bold">
-                +{formatCurrency(cashSales)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-rose-700">
-              <span>- Cash Expenses Paid:</span>
-              <span className="font-mono font-bold">
-                -{formatCurrency(cashExpenses)}
-              </span>
-            </div>
+            {lines.map((l) => (
+              <div key={l.label} className={`flex items-center justify-between ${l.sign === '+' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                <span>{l.sign} {l.label}:</span>
+                <span className="font-mono font-bold">
+                  {l.sign}{formatCurrency(l.amount)}
+                </span>
+              </div>
+            ))}
             <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm">
               <span className="font-extrabold text-slate-900">
                 Expected Physical Cash in Drawer:
@@ -90,6 +109,16 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {blocked && (
+            <div className="p-3 bg-rose-50 rounded-none border border-rose-300 text-xs text-rose-900">
+              <p className="font-bold">Waiting for approval — the day can't be closed yet</p>
+              <p className="text-[11px] mt-0.5">
+                Approve or reject {pendingApprovals.length === 1 ? 'this item' : `these ${pendingApprovals.length} items`} first
+                (a closed day can't be changed): {pendingApprovals.join(', ')}.
+              </p>
+            </div>
+          )}
 
           {/* Locking Warning */}
           <div className="p-3 bg-amber-50 rounded-none border border-amber-300 flex items-start gap-2.5 text-xs text-amber-900">
@@ -127,7 +156,8 @@ export const CloseDayConfirmModal: React.FC<Props> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
+              disabled={blocked}
+              className="disabled:opacity-50 disabled:cursor-not-allowed px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-none border border-red-700 transition-all shadow-none flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Confirm & Lock Register</span>

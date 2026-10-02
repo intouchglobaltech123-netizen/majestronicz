@@ -511,6 +511,37 @@ table tbody tr:hover {
     overflow: visible !important;
   }
 
+  /* Daily cash register "Print Sheet" (CASH4-5 / E2E8-16): the register only,
+     every row (no scroll boxes or sticky headers), cards stacked so nothing
+     overlaps; buttons, banners and filters carry print:hidden. */
+  body.register-printing aside,
+  body.register-printing header,
+  body.register-printing nav,
+  body.register-printing [data-sonner-toaster] {
+    display: none !important;
+  }
+  body.register-printing main,
+  body.register-printing main * {
+    max-height: none !important;
+  }
+  body.register-printing main .overflow-x-auto,
+  body.register-printing main .overflow-y-auto,
+  body.register-printing main .overflow-hidden {
+    overflow: visible !important;
+  }
+  body.register-printing main .sticky {
+    position: static !important;
+  }
+  body.register-printing main .lg\:grid-cols-12 {
+    display: block !important;
+  }
+  body.register-printing main .lg\:grid-cols-12 > * {
+    margin-bottom: 8px;
+  }
+  body.register-printing main table tr {
+    break-inside: avoid;
+  }
+
   #printable-estimate-doc,
   #printable-invoice-doc {
     width: 100% !important;

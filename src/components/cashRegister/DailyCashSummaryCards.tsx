@@ -18,7 +18,14 @@ interface Props {
   overrideReason?: string;
   cashSales: number;
   cashReceipts?: number; // cash received from customers (Payment ledger) — adds to drawer
-  cashPaid?: number; // cash paid to vendors (Payment ledger) — removes from drawer
+  cashPaid?: number; // all cash paid out from the ledger (= refunds + vendors + salaries)
+  cashRefunds?: number; // cash paid back to customers for returns
+  cashVendorPaid?: number; // cash paid to suppliers
+  cashSalaries?: number; // salaries paid in cash
+  /** Money collected today by where it landed (bills + receipts, CRM6-9). */
+  collection?: { cash: number; digital: number; credit: number };
+  /** True when an earlier register day exists for this branch (CASH4-7). */
+  hasPreviousRegister?: boolean;
   cashExpenses: number;
   gpayExpenses: number;
   closingBalance: number;
@@ -37,6 +44,11 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   cashSales,
   cashReceipts = 0,
   cashPaid = 0,
+  cashRefunds = 0,
+  cashVendorPaid,
+  cashSalaries = 0,
+  collection,
+  hasPreviousRegister = true,
   cashExpenses,
   gpayExpenses,
   closingBalance,
@@ -48,6 +60,17 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   branchName,
 }) => {
   const totalExpenses = cashExpenses + gpayExpenses;
+  const vendorCash = (cashVendorPaid ?? Math.max(0, cashPaid - cashRefunds - cashSalaries));
+  // Every line of the closing, in order; zero lines (other than the basics) are left out.
+  const tally: { label: string; amount: number; sign: '+' | '-' }[] = [
+    { label: 'Opening', amount: openingAmount, sign: '+' },
+    { label: 'Cash Sales', amount: cashSales, sign: '+' },
+    ...(cashReceipts > 0 ? [{ label: 'Cash Receipts', amount: cashReceipts, sign: '+' as const }] : []),
+    ...(cashRefunds > 0 ? [{ label: 'Cash Refunds', amount: cashRefunds, sign: '-' as const }] : []),
+    ...(vendorCash > 0.004 ? [{ label: 'Paid to Suppliers', amount: vendorCash, sign: '-' as const }] : []),
+    ...(cashSalaries > 0 ? [{ label: 'Salaries Paid', amount: cashSalaries, sign: '-' as const }] : []),
+    { label: 'Cash Exp', amount: cashExpenses, sign: '-' },
+  ];
 
   return (
     <div className="space-y-4">
@@ -87,41 +110,20 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
               {formatCurrency(closingBalance)}
             </div>
 
-            {/* Clear Formula Breakdown Callout (Light Theme) */}
+            {/* Tally: every line that moves the drawer, one sign style (CASH-10 / CASH4-4). */}
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-mono bg-slate-50 border border-slate-300 px-3.5 py-2 rounded-none text-slate-600">
               <span className="font-bold text-slate-700">Tally Formula:</span>
-              <span className="font-semibold text-slate-800">
-                ₹{openingAmount.toLocaleString('en-IN')} (Opening)
-              </span>
-              <span className="text-emerald-600 font-bold">+</span>
-              <span className="font-semibold text-emerald-700">
-                ₹{cashSales.toLocaleString('en-IN')} (Cash Sales)
-              </span>
-              {cashReceipts > 0 && (
-                <>
-                  <span className="text-emerald-600 font-bold">+</span>
-                  <span className="font-semibold text-emerald-700">
-                    ₹{cashReceipts.toLocaleString('en-IN')} (Cash Receipts)
+              {tally.map((t, i) => (
+                <React.Fragment key={t.label}>
+                  {i > 0 && <span className={t.sign === '+' ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>{t.sign}</span>}
+                  <span className={i === 0 ? 'font-semibold text-slate-800' : t.sign === '+' ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-700'}>
+                    {formatCurrency(t.amount)} ({t.label})
                   </span>
-                </>
-              )}
-              {cashPaid > 0 && (
-                <>
-                  <span className="text-rose-600 font-bold">-</span>
-                  <span className="font-semibold text-rose-700">
-                    {/* Covers vendor payments AND customer cash refunds (both are
-                        cash leaving the drawer), so it's not labelled "Vendor" only. */}
-                    ₹{cashPaid.toLocaleString('en-IN')} (Cash Paid Out)
-                  </span>
-                </>
-              )}
-              <span className="text-rose-600 font-bold">-</span>
-              <span className="font-semibold text-rose-700">
-                ₹{cashExpenses.toLocaleString('en-IN')} (Cash Exp)
-              </span>
+                </React.Fragment>
+              ))}
               <span className="text-slate-400 font-bold">=</span>
               <span className="font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-none">
-                ₹{closingBalance.toLocaleString('en-IN')} In Drawer
+                {formatCurrency(closingBalance)} In Drawer
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1.5 italic">
@@ -136,17 +138,20 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
 
         {/* Collection mix — how today's revenue splits across channels */}
         {(() => {
-          const total = Math.max(1, cashSales + bankDigitalTotal + creditTotal);
+          // Money collected today by where it landed: bills on their day plus
+          // receipts by their own mode (SAL6-2 / CRM6-9); credit = still owed.
+          const mix = collection || { cash: cashSales, digital: bankDigitalTotal, credit: creditTotal };
+          const total = Math.max(1, mix.cash + mix.digital + mix.credit);
           const seg = [
-            { label: 'Cash', amount: cashSales, color: 'bg-emerald-600', text: 'text-emerald-700' },
-            { label: 'Digital / Bank', amount: bankDigitalTotal, color: 'bg-slate-700', text: 'text-slate-800' },
-            { label: 'Credit', amount: creditTotal, color: 'bg-amber-600', text: 'text-amber-800' },
+            { label: 'Cash', amount: mix.cash, color: 'bg-emerald-600', text: 'text-emerald-700' },
+            { label: 'Digital / Bank', amount: mix.digital, color: 'bg-slate-700', text: 'text-slate-800' },
+            { label: 'Credit', amount: mix.credit, color: 'bg-amber-600', text: 'text-amber-800' },
           ];
           return (
             <div className="mt-5 pt-4 border-t border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's Collection Mix</span>
-                <span className="text-[11px] font-bold text-slate-700 font-mono">{formatCurrency(cashSales + bankDigitalTotal + creditTotal)}</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Collection Mix (bills + receipts)</span>
+                <span className="text-[11px] font-bold text-slate-700 font-mono">{formatCurrency(mix.cash + mix.digital + mix.credit)}</span>
               </div>
               <div className="flex h-2.5 rounded-none overflow-hidden bg-slate-200">
                 {seg.map((s) => (
@@ -187,10 +192,10 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
                   Manually Overridden
                 </span>
               ) : (
-                // The opening carries from the most recent EARLIER closed day, which
-                // isn't necessarily yesterday when intervening days were left open
-                // (CASH-11) — so don't claim "yesterday".
-                <span>Carried from the previous closed day</span>
+                // Carried from the previous register day (not necessarily yesterday,
+                // CASH-11). A branch's first register day starts from the default
+                // float instead — say so (CASH4-7).
+                <span>{hasPreviousRegister ? 'Carried from the previous register day' : 'Default opening float (first register day)'}</span>
               )}
             </p>
           </div>
@@ -200,7 +205,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onOpenOverrideModal}
-                className="text-red-700 hover:text-red-800 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                className="print:hidden text-red-700 hover:text-red-800 font-bold flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Edit2 className="h-3 w-3" />
                 <span>Override</span>
@@ -219,7 +224,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-bold text-emerald-700 tracking-tight font-mono">
-              +{formatCurrency(cashSales)}
+              {formatCurrency(cashSales)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Physical cash collected from bills
@@ -241,7 +246,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-bold text-rose-700 tracking-tight font-mono">
-              -{formatCurrency(totalExpenses)}
+              {formatCurrency(-totalExpenses)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Drawer Cash: <strong>{formatCurrency(cashExpenses)}</strong> • GPay: {formatCurrency(gpayExpenses)}

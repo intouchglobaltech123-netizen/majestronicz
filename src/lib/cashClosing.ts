@@ -24,7 +24,10 @@ import {
 export interface DayCashClosing {
   cashSales: number;
   cashReceipts: number;
-  cashPaid: number;
+  cashPaid: number;       // every cash payment out (= refunds + vendor + salaries)
+  cashRefunds: number;    // cash paid back to customers for returns
+  cashVendorPaid: number; // cash paid to suppliers
+  cashSalaries: number;   // salaries paid in cash (E2E5-12)
   cashExpenses: number;
   closing: number;
 }
@@ -55,11 +58,17 @@ export function computeDayCashClosing(
 
   let cashReceipts = 0;
   let cashPaid = 0;
+  let cashRefunds = 0;
+  let cashSalaries = 0;
   for (const p of payments || []) {
     if (p.branchId !== branchId || p.date !== date) continue;
     if ((p.paymentMode || '').toLowerCase() !== 'cash') continue;
     if (p.type === 'in') cashReceipts += Number(p.amount) || 0;
-    else if (p.type === 'out') cashPaid += Number(p.amount) || 0;
+    else if (p.type === 'out') {
+      cashPaid += Number(p.amount) || 0;
+      if (p.partyType === 'customer') cashRefunds += Number(p.amount) || 0;
+      else if (p.partyType === 'staff') cashSalaries += Number(p.amount) || 0;
+    }
   }
 
   const cashExpenses = (expenses || [])
@@ -71,6 +80,9 @@ export function computeDayCashClosing(
     cashSales: round2(cashSales),
     cashReceipts: round2(cashReceipts),
     cashPaid: round2(cashPaid),
+    cashRefunds: round2(cashRefunds),
+    cashVendorPaid: round2(cashPaid - cashRefunds - cashSalaries),
+    cashSalaries: round2(cashSalaries),
     cashExpenses: round2(cashExpenses),
     closing,
   };

@@ -6,6 +6,7 @@ import {
   isExpenseApprovedForMonth,
   formatExpenseSchedule,
   getOrdinalSuffix,
+  dueDayInMonth,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
@@ -34,8 +35,9 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
     if (!isExpenseDueInMonth(template, monthNumber)) return false;
     if (isExpenseApprovedForMonth(template, yearMonth)) return false;
 
-    // Show if due today or overdue relative to the current register date
-    return dayOfMonth >= template.dueDay;
+    // Show if due today or overdue relative to the current register date; a
+    // 31st template falls due on the last day of a shorter month (CASH-8).
+    return dayOfMonth >= dueDayInMonth(template, yearMonth);
   });
 
   if (actionableExpenses.length === 0) return null;
@@ -43,12 +45,13 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
       {actionableExpenses.map((template) => {
-        const isOverdue = dayOfMonth > template.dueDay;
+        const dueDay = dueDayInMonth(template, yearMonth);
+        const isOverdue = dayOfMonth > dueDay;
 
         return (
           <div
             key={template.id}
-            className={`p-4 sm:p-4.5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all border-l-4 ${
+            className={`print:hidden p-4 sm:p-4.5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all border-l-4 ${
               isOverdue ? 'border-l-rose-600' : 'border-l-amber-500'
             }`}
           >
@@ -90,7 +93,7 @@ export const RecurringExpenseBanner: React.FC<Props> = ({
                   </span>
                   <span className="text-xs font-medium text-slate-500">
                     {isOverdue
-                      ? `— Overdue (was due on the ${template.dueDay}${getOrdinalSuffix(template.dueDay)})`
+                      ? `— Overdue (was due on the ${dueDay}${getOrdinalSuffix(dueDay)})`
                       : '— Due today'}
                   </span>
                 </div>

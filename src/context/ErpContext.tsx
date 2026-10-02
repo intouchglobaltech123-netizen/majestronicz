@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
-import { getTodayDateString } from '../lib/utils';
+import { getTodayDateString, formatCurrency } from '../lib/utils';
 import { makeOpeningLookup } from '../lib/cashClosing';
 
 /**
@@ -70,7 +70,6 @@ import {
   ComboItem,
   ComboComponent,
   RecurringExpenseTemplate,
-  RecurringExpenseApproval,
   Customer,
   LoyaltySettings,
   StockTransfer,
@@ -84,7 +83,6 @@ import {
   normalizePhone,
   AccessMatrix,
   Capability,
-  expenseNeedsApproval,
   computeMarginSalePrice,
 } from '../types';
 import { generateFullItemCode, resolvePrefix } from '../lib/itemCodeGenerator';
@@ -1038,8 +1036,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (currentUser.role === 'CEO' || currentUser.assignedBranchId === currentBranch || currentUser.role === 'Manager');
   const canCancelEnquiry = hasCap('enquiry:write');
   const canEditRestockDate = hasCap('enquiry:write');
-  const canCloseDay = hasCap('cash:write');
-  const canOverrideOpening = hasCap('cash:write');
+  // Closing, reopening and overriding a day are Manager/CEO only — the server
+  // refuses Billing even though it holds cash:write, so don't offer it (CASH2-4).
+  const isManagerOrCeo = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const canCloseDay = hasCap('cash:write') && isManagerOrCeo;
+  const canOverrideOpening = hasCap('cash:write') && isManagerOrCeo;
   const canManagePurchases = hasCap('purchase:write');
   const canViewHrm = canAccessView('hrm');
   const canEditSalaries = hasCap('payroll:admin');
@@ -2262,6 +2263,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // Cash-register actions are SERVER-FIRST (CASH2-4 / CASH-12): the screen shows
+  // "closed", "saved" or "approved" only after the server accepted it, and the
+  // server's own reason when it refused (a role without the right, a closed day,
+  // a pending deposit). Who did it comes from the login on the server.
+  const cashCall = async (path: string, body: any, success: () => void): Promise<boolean> => {
+    try {
+      applySnapshot(await apiPost<any>(path, body));
+      success();
+      return true;
+    } catch (e: any) {
+      toast.error(String(e?.message || 'The server refused this change.').replace(/^API \d+[^:]*: /, ''));
+      return false;
+    }
+  };
+
   const addCashExpense = (
     branchId: BranchId,
     date: string,
@@ -2271,50 +2287,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Cannot add expense: Cash register for this day is already closed.');
       return;
     }
-
     const category = expense.category?.trim() || undefined;
-    const newExpense = {
-      id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      reason: expense.reason.trim(),
-      category,
-      billUrl: expense.billUrl || undefined,
-      cashAmount: Number(expense.cashAmount) || 0,
-      gpayAmount: Number(expense.gpayAmount) || 0,
-      // Bank deposits (and other approval categories) start pending; they only hit
-      // the drawer once a Manager/CEO approves.
-      approvalStatus: expenseNeedsApproval(category) ? ('pending' as const) : undefined,
-      createdBy: currentUser.name,
-      createdAt: new Date().toISOString(),
-    };
-
-    setCashRegisters((prev) => {
-      const existingIdx = prev.findIndex((r) => r.branchId === branchId && r.date === date);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          expenses: [...updated[existingIdx].expenses, newExpense],
-        };
-        return updated;
-      } else {
-        const opening = getPreviousDayClosingBalance(branchId, date);
-        const newRecord: DailyCashRegister = {
-          id: `dcr-${branchId}-${date}`,
-          branchId,
-          date,
-          openingAmount: opening,
-          isOpeningOverridden: false,
-          expenses: [newExpense],
-          isClosed: false,
-        };
-        return [newRecord, ...prev];
-      }
-    });
-
-    persist(apiPost('/api/cash/expense', { branchId, date, expense, actor: currentUser.name }));
-    toast.success('Expense recorded successfully', {
-      description: `${expense.reason} • Cash: ₹${expense.cashAmount} / GPay: ₹${expense.gpayAmount}`,
-    });
+    void cashCall('/api/cash/expense', { branchId, date, expense: { ...expense, category } }, () =>
+      toast.success('Expense recorded successfully', {
+        description: `${expense.reason} • Cash: ${formatCurrency(Number(expense.cashAmount) || 0)} / GPay: ${formatCurrency(Number(expense.gpayAmount) || 0)}`,
+      }));
   };
 
   const deleteCashExpense = (branchId: BranchId, date: string, expenseId: string) => {
@@ -2322,16 +2299,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Cannot delete expense: Day register is already closed.');
       return;
     }
-
-    setCashRegisters((prev) =>
-      prev.map((r) =>
-        r.branchId === branchId && r.date === date
-          ? { ...r, expenses: r.expenses.filter((e) => e.id !== expenseId) }
-          : r
-      )
-    );
-    persist(apiPost('/api/cash/expense/delete', { branchId, date, expenseId }));
-    toast.success('Expense entry deleted');
+    void cashCall('/api/cash/expense/delete', { branchId, date, expenseId }, () => toast.success('Expense entry deleted'));
   };
 
   // Manager/CEO decision on a pending (e.g. bank-deposit) expense. Approving lets it
@@ -2346,23 +2314,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Only a Manager or CEO can approve bank deposits.');
       return;
     }
-    const stamp = new Date().toISOString();
-    setCashRegisters((prev) =>
-      prev.map((r) =>
-        r.branchId === branchId && r.date === date
-          ? {
-              ...r,
-              expenses: r.expenses.map((e) =>
-                e.id === expenseId
-                  ? { ...e, approvalStatus: decision, approvedBy: currentUser.name, approvedAt: stamp }
-                  : e
-              ),
-            }
-          : r
-      )
-    );
-    persist(apiPost('/api/cash/expense/approve', { branchId, date, expenseId, decision, actor: currentUser.name }));
-    toast.success(decision === 'approved' ? 'Bank deposit approved — cash deducted' : 'Bank deposit rejected');
+    void cashCall('/api/cash/expense/approve', { branchId, date, expenseId, decision }, () =>
+      toast.success(decision === 'approved' ? 'Bank deposit approved — cash deducted' : 'Bank deposit rejected'));
   };
 
   const overrideOpeningAmount = (
@@ -2379,37 +2332,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Cannot override: Day register is already closed.');
       return;
     }
-
-    setCashRegisters((prev) => {
-      const existingIdx = prev.findIndex((r) => r.branchId === branchId && r.date === date);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          openingAmount: amount,
-          isOpeningOverridden: true,
-          overrideReason: reason,
-        };
-        return updated;
-      } else {
-        const newRecord: DailyCashRegister = {
-          id: `dcr-${branchId}-${date}`,
-          branchId,
-          date,
-          openingAmount: amount,
-          isOpeningOverridden: true,
-          overrideReason: reason,
-          expenses: [],
-          isClosed: false,
-        };
-        return [newRecord, ...prev];
-      }
-    });
-
-    persist(apiPost('/api/cash/override', { branchId, date, amount, reason }));
-    toast.success('Opening cash amount updated', {
-      description: `New Opening: ₹${amount.toLocaleString('en-IN')} (Override recorded)`,
-    });
+    void cashCall('/api/cash/override', { branchId, date, amount, reason }, () =>
+      toast.success('Opening cash amount updated', {
+        description: `New Opening: ${formatCurrency(amount)} (Override recorded)`,
+      }));
   };
 
   const closeDailyRegister = (branchId: BranchId, date: string, notes?: string) => {
@@ -2417,42 +2343,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Only CEO or Manager can close the daily register.');
       return;
     }
-
-    setCashRegisters((prev) => {
-      const existingIdx = prev.findIndex((r) => r.branchId === branchId && r.date === date);
-      const closeStamp = new Date().toISOString();
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          isClosed: true,
-          closedAt: closeStamp,
-          closedBy: currentUser.name,
-          closingNotes: notes,
-        };
-        return updated;
-      } else {
-        const opening = getPreviousDayClosingBalance(branchId, date);
-        const newRecord: DailyCashRegister = {
-          id: `dcr-${branchId}-${date}`,
-          branchId,
-          date,
-          openingAmount: opening,
-          isOpeningOverridden: false,
-          expenses: [],
-          isClosed: true,
-          closedAt: closeStamp,
-          closedBy: currentUser.name,
-          closingNotes: notes,
-        };
-        return [newRecord, ...prev];
-      }
-    });
-
-    persist(apiPost('/api/cash/close', { branchId, date, notes, actor: currentUser.name }));
-    toast.success(`Day Closed for ${date}`, {
-      description: `Register locked by ${currentUser.name}. Opening balance will carry forward to next day.`,
-    });
+    void cashCall('/api/cash/close', { branchId, date, notes }, () =>
+      toast.success(`Day Closed for ${date}`, {
+        description: `Register locked by ${currentUser.name}. Opening balance will carry forward to next day.`,
+      }));
   };
 
   const reopenDailyRegister = (branchId: BranchId, date: string) => {
@@ -2460,18 +2354,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Only CEO or Manager can reopen a closed register.');
       return;
     }
-
-    setCashRegisters((prev) =>
-      prev.map((r) =>
-        r.branchId === branchId && r.date === date
-          ? { ...r, isClosed: false }
-          : r
-      )
-    );
-    persist(apiPost('/api/cash/reopen', { branchId, date }));
-    toast.info(`Register reopened for ${date}`, {
-      description: 'You can now modify expenses or add invoices.',
-    });
+    void cashCall('/api/cash/reopen', { branchId, date }, () =>
+      toast.info(`Register reopened for ${date}`, {
+        description: 'You can now modify expenses or add invoices.',
+      }));
   };
 
   const addRecurringExpenseTemplate = (
@@ -2552,78 +2438,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Recurring template not found.');
       return;
     }
-
-    if (isDayClosed(branchId, date)) {
+    // The expense posts to the TEMPLATE's branch (CASH-6), whatever drawer is on screen.
+    const target = (template.branchId || branchId) as BranchId;
+    if (isDayClosed(target, date)) {
       toast.error('Cannot approve expense: Cash register for this day is already closed.');
       return;
     }
-
-    const cashAmount = paymentMode === 'Cash' ? amount : 0;
-    const gpayAmount = paymentMode === 'GPay' ? amount : 0;
-
-    const expenseId = `exp-rec-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
-    const newExpense = {
-      id: expenseId,
-      reason: template.name,
-      category: template.category || undefined,
-      cashAmount,
-      gpayAmount,
-      createdBy: currentUser.name,
-      createdAt: new Date().toISOString(),
-    };
-
-    setCashRegisters((prev) => {
-      const existingIdx = prev.findIndex((r) => r.branchId === branchId && r.date === date);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          expenses: [...updated[existingIdx].expenses, newExpense],
-        };
-        return updated;
-      } else {
-        const opening = getPreviousDayClosingBalance(branchId, date);
-        const newRecord: DailyCashRegister = {
-          id: `dcr-${branchId}-${date}`,
-          branchId,
-          date,
-          openingAmount: opening,
-          isOpeningOverridden: false,
-          expenses: [newExpense],
-          isClosed: false,
-        };
-        return [newRecord, ...prev];
-      }
-    });
-
-    const monthKey = date.substring(0, 7); // e.g. "2026-09"
-    const approvalRecord: RecurringExpenseApproval = {
-      id: `appr-${Date.now()}`,
-      month: monthKey,
-      date,
-      approvedAt: new Date().toISOString(),
-      approvedBy: currentUser.name,
-      actualAmount: amount,
-      paymentMode,
-      cashExpenseId: expenseId,
-    };
-
-    setRecurringExpenses((prev) =>
-      prev.map((t) =>
-        t.id === templateId
-          ? {
-              ...t,
-              lastApprovedMonth: monthKey,
-              approvalHistory: [approvalRecord, ...(t.approvalHistory || [])],
-            }
-          : t
-      )
-    );
-
-    persist(apiPost('/api/cash/approve-recurring', { templateId, branchId, date, amount, paymentMode, actor: currentUser.name }));
-    toast.success(`Approved "${template.name}" (₹${amount.toLocaleString('en-IN')}) into ${branchId} register`, {
-      description: `Added to ${date} register via ${paymentMode}. Total expenses and closing balance updated.`,
-    });
+    const branchName = BRANCHES.find((b) => b.id === target)?.name || target;
+    void cashCall('/api/cash/approve-recurring', { templateId, branchId: target, date, amount, paymentMode }, () =>
+      toast.success(`Approved "${template.name}" (${formatCurrency(amount)}) into the ${branchName} register`, {
+        description: `Added to ${date} register via ${paymentMode}. Total expenses and closing balance updated.`,
+      }));
   };
 
   const saveCustomer = (customerData: Customer): { success: boolean; error?: string; customer?: Customer } => {
@@ -4078,7 +3903,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Mode: ${paymentMode} ${paymentReference ? `(${paymentReference})` : ''}`,
       });
     } catch (e: any) {
-      toast.error('Could not mark payroll as paid', { description: e?.message ?? 'Backend error' });
+      toast.error('Could not mark payroll as paid', { description: String(e?.message ?? 'Backend error').replace(/^API \d+[^:]*: /, '') });
     }
   };
 

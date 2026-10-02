@@ -152,7 +152,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
       {/* Add Expense Form (Active only when Day is Open) */}
       {!isClosed ? (
-        <div className="p-4 bg-slate-50 border-b border-slate-200">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 print:hidden">
           <form onSubmit={handleAdd} className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
               {/* Reason */}
@@ -286,7 +286,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto flex-1 max-h-[380px]">
+        <div className="overflow-x-auto flex-1 max-h-[380px] print:max-h-none print:overflow-visible">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
               <tr>
@@ -295,7 +295,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                   Cash (Drawer)
                 </th>
                 <th className="py-3 px-3 text-right">GPay</th>
-                {!isClosed && <th className="py-3 px-3 text-center w-14">Action</th>}
+                {!isClosed && <th className="py-3 px-3 text-center w-14 print:hidden">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -340,7 +340,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
                   {/* Actions: approve/reject (pending) + delete */}
                   {!isClosed && (
-                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                    <td className="py-3 px-3 text-center whitespace-nowrap print:hidden">
                       {exp.approvalStatus === 'pending' && canApprove && onApprove && (
                         <>
                           <button
@@ -366,7 +366,13 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                       )}
                       <button
                         type="button"
-                        onClick={() => onDeleteExpense(exp.id)}
+                        onClick={() => {
+                          // CASH-12: deleting an expense changes the drawer — ask first.
+                          const amt = (exp.cashAmount || 0) + (exp.gpayAmount || 0);
+                          if (window.confirm(`Delete the expense "${exp.reason}" (${formatCurrency(amt)})? The drawer total will change.`)) {
+                            onDeleteExpense(exp.id);
+                          }
+                        }}
                         className="p-1 rounded-none text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Delete expense"
                       >

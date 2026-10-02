@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { DailyCashRegister, Invoice, Payment, BranchId, BRANCHES } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { DailyCashRegister, Invoice, Payment, BranchId, BRANCHES, expenseIsEffective } from '../../types';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import { computeDayCashClosing } from '../../lib/cashClosing';
 import { X, History, Lock, Eye, Calendar } from 'lucide-react';
 
@@ -105,15 +105,10 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                   const dayInvoices = invoices.filter(
                     (i) => i.branchId === reg.branchId && i.date === reg.date && !i.isVoided
                   );
-                  const totalSale = dayInvoices.reduce(
-                    // "Total sales" for a (closed) day is the bill VALUE net of
-                    // returns — the grand total, never the collected/partial amount.
-                    // Reading partialAmount here made the figure move when a later
-                    // receipt settled one of the day's bills, retroactively changing
-                    // a closed day (CRM6-1); the grand total is immutable.
-                    (sum, i) => sum + Math.max(0, (i.grandTotal || 0) - (i.totalReturnedAmount || 0)),
-                    0
-                  );
+                  // "Total Sale" is the register's own figure: the day's bills at
+                  // billing (all modes). A later return is a refund on ITS day and
+                  // never rewrites a closed day's sale (CASH3-9 / CASH4-6).
+                  const totalSale = dayInvoices.reduce((sum, i) => sum + (i.grandTotal || 0), 0);
 
                   // Closing via the ONE shared formula, so the history figure
                   // matches the register card and the carried-forward opening
@@ -123,8 +118,10 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                   );
                   const closing = dayClose.closing;
 
-                  // Total expenses (all modes, for the expense column display)
-                  const totalExpense = reg.expenses.reduce(
+                  // Total expenses as the register counts them: effective only —
+                  // pending or rejected deposits never left the drawer (CASH4-6).
+                  const effective = reg.expenses.filter((e) => expenseIsEffective(e));
+                  const totalExpense = effective.reduce(
                     (sum, e) => sum + (e.cashAmount || 0) + (e.gpayAmount || 0),
                     0
                   );
@@ -135,7 +132,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         <span className="inline-flex items-center gap-1.5">
                           <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{reg.date}</span>
+                          <span>{formatDate(reg.date)}</span>
                         </span>
                       </td>
 
@@ -159,7 +156,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                       <td className="py-3 px-3 text-right font-mono text-rose-700 font-semibold">
                         {formatCurrency(totalExpense)}
                         <span className="text-[11px] text-slate-400 block font-normal">
-                          {reg.expenses.length} Lines
+                          {effective.length} Lines
                         </span>
                       </td>
 

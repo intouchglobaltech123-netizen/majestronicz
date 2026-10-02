@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits, expenseIsEffective } from '../../types';
-import { getTodayDateString, getYesterdayDateString, cn } from '../../lib/utils';
+import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits, expenseIsEffective, dueDayInMonth } from '../../types';
+import { collectionsByMode } from '../../lib/paymentModes';
+import { getTodayDateString, getYesterdayDateString, cn, formatCurrency, formatDate } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
 import { DailyCashExpensesTable } from './DailyCashExpensesTable';
@@ -64,6 +65,15 @@ export const DailyCashRegisterView: React.FC = () => {
 
   // Date selection (Defaults to live dynamic today)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  // CASH-13: a drawer that was showing TODAY follows the date across midnight;
+  // one deliberately set to another day stays where it is.
+  const prevToday = React.useRef(todayStr);
+  useEffect(() => {
+    if (prevToday.current !== todayStr) {
+      setSelectedDate((d) => (d === prevToday.current ? todayStr : d));
+      prevToday.current = todayStr;
+    }
+  }, [todayStr]);
 
   // Specific branch for the cash register drawer
   const [activeBranchId, setActiveBranchId] = useState<BranchId>(() => {
@@ -110,7 +120,7 @@ export const DailyCashRegisterView: React.FC = () => {
       if (t.branchId !== activeBranchId) return false;
       if (!isExpenseDueInMonth(t, monthNumber)) return false;
       if (isExpenseApprovedForMonth(t, monthKey)) return false;
-      return day >= t.dueDay;
+      return day >= dueDayInMonth(t, monthKey); // CASH-8: 31st → last day of a short month
     }).length;
   }, [recurringExpenses, activeBranchId, selectedDate]);
 
@@ -178,6 +188,27 @@ export const DailyCashRegisterView: React.FC = () => {
     };
   }, [currentRegister.expenses]);
 
+  // The day's customer receipts and refunds at this branch — shown as their own
+  // rows in the bills table and counted by their own mode (SAL6-2 / E2E7-7).
+  const dayPayments = useMemo(
+    () => payments.filter((p) => p.branchId === activeBranchId && p.date === selectedDate),
+    [payments, activeBranchId, selectedDate],
+  );
+  const dayCollection = useMemo(() => {
+    const m = collectionsByMode(dayInvoices, dayPayments, () => true, () => true);
+    return { cash: m.byGroup.Cash, digital: m.total - m.byGroup.Cash, credit: m.creditGiven };
+  }, [dayInvoices, dayPayments]);
+  // CASH4-7: "carried from the previous day" only when there is one.
+  const hasPreviousRegister = useMemo(
+    () => cashRegisters.some((r) => r.branchId === activeBranchId && r.date < selectedDate),
+    [cashRegisters, activeBranchId, selectedDate],
+  );
+  // CASH6-3: items still waiting for a Manager/CEO decision block the close.
+  const pendingApprovals = useMemo(
+    () => currentRegister.expenses.filter((e) => e.approvalStatus === 'pending'),
+    [currentRegister.expenses],
+  );
+
   // Closing balance via the ONE shared formula (CASH2-3/CASH-4), so the card, the
   // next-day opening carry-forward and the history modal all agree. It also folds
   // in cash receipts / vendor cash payments from the Payment ledger (CASH2-6).
@@ -192,14 +223,31 @@ export const DailyCashRegisterView: React.FC = () => {
 
   const activeBranchObj = BRANCHES.find((b) => b.id === activeBranchId) || BRANCHES[0];
 
+  // Print Sheet (CASH4-5 / E2E8-16): the register only — no buttons, banners or
+  // filter bar, every bill (no scroll box) and one column so nothing overlaps.
+  const printSheet = () => {
+    if (activeSubView !== 'register') setActiveSubView('register');
+    document.body.classList.add('register-printing');
+    const done = () => { document.body.classList.remove('register-printing'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); setTimeout(done, 1000); }, 50);
+  };
+
   // Quick Date Helpers
   const handleSetToday = () => setSelectedDate(todayStr);
   const handleSetYesterday = () => setSelectedDate(yesterdayStr);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 w-full">
+    <div className="p-4 sm:p-6 space-y-6 w-full print:p-0 print:space-y-3">
+      {/* Printed sheet heading (print only) */}
+      <div className="hidden print:block border-b border-slate-400 pb-2">
+        <h1 className="text-base font-bold text-slate-900">Daily Cash Register — {activeBranchObj.name}</h1>
+        <p className="text-xs text-slate-700">
+          {formatDate(selectedDate)} · {currentRegister.isClosed ? `Closed by ${currentRegister.closedBy || 'Manager'}` : 'Open'} · printed {new Date().toLocaleString('en-IN')}
+        </p>
+      </div>
       {/* Top Banner Header */}
-      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="print:hidden p-5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
@@ -238,7 +286,7 @@ export const DailyCashRegisterView: React.FC = () => {
         </div>
 
         {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
 
           {/* History Button */}
           <button
@@ -253,7 +301,7 @@ export const DailyCashRegisterView: React.FC = () => {
           {/* Print Day Summary */}
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={printSheet}
             className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-none text-xs font-semibold shadow-none transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Print daily register sheet"
           >
@@ -263,13 +311,10 @@ export const DailyCashRegisterView: React.FC = () => {
 
           {/* Close Day Action or Reopen */}
           {!currentRegister.isClosed ? (
+            canCloseDay && (
             <button
               type="button"
               onClick={() => {
-                if (!canCloseDay) {
-                  toast.error('Restricted action: Only CEO or Manager can close the day register.');
-                  return;
-                }
                 // A day in the future has no transactions yet and must not be
                 // closable — closing it would lock a date that hasn't happened
                 // and break the opening-balance chain (CASH-9).
@@ -284,6 +329,7 @@ export const DailyCashRegisterView: React.FC = () => {
               <Lock className="h-3.5 w-3.5" />
               <span>Close Day</span>
             </button>
+            )
           ) : (
             canCloseDay && (
               <button
@@ -300,7 +346,7 @@ export const DailyCashRegisterView: React.FC = () => {
       </div>
 
       {/* Segmented View Tabs — mobile only (desktop uses the secondary sidebar) */}
-      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+      <div className="print:hidden lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveSubView('register')}
@@ -355,7 +401,7 @@ export const DailyCashRegisterView: React.FC = () => {
           />
 
           {/* Date & Branch Filter Bar */}
-          <div className="p-4 bg-white border border-slate-300 rounded-none shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="print:hidden p-4 bg-white border border-slate-300 rounded-none shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               {/* Date Picker Input */}
               <div className="flex items-center gap-2">
@@ -432,6 +478,11 @@ export const DailyCashRegisterView: React.FC = () => {
         cashSales={salesBreakdown.cash}
         cashReceipts={cashLedger.in}
         cashPaid={cashLedger.out}
+        cashRefunds={dayClosing.cashRefunds}
+        cashVendorPaid={dayClosing.cashVendorPaid}
+        cashSalaries={dayClosing.cashSalaries}
+        collection={dayCollection}
+        hasPreviousRegister={hasPreviousRegister}
         cashExpenses={expenseBreakdown.cash}
         gpayExpenses={expenseBreakdown.gpay}
         closingBalance={closingBalance}
@@ -445,11 +496,12 @@ export const DailyCashRegisterView: React.FC = () => {
       />
 
       {/* Main Two-Column Workflow (Sales on Left, Expenses on Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start print:block print:space-y-4">
         {/* Left Column: Sales Invoices Auto-Populated Table (7 cols) */}
         <div className="lg:col-span-7">
           <DailyCashSalesTable
             invoices={dayInvoices}
+            payments={dayPayments}
             date={selectedDate}
             branchName={activeBranchObj.name}
           />
@@ -501,7 +553,7 @@ export const DailyCashRegisterView: React.FC = () => {
           </div>
 
           <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-none border border-emerald-300 font-mono">
-            Next Day Opening: ₹{closingBalance.toLocaleString('en-IN')}
+            Next Day Opening: {formatCurrency(closingBalance)}
           </span>
         </div>
       )}
@@ -526,8 +578,13 @@ export const DailyCashRegisterView: React.FC = () => {
         branchName={activeBranchObj.name}
         openingAmount={currentRegister.openingAmount}
         cashSales={salesBreakdown.cash}
+        cashReceipts={dayClosing.cashReceipts}
+        cashRefunds={dayClosing.cashRefunds}
+        cashVendorPaid={dayClosing.cashVendorPaid}
+        cashSalaries={dayClosing.cashSalaries}
         cashExpenses={expenseBreakdown.cash}
         closingBalance={closingBalance}
+        pendingApprovals={pendingApprovals.map((e) => e.reason || e.category || 'Pending item')}
         onConfirmClose={(notes) =>
           closeDailyRegister(activeBranchId, selectedDate, notes)
         }
@@ -549,7 +606,11 @@ export const DailyCashRegisterView: React.FC = () => {
         }}
       />
 
-      {/* Approve Recurring Expense Modal */}
+        </>
+      )}
+
+      {/* Approve Recurring Expense Modal — outside the view switch, so Approve on
+          the Recurring Expenses page opens it right there (CASH3-8). */}
       {approvingTemplate && (
         <ApproveRecurringExpenseModal
           isOpen={!!approvingTemplate}
@@ -558,8 +619,6 @@ export const DailyCashRegisterView: React.FC = () => {
           targetBranchId={activeBranchId}
           targetDate={selectedDate}
         />
-      )}
-        </>
       )}
     </div>
   );

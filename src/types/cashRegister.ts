@@ -189,6 +189,17 @@ export function isExpenseDueInMonth(
 }
 
 /**
+ * The day a template falls due in a given month ("YYYY-MM"): its due day, or the
+ * month's last day when the month is shorter (a 31st template is due on 30 Sep
+ * and 28/29 Feb) — CASH-8. One rule for the banner, the badge and the page.
+ */
+export function dueDayInMonth(template: Pick<RecurringExpenseTemplate, 'dueDay'>, monthKey: string): number {
+  const [y, m] = monthKey.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return Math.min(Number(template.dueDay) || 1, last || 31);
+}
+
+/**
  * Checks if a template was already approved for a given monthKey ("YYYY-MM").
  */
 export function isExpenseApprovedForMonth(

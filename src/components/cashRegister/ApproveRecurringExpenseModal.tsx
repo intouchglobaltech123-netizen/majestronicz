@@ -36,8 +36,11 @@ export const ApproveRecurringExpenseModal: React.FC<Props> = ({
 
   if (!isOpen || !template) return null;
 
-  const branchObj = BRANCHES.find((b) => b.id === targetBranchId);
-  const isClosed = isDayClosed(targetBranchId, targetDate);
+  // The expense posts to the TEMPLATE's branch (the server's rule), so name and
+  // check that branch — not whichever drawer happens to be on screen (CASH-6).
+  const postBranchId = (template.branchId || targetBranchId) as BranchId;
+  const branchObj = BRANCHES.find((b) => b.id === postBranchId);
+  const isClosed = isDayClosed(postBranchId, targetDate);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +53,7 @@ export const ApproveRecurringExpenseModal: React.FC<Props> = ({
       return;
     }
 
-    approveRecurringExpense(template.id, targetBranchId, targetDate, amount, paymentMode);
+    approveRecurringExpense(template.id, postBranchId, targetDate, amount, paymentMode);
     onClose();
   };
 
