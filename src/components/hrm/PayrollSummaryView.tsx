@@ -188,7 +188,7 @@ export const PayrollSummaryView: React.FC = () => {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Net Payable</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{formatCurrency(totalGrossPayable)}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{selectedMonth} Payroll Disbursal</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{selectedMonth} Payroll Disbursal</p>
           </div>
         </div>
 
@@ -199,7 +199,7 @@ export const PayrollSummaryView: React.FC = () => {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recorded Labor Hours</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">{totalHoursWorkedSum.toFixed(1)} hrs</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Sum of all verified shift durations</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Sum of all verified shift durations</p>
           </div>
         </div>
 
@@ -210,9 +210,9 @@ export const PayrollSummaryView: React.FC = () => {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Disbursement Status</p>
             <p className="text-xl font-bold text-slate-900 font-mono mt-0.5">
-              {paidCount} Paid <span className="text-slate-400 text-sm font-normal">/ {pendingCount} Draft</span>
+              {paidCount} Paid <span className="text-slate-500 text-sm font-normal">/ {pendingCount} Draft</span>
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Approved vs Pending Payment</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Approved vs Pending Payment</p>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ export const PayrollSummaryView: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {payrollRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-400">
+                  <td colSpan={11} className="py-12 text-center text-slate-500">
                     <DollarSign className="h-10 w-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-medium text-slate-600">No employees for this period</p>
                   </td>
@@ -254,7 +254,7 @@ export const PayrollSummaryView: React.FC = () => {
                       {/* Name & Role */}
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-slate-900">{row.employeeName}</div>
-                        <div className="text-xs text-slate-400">{row.designation}</div>
+                        <div className="text-xs text-slate-500">{row.designation}</div>
                       </td>
 
                       {/* Branch */}
@@ -269,7 +269,7 @@ export const PayrollSummaryView: React.FC = () => {
                         {canEditSalaries ? (
                           formatCurrency(row.monthlySalary)
                         ) : (
-                          <span className="text-slate-400 font-sans text-xs italic">Confidential</span>
+                          <span className="text-slate-500 font-sans text-xs italic">Confidential</span>
                         )}
                       </td>
 
@@ -278,7 +278,7 @@ export const PayrollSummaryView: React.FC = () => {
                         <div className="font-bold text-slate-900 font-mono">
                           {row.totalHoursWorked.toFixed(1)} hrs
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-slate-500">
                           {row.totalDaysPresent} days present
                         </div>
                       </td>
@@ -439,7 +439,7 @@ export const PayrollSummaryView: React.FC = () => {
                   className="w-full px-3 py-2 text-sm font-bold font-mono rounded-none border border-slate-300 focus:outline-hidden focus:border-red-600"
                   autoFocus
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   Use positive numbers for bonuses/incentives, negative numbers for deductions/advance repayments.
                 </p>
               </div>

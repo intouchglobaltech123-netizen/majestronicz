@@ -88,6 +88,7 @@ export const EmployeeMasterView: React.FC<EmployeeMasterViewProps> = () => {
         <div className="flex items-center gap-2.5">
           {currentUser.role !== 'Manager' && (
             <select
+              aria-label="Filter staff by branch"
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value as BranchScope)}
               className="px-3 py-2 text-xs font-semibold rounded-none border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-red-600 cursor-pointer"

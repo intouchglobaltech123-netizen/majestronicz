@@ -9,7 +9,7 @@ import {
   Calculator,
   PackageCheck,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { ImageUploadField } from '../common/ImageUploadField';
@@ -711,10 +711,10 @@ export const AddItemModal: React.FC<Props> = ({
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-base font-extrabold text-red-700 font-mono">
-                      ₹{effective.finalPrice.toFixed(2)}
+                      {formatCurrency(effective.finalPrice)}
                     </span>
                     <span className="text-[11px] text-slate-500 font-mono">
-                      (Base ₹{effective.basePrice.toFixed(2)} + GST ₹{effective.taxAmount.toFixed(2)})
+                      (Base {formatCurrency(effective.basePrice)} + GST {formatCurrency(effective.taxAmount)})
                     </span>
                   </div>
                 </div>

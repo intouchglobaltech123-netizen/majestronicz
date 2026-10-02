@@ -19,7 +19,7 @@ import {
   History,
   MapPin,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { ItemHistoryTab } from './ItemHistoryTab';
@@ -685,10 +685,10 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-base font-extrabold text-slate-900 font-mono">
-                      ₹{effective.finalPrice.toFixed(2)}
+                      {formatCurrency(effective.finalPrice)}
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      (Base ₹{effective.basePrice.toFixed(2)} + GST ₹{effective.taxAmount.toFixed(2)})
+                      (Base {formatCurrency(effective.basePrice)} + GST {formatCurrency(effective.taxAmount)})
                     </span>
                   </div>
                 </div>

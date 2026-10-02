@@ -208,7 +208,7 @@ export const AttendanceLogView: React.FC = () => {
 
       {/* Attendance Log Table */}
       <div className="bg-white rounded-none border border-slate-300 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance log">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-300 bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider">

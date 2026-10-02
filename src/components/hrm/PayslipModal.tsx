@@ -149,10 +149,10 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
               <tr>
                 <td className="py-2.5 px-3 text-slate-700">Effective Hourly Rate</td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-500">
-                  ₹{payrollRecord.monthlySalary} ÷ {payrollRecord.standardHoursPerMonth}h
+                  {formatCurrency(payrollRecord.monthlySalary)} ÷ {payrollRecord.standardHoursPerMonth}h
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                  ₹{payrollRecord.hourlyRate.toFixed(2)}/hr
+                  {formatCurrency(payrollRecord.hourlyRate)}/hr
                 </td>
               </tr>
               <tr className="bg-slate-50">
@@ -160,7 +160,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   Computed Pay (Actual Recorded Attendance)
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-800">
-                  {payrollRecord.totalHoursWorked.toFixed(1)}h × ₹{payrollRecord.hourlyRate.toFixed(2)}
+                  {payrollRecord.totalHoursWorked.toFixed(1)}h × {formatCurrency(payrollRecord.hourlyRate)}
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                   {formatCurrency(payrollRecord.computedPay)}

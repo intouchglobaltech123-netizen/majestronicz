@@ -83,7 +83,7 @@ export const AccessManagementView: React.FC = () => {
 
       {/* CEO locked card */}
       <div className="rounded-none border border-amber-300 bg-amber-50/50 p-4 flex items-center gap-3">
-        <Lock className="h-4 w-4 text-amber-600" />
+        <Lock className="h-4 w-4 text-amber-700" />
         <p className="text-xs font-semibold text-amber-800">
           CEO ({roleName('CEO')}) always retains full access and cannot be restricted.
         </p>

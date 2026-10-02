@@ -1301,12 +1301,25 @@ export const InvoiceForm: React.FC<Props> = ({
     return Math.round((totals.grandTotal - totalAllocated) * 100) / 100;
   }, [totals.grandTotal, totalAllocated]);
 
+  // E2E10-4: editing a bill below what the customer has already paid — the
+  // server keeps what was collected and gives the difference back as store
+  // credit (a walk-in bill has no account for it), so a split that is "over"
+  // the new total is expected here, not an error.
+  const alreadyPaid = useMemo(() => {
+    if (!initialInvoice) return 0;
+    return Math.max(0, Math.round(((Number(initialInvoice.grandTotal) || 0) - (Number(initialInvoice.balanceDue) || 0) - (Number(initialInvoice.totalReturnedAmount) || 0)) * 100) / 100);
+  }, [initialInvoice]);
+  const paidOverNewTotal = documentType === 'Invoice' && initialInvoice
+    ? Math.max(0, Math.round((alreadyPaid - totals.grandTotal) * 100) / 100) : 0;
+
   // Is payment reconciled exactly to 0 remaining?
   const isPaymentReconciled = useMemo(() => {
     if (documentType !== 'Invoice') return true;
     if (paymentSplits.length <= 1) return true;
+    // E2E10-4: over by no more than what was already paid is fine on an edit.
+    if (paidOverNewTotal > 0 && remainingBalance < 0 && -remainingBalance <= paidOverNewTotal + 0.01) return true;
     return Math.abs(remainingBalance) < 0.01;
-  }, [documentType, paymentSplits.length, remainingBalance]);
+  }, [documentType, paymentSplits.length, remainingBalance, paidOverNewTotal]);
 
   // Split management handlers
   const handleAddSplit = () => {
@@ -1596,6 +1609,9 @@ export const InvoiceForm: React.FC<Props> = ({
       // Preview/print the server-saved bill (authoritative number, id and
       // reconciled payment split), not the provisional client object (SAL4-1).
       const saved = await saveInvoice(inv);
+      if (saved && paidOverNewTotal > 0.009 && saved.customerId) {
+        toast.info(`₹${paidOverNewTotal.toLocaleString('en-IN')} already paid is kept as ${saved.customerName || 'the customer'}'s store credit`); // E2E10-4
+      }
       // If the server REFUSED the save, saveInvoice shows the error toast and
       // returns undefined — do NOT open a printable bill off the provisional
       // object, or the user prints a "DRAFT"/wrong number for a sale that was
@@ -1721,6 +1737,16 @@ export const InvoiceForm: React.FC<Props> = ({
           <span className="text-[11px] text-purple-600 font-semibold">
             Fresh sequence #{invoiceNumber}
           </span>
+        </div>
+      )}
+
+      {paidOverNewTotal > 0.009 && (
+        <div className="bg-amber-50 border border-amber-300 px-4 py-2.5 text-xs text-amber-950" data-testid="paid-over-banner">
+          {/* E2E10-4 */}
+          <span className="font-bold">₹{paidOverNewTotal.toLocaleString('en-IN')} already paid</span> is more than the new total.{' '}
+          {customerId || customerPhone
+            ? "The bill keeps what was collected and the difference is kept as the customer's store credit when you save."
+            : 'A walk-in bill has no account to keep it on — add the customer, or record a return (refund) instead.'}
         </div>
       )}
 
