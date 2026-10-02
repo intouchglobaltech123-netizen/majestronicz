@@ -96,3 +96,7 @@ export function computePayrollRows(params: {
     } as PayrollRecord;
   });
 }
+
+/** Employee status is 'Active' / 'Inactive'; rows saved by older builds carry the
+ *  login's lowercase 'active' / 'disabled' (UPG9-9) — read both. */
+export const isActiveEmployee = (e: { status?: string | null }) => String(e?.status || '').toLowerCase() === 'active';

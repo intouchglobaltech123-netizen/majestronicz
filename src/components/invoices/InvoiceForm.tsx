@@ -31,6 +31,7 @@ import {
   calculateInvoiceTotals,
 } from '../../lib/taxCalculations';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
+import { isActiveEmployee } from '../../lib/payroll';
 import {
   Plus,
   Trash2,
@@ -2853,7 +2854,7 @@ export const InvoiceForm: React.FC<Props> = ({
                   onChange={(v) => setSalespersonId(String(v))}
                   options={[
                     { value: '', label: 'No salesperson' },
-                    ...employees.filter((e) => e.status === 'Active').map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
+                    ...employees.filter(isActiveEmployee).map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
                   ]}
                   placeholder="Select employee…"
                   buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"

@@ -3,6 +3,7 @@ import { X, User, KeyRound, Check, Lock, ShieldCheck } from 'lucide-react';
 import { Employee, BranchId, Role } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { cleanPhoneDigits, getTodayDateString } from '../../lib/utils';
+import { isActiveEmployee } from '../../lib/payroll';
 import { PhoneInput } from '../common/PhoneInput';
 
 type LoginRole = '' | Extract<Role, 'Manager' | 'Billing' | 'Purchase' | 'Sales'>;
@@ -66,7 +67,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       // The PIN is no longer sent to the client (SEC2-2), so on edit it starts
       // blank and is only changed if the user types a new one ("leave blank to keep").
       setPin(employeeToEdit.pin || '');
-      setStatus(employeeToEdit.status);
+      setStatus(isActiveEmployee(employeeToEdit) ? 'Active' : 'Inactive');
       setPhone(employeeToEdit.phone || '');
       setEmail(employeeToEdit.email || '');
       setJoinedDate(employeeToEdit.joinedDate);

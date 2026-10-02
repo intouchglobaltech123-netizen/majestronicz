@@ -19,6 +19,7 @@ import { apiPost } from '../../lib/api';
 import { playSuccess } from '../../lib/sound';
 import { toast } from 'sonner';
 import { hasCoords, formatCoords } from '../../lib/geo';
+import { isActiveEmployee } from '../../lib/payroll';
 
 interface AttendanceKioskModalProps {
   isOpen: boolean;
@@ -54,7 +55,7 @@ export const AttendanceKioskModal: React.FC<AttendanceKioskModalProps> = ({
   const activeEmployees = useMemo(
     () =>
       employees.filter((e) => {
-        if (e.status !== 'Active') return false;
+        if (!isActiveEmployee(e)) return false;
         if (currentUser.role === 'Manager') {
           return e.branchId === (currentUser.assignedBranchId || 'coimbatore');
         }
