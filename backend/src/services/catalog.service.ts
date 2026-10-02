@@ -207,26 +207,31 @@ export function saveCustomer(data: any) {
     const duplicate = all.find((c: any) => c.id !== data.id && cleanPhone(c.phone) === phone);
     if (duplicate) throw new AppError('DUPLICATE_PHONE', `A customer with phone ${data.phone} already exists (${duplicate.name})`, 409);
 
+    // CRM6-7: allow-list the master fields (an unknown field used to reach Prisma
+    // and come back as a 500 quoting the query). Purchase aggregates and store
+    // credit are server-maintained from bills (CRM2-10 / CRM5-6) and never taken
+    // from the client. A missing address defaults to blank.
+    const fields: Record<string, any> = { name: String(data.name).trim(), phone: String(data.phone).trim() };
+    for (const k of ['address', 'email', 'customerType', 'notes'] as const) {
+      if (data[k] === undefined) continue;
+      if (data[k] !== null && typeof data[k] !== 'string') throw new AppError('BAD_REQUEST', `Invalid ${k}.`, 400);
+      fields[k] = data[k];
+    }
+    if (data.gstin !== undefined) fields.gstin = data.gstin;
+    if (fields.address === null) fields.address = '';
+
     const ts = nowIso();
-    const existing = data.id ? await tx.customer.findUnique({ where: { id: data.id } }) : null;
+    const existing = data.id ? await tx.customer.findUnique({ where: { id: String(data.id) } }) : null;
     if (existing) {
-      // Never let a customer edit (often from a stale form) overwrite the
-      // server-maintained purchase aggregates — only master details are editable
-      // here. Strip the calculated fields so the DB keeps its own values (CRM2-10).
-      const {
-        id, purchaseCount, totalSpent, firstPurchaseDate,
-        lastRewardRedeemedPurchaseCount, creditBalance, creditHistory, ...rest
-      } = data;
-      await tx.customer.update({ where: { id }, data: { ...rest, updatedAt: ts } });
+      await tx.customer.update({ where: { id: existing.id }, data: { ...fields, updatedAt: ts } });
     } else {
-      const id = data.id || `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-      // Purchase aggregates are server-maintained from bills — never accept them
-      // from the client on create (a forged totalSpent/purchaseCount) (CRM5-6).
-      const { purchaseCount: _pc, totalSpent: _ts, lastRewardRedeemedPurchaseCount: _lr, creditBalance: _cb, creditHistory: _ch, ...clean } = data;
+      const id = data.id ? String(data.id) : `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const firstPurchaseDate = typeof data.firstPurchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.firstPurchaseDate)
+        ? data.firstPurchaseDate : ts.split('T')[0];
       await tx.customer.create({
         data: {
-          ...clean, id,
-          firstPurchaseDate: data.firstPurchaseDate || ts.split('T')[0],
+          address: '', ...fields, id,
+          firstPurchaseDate,
           purchaseCount: 0,
           totalSpent: 0,
           createdAt: ts, updatedAt: ts,

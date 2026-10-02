@@ -1,10 +1,16 @@
 import { Request, Response } from 'express';
 import * as cash from '../services/cash.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { cleanRecurringFields, MAX_AMOUNT } from '../lib/validate.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export const addExpense = async (req: Request, res: Response) => {
   const { branchId, date, expense, actor } = req.body;
   assertBranchAllowed((req as any).user, branchId);
+  // VAL-1: an upper bound on a single expense (₹1e15 used to be accepted).
+  if ((Number(expense?.cashAmount) || 0) > MAX_AMOUNT || (Number(expense?.gpayAmount) || 0) > MAX_AMOUNT) {
+    throw new AppError('BAD_AMOUNT', 'Expense amount is too large', 400);
+  }
   res.json(await cash.addExpense(branchId, date, expense, actor));
 };
 export const deleteExpense = async (req: Request, res: Response) => {
@@ -48,7 +54,9 @@ export const approveRecurring = async (req: Request, res: Response) => {
 // 'cash:write'; the branch guard below stops a branch-scoped user from moving
 // a template into, or deleting one belonging to, a branch they cannot touch.
 export const updateRecurring = async (req: Request, res: Response) => {
-  const updates = (req.body ?? {}) as Record<string, any>;
+  // VAL-1 / PLT6-1: validate types and whitelist frequency/branch before the
+  // service sees them (it keeps its own field allow-list and template-branch check).
+  const updates = cleanRecurringFields((req.body ?? {}) as Record<string, any>, true);
   // Guard the destination branch here; the service also guards the template's
   // current branch so an out-of-branch template can't be edited at all (SEC2-1).
   if (updates.branchId !== undefined) assertBranchAllowed((req as any).user, updates.branchId);

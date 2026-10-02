@@ -196,4 +196,116 @@ describe('auth & roles', () => {
     expectStatus(res, 403);
     assert.equal(ok(await get(`/api/purchase-orders/${po.id}`)).amountPaid || 0, 0);
   });
+  test('SEC8-1 Billing cannot edit or delete recurring expense templates', async () => {
+    const tpl = ok(await post('/api/recurring-expenses', { id: `rec-qa-${uid()}`, name: 'QA Erode rent', defaultAmount: 9000, branchId: 'erode-hq', frequency: 'Monthly', dueDay: 3, paymentMode: 'Cash' })).recurringExpense;
+    expectStatus(await put(`/api/cash/recurring/${tpl.id}`, { defaultAmount: 12345 }, 'Billing'), 403, 'edit');
+    expectStatus(await del(`/api/cash/recurring/${tpl.id}`, 'Billing'), 403, 'delete');
+    const after = ok(await get('/api/recurring-expenses')).find((t) => t.id === tpl.id);
+    assert.ok(after, 'template still exists');
+    assert.equal(after.defaultAmount, 9000);
+    // The Manager of the template's own branch still can.
+    const erodeMgr = await createStaff('Manager', 'erode-hq');
+    ok(await api('PUT', `/api/cash/recurring/${tpl.id}`, { as: { token: await loginPin(erodeMgr.pin) }, body: { defaultAmount: 9500 } }), 'own-branch manager edit');
+  });
+
+  test('VAL-1 / PLT6-1 recurring templates reject wrong types and unknown frequencies with 400', async () => {
+    const base = { name: 'QA EB', defaultAmount: 900, branchId: 'erode-hq', frequency: 'Monthly', dueDay: 5, paymentMode: 'Cash' };
+    for (const [what, patch] of [
+      ['frequency hourly', { frequency: 'hourly' }],
+      ['frequency missing', { frequency: undefined }],
+      ['startMonth text', { frequency: 'Quarterly', startMonth: 'abc' }],
+      ['amount 1e15', { defaultAmount: 1e15 }],
+      ['branch mars', { branchId: 'mars' }],
+      ['dueDay text', { dueDay: 'soon' }],
+    ]) {
+      const res = await post('/api/recurring-expenses', { ...base, id: `rec-qa-${uid()}`, ...patch });
+      expectStatus(res, 400, what);
+      assert.doesNotMatch(JSON.stringify(res.body), /prisma|invocation/i, `${what}: leaks database detail`);
+    }
+    const tpl = ok(await post('/api/recurring-expenses', { ...base, id: `rec-qa-${uid()}` })).recurringExpense;
+    expectStatus(await put(`/api/cash/recurring/${tpl.id}`, { frequency: 'hourly' }), 400, 'edit frequency');
+    expectStatus(await put(`/api/cash/recurring/${tpl.id}`, { startMonth: 'abc' }), 400, 'edit startMonth');
+  });
+
+  test('VAL-1 an absurd expense amount is refused', async () => {
+    const date = await freshDay('erode-hq');
+    const res = await post('/api/cash/expense', { branchId: 'erode-hq', date, expense: { reason: 'QA huge', cashAmount: 1e15, gpayAmount: 0 }, actor: 'QA' });
+    expectStatus(res, 400);
+  });
+
+  test('ERR-1 an unknown /api route answers JSON 404', async () => {
+    for (const [method, path] of [['GET', '/api/no-such-thing'], ['PUT', '/api/invoices/x/y/z'], ['POST', '/api/tx/nope']]) {
+      const res = await api(method, path, { body: method === 'GET' ? undefined : {} });
+      expectStatus(res, 404, `${method} ${path}`);
+      assert.equal(typeof res.body, 'object', `${method} ${path} should be JSON, got: ${String(res.body).slice(0, 60)}`);
+      assert.equal(res.body.error, 'NOT_FOUND');
+    }
+  });
+
+  test('ERR-1 malformed JSON is a 400, not a 500', async () => {
+    const res = await fetch(`${API}/api/catalog/customer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await login('CEO')}` }, body: '{"name": ',
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test('PLT5-1 an unknown online-order status is a 400', async () => {
+    const res = await post('/api/shopify/order-status', { invoiceId: 'inv-001', status: 'Teleported' });
+    expectStatus(res, 400);
+    const missing = await post('/api/shopify/order-status', { status: 'Packed' }); // no invoiceId → Prisma validation
+    expectStatus(missing, [400, 404]);
+    assert.doesNotMatch(JSON.stringify(missing.body), /prisma|invocation|findUnique/i, 'leaks database detail');
+  });
+
+  test('CRM6-7 a customer save ignores unknown fields and defaults a missing address', async () => {
+    const phone = randomPhone();
+    const res = await post('/api/catalog/customer', { name: 'QA Allow-list', phone, hackerField: 'x', totalSpent: 999999, creditBalance: 5000 });
+    const body = ok(res, 'save');
+    const c = body.customers.find((x) => x.phone === phone);
+    assert.ok(c, 'customer saved');
+    assert.equal(c.address, '');
+    assert.equal(c.totalSpent, 0);
+    assert.ok(!c.creditBalance, 'credit balance not taken from the client');
+    assert.equal(c.hackerField, undefined);
+    expectStatus(await post('/api/catalog/customer', { id: c.id, name: 'QA Allow-list', phone, address: 42 }), 400, 'address must be text');
+  });
+
+  test('SEC7-1 editing a bill without a date keeps its own date (no spurious day-closed)', async () => {
+    const [d1, d2] = await (async () => [await freshDay('erode-hq'), await freshDay('erode-hq')])();
+    const inv = await mustSell(saleBody({ date: d1, lines: [line(await createItem({ stock: { 'erode-hq': 5 } }), 1)] }));
+    // Close a DIFFERENT day of the same branch.
+    ok(await post('/api/cash/close', { branchId: 'erode-hq', date: d2, notes: 'QA', actor: 'QA' }), 'close other day');
+    const edit = { ...inv };
+    delete edit.date;
+    const res = await post('/api/tx/sale', edit);
+    ok(res, 'edit without date');
+    assert.equal(res.body.savedInvoice.date, d1);
+    const fresh = saleBody({ lines: [line(await createItem({ stock: { 'erode-hq': 5 } }), 1)] });
+    delete fresh.date;
+    expectStatus(await post('/api/tx/sale', fresh), 400, 'new sale without date');
+  });
+
+  test('SEC-5 signing out revokes the token', async () => {
+    const { pin } = await createStaff('Sales', 'erode-hq');
+    const token = await loginPin(pin);
+    ok(await api('GET', '/api/branch-stock', { as: { token } }), 'works before sign-out');
+    ok(await api('POST', '/api/auth/logout', { as: { token }, body: {} }), 'logout');
+    expectStatus(await api('GET', '/api/branch-stock', { as: { token } }), 401, 'old token after sign-out');
+    expectStatus(await api('GET', `/api/events?token=${encodeURIComponent(token)}`, { as: null }), 401, 'live stream with old token');
+    // Logging in again works.
+    const res = await api('POST', '/api/auth/login', { as: null, body: { pin } });
+    const fresh = ok(res, 'login again').token;
+    ok(await api('GET', '/api/branch-stock', { as: { token: fresh } }), 'new token works');
+    expectStatus(await api('POST', '/api/auth/logout', { as: null, body: {} }), 401, 'logout needs a login');
+  });
+
+  test('SEC6-1 every refused PIN change answers the same status', async () => {
+    const { pin } = await createStaff('Sales', 'erode-hq');
+    const token = await loginPin(pin);
+    const taken = await api('POST', '/api/auth/change-pin', { as: { token }, body: { newPin: '1111' } });
+    const same = await api('POST', '/api/auth/change-pin', { as: { token }, body: { newPin: pin } });
+    const bad = await api('POST', '/api/auth/change-pin', { as: { token }, body: { newPin: '12a' } });
+    assert.deepEqual([taken.status, same.status, bad.status], [400, 400, 400]);
+    assert.equal(taken.body.message, same.body.message, 'taken and own-PIN refusals read the same');
+  });
 });
