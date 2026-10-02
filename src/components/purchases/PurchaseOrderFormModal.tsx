@@ -12,6 +12,7 @@ import {
   BranchId,
   Item,
   allowsFractionalQty,
+  GST_RATES,
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -89,6 +90,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       quantityText?: string;
       purchasePrice: number;
       amount: number;
+      // GST % for this line (PUR-14): the item's slab by default, editable here
+      // and again while receiving.
+      taxPercent?: number;
     }>
   >([
     {
@@ -158,6 +162,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
             quantity: pf.quantity,
             purchasePrice: price,
             amount: pf.quantity * price,
+            taxPercent: matchedItem?.gstTaxSlab ?? 18,
           };
         });
         setLines(prefilledLines);
@@ -251,6 +256,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         vendorSku: vendorCodeForItem(item, selectedVendorId) || '',
         purchasePrice: price,
         amount: qty * price,
+        taxPercent: item.gstTaxSlab ?? 18,
       };
       // Auto-open a fresh row when the LAST line just got an item (like the sales bill).
       if (index === next.length - 1) {
@@ -334,8 +340,19 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     });
   };
 
-  // Calculations
-  const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+  // Calculations: taxable value, the GST on it per line, and the total with GST
+  // (PUR-14 — the order shows its tax before anything is received).
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const totalAmount = r2(lines.reduce((sum, line) => sum + (line.item ? line.amount : 0), 0));
+  const totalTax = r2(lines.reduce((sum, line) => sum + (line.item ? r2((line.amount * (line.taxPercent ?? 0)) / 100) : 0), 0));
+
+  const handleUpdateLineTax = (index: number, rate: number) => {
+    setLines((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], taxPercent: rate };
+      return next;
+    });
+  };
 
   // A quantity must be a positive number, and a whole number unless the item is
   // sold by measure (MTR, KGS …) — same rule as the server.
@@ -400,6 +417,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
           quantityOrdered,
           purchasePrice: l.purchasePrice,
           amount: quantityOrdered * l.purchasePrice,
+          taxPercent: l.taxPercent ?? l.item.gstTaxSlab ?? 0,
           receivedQuantity: 0,
         };
       });
@@ -418,6 +436,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       status: 'Ordered',
       items: formattedLines,
       totalAmount,
+      totalTax,
       notes: notes.trim() || undefined,
       pendingOrderId: linkedPendingOrderId,
       pendingOrderNumber: linkedPendingOrderNumber,
@@ -598,6 +617,7 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                       <th className="py-2.5 px-3 min-w-[280px]">Item Description & Master Stock</th>
                       <th className="py-2.5 px-3 w-40">Vendor SKU</th>
                       <th className="py-2.5 px-3 w-28 text-center">Qty Ordered</th>
+                      <th className="py-2.5 px-3 w-24 text-center">GST %</th>
                       <th className="py-2.5 px-2 w-12 text-center"></th>
                     </tr>
                   </thead>
@@ -662,6 +682,18 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                           />
                         </td>
 
+                        {/* GST % (PUR-14) */}
+                        <td className="py-3 px-3 text-center">
+                          <select
+                            aria-label={`GST % for line ${idx + 1}`}
+                            value={line.taxPercent ?? line.item?.gstTaxSlab ?? 18}
+                            onChange={(e) => handleUpdateLineTax(idx, Number(e.target.value))}
+                            className="w-20 px-1.5 py-1.5 text-sm font-semibold border rounded-lg bg-white border-slate-300 focus:outline-hidden focus:border-blue-500"
+                          >
+                            {GST_RATES.map((g) => <option key={g.rate} value={g.rate}>{g.rate}%</option>)}
+                          </select>
+                        </td>
+
                         {/* Remove */}
                         <td className="py-3 px-2 text-center">
                           <button
@@ -702,15 +734,23 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                   <span>Line Items:</span>
                   <span className="font-bold text-slate-900">{lines.filter((l) => l.item).length} items</span>
                 </div>
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>Taxable value:</span>
+                  <span className="font-mono font-bold text-slate-900">{formatCurrency(totalAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>GST:</span>
+                  <span className="font-mono font-bold text-slate-900" data-testid="po-form-gst">{formatCurrency(totalTax)}</span>
+                </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                      Estimated Order Value
+                      Estimated Order Value (incl. GST)
                     </span>
-                    <span className="text-[11px] text-slate-500">Purchase price is confirmed while receiving</span>
+                    <span className="text-[11px] text-slate-500">Price and GST are confirmed while receiving</span>
                   </div>
-                  <div className="text-xl sm:text-2xl font-bold text-slate-900 font-mono">
-                    {formatCurrency(totalAmount)}
+                  <div className="text-xl sm:text-2xl font-bold text-slate-900 font-mono" data-testid="po-form-total">
+                    {formatCurrency(r2(totalAmount + totalTax))}
                   </div>
                 </div>
               </div>

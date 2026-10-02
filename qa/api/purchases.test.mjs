@@ -481,3 +481,14 @@ describe('several supplier bills per PO', () => {
     near(after.supplierBillGst, 54);
   });
 });
+
+describe('PO GST per line', () => {
+  test('PUR-14 a new PO carries GST per line, so its total shows tax before anything is received', async () => {
+    const a = await createItem({ gst: 18 });
+    const b = await createItem({ gst: 5 });
+    const po = await createPO([{ item: a, qty: 2, price: 100, tax: 18 }, { item: b, qty: 1, price: 200, tax: 5 }]);
+    near(po.totalAmount, 400);
+    near(po.totalTax, 46, 'GST 36 + 10 before receipt');
+    assert.deepEqual(po.items.map((l) => l.taxPercent), [18, 5]);
+  });
+});
