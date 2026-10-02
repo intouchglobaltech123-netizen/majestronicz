@@ -70,8 +70,12 @@ export const DailyCashRegisterView: React.FC = () => {
   const prevToday = React.useRef(todayStr);
   useEffect(() => {
     if (prevToday.current !== todayStr) {
-      setSelectedDate((d) => (d === prevToday.current ? todayStr : d));
+      // Capture the old day BEFORE updating the ref: the setter callback runs
+      // later, when the ref already holds the new day (the bug left the drawer
+      // on yesterday after midnight).
+      const oldToday = prevToday.current;
       prevToday.current = todayStr;
+      setSelectedDate((d) => (d === oldToday ? todayStr : d));
     }
   }, [todayStr]);
 
@@ -452,7 +456,7 @@ export const DailyCashRegisterView: React.FC = () => {
                 <Building className="h-3.5 w-3.5 text-emerald-600" />
                 <span>Branch Drawer:</span>
               </span>
-              {currentUser.role === 'Manager' && currentUser.assignedBranchId ? (
+              {currentUser.role !== 'CEO' && currentUser.assignedBranchId ? (
                 <span className="text-xs font-bold px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-none">
                   {BRANCHES.find((b) => b.id === currentUser.assignedBranchId)?.name}
                 </span>

@@ -72,6 +72,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setErrorMessage('Enter a valid 10-digit phone number');
       return;
     }
+    // CRM-7: a real Indian mobile starts with 6-9 ("0000000000" is not one). An
+    // older number already on the record is kept as it is.
+    const keptOld = !!customerToEdit && customerToEdit.phone.replace(/\D/g, '').slice(-10) === normalizedPhone;
+    if (!/^[6-9]\d{9}$/.test(normalizedPhone) && !keptOld) {
+      setErrorMessage('Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9)');
+      return;
+    }
     if (!cleanName) {
       setErrorMessage('Customer name is required');
       return;
