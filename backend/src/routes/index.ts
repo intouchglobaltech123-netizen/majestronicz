@@ -21,7 +21,7 @@ import { reseedDatabase } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
-import { recordPayment, listPayments, deletePayment } from '../services/payment.service.js';
+import { recordPayment, listPayments, deletePayment, applyVendorAdvance } from '../services/payment.service.js';
 import {
   authenticateUser, listUsers, createUser, updateUser, adminResetPin, changeOwnPin, deleteUser,
   linkLoginToEmployee, unlinkLogin,
@@ -220,6 +220,15 @@ router.post('/vendors', requireCapability('purchase:write'), asyncHandler(async 
     gstin: b.gstin ? String(b.gstin).trim().toUpperCase() : null,
     updatedAt: nowIso(),
   };
+  // PUR6-5: the same supplier must not be registered twice — same GSTIN, or the
+  // same name with the same phone number — or its POs and payables split in two.
+  const digits = (p: string) => { let d = p.replace(/\D/g, ''); if (d.length > 10 && d.startsWith('91')) d = d.slice(2); return d.replace(/^0(?=\d{10}$)/, ''); };
+  const others = (await prisma.vendor.findMany()).filter((v) => v.id !== id);
+  const sameGstin = data.gstin ? others.find((v) => (v.gstin || '').toUpperCase() === data.gstin) : undefined;
+  if (sameGstin) throw new AppError('DUPLICATE_VENDOR', `A supplier with GSTIN ${data.gstin} already exists: ${sameGstin.vendorName}.`, 409);
+  const phone = digits(data.contactNo);
+  const sameNamePhone = others.find((v) => v.vendorName.trim().toLowerCase() === data.vendorName.toLowerCase() && digits(v.contactNo || '') === phone);
+  if (sameNamePhone) throw new AppError('DUPLICATE_VENDOR', `Supplier "${sameNamePhone.vendorName}" with this phone number already exists.`, 409);
   const vendor = await prisma.vendor.upsert({ where: { id }, create: { id, createdAt: nowIso(), ...data }, update: data });
   broadcastChange('POST /api/vendors');
   res.json({ ok: true, vendor, vendors: await prisma.vendor.findMany() });
@@ -430,6 +439,15 @@ router.post('/payments', requireCapability('payment:write'), asyncHandler(async 
   await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
     summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result });
   broadcastChange('POST /api/payments');
+  res.json(result);
+}));
+// Apply a supplier's unapplied advance to one of its purchase orders (PUR6-3).
+router.post('/payments/vendor-advance/apply', requireCapability('purchase:write'), asyncHandler(async (req, res) => {
+  const user = (req as any).user;
+  const result = await applyVendorAdvance(req.body || {}, { name: user?.name }, user);
+  await recordAudit({ actor: actorOf(req), action: 'payment.applyAdvance', entity: 'purchaseOrder', entityId: result.poId,
+    summary: `Applied ₹${result.applied} vendor advance to PO` });
+  broadcastChange('POST /api/payments/vendor-advance/apply');
   res.json(result);
 }));
 router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(async (req, res) => {

@@ -17,6 +17,22 @@ export const branchLocation = (id: string) => BRANCHES.find((b) => b.id === id)?
 /** True only for a real, known branch id — stock must never move to an unknown branch. */
 export const isValidBranch = (id: string): boolean => BRANCHES.some((b) => b.id === id);
 
+/** Units sold by measure, where a fractional quantity (2.5 MTR) is real. Every
+ *  other unit (PCS, NOS, SET, BOX…) counts whole pieces (PUR5-2 / PUR-10). */
+const MEASURED_UNITS = new Set(['MTR', 'M', 'METER', 'METERS', 'METRE', 'KG', 'KGS', 'G', 'GM', 'GMS', 'LTR', 'L', 'ML', 'FT', 'FEET', 'SQFT', 'SQM', 'CM', 'MM']);
+export const allowsFractionalQty = (unit?: string | null): boolean =>
+  MEASURED_UNITS.has(String(unit || '').trim().toUpperCase());
+
+/** Strict YYYY-MM-DD that is a real calendar date. */
+export function isValidYmd(d: unknown): boolean {
+  if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const dt = new Date(`${d}T00:00:00Z`);
+  return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === d;
+}
+
+/** Today's calendar date in India (IST), YYYY-MM-DD. */
+export const istToday = (): string => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+
 // Reference config seeded into AppConfig on reseed.
 export const STANDARD_UNITS = [
   { value: 'PCS', label: 'PCS (Pieces)' },

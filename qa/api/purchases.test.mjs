@@ -3,7 +3,25 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, del, ok, expectStatus, near, createItem, stockOf, createPO, getPO, anyVendor, together, paymentsFor,
+  uid, randomPhone, addDays,
 } from './lib.mjs';
+
+/** A fresh supplier, so advances / payables of other tests can't interfere. */
+async function newVendor(extra = {}) {
+  const res = await post('/api/vendors', { vendorName: `QA Vendor ${uid()}`, contactNo: randomPhone(), address: 'QA', ...extra });
+  return ok(res, 'create vendor').vendor;
+}
+const receiveAll = (po, receipts, extra = {}) => post('/api/purchase/receive', { poId: po.id, receipts, actor: 'QA', ...extra });
+const vendorPay = (vendor, amount, allocations, extra = {}) => post('/api/payments', {
+  type: 'out', partyType: 'vendor', partyId: vendor.id, partyName: vendor.vendorName, branchId: 'erode-hq',
+  amount, paymentMode: 'GPay', allocations, ...extra,
+});
+const istToday = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+/** The stored PO as an Edit-Prices / Edit-PO save would send it back. */
+const editBody = (po, changes = {}) => {
+  const { poNumber, status, amountPaid, createdAt, updatedAt, ...rest } = po;
+  return { po: { ...rest, ...changes }, actor: 'QA' };
+};
 
 describe('purchases', () => {
   test('PUR5-2 a new PO total is worked out on the server, not taken from the browser', async () => {
@@ -195,5 +213,199 @@ describe('purchases', () => {
     ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 2, purchasePrice: 0 }], actor: 'QA' }));
     const after = await getPO(po.id);
     assert.ok(after.totalAmount > 0, `PO total became ${after.totalAmount} after a 0 price at receipt`);
+  });
+
+  // ---------------------------------------------------------------- phase 3 (r8)
+
+  test('PUR8-1 owed = good units incl. GST: 7 good, 1 damaged, 2 missing of 10 @ 100 at 18% owes 826', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 10, price: 100, tax: 18 }], { vendor });
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 7, damagedQuantity: 1, missingQuantity: 2, taxPercent: 18 }]), 'receive');
+    const after = await getPO(po.id);
+    assert.equal(after.status, 'Received');
+    expectStatus(await post('/api/purchase/payment', { poId: po.id, amount: 826.01, mode: 'Cash', actor: 'QA' }), 400, 'more than 826');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 826, mode: 'Cash', actor: 'QA' }), 'pay 826');
+    expectStatus(await post('/api/purchase/payment', { poId: po.id, amount: 1, mode: 'Cash', actor: 'QA' }), 400, 'already paid');
+  });
+
+  test('E2E-4 a debit note carries GST on damaged and missing units', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 10, price: 100, tax: 18 }]);
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 7, damagedQuantity: 1, missingQuantity: 2, taxPercent: 18 }]));
+    const dn = (await getPO(po.id)).debitNotes[0];
+    near(dn.totalTaxable, 300, 'taxable = 3 units x 100');
+    near(dn.totalTax, 54, 'GST 18% reversed');
+    near(dn.totalAmount, 354, 'debit note incl. GST');
+    assert.equal(dn.lines[0].damagedQuantity, 1);
+    assert.equal(dn.lines[0].missingQuantity, 2);
+  });
+
+  test('PUR8-1 "pay now" while receiving is capped by the same formula (refused above it)', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 10, price: 100, tax: 18 }]);
+    expectStatus(await receiveAll(po, [{ itemId: item.id, quantityReceived: 7, damagedQuantity: 1, missingQuantity: 2, taxPercent: 18 }], { payment: { amount: 880, mode: 'Cash' } }), 400, 'over 826');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 0, 'refused receipt changes nothing');
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 7, damagedQuantity: 1, missingQuantity: 2, taxPercent: 18 }], { payment: { amount: 826, mode: 'Cash' } }), 'exactly 826');
+    near((await getPO(po.id)).amountPaid, 826);
+  });
+
+  test('E2E8-5 receiving the rest at 18% does not add GST to units received earlier at 0%', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 4, price: 1000, tax: 0 }]);
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 2, taxPercent: 0 }]));
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 2, taxPercent: 18 }]));
+    expectStatus(await post('/api/purchase/payment', { poId: po.id, amount: 4360.01, mode: 'Cash', actor: 'QA' }), 400, 'more than 2000 + 2360');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 4360, mode: 'Cash', actor: 'QA' }), 'pays 4,360');
+  });
+
+  test('PUR8-2 packing / other charges are added once per receipt and cannot be set by a PO save', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 4, price: 100 }], { extra: { otherCharges: 999 } });
+    assert.equal(po.otherCharges || 0, 0, 'a new PO has no charges');
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 2 }], { otherCharges: 150 }));
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 1 }]));
+    near((await getPO(po.id)).otherCharges, 150, 'not doubled by a later receipt');
+    ok(await post('/api/purchase/save', editBody(await getPO(po.id), { otherCharges: 5000 })), 'edit');
+    near((await getPO(po.id)).otherCharges, 150, 'a PO save cannot change charges');
+    expectStatus(await receiveAll(po, [{ itemId: item.id, quantityReceived: 1 }], { otherCharges: -5 }), 400, 'negative charges');
+  });
+
+  test('PUR8-3 a PO save cannot remove or replace a received line, cut qty below received, or change the vendor', async () => {
+    const a = await createItem();
+    const b = await createItem();
+    const po = await createPO([{ item: a, qty: 10, price: 100 }, { item: b, qty: 5, price: 50 }]);
+    ok(await receiveAll(po, [{ itemId: a.id, quantityReceived: 6 }]));
+    const stored = await getPO(po.id);
+    const [la, lb] = stored.items;
+    expectStatus(await post('/api/purchase/save', editBody(stored, { items: [lb] })), 409, 'remove received line');
+    expectStatus(await post('/api/purchase/save', editBody(stored, { items: [{ ...la, itemId: b.id }, lb] })), 409, 'replace received line');
+    expectStatus(await post('/api/purchase/save', editBody(stored, { items: [{ ...la, quantityOrdered: 5 }, lb] })), 400, 'qty below received');
+    const other = await newVendor();
+    expectStatus(await post('/api/purchase/save', editBody(stored, { vendorId: other.id, vendorName: other.vendorName })), 409, 'vendor change');
+    ok(await post('/api/purchase/save', editBody(stored, { items: [{ ...la, quantityOrdered: 6 }] })), 'unreceived line may go; qty may drop to received');
+    const after = await getPO(po.id);
+    assert.equal(after.items.length, 1);
+    assert.equal(after.items[0].receivedQuantity, 6, 'received kept');
+    assert.equal(after.status, 'Received', 'fully settled after the edit');
+  });
+
+  test('PUR5-2 a PO save refuses qty 2.5 of a piece item, a bad date and a missing vendor (400, not 500)', async () => {
+    const item = await createItem();
+    const v = await anyVendor();
+    const base = { vendorId: v.id, vendorName: v.vendorName, branchId: 'erode-hq', date: '2026-09-15', expectedDeliveryDate: '2026-09-30',
+      items: [{ itemId: item.id, itemName: item.itemName, quantityOrdered: 2, purchasePrice: 10 }] };
+    expectStatus(await post('/api/purchase/save', { po: { ...base, items: [{ ...base.items[0], quantityOrdered: 2.5 }] } }), 400, 'qty 2.5');
+    expectStatus(await post('/api/purchase/save', { po: { ...base, date: 'hello' } }), 400, 'date hello');
+    expectStatus(await post('/api/purchase/save', { po: { ...base, vendorId: undefined } }), 400, 'no vendorId');
+    ok(await post('/api/purchase/save', { po: base }), 'valid PO');
+  });
+
+  test('PUR8-5 saving a PO with the same item on two lines keeps the received quantities', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 5, price: 100 }, { item, qty: 5, price: 100 }]);
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 5 }]));
+    const stored = await getPO(po.id);
+    ok(await post('/api/purchase/save', editBody(stored, { items: stored.items.map((l) => ({ ...l, purchasePrice: 110 })) })), 'save prices');
+    const after = await getPO(po.id);
+    assert.deepEqual(after.items.map((l) => l.receivedQuantity), [5, 0]);
+    expectStatus(await receiveAll(po, [{ itemId: item.id, quantityReceived: 6 }]), 400, 'only 5 remain');
+  });
+
+  test('PUR4-3 a short shipment with nothing delivered (0 good + 3 missing) can be recorded', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 3, price: 100 }]);
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 0, missingQuantity: 3 }]));
+    const after = await getPO(po.id);
+    assert.equal(after.status, 'Received');
+    assert.equal(after.items[0].missingQuantity, 3);
+    assert.equal(await stockOf(item.id, 'erode-hq'), 0);
+  });
+
+  test('PUR8-4 a vendor over-payment keeps the full amount; the rest is an advance applied to a later PO', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po1 = await createPO([{ item, qty: 2, price: 500 }], { vendor });
+    ok(await receiveAll(po1, [{ itemId: item.id, quantityReceived: 2 }]));
+    const pay = ok(await vendorPay(vendor, 1500, [{ refId: po1.id, refNumber: po1.poNumber, amount: 1500 }]), 'pay 1,500 on 1,000 owed');
+    near(pay.amount, 1500, 'full amount stored (drawer not short)');
+    near(pay.allocations.reduce((s, a) => s + a.amount, 0), 1000, 'applied to the PO');
+    near((await getPO(po1.id)).amountPaid, 1000);
+    const po2 = await createPO([{ item, qty: 1, price: 300 }], { vendor });
+    ok(await receiveAll(po2, [{ itemId: item.id, quantityReceived: 1 }]));
+    expectStatus(await post('/api/payments/vendor-advance/apply', { vendorId: vendor.id, poId: po2.id, amount: 600 }), 400, 'more than available');
+    const applied = ok(await post('/api/payments/vendor-advance/apply', { vendorId: vendor.id, poId: po2.id }), 'apply advance');
+    near(applied.applied, 300);
+    near((await getPO(po2.id)).amountPaid, 300);
+    const row = (await paymentsFor(po2.id)).find((p) => p.id === pay.id);
+    near(row.amount, 1500, 'still one 1,500 payment');
+    ok(await del(`/api/payments/${pay.id}`), 'delete payment');
+    near((await getPO(po1.id)).amountPaid, 0, 'PO1 restored');
+    near((await getPO(po2.id)).amountPaid, 0, 'PO2 restored');
+  });
+
+  test("CASH8-5 / PUR3-5 one vendor payment cannot settle another vendor's or another branch's PO", async () => {
+    const v1 = await newVendor();
+    const v2 = await newVendor();
+    const item = await createItem();
+    const p1 = await createPO([{ item, qty: 1, price: 100 }], { vendor: v1 });
+    const p2 = await createPO([{ item, qty: 1, price: 100 }], { vendor: v2 });
+    const p3 = await createPO([{ item, qty: 1, price: 100 }], { vendor: v1, branchId: 'chennai' });
+    expectStatus(await vendorPay(v1, 200, [{ refId: p1.id, amount: 100 }, { refId: p2.id, amount: 100 }]), 400, 'mixed vendors');
+    expectStatus(await vendorPay(v1, 100, [{ refId: p2.id, amount: 100 }]), 400, "other vendor's PO");
+    expectStatus(await vendorPay(v1, 200, [{ refId: p1.id, amount: 100 }, { refId: p3.id, amount: 100 }]), 400, 'mixed branches');
+    assert.equal((await getPO(p2.id)).amountPaid || 0, 0);
+  });
+
+  test('PUR8-8 a vendor payment to a missing or fully paid PO, or of 0, is refused', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 1, price: 100 }], { vendor });
+    ok(await receiveAll(po, [{ itemId: item.id, quantityReceived: 1 }]));
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 100, mode: 'Cash', actor: 'QA' }));
+    const r1 = expectStatus(await vendorPay(vendor, 50, [{ refId: po.id, amount: 50 }]), 400, 'fully paid');
+    assert.equal(r1.body.error, 'NOTHING_TO_APPLY');
+    expectStatus(await vendorPay(vendor, 50, [{ refId: 'po-does-not-exist', amount: 50 }]), 400, 'missing PO');
+    expectStatus(await vendorPay(vendor, 50, [{ refId: po.id, amount: 0 }]), 400, 'zero allocation');
+  });
+
+  test('PUR8-9 a vendor payment dated in the future (IST) is refused', async () => {
+    const vendor = await newVendor();
+    expectStatus(await vendorPay(vendor, 100, [], { date: addDays(istToday(), 1) }), 400);
+  });
+
+  test('PUR3-8 supplier bill: GST must be 0..28% of taxable, a real past date and a bill number', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 1, price: 100 }]);
+    const bill = (b) => post('/api/purchase/bill', { poId: po.id, bill: { number: 'B-1', date: '2026-09-16', taxable: 100, gst: 18, ...b } });
+    expectStatus(await bill({ gst: -500 }), 400, 'negative GST');
+    expectStatus(await bill({ gst: 99999 }), 400, 'GST above 28%');
+    expectStatus(await bill({ taxable: -1, gst: 0 }), 400, 'negative taxable');
+    expectStatus(await bill({ date: addDays(istToday(), 2) }), 400, 'future date');
+    expectStatus(await bill({ date: 'hello' }), 400, 'bad date');
+    expectStatus(await bill({ number: '' }), 400, 'no bill number');
+    ok(await bill({}), 'valid bill');
+    near((await getPO(po.id)).supplierBillGst, 18);
+  });
+
+  test('PUR2-12 attachments must be an image or PDF of at most 5 MB', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 1, price: 100 }]);
+    const att = (dataUrl, name = 'x') => post('/api/purchase/attachment', { poId: po.id, attachment: { name, dataUrl }, actor: 'QA' });
+    expectStatus(await att('data:application/x-msdownload;base64,TVqQAAMAAAAEAAAA', 'evil.exe'), 400, '.exe');
+    expectStatus(await att('javascript:alert(1)'), 400, 'script');
+    expectStatus(await att(`data:application/pdf;base64,${'A'.repeat(7 * 1024 * 1024)}`), 413, 'over 5 MB');
+    ok(await att('data:application/pdf;base64,JVBERi0=', 'bill.pdf'), 'small PDF');
+    assert.equal((await getPO(po.id)).attachments[0].fileType, 'pdf');
+  });
+
+  test('PUR6-5 a duplicate supplier (same GSTIN, or same name and phone) is refused', async () => {
+    const letters = 'ABCDEFGHIJ';
+    const pan = Array.from({ length: 5 }, () => letters[Math.floor(Math.random() * 10)]).join('');
+    const gstin = `33${pan}${String(1000 + Math.floor(Math.random() * 9000))}A1Z5`;
+    const v = await newVendor({ gstin });
+    expectStatus(await post('/api/vendors', { vendorName: `Other ${uid()}`, contactNo: randomPhone(), address: '', gstin }), 409, 'same GSTIN');
+    expectStatus(await post('/api/vendors', { vendorName: v.vendorName.toUpperCase(), contactNo: `+91 ${v.contactNo}`, address: '' }), 409, 'same name + phone');
+    ok(await post('/api/vendors', { ...v, address: 'edited' }), 'editing the supplier itself is fine');
   });
 });
