@@ -95,6 +95,19 @@ export interface InvoiceFigures {
   grossProfit: number;       // revenue − cogs − write-off
 }
 
+/** Rounds values to whole paisa so that they add up to their rounded sum
+ *  (largest remainder) — one rounding per bill (FIN-A-6). */
+function toPaisa(values: number[]): number[] {
+  const target = Math.round(values.reduce((t, v) => t + v, 0) * 100);
+  const cents = values.map((v) => v * 100);
+  const floors = cents.map((c) => Math.floor(c + 1e-7));
+  let left = target - floors.reduce((t, v) => t + v, 0);
+  const order = cents.map((c, i) => ({ i, rem: c - floors[i] })).sort((a, b) => b.rem - a.rem);
+  for (let k = 0; left > 0 && order.length; k = (k + 1) % order.length, left--) floors[order[k].i] += 1;
+  for (let k = order.length - 1; left < 0 && order.length; k = (k - 1 + order.length) % order.length, left++) floors[order[k].i] -= 1;
+  return floors.map((c) => c / 100);
+}
+
 /** Every report figure of one bill (zeros for a voided bill). */
 export function invoiceFigures(inv: Invoice, costOf: CostOf, returnsOverride?: Invoice['returns']): InvoiceFigures {
   const empty: InvoiceFigures = {
@@ -121,7 +134,15 @@ export function invoiceFigures(inv: Invoice, costOf: CostOf, returnsOverride?: I
   const soldByKey = new Map<string, number>();
   for (const li of items) soldByKey.set(lineKey(li), (soldByKey.get(lineKey(li)) || 0) + num(li.quantity));
 
-  const out: InvoiceFigures = { ...empty, lines: [] };
+  // FIN-A-6: the bill's tax is the STORED one (the server rounds it once per
+  // bill, after the bill discount), shared over the lines by their own tax.
+  // Line taxable values and taxes are then whole paisa that add up exactly to
+  // the bill's rounded figures, so the GST report, its rate rows and Σ bill
+  // totalTax can never drift apart.
+  const lineTaxSum = items.reduce((t, l) => t + num(l.totalTax), 0);
+  const billTax = inv.withGst === false ? 0
+    : (inv.totalTax != null && Number.isFinite(Number(inv.totalTax)) ? num(inv.totalTax) : lineTaxSum * f);
+  const keepOf = new Map<InvoiceLineItem, { returnedQty: number; damagedQty: number; netQty: number; keep: number }>();
   for (const li of items) {
     const soldQty = num(li.quantity);
     const k = lineKey(li);
@@ -131,9 +152,17 @@ export function invoiceFigures(inv: Invoice, costOf: CostOf, returnsOverride?: I
     const returnedQty = Math.min(soldQty, ret.qty * share);
     const damagedQty = Math.min(returnedQty, ret.damaged * share);
     const netQty = Math.max(0, soldQty - returnedQty);
-    const keep = soldQty > 0 ? netQty / soldQty : 0;
-    const taxable = num(li.taxableAmount) * f * keep;
-    const tax = inv.withGst === false ? 0 : num(li.totalTax) * f * keep;
+    keepOf.set(li, { returnedQty, damagedQty, netQty, keep: soldQty > 0 ? netQty / soldQty : 0 });
+  }
+  const taxables = toPaisa(items.map((li) => num(li.taxableAmount) * f * keepOf.get(li)!.keep));
+  const taxes = toPaisa(items.map((li) => (lineTaxSum > 0 ? (billTax * num(li.totalTax)) / lineTaxSum : 0) * keepOf.get(li)!.keep));
+
+  const out: InvoiceFigures = { ...empty, lines: [] };
+  for (const [idx, li] of items.entries()) {
+    const soldQty = num(li.quantity);
+    const { returnedQty, damagedQty, netQty } = keepOf.get(li)!;
+    const taxable = taxables[idx];
+    const tax = taxes[idx];
     const cgst = inter ? 0 : tax / 2;
     const sgst = inter ? 0 : tax / 2;
     const unit = costOf(li);

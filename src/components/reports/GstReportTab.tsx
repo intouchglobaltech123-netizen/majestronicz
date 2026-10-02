@@ -140,8 +140,16 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
       const sgst = r2((total - igst) / 2);
       return { ...r, taxable: r2(r.taxable), total, igst, sgst, cgst: r2(total - igst - sgst) };
     };
+    const rateRows = [...rateMap.values()].map(splitOnce).sort((a, b) => a.rate - b.rate);
+    // FIN-E-3: the Total row (and the cards / 3B) is the sum of the rate rows as
+    // shown — one rounding. Line figures are whole paisa per bill (FIN-A-6), so
+    // the taxable value and the tax equal the Reports header exactly.
+    if (rateRows.length) {
+      const sum = (k: 'taxable' | 'cgst' | 'sgst' | 'igst' | 'total') => r2(rateRows.reduce((t, r) => t + r[k], 0));
+      totals.taxable = sum('taxable'); totals.cgst = sum('cgst'); totals.sgst = sum('sgst'); totals.igst = sum('igst'); totals.total = sum('total');
+    }
     return {
-      rateRows: [...rateMap.values()].map(splitOnce).sort((a, b) => a.rate - b.rate),
+      rateRows,
       // A HSN sold and fully returned in the same period nets to nothing — not listed.
       hsnRows: [...hsnMap.values()].filter((h) => Math.abs(h.qty) > 0.0005 || Math.abs(h.taxable) > 0.005).sort((a, b) => b.taxable - a.taxable),
       b2bRows: [...b2bMap.values()].map(splitOnce).sort((a, b) => b.taxable - a.taxable),
