@@ -21,6 +21,9 @@ const ENTITY_LABEL: Record<string, string> = {
   user: 'User',
   employee: 'HRM',
   accessMatrix: 'Access',
+  cashRegister: 'Cash',
+  payroll: 'Payroll',
+  pendingOrder: 'Advance',
 };
 const ENTITY_TONE: Record<string, string> = {
   invoice: 'bg-red-50 text-red-700 border-red-200',
@@ -29,6 +32,9 @@ const ENTITY_TONE: Record<string, string> = {
   user: 'bg-blue-50 text-blue-700 border-blue-200',
   employee: 'bg-violet-50 text-violet-700 border-violet-200',
   accessMatrix: 'bg-slate-100 text-slate-600 border-slate-200',
+  cashRegister: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  payroll: 'bg-violet-50 text-violet-700 border-violet-200',
+  pendingOrder: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
 /** Format a stored UTC ISO timestamp for display in local (IST) time. */
@@ -51,12 +57,14 @@ export const AuditLogReportTab: React.FC<Props> = ({ startDate, endDate, branchS
     let cancelled = false;
     setLoading(true);
     setError(null);
-    apiGet<AuditEntry[]>('/api/audit?limit=1000')
+    // The server scopes the trail: a Manager only ever gets their own branch,
+    // and the CEO's branch filter is applied there too (RPT3-1).
+    apiGet<AuditEntry[]>(`/api/audit?limit=1000${branchScope !== 'all' ? `&branch=${encodeURIComponent(branchScope)}` : ''}`)
       .then((data) => { if (!cancelled) setEntries(Array.isArray(data) ? data : []); })
       .catch((e) => { if (!cancelled) setError(e?.message || 'Failed to load audit log'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [branchScope]);
 
   const events = useMemo(() => {
     return entries
@@ -99,8 +107,8 @@ export const AuditLogReportTab: React.FC<Props> = ({ startDate, endDate, branchS
       </div>
 
       {branchScope !== 'all' && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded">
-          The audit trail is organisation-wide and is not filtered by branch.
+        <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded">
+          Showing this branch's events (sales, payments, cash register, purchases, payroll). Staff-account and access changes are listed under All Branches.
         </p>
       )}
 

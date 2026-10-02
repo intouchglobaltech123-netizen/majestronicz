@@ -1348,6 +1348,7 @@ export interface AuditEntry {
   summary?: string | null;
   before?: unknown;
   after?: unknown;
+  branchId?: string | null;
 }
 
 export interface RecordPaymentInput {

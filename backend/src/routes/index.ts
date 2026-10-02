@@ -191,8 +191,10 @@ router.get('/audit', requireCapability('audit:read'), asyncHandler(async (req, r
   const { entity, entityId, action, limit } = req.query as Record<string, string | undefined>;
   // RPT3-1: a branch-locked reader (Manager) sees only their branch's events.
   const user = (req as any).user;
-  const branchId = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
-  res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined, branchId }));
+  // The CEO may narrow the trail to one branch with ?branch=.
+  const locked = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
+  const asked = typeof req.query.branch === 'string' && req.query.branch && req.query.branch !== 'all' ? String(req.query.branch) : null;
+  res.json(await listAudit({ entity, entityId, action, limit: limit ? Number(limit) : undefined, branchId: locked || asked }));
 }));
 
 // Employee reads must never leak the login/kiosk PIN (SEC2-2). These dedicated
