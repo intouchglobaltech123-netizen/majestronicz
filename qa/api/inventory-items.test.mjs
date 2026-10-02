@@ -128,6 +128,86 @@ describe('combos and returns', () => {
   });
 });
 
+describe('delivery challans', () => {
+  const challans = async () => ok(await get('/api/challans'));
+  const manual = (extra = {}) => ({
+    id: `dc-qa-${uid()}`, challanNumber: 'DC-777', recipientName: 'QA Customer', location: 'Erode', contactNo: '9876543210',
+    date: '2026-09-15', time: '10:00', items: [{ id: 'l1', itemName: 'QA part', quantity: 2, unit: 'NOS' }], totalQuantity: 2,
+    termsAndConditions: 'QA', ...extra,
+  });
+  const dispatch = async (qty = 2) => {
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const res = ok(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: qty }));
+    const trf = res.stockTransfers.find((t) => t.transferNumber === res.transferRef);
+    const ch = res.challans.find((c) => c.challanNumber === res.challanNumber);
+    return { item, trf, ch, res };
+  };
+
+  test('INV8-5 receiving a transfer marks its DC-TRF challan received with the IST time', async () => {
+    const { trf, ch } = await dispatch();
+    assert.equal(ch.status, 'pending');
+    ok(await post('/api/stock/transfer-receive', { transferId: trf.id }));
+    const after = (await challans()).find((c) => c.id === ch.id);
+    assert.equal(after.status, 'received', 'the challan follows the transfer');
+    assert.ok(after.receivedAt, 'with the time it was received');
+    const ist = new Date(Date.parse(after.receivedAt) + 5.5 * 3600 * 1000).toISOString();
+    assert.equal(after.receivedBy.date, ist.slice(0, 10), 'the document date is the IST day');
+    assert.equal(after.receivedBy.time, ist.slice(11, 16), 'the document time is IST');
+  });
+
+  test('INV8-5 Mark Received on a DC-TRF challan receives the transfer and credits the destination', async () => {
+    const { item, trf, ch } = await dispatch(3);
+    // Only the destination branch (or CEO) may receive it.
+    expectStatus(await post(`/api/catalog/challan/${ch.id}/received`, {}, 'Billing'), 403, 'Erode Billing on a Chennai transfer');
+    expectStatus(await post(`/api/catalog/challan/${ch.id}/received`, {}, 'Manager'), 403, 'Coimbatore manager');
+    assert.equal((await challans()).find((c) => c.id === ch.id).status, 'pending');
+    ok(await post(`/api/catalog/challan/${ch.id}/received`, {}), 'CEO receives');
+    assert.equal(await stockOf(item.id, 'chennai'), 3, 'stock credited once');
+    const t = ok(await get('/api/stock-transfers')).find((x) => x.id === trf.id);
+    assert.equal(t.status, 'received', 'the transfer is received too');
+    // INV8-6: a second Mark Received is refused, and stock does not move again.
+    expectStatus(await post(`/api/catalog/challan/${ch.id}/received`, {}), 409, 'second mark received');
+    assert.equal(await stockOf(item.id, 'chennai'), 3);
+  });
+
+  test('INV8-6 Mark Received on a manual challan is refused the second time', async () => {
+    const saved = ok(await post('/api/catalog/challan', manual())).savedChallan;
+    const first = ok(await post(`/api/catalog/challan/${saved.id}/received`, { receiverName: 'QA receiver' }));
+    const row = first.challans.find((c) => c.id === saved.id);
+    expectStatus(await post(`/api/catalog/challan/${saved.id}/received`, { receiverName: 'Someone else' }), 409);
+    const again = (await challans()).find((c) => c.id === saved.id);
+    assert.equal(again.receivedAt, row.receivedAt, 'time not overwritten');
+    assert.equal(again.receivedBy.name, 'QA receiver', 'name not overwritten');
+  });
+
+  test('INV-3 / INV-12 challan numbers come from the server and are never reused after a delete', async () => {
+    const a = ok(await post('/api/catalog/challan', manual())).savedChallan;
+    assert.notEqual(a.challanNumber, 'DC-777', 'a typed number is not used');
+    ok(await del(`/api/catalog/challan/${a.id}`));
+    const b = ok(await post('/api/catalog/challan', manual())).savedChallan;
+    assert.notEqual(b.challanNumber, a.challanNumber, 'manual number not reused');
+    // Transfer challans: delete the newest, then transfer again.
+    const first = await dispatch();
+    ok(await del(`/api/catalog/challan/${first.ch.id}`), 'CEO deletes the newest transfer challan');
+    const second = await dispatch();
+    assert.notEqual(second.ch.challanNumber, first.ch.challanNumber, 'DC-TRF number not reused');
+  });
+
+  test('INV-13 manual challans are validated; Billing cannot edit or delete transfer challans; received ones are locked', async () => {
+    for (const items of [[], [{ itemName: 'QA', quantity: 1_000_000 }], [{ itemName: 'QA', quantity: -1 }], [{ itemName: 'QA', quantity: 'abc' }], [{ itemName: '', quantity: 1 }]]) {
+      expectStatus(await post('/api/catalog/challan', manual({ items }), 'Billing'), 400, `items ${JSON.stringify(items)}`);
+    }
+    const counted = await createItem({ stock: {} });
+    expectStatus(await post('/api/catalog/challan', manual({ items: [{ itemId: counted.id, itemName: counted.itemName, quantity: 1.5, unit: 'PCS' }] }), 'Billing'), 400, '1.5 PCS');
+    const { trf, ch } = await dispatch();
+    expectStatus(await post('/api/catalog/challan', { ...ch, recipientName: 'Billing rewrite' }, 'Billing'), 403, 'Billing edits a transfer challan');
+    expectStatus(await del(`/api/catalog/challan/${ch.id}`, 'Billing'), 403, 'Billing deletes a transfer challan');
+    ok(await post('/api/stock/transfer-receive', { transferId: trf.id }));
+    expectStatus(await post('/api/catalog/challan', { ...ch, recipientName: 'CEO rewrite' }), 409, 'edit a received transfer challan');
+    expectStatus(await del(`/api/catalog/challan/${ch.id}`), 409, 'delete a received transfer challan');
+  });
+});
+
 describe('stock quantity rules', () => {
   const adjust = (item, quantityChange, extra = {}, as = 'CEO') =>
     post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange, reason: 'Stock Audit Correction', ...extra }, as);

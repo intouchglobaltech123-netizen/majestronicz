@@ -6,6 +6,9 @@ import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { GSTIN_RE } from './gstin.service.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
+import { istToday, istTime } from '../lib/businessDate.js';
+import { isWholeUnit } from '../lib/units.js';
+import { receiveStockTransfer, isTransferChallan } from './stock.service.js';
 
 /**
  * Server-authoritative recompute of estimate line taxes + totals.
@@ -117,46 +120,117 @@ export function deleteEstimate(id: string) {
   });
 }
 
-export function saveChallan(data: any) {
+/** Largest quantity one manual challan line may carry (INV-13). */
+const MAX_CHALLAN_LINE_QTY = 10_000;
+const canManageTransferChallans = (reqUser?: any) => !reqUser || reqUser.role === 'CEO' || reqUser.role === 'Manager';
+
+/** Validate a manual challan's lines: a name and a real quantity > 0 within the
+ *  cap, whole for whole-unit catalogue items (INV-13). Returns cleaned lines. */
+async function cleanChallanItems(tx: any, items: any): Promise<any[]> {
+  if (!Array.isArray(items) || !items.length) throw new AppError('NO_ITEMS', 'A challan needs at least one item.', 400);
+  if (items.length > 200) throw new AppError('TOO_MANY_ITEMS', 'A challan can carry at most 200 lines.', 400);
+  const ids = items.map((it: any) => it?.itemId).filter((x: any) => typeof x === 'string' && x);
+  const known = ids.length ? await tx.item.findMany({ where: { id: { in: ids } }, select: { id: true, unit: true } }) : [];
+  const unitOf = new Map<string, string>(known.map((i: any) => [i.id, i.unit]));
+  return items.map((it: any) => {
+    const name = typeof it?.itemName === 'string' ? it.itemName.trim() : '';
+    if (!name) throw new AppError('BAD_LINE', 'Every challan line needs an item name.', 400);
+    const q = typeof it?.quantity === 'number' ? it.quantity : Number(it?.quantity);
+    if (typeof it?.quantity === 'boolean' || !Number.isFinite(q) || q <= 0) throw new AppError('BAD_QTY', `Quantity for "${name.slice(0, 60)}" must be greater than 0.`, 400);
+    if (q > MAX_CHALLAN_LINE_QTY) throw new AppError('BAD_QTY', `Quantity for "${name.slice(0, 60)}" is too large (at most ${MAX_CHALLAN_LINE_QTY}).`, 400);
+    const unit = (it.itemId && unitOf.get(it.itemId)) || it.unit;
+    if (isWholeUnit(unit) && !Number.isInteger(q)) throw new AppError('BAD_QTY', `Quantity for "${name.slice(0, 60)}" must be a whole number.`, 400);
+    return { ...it, itemName: name, quantity: q };
+  });
+}
+
+export function saveChallan(data: any, reqUser?: any) {
+  if (!data || typeof data !== 'object') throw new AppError('BAD_REQUEST', 'Challan details are required.', 400);
   return withRetry(() => prisma.$transaction(async (tx: any) => {
-    const existing = data.id ? await tx.deliveryChallan.findUnique({ where: { id: data.id } }) : null;
+    const existing = data.id ? await tx.deliveryChallan.findUnique({ where: { id: String(data.id) } }) : null;
+    // The number, status, received fields and creation time are server-managed —
+    // never taken from a save/edit (INV-12: a typed number is not a number).
+    const { id: _id, challanNumber: _n, status: _s, receivedAt: _r, createdAt: _c, ...rest } = data;
     if (existing) {
-      // The received-status fields are server-managed (set via markChallanReceived),
-      // never taken from a plain save/edit.
-      const { id, status, receivedAt, ...rest } = data;
-      await tx.deliveryChallan.update({ where: { id }, data: rest });
-    } else {
-      const id = data.id || `dc-${Date.now()}`;
-      const challanNumber = await nextChallanNumber(tx);
-      const { status, receivedAt, ...rest } = data;
-      // A new challan starts 'pending' until the recipient acknowledges it.
-      await tx.deliveryChallan.create({ data: { ...rest, id, challanNumber, status: 'pending', createdAt: data.createdAt || nowIso() } });
+      // INV-13: a received challan is a signed record, and a transfer challan
+      // mirrors its stock transfer — Billing can't rewrite either.
+      if (existing.status === 'received') throw new AppError('CHALLAN_RECEIVED', 'This challan was already received and can no longer be edited.', 409);
+      if (isTransferChallan(existing)) {
+        if (!canManageTransferChallans(reqUser)) throw new AppError('FORBIDDEN', 'Only a Manager or CEO can edit a stock-transfer challan.', 403);
+        // Its lines are the transfer's lines — only the paperwork fields change.
+        delete (rest as any).items;
+        delete (rest as any).totalQuantity;
+        delete (rest as any).receivedBy;
+      } else {
+        rest.items = await cleanChallanItems(tx, rest.items ?? existing.items);
+        rest.totalQuantity = rest.items.reduce((t: number, it: any) => t + it.quantity, 0);
+      }
+      await tx.deliveryChallan.update({ where: { id: existing.id }, data: rest });
+      return { challans: await tx.deliveryChallan.findMany(), savedChallan: await tx.deliveryChallan.findUnique({ where: { id: existing.id } }) };
     }
-    return { challans: await tx.deliveryChallan.findMany() };
+    if (!String(rest.recipientName || '').trim()) throw new AppError('NAME_REQUIRED', 'Recipient name is required.', 400);
+    rest.items = await cleanChallanItems(tx, rest.items);
+    rest.totalQuantity = rest.items.reduce((t: number, it: any) => t + it.quantity, 0);
+    const id = data.id ? String(data.id) : `dc-${Date.now()}`;
+    // Persistent sequence: a number is never reissued after a delete (INV-3).
+    const challanNumber = await nextChallanNumber(tx);
+    // A new challan starts 'pending' until the recipient acknowledges it.
+    await tx.deliveryChallan.create({ data: { ...rest, id, challanNumber, status: 'pending', createdAt: nowIso() } });
+    return { challans: await tx.deliveryChallan.findMany(), savedChallan: await tx.deliveryChallan.findUnique({ where: { id } }) };
   }));
 }
 
-/** Mark a delivery challan received (pending → received) with the time. */
-export function markChallanReceived(id: string, receiverName?: string) {
+/**
+ * Mark a delivery challan received (pending → received) with the IST date/time.
+ * Refused when already received (INV8-6). A stock-transfer challan is received
+ * through its transfer — the destination branch (or CEO) receives the goods, the
+ * stock is credited and the challan follows (INV8-5).
+ */
+export async function markChallanReceived(id: string, receiverName?: string, reqUser?: any) {
+  const ch = await prisma.deliveryChallan.findUnique({ where: { id } });
+  if (!ch) throw new AppError('NOT_FOUND', 'Delivery challan not found', 404);
+  if (ch.status === 'received') throw new AppError('ALREADY_RECEIVED', `Challan ${ch.challanNumber} is already marked received.`, 409);
+  const actor = (reqUser?.name as string | undefined)?.trim() || receiverName || 'System';
+  if (isTransferChallan(ch)) {
+    const transfer = await prisma.stockTransfer.findFirst({ where: { challanNumber: ch.challanNumber } });
+    if (transfer) {
+      const snap: any = await receiveStockTransfer(transfer.id, actor, reqUser);
+      return snap;
+    }
+    // A transfer challan without its transfer can only be closed by a Manager/CEO.
+    if (!canManageTransferChallans(reqUser)) throw new AppError('FORBIDDEN', 'Only a Manager or CEO can close this transfer challan.', 403);
+  }
   return prisma.$transaction(async (tx: any) => {
-    const ch = await tx.deliveryChallan.findUnique({ where: { id } });
-    if (!ch) throw new AppError('NOT_FOUND', 'Delivery challan not found', 404);
-    const ts = nowIso();
-    const prevReceivedBy = (ch.receivedBy as any) || {};
+    const cur = await tx.deliveryChallan.findUnique({ where: { id } });
+    if (!cur) throw new AppError('NOT_FOUND', 'Delivery challan not found', 404);
+    if (cur.status === 'received') throw new AppError('ALREADY_RECEIVED', `Challan ${cur.challanNumber} is already marked received.`, 409);
+    const prevReceivedBy = (cur.receivedBy as any) || {};
     await tx.deliveryChallan.update({
       where: { id },
       data: {
         status: 'received',
-        receivedAt: ts,
-        receivedBy: { ...prevReceivedBy, name: receiverName || prevReceivedBy.name || ch.recipientName, date: ts.slice(0, 10) },
+        receivedAt: nowIso(),
+        receivedBy: {
+          ...prevReceivedBy,
+          name: (receiverName || '').trim().slice(0, 120) || prevReceivedBy.name || cur.recipientName,
+          comment: `Received · marked by ${actor}`,
+          date: istToday(), time: istTime(),
+        },
       },
     });
     return { challans: await tx.deliveryChallan.findMany() };
   });
 }
 
-export function deleteChallan(id: string) {
+/** Delete a challan. A stock-transfer challan is the transfer's paperwork: only a
+ *  Manager/CEO may remove it, and never once received (INV-13). */
+export function deleteChallan(id: string, reqUser?: any) {
   return prisma.$transaction(async (tx: any) => {
+    const ch = await tx.deliveryChallan.findUnique({ where: { id } });
+    if (ch && isTransferChallan(ch)) {
+      if (!canManageTransferChallans(reqUser)) throw new AppError('FORBIDDEN', 'Only a Manager or CEO can delete a stock-transfer challan.', 403);
+      if (ch.status === 'received') throw new AppError('CHALLAN_RECEIVED', 'A received transfer challan cannot be deleted.', 409);
+    }
     await tx.deliveryChallan.deleteMany({ where: { id } });
     return { challans: await tx.deliveryChallan.findMany() };
   });

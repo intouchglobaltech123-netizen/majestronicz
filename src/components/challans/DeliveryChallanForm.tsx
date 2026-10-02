@@ -38,6 +38,9 @@ export const DeliveryChallanForm: React.FC<Props> = ({
     items: masterItems,
     saveChallan,
     getNextChallanNumber,
+    branchStocks,
+    currentBranch,
+    currentUser,
   } = useErp();
 
   // Form State
@@ -227,11 +230,22 @@ export const DeliveryChallanForm: React.FC<Props> = ({
     };
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const challan = assembleChallanObject();
     if (!challan) return;
-    saveChallan(challan);
-    if (onSaved) onSaved(challan);
+    // INV-13: warn when a line asks for more than the branch has in stock.
+    const branch = currentBranch !== 'all' ? currentBranch : currentUser?.assignedBranchId;
+    const short = challan.items.filter((li) => {
+      if (!li.itemId) return false;
+      const have = branchStocks
+        .filter((s) => s.itemId === li.itemId && (!branch || s.branchId === branch))
+        .reduce((t, s) => t + (s.quantity || 0), 0);
+      return (Number(li.quantity) || 0) > have;
+    });
+    if (short.length && !window.confirm(`${short.map((li) => li.itemName).join(', ')}: the quantity is more than the stock on hand. Save the challan anyway?`)) return;
+    // The server assigns the challan number; show and preview the SAVED challan.
+    const saved = await saveChallan(challan);
+    if (saved && onSaved) onSaved(saved);
   };
 
   const handlePreview = () => {
@@ -426,11 +440,13 @@ export const DeliveryChallanForm: React.FC<Props> = ({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-semibold text-slate-600 w-24">Challan No:</label>
+                {/* Read-only: the number is assigned by the server on save (INV-12). */}
                 <input
                   type="text"
                   value={challanNumber}
-                  onChange={(e) => setChallanNumber(e.target.value)}
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xs font-bold focus:outline-none focus:border-blue-600"
+                  readOnly
+                  title={initialChallan ? 'Challan numbers cannot be changed' : 'Next number — confirmed when you save'}
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-600 font-mono text-xs font-bold focus:outline-none cursor-not-allowed"
                 />
               </div>
 
@@ -576,10 +592,11 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                       <input
                         type="number"
                         min="1"
+                        max="10000"
                         step="1"
                         value={row.quantity}
                         onChange={(e) =>
-                          updateLineItem(row.id, { quantity: Math.max(1, Number(e.target.value) || 1) })
+                          updateLineItem(row.id, { quantity: Math.min(10000, Math.max(1, Number(e.target.value) || 1)) })
                         }
                         className="w-full px-2 py-1.5 text-right font-bold font-mono rounded-lg border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-blue-600"
                       />

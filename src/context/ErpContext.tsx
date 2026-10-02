@@ -211,8 +211,8 @@ interface ErpContextType {
 
   // Delivery Challans (Low-usage goods movement note)
   challans: DeliveryChallan[];
-  saveChallan: (challan: DeliveryChallan) => void;
-  deleteChallan: (challanId: string) => void;
+  saveChallan: (challan: DeliveryChallan) => Promise<DeliveryChallan | undefined>;
+  deleteChallan: (challanId: string) => Promise<void>;
   markChallanReceived: (challanId: string, receiverName?: string) => Promise<void>;
   getNextChallanNumber: () => string;
 
@@ -1807,57 +1807,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const fromBranchName = BRANCHES.find((b) => b.id === fromBranch)?.name || fromBranch;
     const toBranchName = BRANCHES.find((b) => b.id === toBranch)?.name || toBranch;
-    const todayStr = getTodayDateString();
-    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-    let generatedChallanNo: string | undefined = undefined;
+    const generatedChallanNo: string | undefined = undefined;
 
-    // 2. Optional Auto-Generate Delivery Challan
-    if (autoGenerateChallan) {
-      // Highest existing DC-TRF sequence + 1 (not list length — that repeats after a delete, INV-3).
-      const maxSeq = challans.reduce((max, c) => {
-        const m = /DC-TRF-(\d+)/.exec(c.challanNumber || '');
-        return m ? Math.max(max, parseInt(m[1], 10)) : max;
-      }, 0);
-      const seq = (maxSeq + 1).toString().padStart(3, '0');
-      generatedChallanNo = `DC-TRF-${seq}`;
-
-      const newChallan: DeliveryChallan = {
-        id: `dc-${Date.now()}`,
-        challanNumber: generatedChallanNo,
-        recipientName: `Majestronicz ${toBranchName}`,
-        location: BRANCHES.find((b) => b.id === toBranch)?.location || toBranchName,
-        contactNo: '94433-28955',
-        date: todayStr,
-        time: timeStr,
-        items: [
-          {
-            id: `dci-${Date.now()}-1`,
-            itemId: targetItem.id,
-            itemName: targetItem.itemName,
-            itemHSN: targetItem.itemHSN,
-            quantity,
-            unit: targetItem.unit,
-          },
-        ],
-        totalQuantity: quantity,
-        termsAndConditions:
-          'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
-        deliveredBy: {
-          name: `${fromBranchName} Dispatch / ${currentUser.name}`,
-          comment: `Stock transit dispatched by ${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`,
-          date: todayStr,
-        },
-        receivedBy: {
-          name: `${toBranchName} Inventory Store`,
-          comment: 'Awaiting physical transit arrival and intake verification',
-          date: todayStr,
-        },
-        createdAt: now,
-      };
-
-      setChallans((prev) => [newChallan, ...prev]);
-    }
+    // 2. The delivery challan (if asked for) is created and numbered by the server;
+    //    the toast names the number it actually saved (E2E7-9 / INV-3).
 
     // 3. Record the in-transit transfer so it shows in history and can be received.
     const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
@@ -1889,10 +1843,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockAdjustmentLogs((prev) => [logFrom, ...prev]);
 
-    persist(apiPost('/api/stock/transfer', { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor: actorLabel() }));
+    persistTransfer(apiPost('/api/stock/transfer', { itemId, fromBranch, toBranch, quantity, notes, autoGenerateChallan, actor: actorLabel() }));
 
     toast.success(`Stock dispatched — awaiting receipt`, {
-      description: `${quantity} × ${targetItem.itemName} sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
+      description: `${quantity} × ${targetItem.itemName} sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.`,
     });
 
     return { transferRef, challanNumber: generatedChallanNo };
@@ -1937,8 +1891,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const now = new Date().toISOString();
-    const todayStr = now.split('T')[0];
-    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
     const userLabel = `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;
 
@@ -1954,23 +1906,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    let generatedChallanNo: string | undefined;
-    if (autoGenerateChallan) {
-      generatedChallanNo = `DC-TRF-${(challans.length + 1).toString().padStart(3, '0')}`;
-      const totalQty = validatedLines.reduce((s, l) => s + l.quantity, 0);
-      const newChallan: DeliveryChallan = {
-        id: `dc-${Date.now()}`, challanNumber: generatedChallanNo, recipientName: `Majestronicz ${toBranchName}`,
-        location: BRANCHES.find((b) => b.id === toBranch)?.location || toBranchName, contactNo: '94433-28955',
-        date: todayStr, time: timeStr,
-        items: validatedLines.map((l, i) => ({ id: `dci-${Date.now()}-${i + 1}`, itemId: l.targetItem.id, itemName: l.targetItem.itemName, itemHSN: l.targetItem.itemHSN, quantity: l.quantity, unit: l.targetItem.unit })),
-        totalQuantity: totalQty,
-        termsAndConditions: 'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
-        deliveredBy: { name: `${fromBranchName} Dispatch / ${currentUser.name}`, comment: `Stock transit dispatched by ${userLabel}`, date: todayStr },
-        receivedBy: { name: `${toBranchName} Inventory Store`, comment: 'Awaiting physical transit arrival and intake verification', date: todayStr },
-        createdAt: now,
-      };
-      setChallans((prev) => [newChallan, ...prev]);
-    }
+    // The challan is created and numbered by the server (E2E7-9 / INV-3).
+    const generatedChallanNo: string | undefined = undefined;
 
     const totalTransferQty = validatedLines.reduce((s, l) => s + l.quantity, 0);
     const newTransfer: StockTransfer = {
@@ -1989,10 +1926,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockAdjustmentLogs((prev) => [...newLogs, ...prev]);
 
     // Persist to backend (authoritative) and reconcile.
-    persist(apiPost('/api/stock/transfer-batch', { items: itemsToTransfer, fromBranch, toBranch, notes, autoGenerateChallan, actor: userLabel }));
+    persistTransfer(apiPost('/api/stock/transfer-batch', { items: itemsToTransfer, fromBranch, toBranch, notes, autoGenerateChallan, actor: userLabel }));
 
     toast.success('Stock dispatched — awaiting receipt', {
-      description: `${validatedLines.length} item(s) • ${totalTransferQty} units sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.${generatedChallanNo ? ` • Challan ${generatedChallanNo}` : ''}`,
+      description: `${validatedLines.length} item(s) • ${totalTransferQty} units sent ${fromBranchName} → ${toBranchName}. Destination confirms via Receive.`,
     });
     return { transferRef, challanNumber: generatedChallanNo };
   };
@@ -2159,50 +2096,43 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${prefix}${String(nextSeq).padStart(3, '0')}`;
   };
 
-  const saveChallan = (newChallan: DeliveryChallan) => {
-    // Reject a challan number already used by a different challan (INV-12).
-    const num = (newChallan.challanNumber || '').trim().toUpperCase();
-    if (num && challans.some((c) => c.id !== newChallan.id && (c.challanNumber || '').trim().toUpperCase() === num)) {
-      toast.error(`Challan number "${newChallan.challanNumber}" already exists`);
-      return;
+  // The server assigns the challan number (never the typed or list-length one)
+  // and the toast names the SAVED number (INV-12 / INV-3).
+  const saveChallan = async (newChallan: DeliveryChallan): Promise<DeliveryChallan | undefined> => {
+    try {
+      const snap = await apiPost<any>('/api/catalog/challan', newChallan);
+      applySnapshot(snap);
+      const saved: DeliveryChallan = snap?.savedChallan || newChallan;
+      toast.success(`Delivery Challan ${saved.challanNumber} saved`, {
+        description: `For ${saved.recipientName} (${saved.totalQuantity} items)`,
+      });
+      return saved;
+    } catch (e: any) {
+      toast.error('Could not save challan', { description: e?.message ?? 'Backend error' });
+      return undefined;
     }
-    setChallans((prev) => {
-      const existingIdx = prev.findIndex((c) => c.id === newChallan.id);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = newChallan;
-        return updated;
-      }
-      return [newChallan, ...prev];
-    });
-    persist(apiPost('/api/catalog/challan', newChallan));
-    toast.success(`Delivery Challan ${newChallan.challanNumber} saved`, {
-      description: `For ${newChallan.recipientName} (${newChallan.totalQuantity} items)`,
-    });
   };
 
-  const deleteChallan = (challanId: string) => {
-    setChallans((prev) => prev.filter((c) => c.id !== challanId));
-    persist(apiDelete(`/api/catalog/challan/${challanId}`));
-    toast.success('Delivery Challan removed');
+  const deleteChallan = async (challanId: string) => {
+    try {
+      const snap = await apiDelete<any>(`/api/catalog/challan/${challanId}`);
+      applySnapshot(snap);
+      toast.success('Delivery Challan removed');
+    } catch (e: any) {
+      toast.error('Could not delete challan', { description: e?.message ?? 'Backend error' });
+    }
   };
 
-  // Mark a delivery as received by the recipient (pending → received).
+  // Mark a delivery as received by the recipient (pending → received). A stock-
+  // transfer challan is received through its transfer on the server, which also
+  // credits the destination stock — so apply the whole snapshot (INV8-5).
   const markChallanReceived = async (challanId: string, receiverName?: string) => {
-    const now = new Date().toISOString();
-    setChallans((prev) =>
-      prev.map((c) =>
-        c.id === challanId
-          ? { ...c, status: 'received' as const, receivedAt: now, receivedBy: { ...(c.receivedBy || {}), name: receiverName || c.receivedBy?.name, date: now.slice(0, 10) } }
-          : c,
-      ),
-    );
     try {
       const snap = await apiPost<any>(`/api/catalog/challan/${challanId}/received`, { receiverName });
-      if (snap && Array.isArray(snap.challans)) setChallans(snap.challans);
+      applySnapshot(snap);
       toast.success('Delivery marked as received');
     } catch (e: any) {
-      toast.error('Could not update challan', { description: e?.message ?? 'Backend error' });
+      toast.error('Could not mark the challan received', { description: e?.message ?? 'Backend error' });
     }
   };
 
@@ -2735,6 +2665,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error('Could not save to server', {
         description: 'Your change is local only — check the backend connection.',
       });
+    });
+
+  // A transfer persists like any other change, then names the challan number
+  // the SERVER saved — never a guess from the local list (E2E7-9).
+  const persistTransfer = (p: Promise<any>) =>
+    p.then((snap) => {
+      applySnapshot(snap);
+      if (snap?.challanNumber) {
+        toast('Delivery Challan generated', {
+          description: `Challan #${snap.challanNumber} was auto-created for this transit.`,
+          action: { label: 'View Challans', onClick: () => setCurrentView('challans') },
+        });
+      }
+    }).catch((e) => {
+      console.error('Backend persist failed:', e);
+      toast.error('Could not save the transfer', { description: e?.message ?? 'Backend error' });
     });
 
   const actorLabel = () => `${currentUser.name.includes(`(${currentUser.role})`) ? currentUser.name : `${currentUser.name} (${currentUser.role})`}`;

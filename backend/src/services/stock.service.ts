@@ -5,6 +5,7 @@ import { branchName, branchLocation, isValidBranch } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { stockQty } from '../lib/units.js';
+import { nextPersistent } from '../lib/sequences.js';
 
 const stockSnapshot = async (tx: any) => ({
   branchStocks: await tx.branchStock.findMany(),
@@ -13,7 +14,12 @@ const stockSnapshot = async (tx: any) => ({
   stockTransfers: await tx.stockTransfer.findMany(),
 });
 
-// Collision-free DC-TRF-### under the unique challan constraint.
+/** A delivery challan generated for an inter-branch stock transfer. */
+export const isTransferChallan = (ch: { challanNumber?: string | null }): boolean => /^DC-TRF-/i.test(String(ch?.challanNumber || ''));
+
+// Collision-free DC-TRF-### under the unique challan constraint. The persistent
+// high-water mark means a number is never reissued after the newest challan is
+// deleted — two transfers shared DC-TRF-005 (INV-3).
 async function nextTransferChallanNo(tx: any): Promise<string> {
   const existing = await tx.deliveryChallan.findMany({
     where: { challanNumber: { startsWith: 'DC-TRF-' } },
@@ -24,7 +30,29 @@ async function nextTransferChallanNo(tx: any): Promise<string> {
     const v = parseInt(c.challanNumber.replace('DC-TRF-', ''), 10);
     if (!isNaN(v)) max = Math.max(max, v);
   }
-  return `DC-TRF-${String(max + 1).padStart(3, '0')}`;
+  const next = await nextPersistent(tx, 'seq:dc:DC-TRF-', max);
+  return `DC-TRF-${String(next).padStart(3, '0')}`;
+}
+
+/** Mark a transfer's DC-TRF challan received with the IST date/time (INV8-5). */
+async function markTransferChallanReceived(tx: any, transfer: any, actor: string, ts: string) {
+  if (!transfer.challanNumber) return;
+  const ch = await tx.deliveryChallan.findUnique({ where: { challanNumber: transfer.challanNumber } });
+  if (!ch || ch.status === 'received') return;
+  const prev = (ch.receivedBy as any) || {};
+  await tx.deliveryChallan.update({
+    where: { id: ch.id },
+    data: {
+      status: 'received',
+      receivedAt: ts,
+      receivedBy: {
+        ...prev,
+        name: `${branchName(transfer.toBranch)} Inventory Store / ${actor}`,
+        comment: `Received at ${branchName(transfer.toBranch)} by ${actor}`,
+        date: istToday(), time: istTime(),
+      },
+    },
+  });
 }
 
 /**
@@ -104,6 +132,7 @@ export function transferStockBatch(
           termsAndConditions: 'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
           deliveredBy: { name: `${branchName(fromBranch)} Dispatch / ${actor}`, comment: `Stock transit dispatched by ${actor}`, date: todayStr },
           receivedBy: { name: `${branchName(toBranch)} Inventory Store`, comment: 'Awaiting physical transit arrival and intake verification', date: todayStr },
+          status: 'pending',
           createdAt: ts,
         },
       });
@@ -149,6 +178,8 @@ export function receiveStockTransfer(transferId: string, actor: string, reqUser?
     // Only the destination branch's staff (or CEO) may receive a transfer (SEC2-1).
     assertBranchAllowed(reqUser, transfer.toBranch);
     if (transfer.status === 'received') {
+      // Older builds left the challan Pending after the receive — bring it in line.
+      await markTransferChallanReceived(tx, transfer, transfer.receivedBy || actor, transfer.receivedAt || nowIso());
       return { ...(await stockSnapshot(tx)), alreadyReceived: true };
     }
 
@@ -180,6 +211,7 @@ export function receiveStockTransfer(transferId: string, actor: string, reqUser?
       where: { id: transferId },
       data: { status: 'received', receivedAt: ts, receivedBy: actor },
     });
+    await markTransferChallanReceived(tx, transfer, actor, ts);
 
     return { ...(await stockSnapshot(tx)), received: true };
   });
@@ -281,17 +313,7 @@ export function transferStock(
     let generatedChallanNo: string | undefined;
 
     if (autoGenerateChallan) {
-      // Collision-free DC-TRF-### under the unique constraint.
-      const existing = await tx.deliveryChallan.findMany({
-        where: { challanNumber: { startsWith: 'DC-TRF-' } },
-        select: { challanNumber: true },
-      });
-      let max = 0;
-      for (const c of existing) {
-        const v = parseInt(c.challanNumber.replace('DC-TRF-', ''), 10);
-        if (!isNaN(v)) max = Math.max(max, v);
-      }
-      generatedChallanNo = `DC-TRF-${String(max + 1).padStart(3, '0')}`;
+      generatedChallanNo = await nextTransferChallanNo(tx);
       await tx.deliveryChallan.create({
         data: {
           id: `dc-${Date.now()}`, challanNumber: generatedChallanNo,
@@ -302,6 +324,7 @@ export function transferStock(
           termsAndConditions: 'Goods dispatched for internal inter-branch transit and stock replenishment. Strictly not for commercial sale.',
           deliveredBy: { name: `${branchName(fromBranch)} Dispatch / ${actor}`, comment: `Stock transit dispatched by ${actor}`, date: todayStr },
           receivedBy: { name: `${branchName(toBranch)} Inventory Store`, comment: 'Awaiting physical transit arrival and intake verification', date: todayStr },
+          status: 'pending',
           createdAt: ts,
         },
       });

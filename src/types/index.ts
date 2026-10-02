@@ -762,6 +762,8 @@ export interface ChallanPartyBlock {
   name?: string;
   comment?: string;
   date?: string;
+  /** HH:MM, IST — set by the server when the goods are marked received. */
+  time?: string;
 }
 
 export interface DeliveryChallan {
