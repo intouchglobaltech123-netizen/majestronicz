@@ -330,6 +330,23 @@ describe('stock reads and sales figures', () => {
   });
 });
 
+describe('seeded stock history', () => {
+  test('INV8-9 seeded demo stock rows continue from the opening rows', async () => {
+    const rows = ok(await get('/api/stock-adjustments'));
+    const demo = rows.filter((r) => /^adj-00\d$/.test(r.id));
+    if (!demo.length) return; // not a freshly seeded database
+    for (const d of demo) {
+      const opening = rows.find((r) => r.id === `adj-open-${d.branchId}-${d.itemId}`);
+      const before = demo
+        .filter((x) => x.itemId === d.itemId && x.branchId === d.branchId && x.timestamp < d.timestamp)
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const expectedPrev = before.length ? before[before.length - 1].newQuantity : (opening ? opening.newQuantity : 0);
+      assert.equal(d.previousQuantity, expectedPrev, `${d.id} (${d.itemId} @ ${d.branchId}) starts where the history left off`);
+      assert.equal(d.newQuantity, d.previousQuantity + d.quantityChange, `${d.id} before + change = after`);
+    }
+  });
+});
+
 describe('stock quantity rules', () => {
   const adjust = (item, quantityChange, extra = {}, as = 'CEO') =>
     post('/api/stock/adjust', { itemId: item.id, branchId: 'erode-hq', quantityChange, reason: 'Stock Audit Correction', ...extra }, as);

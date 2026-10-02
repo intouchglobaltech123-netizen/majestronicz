@@ -24,6 +24,7 @@ import {
   Percent,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
+import { COMBO_GST_RATE } from '../../lib/comboPricing';
 import { ItemImage } from '../common/ItemImage';
 import { AdjustStockModal } from './AdjustStockModal';
 import { TransferStockModal } from './TransferStockModal';
@@ -1307,9 +1308,10 @@ export const InventoryView: React.FC = () => {
                               <span className="font-mono font-bold text-slate-900">
                                 {formatCurrency(combo.comboPrice)}
                               </span>
-                              {separatePrice > combo.comboPrice && (
+                              {/* Like with like: both incl. GST (INV3-6). */}
+                              {separatePrice > combo.comboPrice * (1 + COMBO_GST_RATE / 100) && (
                                 <span className="block text-[11px] text-slate-400">
-                                  vs {formatCurrency(separatePrice)} sep.
+                                  vs {formatCurrency(separatePrice)} sep. (incl. GST)
                                 </span>
                               )}
                             </td>

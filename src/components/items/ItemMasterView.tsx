@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, ComboItem, BRANCHES, BranchScope, MARGIN_CATEGORIES } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { comboSavings } from '../../lib/comboPricing';
 import {
   Plus,
   Search,
@@ -47,7 +48,6 @@ export const ItemMasterView: React.FC = () => {
     combos,
     deleteCombo,
     getComboAvailability,
-    getComboBuyingSeparatelyPrice,
     canManageItems,
     currentUser,
     activeSubTab,
@@ -956,12 +956,11 @@ export const ItemMasterView: React.FC = () => {
                     filteredCombos.map((combo, idx) => {
                       const avail = getComboAvailability(combo, currentBranch);
                       const isOutOfStock = avail <= 0;
-                      const buyingSeparately = getComboBuyingSeparatelyPrice(combo);
-                      const savings = buyingSeparately - combo.comboPrice;
-                      const savingsPct =
-                        buyingSeparately > 0 && savings > 0
-                          ? ((savings / buyingSeparately) * 100).toFixed(0)
-                          : '0';
+                      // Both sides tax-inclusive — the same figure as the combo editor (INV3-6).
+                      const cmp = comboSavings(combo.components, allItems, combo.comboPrice);
+                      const buyingSeparately = cmp.separate;
+                      const savings = cmp.savings;
+                      const savingsPct = savings > 0 ? cmp.percent.toFixed(1) : '0';
 
                       // Find bottleneck item if out of stock
                       let bottleneckItemName = '';
@@ -1080,7 +1079,7 @@ export const ItemMasterView: React.FC = () => {
                               {formatCurrency(combo.comboPrice)}
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center justify-end gap-1.5 mt-0.5">
-                              <span>Separate: {formatCurrency(buyingSeparately)}</span>
+                              <span title="Both incl. GST">Separate: {formatCurrency(buyingSeparately)} vs {formatCurrency(cmp.comboInclusive)} incl. GST</span>
                               {savings > 0 && (
                                 <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded-none border border-emerald-300">
                                   Save {savingsPct}%
