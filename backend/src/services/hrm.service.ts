@@ -323,6 +323,11 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
       existing = await tx.payrollRecord.findFirst({ where: { employeeId: record.employeeId, month: record.month } });
     }
     await assertPayrollBranch(tx, reqUser, existing?.employeeId ?? record?.employeeId, existing?.branchId ?? record?.branchId);
+    // FIN-B-10: a month that hasn't started can't be paid (nothing is earned yet).
+    const payMonth = String(existing?.month ?? record?.month ?? '');
+    if (payMonth && payMonth > istToday().slice(0, 7)) {
+      throw new AppError('FUTURE_MONTH', `Salary for ${payMonth} can't be paid before that month.`, 400);
+    }
 
     if (existing) {
       // HRM6-2: a disbursed payroll row is final. Without this, re-posting "Mark
