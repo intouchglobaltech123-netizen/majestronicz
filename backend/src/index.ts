@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import zlib from 'node:zlib';
 import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +40,27 @@ app.use((_req, res, next) => {
 
 // Keep the raw body around (for Shopify webhook HMAC verification).
 app.use(express.json({ limit: '25mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
+
+// SAL10-1: large JSON replies (the bootstrap, history pages) are gzipped when
+// the browser accepts it — ~10x fewer bytes over the shop's connection.
+app.use((req, res, next) => {
+  if (!/\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) return next();
+  const json = res.json.bind(res);
+  res.json = ((body: any) => {
+    const text = JSON.stringify(body);
+    if (text === undefined || text.length < 64 * 1024 || res.headersSent) return json(body);
+    zlib.gzip(Buffer.from(text), { level: 5 }, (err, out) => {
+      if (err) { res.json = json; json(body); return; }
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.setHeader('Content-Length', String(out.length));
+      res.end(out);
+    });
+    return res;
+  }) as any;
+  next();
+});
 
 app.use(attachUser); // parse Bearer token → req.user (RBAC enforced per-route)
 app.use('/api', apiRoutes);

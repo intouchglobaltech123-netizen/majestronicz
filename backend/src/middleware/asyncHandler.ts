@@ -11,7 +11,9 @@ export const asyncHandler =
   (req, res, next) => {
     Promise.resolve(fn(req, res, next))
       .then(() => {
-        if (req.method !== 'GET' && res.statusCode < 400) broadcastChange(`${req.method} ${req.path}`);
+        // SAL10-1: a handler that knows exactly what it changed sets
+        // res.locals.changes; one that already broadcast sets res.locals.broadcast.
+        if (req.method !== 'GET' && res.statusCode < 400 && !res.locals.broadcast) broadcastChange(`${req.method} ${req.path}`, res.locals.changes);
       })
       .catch(next);
   };

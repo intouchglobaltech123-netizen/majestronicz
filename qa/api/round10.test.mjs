@@ -152,3 +152,65 @@ describe('round 10: staff, salary and PINs', () => {
     assert.equal(sql(`SELECT count(*) FROM "Employee" WHERE pin !~ '^[0-9a-f]{64}$'`)[0][0], '0', 'no plaintext PINs');
   });
 });
+
+describe('round 10: sale replies, live sync and the bootstrap window (SAL10-1)', () => {
+  test('SAL10-1 a sale answers with the saved bill and the stock rows it moved, not whole tables', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ stock: { 'erode-hq': 10, chennai: 10 } });
+    const res = ok(await post('/api/tx/sale', saleBody({ date, customerName: 'QA Delta', customerPhone: randomPhone(), lines: [line(item, 2)] })));
+    assert.equal(res.delta, true);
+    assert.deepEqual(res.invoices.map((i) => i.id), [res.savedInvoice.id], 'only the saved bill');
+    assert.equal(res.customers.length, 1, 'only its customer');
+    assert.deepEqual(res.branchStocks.map((b) => `${b.itemId}@${b.branchId}:${b.quantity}`), [`${item.id}@erode-hq:8`], 'only the moved stock row');
+    assert.equal(res.stockAdjustmentLogs.length, 1);
+    assert.ok(res.changes && res.changes.invoices[0] === res.savedInvoice.id, 'ids for the live-update event');
+    // A cash return answers with its refund row.
+    const ret = ok(await post('/api/tx/sale-return', { invoiceId: res.savedInvoice.id, returnLines: [returnLine(item, 1)], reason: 'QA', refundMode: 'Cash' }));
+    assert.ok(ret.payments.some((p) => p.type === 'out'), 'the refund row is in the reply');
+    // The rows an event names can be re-read on their own, scoped to the reader.
+    const sync = ok(await get(`/api/sync?invoices=${res.savedInvoice.id}&stock=${item.id}@erode-hq,${item.id}@chennai`, 'Billing'));
+    assert.equal(sync.invoices.length, 1);
+    assert.equal(sync.branchStocks.length, 2);
+    const other = await mustSell(saleBody({ branchId: 'chennai', date, lines: [line(item, 1)] }));
+    assert.equal(ok(await get(`/api/sync?invoices=${other.id}`, 'Billing')).invoices.length, 0, 'another branch bill is not sent to Billing');
+    assert.equal(ok(await get(`/api/sync?invoices=${other.id}`, 'Sales')).invoices.length, 0, 'no bills for Sales');
+  });
+
+  test('SAL10-1 six cashiers billing the same item at once all succeed with their own numbers and exact stock', async () => {
+    const date = await thisMonthDay();
+    const item = await createItem({ stock: { 'erode-hq': 100 } });
+    const results = await Promise.all(Array.from({ length: 6 }, (_, w) => (async () => {
+      const out = [];
+      for (let i = 0; i < 4; i++) out.push(await sell(saleBody({ date, customerName: `QA Cashier ${w}`, customerPhone: randomPhone(), lines: [line(item, 1)] })));
+      return out;
+    })()));
+    const all = results.flat();
+    assert.deepEqual(all.map((r) => r.res.status).filter((s) => s !== 200), [], 'no failures');
+    const numbers = all.map((r) => r.inv.invoiceNumber);
+    assert.equal(new Set(numbers).size, 24, 'every bill has its own number');
+    const { stockOf } = await import('./lib.mjs');
+    assert.equal(await stockOf(item.id, 'erode-hq'), 76, 'stock taken exactly once per bill');
+  });
+
+  test('SAL10-1 the bootstrap carries recent bills; older ones come page by page; ?full=1 has everything', async () => {
+    const old = await freshDay('erode-hq'); // 2016-2024
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const paid = await mustSell(saleBody({ date: old, lines: [line(item, 1)] }));
+    const owing = await mustSell(saleBody({ date: old, transactionType: 'Credit', customerName: 'QA Owing', customerPhone: randomPhone(), lines: [line(item, 1)], splits: [{ mode: 'COD-Credit', amount: 1180 }] }));
+    if (sql('SELECT 1')) sql(`UPDATE "Invoice" SET "updatedAt"='${old}T06:00:00.000Z' WHERE id IN ('${paid.id}','${owing.id}')`);
+    const boot = ok(await get('/api/bootstrap'));
+    assert.match(String(boot.historyFrom), /^\d{4}-\d{2}-\d{2}$/);
+    const ids = new Set(boot.invoices.map((i) => i.id));
+    if (sql('SELECT 1')) assert.ok(!ids.has(paid.id), 'a settled old bill is not in the first load');
+    assert.ok(ids.has(owing.id), 'an old bill that still owes money is');
+    const seen = new Set();
+    for (let page = 0; page != null;) {
+      const h = ok(await get(`/api/history?kind=invoices&page=${page}`));
+      h.invoices.forEach((i) => seen.add(i.id));
+      page = h.nextPage;
+    }
+    assert.ok(seen.has(paid.id), 'the old bill is in the history pages');
+    assert.ok(ok(await get('/api/bootstrap?full=1')).invoices.some((i) => i.id === paid.id), 'full=1');
+    assert.deepEqual(ok(await get('/api/history?kind=invoices&page=0', 'Sales')).invoices, [], 'Sales gets no bills');
+  });
+});

@@ -3,6 +3,7 @@ import * as hrm from '../services/hrm.service.js';
 import { recordAudit } from '../services/audit.service.js';
 
 export const verifyPin = async (req: Request, res: Response) => {
+  res.locals.broadcast = true; // SAL10-1: a PIN check changes no data
   const { employeeId, pin } = req.body;
   res.json(await hrm.verifyKioskPin(String(employeeId || ''), String(pin || ''), (req as any).user));
 };

@@ -97,6 +97,7 @@ model StockAdjustmentLog {
 
   @@index([itemId])
   @@index([branchId])
+  @@index([timestamp]) // SAL10-1: recent stock history first
 }
 
 model Estimate {
@@ -234,6 +235,12 @@ model Invoice {
   salespersonName           String?
   incentivePercent          Float?
   incentiveAmount           Float?
+
+  // SAL10-1: lookups by customer (live bill count) and by date (recent bills)
+  // without scanning every bill. Indexes only — no data change.
+  @@index([customerId])
+  @@index([date])
+  @@index([branchId, date])
 }
 
 model Enquiry {
@@ -518,6 +525,9 @@ model Payment {
   @@index([partyType, partyId])
   @@index([type])
   @@index([date])
+  // SAL10-1: "payments allocated to this bill" (jsonb containment) without a
+  // scan of every payment.
+  @@index([allocations(ops: JsonbPathOps)], type: Gin)
 }
 
 // Staff login account. Each user signs in with their own PIN and carries an

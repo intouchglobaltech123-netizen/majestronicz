@@ -314,6 +314,8 @@ interface ErpContextType {
   closeDailyRegister: (branchId: BranchId, date: string, notes?: string) => void;
   reopenDailyRegister: (branchId: BranchId, date: string) => void;
   isDayClosed: (branchId: BranchId, date: string) => boolean;
+  /** SAL10-1: older bills / stock history are still loading in the background. */
+  historyLoading: boolean;
   canCloseDay: boolean;
   canOverrideOpening: boolean;
 
@@ -793,16 +795,56 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Mandatory login: the app is usable only after a valid (unexpired) session.
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // SAL10-1: the bootstrap carries the recent window of bills / stock history
+  // (`historyFrom`); the older pages load in the background right after it and
+  // are KEPT across later live refreshes of the same session.
+  const historyRef = useRef<{ owner: string; from: string | null; started: boolean }>({ owner: '', from: null, started: false });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const sessionOwner = () => { const t = getTokenSession(); return t ? `${t.userId || t.name}|${t.role}` : ''; };
+  const keepOlder = <T extends { id: string }>(prev: T[], fresh: T[], isOlder: (r: T) => boolean): T[] => {
+    const ids = new Set(fresh.map((r) => r.id));
+    return [...fresh, ...prev.filter((r) => isOlder(r) && !ids.has(r.id))];
+  };
+  const loadHistory = async () => {
+    const owner = historyRef.current.owner;
+    setHistoryLoading(true);
+    try {
+      for (const kind of ['invoices', 'stockAdjustmentLogs'] as const) {
+        for (let page = 0; page != null && page < 500;) {
+          const res = await apiGet<any>(`/api/history?kind=${kind}&page=${page}`);
+          if (historyRef.current.owner !== owner) return; // signed out / another user
+          const rows: any[] = Array.isArray(res?.[kind]) ? res[kind] : [];
+          if (rows.length) {
+            const merge = (prev: any[]) => { const ids = new Set(prev.map((r) => r.id)); return [...prev, ...rows.filter((r) => !ids.has(r.id))]; };
+            if (kind === 'invoices') setInvoices(merge as any); else setStockAdjustmentLogs(merge as any);
+          }
+          page = res?.nextPage ?? null;
+          if (page == null) break;
+        }
+      }
+    } catch (e) {
+      console.error('Loading older history failed:', e);
+    } finally {
+      if (historyRef.current.owner === owner) setHistoryLoading(false);
+    }
+  };
+
   // Hydrate all collections + config singletons from a /api/bootstrap payload.
   // Used for the initial load and for silent live refreshes (SSE).
   const hydrateState = (data: any) => {
+    const owner = sessionOwner();
+    const sameSession = historyRef.current.owner === owner && historyRef.current.started;
+    if (!sameSession) historyRef.current = { owner, from: data.historyFrom || null, started: false };
+    const from: string | null = data.historyFrom || null;
+    const olderBill = (i: any) => !!from && String(i.date || '') < from;
+    const olderLog = (l: any) => !!from && String(l.timestamp || '') < `${from}T00:00:00.000Z`;
     if (Array.isArray(data.items)) setItems(data.items);
     if (Array.isArray(data.branchStocks)) setBranchStocks(data.branchStocks);
     if (Array.isArray(data.combos)) setCombos(data.combos);
-    if (Array.isArray(data.stockAdjustmentLogs)) setStockAdjustmentLogs(data.stockAdjustmentLogs);
+    if (Array.isArray(data.stockAdjustmentLogs)) setStockAdjustmentLogs((prev) => (sameSession && from ? keepOlder(prev, data.stockAdjustmentLogs, olderLog) : data.stockAdjustmentLogs));
     if (Array.isArray(data.estimates)) setEstimates(data.estimates);
     if (Array.isArray(data.challans)) setChallans(data.challans);
-    if (Array.isArray(data.invoices)) setInvoices(data.invoices);
+    if (Array.isArray(data.invoices)) setInvoices((prev) => (sameSession && from ? keepOlder(prev, data.invoices, olderBill) : data.invoices));
     if (Array.isArray(data.enquiries)) setEnquiries(data.enquiries);
     if (Array.isArray(data.pendingOrders)) setPendingOrders(data.pendingOrders);
     if (Array.isArray(data.reminders)) setReminders(data.reminders);
@@ -829,6 +871,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
     if (data.loyaltySettings) setLoyaltySettings(data.loyaltySettings);
     if (data.payrollSettings) setPayrollSettings(data.payrollSettings);
+    if (from && !historyRef.current.started) {
+      historyRef.current.started = true;
+      void loadHistory();
+    }
   };
 
   // If any request is rejected with 401 (expired/invalid token), force re-login.
@@ -895,33 +941,78 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tok = getAuthToken();
     const es = new EventSource(`${API_BASE}/api/events${tok ? `?token=${encodeURIComponent(tok)}` : ''}`);
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let statsTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshing = false;
     let closed = false;
+    // SAL10-1: an event that names the rows it changed fetches just those rows
+    // (GET /api/sync); only an event without that detail reloads the bootstrap.
+    let needFull = false;
+    const pending: Record<'invoices' | 'customers' | 'stock' | 'logs' | 'payments', Set<string>> = {
+      invoices: new Set(), customers: new Set(), stock: new Set(), logs: new Set(), payments: new Set(),
+    };
+    const pendingCount = () => Object.values(pending).reduce((t, x) => t + x.size, 0);
 
-    const scheduleRefresh = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(async () => {
-        // Guard against a refresh landing after teardown / logout.
-        if (refreshing || closed || !getTokenSession()) return;
-        refreshing = true;
-        try {
+    const run = async () => {
+      // Guard against a refresh landing after teardown / logout.
+      if (closed || !getTokenSession()) return;
+      if (refreshing) { schedule(); return; }
+      refreshing = true;
+      try {
+        if (needFull || pendingCount() > 400) {
+          needFull = false;
+          Object.values(pending).forEach((x) => x.clear());
           const data = await apiGet<any>('/api/bootstrap');
           if (!closed) hydrateState(data);
-        } catch (e) {
-          console.error('Live refresh failed:', e);
-        } finally {
-          refreshing = false;
+        } else if (pendingCount()) {
+          const q = (Object.keys(pending) as (keyof typeof pending)[])
+            .filter((k) => pending[k].size)
+            .map((k) => `${k}=${[...pending[k]].map(encodeURIComponent).join(',')}`).join('&');
+          Object.values(pending).forEach((x) => x.clear());
+          const d = await apiGet<any>(`/api/sync?${q}`);
+          if (!closed) applyDelta(d);
         }
-      }, 400);
+      } catch (e) {
+        console.error('Live refresh failed:', e);
+      } finally {
+        refreshing = false;
+      }
+    };
+    const schedule = (ms = 300) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, ms);
+    };
+    const scheduleStats = () => {
+      if (statsTimer) clearTimeout(statsTimer);
+      statsTimer = setTimeout(() => {
+        if (closed || !getTokenSession()) return;
+        void apiGet<any>('/api/item-stats').then((st) => {
+          if (closed) return;
+          if (st?.itemSales90d) setItemSales90d(st.itemSales90d);
+          if (st?.itemLastSale) setItemLastSale(st.itemLastSale);
+        }).catch(() => {});
+      }, 15000);
     };
 
-    es.onmessage = scheduleRefresh;
+    es.onmessage = (ev: MessageEvent) => {
+      let msg: any = null;
+      try { msg = JSON.parse(ev.data); } catch { /* keep null */ }
+      const ch = msg?.changes;
+      if (!ch || typeof ch !== 'object') { needFull = true; schedule(600); return; }
+      for (const k of Object.keys(pending) as (keyof typeof pending)[]) {
+        for (const id of Array.isArray(ch[k]) ? ch[k] : []) pending[k].add(String(id));
+      }
+      // Removals need no fetch.
+      if (ch.removed?.invoices?.length || ch.removed?.payments?.length) applyDelta({ removed: ch.removed });
+      if (Array.isArray(ch.stock) && ch.stock.length) scheduleStats();
+      schedule();
+    };
     es.onerror = () => {
       /* EventSource auto-reconnects; nothing to do */
     };
     return () => {
       closed = true;
       if (timer) clearTimeout(timer);
+      if (statsTimer) clearTimeout(statsTimer);
       es.close();
     };
   }, [isBootstrapping, isAuthenticated]);
@@ -1009,8 +1100,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const created = await apiPost<Payment>('/api/payments', input);
       setPayments((prev) => [created, ...prev]);
-      // Refresh invoices so settled balances reflect immediately.
-      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      // Refresh the settled bills and the customer's credit (SAL10-1: just those rows).
+      void syncRows({
+        payments: [created.id],
+        invoices: (created.allocations || []).map((a) => a.refId),
+        customers: [created.partyId, ...(input.allocations || []).map((a) => invoices.find((i) => i.id === a.refId)?.customerId)],
+      }, input.type === 'out');
       const credited = Number((created as any).storeCreditAdded) || 0;
       toast.success(
         `${input.type === 'in' ? 'Payment received' : 'Payment recorded'} — ${created.receiptNumber}` +
@@ -1024,9 +1119,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const deletePayment = async (id: string): Promise<void> => {
     try {
+      const gone = payments.find((p) => p.id === id);
       await apiDelete(`/api/payments/${id}`);
       setPayments((prev) => prev.filter((p) => p.id !== id));
-      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
+      void syncRows({
+        invoices: (gone?.allocations || []).map((a) => a.refId),
+        customers: [gone?.partyId, ...(gone?.allocations || []).map((a) => invoices.find((i) => i.id === a.refId)?.customerId)],
+      }, !gone || gone.partyType !== 'customer');
       toast.success('Payment deleted and balances restored');
     } catch (e: any) {
       toast.error(e?.message || 'Could not delete payment');
@@ -2532,8 +2631,46 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // state so the UI reflects the server-committed result without a reload.
   // Applies whatever collections a backend endpoint returns to local state so
   // the UI reflects the server-committed, authoritative result.
+  // SAL10-1: the sale chain answers with only the rows it changed (`delta`).
+  const upsertRows = <T,>(prev: T[], rows: T[] | undefined, key: (r: T) => string, removed: string[] = []): T[] => {
+    if (!(rows && rows.length) && !removed.length) return prev;
+    const m = new Map(prev.map((r) => [key(r), r]));
+    for (const k of removed) m.delete(k);
+    for (const r of rows || []) m.set(key(r), r);
+    return [...m.values()];
+  };
+  const applyDelta = (d: any) => {
+    const rm = d?.removed || {};
+    const byId = (r: any) => String(r.id);
+    if (d.invoices?.length || rm.invoices?.length) setInvoices((prev) => upsertRows(prev, d.invoices, byId, rm.invoices || []));
+    if (d.customers?.length) setCustomers((prev) => upsertRows(prev, d.customers, byId));
+    if (d.branchStocks?.length) setBranchStocks((prev) => upsertRows(prev, d.branchStocks, (r: any) => `${r.itemId}@${r.branchId}`));
+    if (d.stockAdjustmentLogs?.length) setStockAdjustmentLogs((prev) => upsertRows(prev, d.stockAdjustmentLogs, byId));
+    if (d.payments?.length || rm.payments?.length) setPayments((prev) => upsertRows(prev, d.payments, byId, rm.payments || []));
+  };
+  /** SAL10-1: re-read just these rows; `full` (vendor payments move POs too)
+   *  reloads the bootstrap instead. */
+  const syncRows = async (ids: { invoices?: (string | null | undefined)[]; customers?: (string | null | undefined)[]; payments?: string[] }, full = false) => {
+    try {
+      if (full) { hydrateState(await apiGet<any>('/api/bootstrap')); return; }
+      const q = (['invoices', 'customers', 'payments'] as const)
+        .map((k) => [k, [...new Set((ids[k] || []).filter(Boolean) as string[])]] as const)
+        .filter(([, v]) => v.length)
+        .map(([k, v]) => `${k}=${v.map(encodeURIComponent).join(',')}`).join('&');
+      if (q) applyDelta(await apiGet<any>(`/api/sync?${q}`));
+    } catch (e) {
+      console.error('Refresh failed:', e);
+    }
+  };
   const applySnapshot = (snap: any) => {
     if (!snap || typeof snap !== 'object') return;
+    if (snap.delta) {
+      // Rows of the sale/stock collections are merged; any other collection the
+      // reply carries is a whole list as before.
+      applyDelta(snap);
+      const { invoices: _i, customers: _c, branchStocks: _b, stockAdjustmentLogs: _l, payments: _p, ...rest } = snap;
+      snap = rest;
+    }
     if (Array.isArray(snap.items)) setItems(snap.items);
     if (Array.isArray(snap.combos)) setCombos(snap.combos);
     if (Array.isArray(snap.branchStocks)) setBranchStocks(snap.branchStocks);
@@ -2801,10 +2938,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refundMode: refundMode || undefined,
         actor: currentUser.name,
       });
+      // The reply carries the bill, its refund row and the customer's credit (SAL10-1).
       applySaleSnapshot(snap);
-      // The refund (a Payment row) and any credit note live outside the sale
-      // snapshot — refresh so the drawer and the customer's credit show them now.
-      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
       const totalUnitsReturned = validLines.reduce((sum, l) => sum + l.returnQty, 0);
       // Say what really happened, from the server's own summary: money paid back
       // vs. the due that was just reduced (E2E8-13), and units restocked vs.
@@ -2833,7 +2968,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const snap = await apiPost<any>('/api/tx/reverse-return', { invoiceId, returnId });
       applySaleSnapshot(snap);
-      void apiGet<any>('/api/bootstrap').then(hydrateState).catch(() => {});
       const r = snap?.reversed;
       const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
       const money = r?.refund
@@ -4091,6 +4225,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeDailyRegister,
         reopenDailyRegister,
         isDayClosed,
+        historyLoading,
         canCloseDay,
         canOverrideOpening,
         recurringExpenses,

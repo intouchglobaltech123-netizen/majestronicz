@@ -77,6 +77,7 @@ const LOCK_MS = 60_000;
 const loginAttempts = new Map<string, { fails: number; lockUntil: number }>();
 
 router.post('/auth/login', asyncHandler(async (req, res) => {
+  res.locals.broadcast = true; // SAL10-1: signing in changes no shared data — no live-update event
   const ip = req.ip || 'unknown';
   const now = Date.now();
   const rec = loginAttempts.get(ip) ?? { fails: 0, lockUntil: 0 };
@@ -119,6 +120,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
 // working after "Sign out". Record the moment; attachUser rejects every token
 // of this account issued before it (all of this user's open sessions end).
 router.post('/auth/logout', requireAuth, asyncHandler(async (req, res) => {
+  res.locals.broadcast = true; // SAL10-1: nothing other screens show changed
   const actor = (req as any).user;
   await prisma.user.update({ where: { id: actor.userId }, data: { tokensValidAfter: Date.now(), updatedAt: nowIso() } });
   closeUserStreams(String(actor.userId)); // SEC9-1: open live-update streams end too
@@ -530,6 +532,17 @@ router.put('/access-matrix', requireCapability('admin'), asyncHandler(async (req
 }));
 
 // ---- Payments / party ledger (receipts from customers, payments to vendors) ----
+/** SAL10-1: the rows a customer receipt touches, for the live-update event. */
+const allocIds = (p: any): string[] => (Array.isArray(p?.allocations) ? p.allocations.map((a: any) => a?.refId).filter(Boolean) : []);
+async function billCustomers(p: any): Promise<string[]> {
+  const ids = allocIds(p);
+  const bills = ids.length ? await prisma.invoice.findMany({ where: { id: { in: ids } }, select: { customerId: true } }) : [];
+  return bills.map((b) => b.customerId).filter(Boolean) as string[];
+}
+const paymentChanges = (p: any, customers: string[]) => ({
+  invoices: allocIds(p), customers: [...new Set([p?.partyId, ...customers].filter(Boolean))], payments: [p.id], stock: [], logs: [],
+  removed: { invoices: [], payments: [] },
+});
 router.get('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {
   const { partyType, partyId, type } = req.query as Record<string, string | undefined>;
   // SEC2-3: a branch-locked user must not read another branch's payment ledger.
@@ -545,7 +558,11 @@ router.post('/payments', requireCapability('payment:write'), asyncHandler(async 
   const result: any = await recordPayment(req.body, { name: user?.name, id: user?.name }, user);
   await recordAudit({ actor: actorOf(req), action: 'payment.record', entity: 'payment', entityId: result.id,
     summary: `${result.type === 'in' ? 'Received' : 'Paid'} ₹${result.amount} · ${result.partyName} (${result.paymentMode})`, after: result, branchId: result.branchId });
-  broadcastChange('POST /api/payments');
+  // SAL10-1: a customer receipt names the rows it changed (the receipt, its
+  // bills, the customer's credit); a vendor payment also moves POs — full reload.
+  if (result.partyType === 'customer') res.locals.changes = paymentChanges(result, await billCustomers(result));
+  else broadcastChange('POST /api/payments');
+  res.locals.broadcast = result.partyType !== 'customer';
   res.json(result);
 }));
 // Pending-order advances are real receipts kept as store credit (CRM2-8).
@@ -588,13 +605,15 @@ router.delete('/payments/:id', requireCapability('payment:write'), asyncHandler(
   await recordAudit({ actor: actorOf(req), action: 'payment.delete', entity: 'payment', entityId: req.params.id,
     summary: before ? `Payment ${before.receiptNumber} deleted · ₹${before.amount} · ${before.partyName} (${before.paymentMode}) · ${before.date}` : 'Payment deleted / reversed',
     before: before || undefined, branchId: before?.branchId ?? null });
-  broadcastChange('DELETE /api/payments');
+  if (before?.partyType === 'customer') res.locals.changes = { ...paymentChanges(before, await billCustomers(before)), payments: [], removed: { invoices: [], payments: [before.id] } };
+  else { broadcastChange('DELETE /api/payments'); res.locals.broadcast = true; }
   res.json(result);
 }));
 
 // ---- Beta AI (business assistant; requires ai:use; data scoped by role flags) ----
 router.get('/ai/status', asyncHandler(async (_req, res) => res.json(await getAiStatus())));
 router.post('/ai/ask', requireCapability('ai:use'), asyncHandler(async (req, res) => {
+  res.locals.broadcast = true; // SAL10-1: a question changes no data
   const user = (req as any).user;
   const flags = roleFlags(user.role);
   const result = await askAi(String(req.body?.question || ''), flags, user.role);
@@ -714,7 +733,15 @@ router.post('/shopify/webhook/orders', asyncHandler(async (req, res) => {
   res.status(200).json({ ok: true });
 }));
 
-router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user))));
+router.get('/bootstrap', asyncHandler(async (req, res) => res.json(await system.getBootstrap((req as any).user, req.query as any))));
+// SAL10-1: just the rows a live-update event named (see lib/events), and the
+// older bills / stock history the bootstrap leaves out, page by page.
+router.get('/sync', asyncHandler(async (req, res) => res.json(await system.getSync((req as any).user, req.query as any))));
+router.get('/history', asyncHandler(async (req, res) => res.json(await system.getHistoryPage((req as any).user, req.query as any))));
+router.get('/item-stats', asyncHandler(async (req, res) => {
+  if (!(req as any).user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  res.json(await system.itemStats());
+}));
 router.get('/health', asyncHandler(async (_req, res) => res.json(await system.healthCheck())));
 
 // ERR-1: an unknown /api route answers with JSON, not Express's HTML "Cannot PUT" page.

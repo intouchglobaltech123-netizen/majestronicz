@@ -43,10 +43,15 @@ const maxSeq = (numbers: string[], prefix: string, floor = 0) => {
  * in appConfig so each branch/FY sequence advances on its own.
  */
 export async function nextPersistent(tx: any, key: string, fromRowsMax: number): Promise<number> {
-  const row = await tx.appConfig.findUnique({ where: { key } });
-  const stored = row && typeof (row.value as any)?.n === 'number' ? (row.value as any).n : 0;
+  // SAL10-1: the counter row is created if missing and then LOCKED, so two
+  // documents saved at once queue on this one row (briefly, at the end of the
+  // save) instead of both reading the same value and one failing and retrying.
+  await tx.$executeRaw`INSERT INTO "AppConfig" ("key", "value") VALUES (${key}, '{"n":0}'::jsonb) ON CONFLICT ("key") DO NOTHING`;
+  const rows: any[] = await tx.$queryRaw`SELECT "value" FROM "AppConfig" WHERE "key" = ${key} FOR UPDATE`;
+  const value = rows[0]?.value as any;
+  const stored = value && typeof value.n === 'number' ? value.n : 0;
   const next = Math.max(fromRowsMax, stored) + 1;
-  await tx.appConfig.upsert({ where: { key }, create: { key, value: { n: next } as any }, update: { value: { n: next } as any } });
+  await tx.appConfig.update({ where: { key }, data: { value: { n: next } as any } });
   return next;
 }
 

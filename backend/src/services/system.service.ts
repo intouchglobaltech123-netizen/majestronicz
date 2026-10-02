@@ -80,10 +80,10 @@ async function itemLastSale(): Promise<Record<string, Record<string, string>>> {
  * their own branch's movements, and transfers into or out of it (INV7-2 — the
  * Stock Audit Trail and Transfer History screens were empty for them).
  */
-export async function branchStockHistory(user: SessionUser) {
+export async function branchStockHistory(user: SessionUser, sinceIso: string | null = null) {
   const branch = user.role === 'CEO' ? null : user.assignedBranchId || null;
   const [stockAdjustmentLogs, stockTransfers] = await Promise.all([
-    prisma.stockAdjustmentLog.findMany(branch ? { where: { branchId: branch } } : undefined),
+    prisma.stockAdjustmentLog.findMany({ where: { ...(branch ? { branchId: branch } : {}), ...(sinceIso ? { timestamp: { gte: sinceIso } } : {}) } }),
     prisma.stockTransfer.findMany(branch ? { where: { OR: [{ fromBranch: branch }, { toBranch: branch }] } } : undefined),
   ]);
   return { stockAdjustmentLogs, stockTransfers };
@@ -137,8 +137,61 @@ export function scopePayload(data: any, user: SessionUser | null | undefined) {
 }
 const scopeBootstrap = scopePayload;
 
+/**
+ * SAL10-1: the bootstrap carries the RECENT window of bills and stock history
+ * (the last 90 days, plus every older bill that still has money owing or was
+ * changed in that window); the screens load the older pages right after the
+ * first paint (GET /api/history), so every report and ledger is complete within
+ * seconds without a 15 MB first load. `?full=1` returns everything at once.
+ */
+export const HISTORY_DAYS = 90;
+function historyCutoff(): { date: string; iso: string } {
+  const date = new Date(Date.parse(`${istToday()}T00:00:00Z`) - HISTORY_DAYS * 86400000).toISOString().slice(0, 10);
+  return { date, iso: `${date}T00:00:00.000Z` };
+}
+const recentInvoicesWhere = (c: { date: string; iso: string }, branchId?: string | null) => ({
+  ...(branchId ? { branchId } : {}),
+  OR: [{ date: { gte: c.date } }, { balanceDue: { gt: 0.009 } }, { updatedAt: { gte: c.iso } }],
+});
+
+/** One page of the bills / stock history older than the bootstrap window. */
+export async function getHistoryPage(user: SessionUser | null | undefined, q: Record<string, unknown>) {
+  if (!user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  const kind = String(q.kind || '');
+  const page = Math.max(0, Math.floor(Number(q.page) || 0));
+  const size = Math.min(2000, Math.max(100, Math.floor(Number(q.size) || 1000)));
+  const c = historyCutoff();
+  const branch = user.role === 'CEO' ? null : user.assignedBranchId || null;
+  if (kind === 'invoices') {
+    if (user.role === 'Sales' || user.role === 'Purchase') return { kind, invoices: [], nextPage: null };
+    const rows = await prisma.invoice.findMany({
+      where: { ...(branch ? { branchId: branch } : {}), date: { lt: c.date } },
+      orderBy: [{ date: 'desc' }, { id: 'asc' }], skip: page * size, take: size,
+    });
+    return { kind, invoices: rows, nextPage: rows.length === size ? page + 1 : null };
+  }
+  if (kind === 'stockAdjustmentLogs') {
+    if (user.role === 'Sales') return { kind, stockAdjustmentLogs: [], nextPage: null };
+    const rows = await prisma.stockAdjustmentLog.findMany({
+      where: { ...(branch ? { branchId: branch } : {}), timestamp: { lt: c.iso } },
+      orderBy: [{ timestamp: 'desc' }, { id: 'asc' }], skip: page * size, take: size,
+    });
+    return { kind, stockAdjustmentLogs: rows, nextPage: rows.length === size ? page + 1 : null };
+  }
+  throw new AppError('BAD_REQUEST', "kind must be 'invoices' or 'stockAdjustmentLogs'", 400);
+}
+
+/** The per-item sales figures every role's low-stock rule uses (refreshed after sales). */
+export async function itemStats() {
+  const [itemSales90dV, itemLastSaleV] = await Promise.all([itemSales90d(), itemLastSale()]);
+  return { itemSales90d: itemSales90dV, itemLastSale: itemLastSaleV };
+}
+
 /** Scoped ERP state payload matching role authorization. */
-export async function getBootstrap(user?: SessionUser | null) {
+export async function getBootstrap(user?: SessionUser | null, q: Record<string, unknown> = {}) {
+  const full = String(q?.full || '') === '1';
+  const cut = historyCutoff();
+  const historyFrom = full ? null : cut.date;
   if (!user) {
     throw new AppError('UNAUTHENTICATED', 'Login required to load ERP state', 401);
   }
@@ -184,7 +237,7 @@ export async function getBootstrap(user?: SessionUser | null) {
       prisma.purchaseOrder.findMany({ where: branchScope }).then((rows) => rows.map(stripAttachmentBodies)),
       prisma.enquiry.findMany({ where: branchScope }),
       prisma.pendingOrder.findMany({ where: branchScope }),
-      branchStockHistory(user),
+      branchStockHistory(user, full ? null : cut.iso),
       // PUR9-2: the supplier payments of the user's branch, so payables, supplier
       // advances and vendor statements are right for the Purchase role. Never
       // customer or salary rows.
@@ -194,7 +247,7 @@ export async function getBootstrap(user?: SessionUser | null) {
       items, branchStocks, combos, stockAdjustmentLogs: history.stockAdjustmentLogs, estimates: [], challans: [], invoices: [],
       enquiries, pendingOrders, reminders: [], cashRegisters: [], recurringExpenses: [], vendors,
       purchaseOrders, employees: [], attendanceRecords: [], payrollRecords: [], customers: [],
-      stockTransfers: history.stockTransfers, payments: vendorPayments, ...config,
+      stockTransfers: history.stockTransfers, payments: vendorPayments, ...config, historyFrom,
     };
   }
 
@@ -204,28 +257,31 @@ export async function getBootstrap(user?: SessionUser | null) {
       estimates, challans, invoices, enquiries, pendingOrders, reminders,
       cashRegisters, customers, payments, history,
     ] = await Promise.all([
-      prisma.estimate.findMany(), prisma.deliveryChallan.findMany(), prisma.invoice.findMany(),
+      prisma.estimate.findMany(), prisma.deliveryChallan.findMany(),
+      prisma.invoice.findMany(full ? undefined : { where: recentInvoicesWhere(cut, user.assignedBranchId || null) }),
       prisma.enquiry.findMany(), prisma.pendingOrder.findMany(), prisma.followUpReminder.findMany(),
       prisma.dailyCashRegister.findMany(), prisma.customer.findMany(), prisma.payment.findMany(),
-      branchStockHistory(user),
+      branchStockHistory(user, full ? null : cut.iso),
     ]);
     return scopeBootstrap({
       items, branchStocks, combos, stockAdjustmentLogs: history.stockAdjustmentLogs, estimates, challans, invoices,
       enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses: [], vendors: [],
       purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers,
-      stockTransfers: history.stockTransfers, payments, ...config,
+      stockTransfers: history.stockTransfers, payments, ...config, historyFrom,
     }, user);
   }
 
   // Manager & CEO: full operational data. Payroll is restricted to payroll:admin (CEO).
   const canPayroll = roleCan(role, 'payroll:admin');
+  const lockBranch = role === 'CEO' ? null : user.assignedBranchId || null;
   const [
     stockAdjustmentLogs, estimates, challans, invoices, enquiries, pendingOrders, reminders,
     cashRegisters, recurringExpenses, vendors, purchaseOrders, employees, attendanceRecords,
     payrollRecords, customers, stockTransfers, payments,
   ] = await Promise.all([
-    prisma.stockAdjustmentLog.findMany(), prisma.estimate.findMany(), prisma.deliveryChallan.findMany(),
-    prisma.invoice.findMany(), prisma.enquiry.findMany(), prisma.pendingOrder.findMany(),
+    prisma.stockAdjustmentLog.findMany(full ? undefined : { where: { ...(lockBranch ? { branchId: lockBranch } : {}), timestamp: { gte: cut.iso } } }),
+    prisma.estimate.findMany(), prisma.deliveryChallan.findMany(),
+    prisma.invoice.findMany(full ? undefined : { where: recentInvoicesWhere(cut, lockBranch) }), prisma.enquiry.findMany(), prisma.pendingOrder.findMany(),
     prisma.followUpReminder.findMany(), prisma.dailyCashRegister.findMany(),
     prisma.recurringExpenseTemplate.findMany(), prisma.vendor.findMany(), prisma.purchaseOrder.findMany().then((rows) => rows.map(stripAttachmentBodies)),
     prisma.employee.findMany(), prisma.attendanceRecord.findMany(),
@@ -236,7 +292,7 @@ export async function getBootstrap(user?: SessionUser | null) {
   return scopeBootstrap({
     items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices,
     enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses, vendors,
-    purchaseOrders, employees, attendanceRecords, payrollRecords, customers, stockTransfers, payments, ...config,
+    purchaseOrders, employees, attendanceRecords, payrollRecords, customers, stockTransfers, payments, ...config, historyFrom,
   }, user);
 }
 
@@ -266,4 +322,29 @@ export async function replaceBranchStock(rows: any[]) {
     prisma.branchStock.createMany({ data: rows }),
   ]);
   return prisma.branchStock.findMany();
+}
+
+/**
+ * SAL10-1: the rows a live-update event named, so a screen refreshes just those
+ * instead of re-downloading the whole bootstrap. Each role gets only what its
+ * bootstrap carries (and the router scopes the reply to the user's branch).
+ */
+export async function getSync(user: SessionUser | null | undefined, q: Record<string, unknown>) {
+  if (!user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
+  const list = (k: string, max = 500): string[] =>
+    String(q[k] || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, max);
+  const role = user.role;
+  const seesSales = role !== 'Sales' && role !== 'Purchase';
+  const stockKeys = list('stock').map((k) => { const i = k.lastIndexOf('@'); return { itemId: k.slice(0, i), branchId: k.slice(i + 1) }; }).filter((k) => k.itemId && k.branchId);
+  const [invoices, customers, branchStocks, stockAdjustmentLogs, payments] = await Promise.all([
+    seesSales && list('invoices').length ? prisma.invoice.findMany({ where: { id: { in: list('invoices') } } }) : Promise.resolve([]),
+    seesSales && list('customers').length ? prisma.customer.findMany({ where: { id: { in: list('customers') } } }) : Promise.resolve([]),
+    stockKeys.length ? prisma.branchStock.findMany({ where: { OR: stockKeys } }) : Promise.resolve([]),
+    role !== 'Sales' && list('logs').length ? prisma.stockAdjustmentLog.findMany({ where: { id: { in: list('logs') } } }) : Promise.resolve([]),
+    role !== 'Sales' && list('payments').length ? prisma.payment.findMany({ where: { id: { in: list('payments') } } }) : Promise.resolve([]),
+  ]);
+  return {
+    delta: true, invoices, customers, branchStocks, stockAdjustmentLogs,
+    payments: seesSales ? payments : payments.filter((p: any) => p.type === 'out' && p.partyType === 'vendor'),
+  };
 }

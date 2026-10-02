@@ -72,9 +72,13 @@ function sameCustomer(inv: any, phone: unknown, name: unknown): boolean {
   return normName(inv?.customerName) === normName(name) && !!normName(name);
 }
 
+/** SAL10-1: only the payment rows allocated to this bill (jsonb containment on
+ *  the allocations list, GIN-indexed) — never the whole payments table. */
+export const allocatedTo = (refId: string) => ({ allocations: { array_contains: [{ refId }] } });
+
 /** Sum of customer receipts (Payment 'in' rows) allocated to this invoice. */
 export async function invoiceReceiptsTotal(tx: any, invoiceId: string): Promise<number> {
-  const rows = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+  const rows = await tx.payment.findMany({ where: { type: 'in', ...allocatedTo(invoiceId) }, select: { allocations: true } });
   let total = 0;
   for (const p of rows) {
     if (!Array.isArray(p.allocations)) continue;
@@ -93,7 +97,7 @@ export async function invoiceReceiptsTotal(tx: any, invoiceId: string): Promise<
  * where deleting a receipt after a refund brought back the wrong debt).
  */
 export async function invoiceRefundsTotal(tx: any, invoiceId: string): Promise<number> {
-  const rows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { allocations: true } });
+  const rows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer', ...allocatedTo(invoiceId) }, select: { allocations: true } });
   let total = 0;
   for (const p of rows) {
     if (!Array.isArray(p.allocations)) continue;

@@ -23,6 +23,10 @@ export class StockLedger {
       }
     }
   }
+  /** Items whose stock this ledger changed (SAL10-1: the reply sends only these rows). */
+  touchedIds(): string[] {
+    return [...this.touched];
+  }
   qty(itemId: string) {
     return this.map.get(itemId)?.quantity ?? 0;
   }

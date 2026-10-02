@@ -55,6 +55,7 @@ export const ReportsView: React.FC = () => {
     purchaseOrders,
     payments,
     activeSubTab,
+    historyLoading,
   } = useErp();
 
   // Active Report Tab
@@ -285,7 +286,10 @@ export const ReportsView: React.FC = () => {
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sales (Period)</span>
               <p className="text-lg font-bold text-slate-900 mt-1 font-mono">{formatCurrency(summary.sales)}</p>
-              <span className="text-[11px] text-slate-400">{summary.bills} bill{summary.bills === 1 ? '' : 's'} in range</span>
+              <span className="text-[11px] text-slate-400">
+                {summary.bills} bill{summary.bills === 1 ? '' : 's'} in range
+                {historyLoading && <span className="text-amber-700" data-testid="history-loading"> · loading older bills…</span>}
+              </span>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">GST Collected</span>

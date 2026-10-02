@@ -8,9 +8,12 @@ import { stockQty } from '../lib/units.js';
 import { archivedItemError } from '../lib/lineValidation.js';
 import { nextPersistent } from '../lib/sequences.js';
 
-const stockSnapshot = async (tx: any) => ({
+/** SAL10-1: the stock history rows this write added (stamped `ts`), not the
+ *  whole history table; the screens merge them (`delta`). */
+const stockSnapshot = async (tx: any, ts: string) => ({
+  delta: true,
   branchStocks: await tx.branchStock.findMany(),
-  stockAdjustmentLogs: await tx.stockAdjustmentLog.findMany(),
+  stockAdjustmentLogs: await tx.stockAdjustmentLog.findMany({ where: { timestamp: ts } }),
   challans: await tx.deliveryChallan.findMany(),
   stockTransfers: await tx.stockTransfer.findMany(),
 });
@@ -164,7 +167,7 @@ export function transferStockBatch(
     });
     await tx.stockAdjustmentLog.createMany({ data: logs });
 
-    return { ...(await stockSnapshot(tx)), transferRef, challanNumber: generatedChallanNo };
+    return { ...(await stockSnapshot(tx, ts)), transferRef, challanNumber: generatedChallanNo };
   });
 }
 
@@ -182,7 +185,7 @@ export function receiveStockTransfer(transferId: string, actor: string, reqUser?
     if (transfer.status === 'received') {
       // Older builds left the challan Pending after the receive — bring it in line.
       await markTransferChallanReceived(tx, transfer, transfer.receivedBy || actor, transfer.receivedAt || nowIso());
-      return { ...(await stockSnapshot(tx)), alreadyReceived: true };
+      return { ...(await stockSnapshot(tx, nowIso())), alreadyReceived: true };
     }
 
     const ts = nowIso();
@@ -217,7 +220,7 @@ export function receiveStockTransfer(transferId: string, actor: string, reqUser?
     });
     await markTransferChallanReceived(tx, transfer, actor, ts);
 
-    return { ...(await stockSnapshot(tx)), received: true };
+    return { ...(await stockSnapshot(tx, ts)), received: true };
   });
 }
 
@@ -272,7 +275,7 @@ export function adjustStock(
         notes: notes?.trim() || null, adjustedBy: actor, timestamp: ts,
       },
     });
-    return stockSnapshot(tx);
+    return stockSnapshot(tx, ts);
   });
 }
 
@@ -358,7 +361,7 @@ export function transferStock(
       },
     });
 
-    return { ...(await stockSnapshot(tx)), transferRef, challanNumber: generatedChallanNo };
+    return { ...(await stockSnapshot(tx, ts)), transferRef, challanNumber: generatedChallanNo };
   });
 }
 

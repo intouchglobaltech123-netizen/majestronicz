@@ -3,10 +3,10 @@ import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { StockLedger, nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
 import { nextInvoiceNumber, nextPersistent, financialYear } from '../lib/sequences.js';
-import { serializableTx } from '../lib/tx.js';
+import { lockedTx, lockInvoice, lockEstimate, lockCustomers, lockStockRows } from '../lib/tx.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
 import { assertBranchAllowed } from '../lib/branchGuard.js';
-import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, invoiceDueRaw, applyPendingAdvanceToBill, nextReceiptNumber } from './payment.service.js';
+import { recomputeInvoiceBalance, ensureCreditOriginal, invoiceReceiptsTotal, invoiceRefundsTotal, invoiceCreditBackTotal, invoiceDueRaw, applyPendingAdvanceToBill, nextReceiptNumber, allocatedTo } from './payment.service.js';
 import { legacyRefundId, creditBackForBill } from '../lib/returnRefunds.js';
 import { addCustomerCredit, applyCreditDelta, creditBalanceOf } from './customerCredit.service.js';
 import { assertLineInputs, assertLinesAgainstCatalogue } from '../lib/lineValidation.js';
@@ -126,15 +126,49 @@ function reconcileInvoicePayment(inv: any) {
   inv.paymentMode = splits.find((s) => s.mode !== 'COD-Credit')?.mode || 'COD-Credit';
 }
 
-/** Affected collections returned so the frontend can sync in-memory state. */
-async function snapshot(tx: any) {
-  const [invoices, customers, branchStocks, stockAdjustmentLogs] = await Promise.all([
-    tx.invoice.findMany(),
-    tx.customer.findMany(),
-    tx.branchStock.findMany(),
-    tx.stockAdjustmentLog.findMany(),
-  ]);
-  return { invoices, customers, branchStocks, stockAdjustmentLogs };
+/**
+ * SAL10-1: what a sale-chain write changed. The reply carries ONLY these rows
+ * (the bill, its customer(s), the stock rows it moved, the history rows it wrote,
+ * the payments on the bill) and the live-update event names them, so other
+ * screens fetch just those rows — a save used to answer with every bill,
+ * customer, stock row and history row (14 MB at 5,000 bills).
+ */
+interface SaleChanges {
+  invoiceIds: string[];
+  customerIds: (string | null | undefined)[];
+  branchId: string;
+  itemIds: string[];
+  logs: any[];
+  removedInvoiceIds?: string[];
+  removedPaymentIds?: string[];
+}
+
+async function saleDelta(tx: any, ch: SaleChanges) {
+  const invoiceIds = [...new Set(ch.invoiceIds.filter(Boolean))];
+  const customerIds = [...new Set(ch.customerIds.filter(Boolean).map(String))];
+  const itemIds = [...new Set(ch.itemIds.filter(Boolean))];
+  const invoices = invoiceIds.length ? await tx.invoice.findMany({ where: { id: { in: invoiceIds } } }) : [];
+  const customers = customerIds.length ? await tx.customer.findMany({ where: { id: { in: customerIds } } }) : [];
+  const branchStocks = itemIds.length ? await tx.branchStock.findMany({ where: { branchId: ch.branchId, itemId: { in: itemIds } } }) : [];
+  const payments: any[] = [];
+  for (const id of invoiceIds) payments.push(...(await tx.payment.findMany({ where: allocatedTo(id) })));
+  const removed = { invoices: ch.removedInvoiceIds || [], payments: ch.removedPaymentIds || [] };
+  return {
+    delta: true,
+    invoices, customers, branchStocks, stockAdjustmentLogs: ch.logs, payments, removed,
+    // ids only — for the live-update event (lib/events)
+    changes: {
+      invoices: invoiceIds, customers: customerIds, stock: itemIds.map((i) => `${i}@${ch.branchId}`),
+      logs: ch.logs.map((l: any) => l.id), payments: payments.map((p: any) => p.id), removed,
+    },
+  };
+}
+
+/** Item masters by id (SAL10-1: never the whole catalogue inside a save). */
+async function itemsByIds(tx: any, ids: Iterable<string>): Promise<Map<string, any>> {
+  const list = [...new Set([...ids].filter(Boolean).map(String))];
+  const rows = list.length ? await tx.item.findMany({ where: { id: { in: list } } }) : [];
+  return new Map(rows.map((i: any) => [i.id, i]));
 }
 
 /**
@@ -145,7 +179,7 @@ async function snapshot(tx: any) {
  * exists — the receipt must be deleted/reversed first, or a return issued.
  */
 async function invoiceHasReceipts(tx: any, invoiceId: string, opts: { ignoreTakeBacks?: boolean } = {}): Promise<boolean> {
-  const receipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true, notes: true } });
+  const receipts = await tx.payment.findMany({ where: { type: 'in', ...allocatedTo(invoiceId) }, select: { allocations: true, notes: true } });
   return receipts.some(
     (p: any) =>
       !(opts.ignoreTakeBacks && isRefundTakeBack(p)) &&
@@ -165,17 +199,17 @@ const isRefundTakeBack = (p: any): boolean => /^Refund \S+ taken back/.test(Stri
  * must go too — otherwise the drawer stays permanently down and an orphaned
  * Payment 'out' row points at a bill that no longer exists (money-model cleanup).
  */
-async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
-  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer' }, select: { id: true, branchId: true, date: true, allocations: true, receiptNumber: true } });
+async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<string[]> {
+  const outRows = await tx.payment.findMany({ where: { type: 'out', partyType: 'customer', ...allocatedTo(invoiceId) }, select: { id: true, branchId: true, date: true, allocations: true, receiptNumber: true } });
   // SAL9-12: a refund already taken back by a reversal (its take-back receipt
   // exists) is a settled pair that nets to ₹0 in the drawers — both stay as they
   // are (the refund's day may be closed) and the void goes ahead.
-  const takeBacks = (await tx.payment.findMany({ where: { type: 'in' }, select: { notes: true } })).filter(isRefundTakeBack);
+  const takeBacks = (await tx.payment.findMany({ where: { type: 'in', ...allocatedTo(invoiceId) }, select: { notes: true } })).filter(isRefundTakeBack);
   const takenBack = (p: any) => !!p.receiptNumber && takeBacks.some((t: any) => String(t.notes).startsWith(`Refund ${p.receiptNumber} taken back`));
   const targets = outRows.filter(
     (p: any) => Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === invoiceId) && !takenBack(p),
   );
-  if (!targets.length) return;
+  if (!targets.length) return [];
   // A refund was a cash payout on its own day. If that day's drawer is already
   // closed, deleting the refund would silently change a reconciled day — block the
   // void/delete and tell the user to reopen that day first (SAL8-6).
@@ -183,6 +217,7 @@ async function purgeReturnRefunds(tx: any, invoiceId: string): Promise<void> {
     await assertDayOpen(tx, p.branchId, p.date, `void/delete this bill (a refund on it was paid on ${p.date})`);
   }
   await tx.payment.deleteMany({ where: { id: { in: targets.map((p: any) => p.id) } } });
+  return targets.map((p: any) => p.id);
 }
 
 /** SAL8-10: a voided/deleted bill frees its source quote — Converted → Open. */
@@ -254,7 +289,8 @@ function expandReturnedUnits(returns: any[], billItems: any[] = []): Map<string,
  * Older bills have no `unitCost`; the reports fall back to the current cost.
  */
 async function snapshotLineCosts(tx: any, lines: any[], previous: any[]): Promise<void> {
-  const items = await tx.item.findMany({ select: { id: true, purchasePrice: true } });
+  const ids = [...new Set(lines.flatMap((l: any) => [l?.itemId, ...(Array.isArray(l?.comboComponents) ? l.comboComponents.map((c: any) => c?.itemId) : [])]).filter(Boolean).map(String))];
+  const items = ids.length ? await tx.item.findMany({ where: { id: { in: ids } }, select: { id: true, purchasePrice: true } }) : [];
   const cost = new Map<string, number>(items.map((i: any) => [i.id, Number(i.purchasePrice) || 0]));
   const before = new Map<string, any>(previous.map((l: any) => [l.id, l]));
   const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -303,7 +339,9 @@ export function createSale(inv: any, reqUser?: any) {
     inv.incentivePercent = inv.incentivePercent ?? null;
     inv.incentiveAmount = inv.incentiveAmount ?? null;
   }
-  return serializableTx(async (tx: any) => {
+  return lockedTx(async (tx: any) => {
+    // SAL10-1: row locks, not Serializable — an edit locks its bill first.
+    await lockInvoice(tx, inv.id);
     // SEC7-1: without a date, `date: undefined` below matched ANY closed day of
     // the branch (spurious DAY_CLOSED). An edit keeps the stored bill's date; a
     // new sale must state one.
@@ -393,6 +431,7 @@ export function createSale(inv: any, reqUser?: any) {
       // SAL8-2: a bill made from a quotation must point at a real, live quote of
       // the same branch — not a made-up id, a cancelled quote or another branch's.
       if (inv.sourceEstimateId) {
+        await lockEstimate(tx, String(inv.sourceEstimateId)); // SAL3-1: one conversion at a time
         const est = await tx.estimate.findUnique({ where: { id: String(inv.sourceEstimateId) } });
         if (!est) throw new AppError('QUOTE_NOT_FOUND', 'The quotation this bill is made from does not exist.', 400);
         if (est.status === 'Cancelled') {
@@ -423,7 +462,6 @@ export function createSale(inv: any, reqUser?: any) {
           throw new AppError('ALREADY_CONVERTED', `This quotation was already converted to invoice ${already.invoiceNumber}.`, 409);
         }
       }
-      inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
       // SAL2-1/NUM-1: the browser mints the id as `inv-${Date.now()}`, so two
       // bills saved in the same millisecond collide — the second would be seen
       // as an edit of the first and overwrite it. Assign a collision-proof id
@@ -463,7 +501,7 @@ export function createSale(inv: any, reqUser?: any) {
       reconcileInvoicePayment(inv);
     } else {
       // On an EDIT, does the bill have receipts recorded through /api/payments?
-      const existingReceipts = await tx.payment.findMany({ where: { type: 'in' }, select: { allocations: true } });
+      const existingReceipts = await tx.payment.findMany({ where: { type: 'in', ...allocatedTo(existing.id) }, select: { allocations: true } });
       const hasReceipts = existingReceipts.some((p: any) =>
         Array.isArray(p.allocations) && p.allocations.some((a: any) => a?.refId === existing!.id && (Number(a?.amount) || 0) > 0),
       );
@@ -507,11 +545,16 @@ export function createSale(inv: any, reqUser?: any) {
     const ts = nowIso();
 
     // Customer link / update (never match by name alone to prevent merging distinct customers)
-    const customers = await tx.customer.findMany();
-    const cust =
-      (inv.customerId && customers.find((c: any) => c.id === inv.customerId)) ||
-      (phoneClean && customers.find((c: any) => cleanPhone(c.phone) === phoneClean)) ||
-      null;
+    // SAL10-1: look the customer up (by id, else by normalised phone) and lock
+    // their row — never read every customer inside the save.
+    let custId: string | null = null;
+    if (inv.customerId && (await tx.customer.findUnique({ where: { id: String(inv.customerId) }, select: { id: true } }))) custId = String(inv.customerId);
+    if (!custId && phoneClean) {
+      const phones = await tx.customer.findMany({ select: { id: true, phone: true } });
+      custId = phones.find((c: any) => cleanPhone(c.phone) === phoneClean)?.id ?? null;
+    }
+    await lockCustomers(tx, [custId, oldInvoice?.customerId]);
+    const cust = custId ? await tx.customer.findUnique({ where: { id: custId } }) : null;
 
     // Customer this bill was previously linked to (edit path). If the edit moves
     // the bill to a different customer, the old one's totals must be reversed
@@ -595,7 +638,7 @@ export function createSale(inv: any, reqUser?: any) {
     // Editing a bill onto a different customer: back the old invoice's contribution
     // off the previously-linked customer so its totals don't stay inflated (CRM2-12).
     if (oldCustomerId && oldCustomerId !== inv.customerId) {
-      const oldCust = customers.find((c: any) => c.id === oldCustomerId);
+      const oldCust = await tx.customer.findUnique({ where: { id: oldCustomerId } });
       if (oldCust) {
         await tx.customer.update({
           where: { id: oldCustomerId },
@@ -616,9 +659,17 @@ export function createSale(inv: any, reqUser?: any) {
     // parts it was sold with, even if the combo master changed since (INV8-3).
     // Each line's normalised parts are stored, so later void/return/delete
     // restock exactly what the sale took.
-    const comboMasters = await tx.comboItem.findMany();
+    // SAL10-1: only the combos and items this bill (and the stored bill) uses.
+    const oldLinesAll: any[] = oldInvoice ? ((oldInvoice.items as any[]) || []) : [];
+    const lineComboIds = [...new Set((inv.items as any[]).filter((l) => l?.isCombo && l.comboId).map((l) => String(l.comboId)))];
+    const comboMasters = lineComboIds.length ? await tx.comboItem.findMany({ where: { id: { in: lineComboIds } } }) : [];
     const comboById = new Map(comboMasters.map((c: any) => [c.id, c]));
-    const catalogItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true, isArchived: true } });
+    const partIds = (lines: any[]) => lines.flatMap((l: any) => (Array.isArray(l?.comboComponents) ? l.comboComponents.map((c: any) => c?.itemId) : []));
+    const neededItemIds = [...new Set([
+      ...(inv.items as any[]).map((l) => l?.itemId), ...oldLinesAll.map((l) => l?.itemId),
+      ...partIds(inv.items as any[]), ...partIds(oldLinesAll), ...partIds(comboMasters.map((c: any) => ({ comboComponents: c.components }))),
+    ].filter(Boolean).map(String))];
+    const catalogItems = neededItemIds.length ? await tx.item.findMany({ where: { id: { in: neededItemIds } }, select: { id: true, itemName: true, itemCode: true, isArchived: true } }) : [];
     const catalogById = new Map<string, any>(catalogItems.map((i: any) => [i.id, i]));
     // Positive parts only, named from the item master (INV6-8).
     const cleanParts = (comps: any[]): any[] =>
@@ -678,8 +729,8 @@ export function createSale(inv: any, reqUser?: any) {
     expand(inv.items as any[], demand);
     if (oldInvoice) expand(oldInvoice.items as any[], oldDemand);
 
-    const allStocks = await tx.branchStock.findMany();
-    const ledger = new StockLedger(allStocks, inv.branchId);
+    // SAL10-1: lock and read only this branch's rows of the items involved.
+    const ledger = new StockLedger(await lockStockRows(tx, inv.branchId, [...oldDemand.keys(), ...demand.keys()]), inv.branchId);
     // Restore the old bill's units first (edit), so the shortage check sees stock
     // as if this bill never happened.
     for (const [itemId, req] of oldDemand.entries()) ledger.apply(itemId, req.qty);
@@ -699,6 +750,9 @@ export function createSale(inv: any, reqUser?: any) {
     for (const [itemId, req] of demand.entries()) {
       if (req.qty > 0) ledger.apply(itemId, -req.qty, false);
     }
+    // SAL10-1: the bill number is taken now, at the end of the checks — its
+    // counter row is the last lock and is held only until this save commits.
+    if (isNewSale) inv.invoiceNumber = await nextInvoiceNumber(tx, inv.branchId, inv.date);
     // Record ONE stock-history row per item for the NET change (restored − sold),
     // so an edit's history reconciles to actual stock, not just the raw new qty.
     const saleLogs: any[] = [];
@@ -759,7 +813,11 @@ export function createSale(inv: any, reqUser?: any) {
     // preview/print the bill exactly as stored — server invoice number, server id,
     // reconciled payment split — instead of its provisional client object (SAL4-1).
     const savedInvoice = await tx.invoice.findUnique({ where: { id: inv.id } });
-    return { ...(await snapshot(tx)), savedInvoice };
+    const delta = await saleDelta(tx, {
+      invoiceIds: [inv.id], customerIds: [inv.customerId, oldCustomerId], branchId: inv.branchId,
+      itemIds: ledger.touchedIds(), logs: saleLogs,
+    });
+    return { ...delta, savedInvoice };
   });
 }
 
@@ -814,7 +872,8 @@ function assertMonthOpen(inv: any, verb: 'void' | 'delete'): void {
 /** Void an invoice: restore remaining stock, log, mark voided, decrement customer. */
 export function voidInvoice(invoiceId: string, reason: string, actor: string, reqUser?: any) {
   if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'Which bill is being voided? invoiceId is required.', 400); // SAL7-4
-  return serializableTx(async (tx: any) => {
+  return lockedTx(async (tx: any) => {
+    await lockInvoice(tx, invoiceId); // SAL10-1
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
@@ -824,19 +883,18 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
       throw new AppError('HAS_RECEIPTS', 'This bill has customer receipts recorded against it. Delete/reverse the receipt(s) first, or issue a return instead of voiding.', 409); // CRM6-4
     }
     await assertDayOpen(tx, inv.branchId, inv.date, 'void this bill'); // CASH-2
+    await lockCustomers(tx, [inv.customerId]);
     await takeBackBillCredit(tx, inv, 'void', actor); // CRM10-1
 
     const ts = nowIso();
-    const items = await tx.item.findMany();
-    const itemById = new Map(items.map((i: any) => [i.id, i]));
-    const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
-    const newLogs: any[] = [];
-
     // Restore (sold − already-returned) PER ITEM, aggregated across all lines and
     // combos — restoring per line double-counted the returns when the same item
     // appeared on two lines and left stock behind on a void (SAL5-3).
     const sold = expandSoldUnits(inv.items as any[]);
     const returned = expandReturnedUnits((inv.returns as any[]) || [], inv.items as any[]);
+    const itemById = await itemsByIds(tx, sold.keys());
+    const ledger = new StockLedger(await lockStockRows(tx, inv.branchId, sold.keys()), inv.branchId);
+    const newLogs: any[] = [];
     for (const [itemId, soldQty] of sold.entries()) {
       const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
       if (restore <= 0) continue;
@@ -859,7 +917,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
     });
     // The sale is reversed in full — drop any return refund booked against it so
     // the drawer isn't left permanently short by an orphaned 'out' row.
-    await purgeReturnRefunds(tx, invoiceId);
+    const removedPayments = await purgeReturnRefunds(tx, invoiceId);
     await reopenSourceQuote(tx, inv);
 
     // Reverse the customer's totals for exactly the bill's own linked customer.
@@ -878,7 +936,7 @@ export function voidInvoice(invoiceId: string, reason: string, actor: string, re
         });
       }
     }
-    return snapshot(tx);
+    return saleDelta(tx, { invoiceIds: [invoiceId], customerIds: [inv.customerId], branchId: inv.branchId, itemIds: ledger.touchedIds(), logs: newLogs, removedPaymentIds: removedPayments });
   });
 }
 
@@ -895,11 +953,13 @@ export function processReturn(
   // SAL7-4: a malformed request is a 400, never a 500 with database details.
   if (!invoiceId || typeof invoiceId !== 'string') throw new AppError('BAD_REQUEST', 'Which bill is being returned? invoiceId is required.', 400);
   if (!Array.isArray(returnLines)) throw new AppError('BAD_REQUEST', 'returnLines must be a list.', 400);
-  return serializableTx(async (tx: any) => {
+  return lockedTx(async (tx: any) => {
+    await lockInvoice(tx, invoiceId); // SAL10-1: returns on one bill queue here (SAL2-4)
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
     if (inv.isVoided) throw new AppError('VOIDED', 'Cannot return on a voided sale', 409);
+    await lockCustomers(tx, [inv.customerId]);
     // E2E9-9 / CASH10-1: a return is booked TODAY (its refund, credit note or
     // due reduction), so it is refused while today's cash day is closed at the
     // bill's branch.
@@ -909,8 +969,9 @@ export function processReturn(
     // master — never from the request (SAL7-4 / INV8-8; a request that flags a
     // plain line as a combo can't bring its own parts either).
     const billLines: any[] = (inv.items as any[]) || [];
-    const masterItems = await tx.item.findMany({ select: { id: true, itemName: true, itemCode: true, unit: true } });
-    const masterById = new Map(masterItems.map((i: any) => [i.id, i]));
+    // SAL10-1: only the masters of the bill's own items and kit parts.
+    const billItemIds = billLines.flatMap((l: any) => [l?.itemId, ...(Array.isArray(l?.comboComponents) ? l.comboComponents.map((c: any) => c?.itemId) : [])]);
+    const masterById = await itemsByIds(tx, billItemIds);
     returnLines = returnLines.map((l: any) => {
       const qty = Number(l?.returnQty) || 0;
       if (qty <= 0) return { ...l, returnQty: 0 };
@@ -986,9 +1047,8 @@ export function processReturn(
     // Business rule: damaged goods are written off, NOT added back to stock.
     const isDamaged = /damag/i.test(reason || '');
     const stockReason = isDamaged ? 'Sales Return (Damaged - Written Off)' : 'Sales Return';
-    const items = await tx.item.findMany();
-    const itemById = new Map(items.map((i: any) => [i.id, i]));
-    const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
+    const itemById = masterById;
+    const ledger = new StockLedger(await lockStockRows(tx, inv.branchId, billItemIds), inv.branchId);
     const newLogs: any[] = [];
     const returnRecords: any[] = [];
 
@@ -1233,14 +1293,19 @@ export function processReturn(
       restockedUnits,
       writtenOffUnits: isDamaged ? validLines.reduce((t: number, l: any) => t + (Number(l.returnQty) || 0), 0) : 0,
     };
-    return { ...(await snapshot(tx)), returnSummary };
+    const delta = await saleDelta(tx, { invoiceIds: [invoiceId], customerIds: [inv.customerId], branchId: inv.branchId, itemIds: ledger.touchedIds(), logs: newLogs });
+    return { ...delta, returnSummary };
   });
 }
 
 /** Hard delete + restore stock. */
 export function deleteInvoice(invoiceId: string, reqUser?: any) {
-  return serializableTx(async (tx: any) => {
+  return lockedTx(async (tx: any) => {
+    await lockInvoice(tx, invoiceId); // SAL10-1
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
+    let touched: string[] = [];
+    let delLogs: any[] = [];
+    let removedPayments: string[] = [];
     if (inv) {
       assertBranchAllowed(reqUser, inv.branchId); // SEC2-1
       assertMonthOpen(inv, 'delete');
@@ -1249,8 +1314,10 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       }
       await assertDayOpen(tx, inv.branchId, inv.date, 'delete this bill'); // CASH-2
       // CRM10-1 (nets to ₹0 when a void already took it back).
+      await lockCustomers(tx, [inv.customerId]);
       await takeBackBillCredit(tx, inv, 'delete', reqUser?.name);
-      const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
+      const sold = expandSoldUnits(inv.items as any[]);
+      const ledger = new StockLedger(inv.isVoided ? [] : await lockStockRows(tx, inv.branchId, sold.keys()), inv.branchId);
       // Only restore stock that is still OUT because of this bill. A voided bill
       // already had its stock restored on void, and a returned bill already
       // restored the returned units — restoring the full sold quantity here
@@ -1258,12 +1325,9 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
       // sold − already-returned, AGGREGATED per item (not per line — SAL5-3), and
       // write a history row so the ledger reconciles (INV2-4).
       if (!inv.isVoided) {
-        const items = await tx.item.findMany();
-        const itemById = new Map(items.map((i: any) => [i.id, i]));
-        const sold = expandSoldUnits(inv.items as any[]);
+        const itemById = await itemsByIds(tx, sold.keys());
         const returned = expandReturnedUnits((inv.returns as any[]) || [], inv.items as any[]);
         const ts = nowIso();
-        const delLogs: any[] = [];
         for (const [itemId, soldQty] of sold.entries()) {
           const restore = Math.max(0, Math.round((soldQty - (returned.get(itemId) || 0)) * 100) / 100);
           if (restore <= 0) continue;
@@ -1279,10 +1343,11 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
         }
         await ledger.flush(tx);
         if (delLogs.length) await tx.stockAdjustmentLog.createMany({ data: delLogs });
+        touched = ledger.touchedIds();
       }
       // Drop any return refund booked against this bill before erasing it, so the
       // drawer isn't left short by an 'out' row pointing at a deleted invoice.
-      await purgeReturnRefunds(tx, invoiceId);
+      removedPayments = await purgeReturnRefunds(tx, invoiceId);
       await tx.invoice.delete({ where: { id: invoiceId } });
       if (!inv.isVoided) await reopenSourceQuote(tx, inv);
       // CRM-8: a deleted live bill no longer counts for its customer.
@@ -1302,7 +1367,11 @@ export function deleteInvoice(invoiceId: string, reqUser?: any) {
     }
     // SAL4-9: hand back what was deleted so the audit row can name it.
     const deleted = inv ? { invoiceNumber: inv.invoiceNumber, grandTotal: inv.grandTotal, branchId: inv.branchId, date: inv.date, customerName: inv.customerName, wasVoided: !!inv.isVoided } : null;
-    return { ...(await snapshot(tx)), deleted };
+    const delta = await saleDelta(tx, {
+      invoiceIds: [], customerIds: [inv?.customerId], branchId: inv?.branchId || '', itemIds: touched, logs: delLogs,
+      removedInvoiceIds: inv ? [invoiceId] : [], removedPaymentIds: removedPayments,
+    });
+    return { ...delta, deleted };
   });
 }
 
@@ -1326,11 +1395,13 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
   if (reqUser && reqUser.role !== 'CEO' && reqUser.role !== 'Manager') {
     throw new AppError('FORBIDDEN', 'Only a Manager or CEO can reverse a return.', 403);
   }
-  return serializableTx(async (tx: any) => {
+  return lockedTx(async (tx: any) => {
+    await lockInvoice(tx, invoiceId); // SAL10-1
     const inv = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!inv) throw new AppError('NOT_FOUND', 'Sale not found', 404);
     assertBranchAllowed(reqUser, inv.branchId);
     if (inv.isVoided) throw new AppError('VOIDED', 'This bill is voided — its returns can no longer be reversed.', 409);
+    await lockCustomers(tx, [inv.customerId]);
     const returns: any[] = ((inv.returns as any[]) || []).filter(Boolean);
     const target = returns.find((r) => r.id === returnId);
     if (!target) throw new AppError('RETURN_NOT_FOUND', 'That return is not on this bill.', 404);
@@ -1379,6 +1450,7 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
       }
     }
     let refundReversal: { kind: 'deleted' | 'collected'; amount: number; mode: string; date: string } | null = null;
+    const removedPayments: string[] = [];
     if (refundPaymentId) {
       const pay = await tx.payment.findUnique({ where: { id: refundPaymentId } });
       if (pay) {
@@ -1390,6 +1462,7 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
         if (!refundDayClosed) {
           // The refund was paid today and today is open — take the payout off.
           await tx.payment.delete({ where: { id: pay.id } });
+          removedPayments.push(pay.id);
           refundReversal = { kind: 'deleted', amount: pay.amount, mode: pay.paymentMode, date: pay.date };
         } else {
           // That day is reconciled: the customer hands the refund back today.
@@ -1421,19 +1494,19 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     }
 
     // ---- stock ---------------------------------------------------------------
-    const items = await tx.item.findMany();
-    const itemById = new Map(items.map((i: any) => [i.id, i]));
+    const batchUnits = expandReturnedUnits(batch, inv.items as any[]);
+    const itemById = await itemsByIds(tx, batchUnits.keys());
     // Exactly the units the return put back: a combo return is expanded with the
     // parts the bill sold it with — the same parts processReturn restocked and
     // stored on the return (INV8-2) — so reversing a kit takes back its parts,
     // never the combo id or the browser's idea of the kit.
     const out = new Map<string, number>();
     if (!damaged) {
-      for (const [itemId, qty] of expandReturnedUnits(batch, inv.items as any[]).entries()) {
+      for (const [itemId, qty] of batchUnits.entries()) {
         if (itemById.has(itemId)) out.set(itemId, Math.round(qty * 1000) / 1000);
       }
     }
-    const ledger = new StockLedger(await tx.branchStock.findMany(), inv.branchId);
+    const ledger = new StockLedger(await lockStockRows(tx, inv.branchId, out.keys()), inv.branchId);
     const logs: any[] = [];
     for (const [itemId, qty] of out.entries()) {
       const ci: any = itemById.get(itemId);
@@ -1467,6 +1540,7 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
       stockOut: [...out.values()].reduce((t, q) => t + q, 0),
       refund: refundReversal, creditTakenBack: creditIssued > 0.001 ? creditIssued : 0,
     };
-    return { ...(await snapshot(tx)), reversed };
+    const delta = await saleDelta(tx, { invoiceIds: [invoiceId], customerIds: [inv.customerId], branchId: inv.branchId, itemIds: ledger.touchedIds(), logs, removedPaymentIds: removedPayments });
+    return { ...delta, reversed };
   });
 }

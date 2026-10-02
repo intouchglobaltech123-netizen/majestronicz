@@ -10,8 +10,13 @@ const clients = new Set<Response>();
 /** SEC9-1: whose stream each one is, so signing out can close it. */
 const owners = new Map<Response, string>();
 
-export function broadcastChange(reason = 'mutation') {
-  const payload = `data: ${JSON.stringify({ type: 'data-changed', reason, at: Date.now() })}\n\n`;
+/**
+ * SAL10-1: `changes` names the rows a write changed (ids per collection) so a
+ * client fetches just those rows (GET /api/sync) instead of the whole bootstrap.
+ * An event without it means "something else changed" — the client reloads.
+ */
+export function broadcastChange(reason = 'mutation', changes?: Record<string, unknown>) {
+  const payload = `data: ${JSON.stringify({ type: 'data-changed', reason, at: Date.now(), ...(changes ? { changes } : {}) })}\n\n`;
   for (const res of clients) {
     try {
       res.write(payload);
