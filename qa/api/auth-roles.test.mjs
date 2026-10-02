@@ -309,3 +309,34 @@ describe('auth & roles', () => {
     assert.equal(taken.body.message, same.body.message, 'taken and own-PIN refusals read the same');
   });
 });
+
+describe('write replies are branch-scoped', () => {
+  const onlyBranch = (rows, branch, what) => {
+    assert.ok(Array.isArray(rows), `${what} is a list`);
+    const other = rows.filter((r) => r.branchId && r.branchId !== branch);
+    assert.equal(other.length, 0, `${what}: ${other.length} rows of other branches leaked`);
+  };
+
+  test('SNAP-1 a sale by Billing answers with only its own branch bills and stock history', async () => {
+    // Other branches have bills and stock history.
+    const item = await createItem({ stock: { 'erode-hq': 5, coimbatore: 5 } });
+    await mustSell(saleBody({ branchId: 'coimbatore', date: await freshDay('coimbatore'), lines: [line(item, 1)] }));
+    const reply = (await sell(saleBody({ date: await freshDay('erode-hq'), lines: [line(item, 1)] }), 'Billing')).res;
+    const body = ok(reply, 'Billing sale');
+    onlyBranch(body.invoices, 'erode-hq', 'invoices');
+    onlyBranch(body.stockAdjustmentLogs, 'erode-hq', 'stock history');
+    assert.ok(body.invoices.length > 0 && body.stockAdjustmentLogs.length > 0, 'own rows are still there');
+  });
+
+  test('SNAP-1 a Manager stock action and stock history reads carry only their branch', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 5, coimbatore: 5 } });
+    ok(await post('/api/stock/transfer', { itemId: item.id, fromBranch: 'erode-hq', toBranch: 'chennai', quantity: 1 }), 'CEO transfer elsewhere');
+    const body = ok(await post('/api/stock/adjust', { itemId: item.id, branchId: 'coimbatore', quantityChange: 1, reason: 'Found' }, 'Manager'));
+    onlyBranch(body.stockAdjustmentLogs, 'coimbatore', 'adjust reply stock history');
+    onlyBranch(body.challans, 'coimbatore', 'adjust reply challans');
+    assert.ok(body.stockTransfers.every((t) => t.fromBranch === 'coimbatore' || t.toBranch === 'coimbatore'), 'only transfers into or out of Coimbatore');
+    onlyBranch(ok(await get('/api/stock-adjustments', 'Manager')), 'coimbatore', 'GET stock history');
+    const boot = ok(await get('/api/bootstrap', 'Manager'));
+    for (const k of ['invoices', 'payments', 'attendanceRecords', 'stockAdjustmentLogs', 'purchaseOrders', 'cashRegisters']) onlyBranch(boot[k], 'coimbatore', `bootstrap ${k}`);
+  });
+});

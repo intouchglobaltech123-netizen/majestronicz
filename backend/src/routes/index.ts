@@ -56,6 +56,18 @@ const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` 
 
 const router = Router();
 
+// Every reply to a branch-locked user is scoped to their branch the same way the
+// bootstrap is: write endpoints answer with a snapshot of whole tables (bills,
+// stock history, payments, payroll…), and those must not carry other branches'
+// rows. Only object replies are touched; known collection keys are filtered.
+router.use((req, res, next) => {
+  const user = (req as any).user;
+  if (!user || user.role === 'CEO' || !user.assignedBranchId) return next();
+  const json = res.json.bind(res);
+  res.json = ((body: any) => json(system.scopePayload(body, user))) as any;
+  next();
+});
+
 // ---- Auth: verify PIN → signed token (open, but brute-force protected) ----
 // In-memory failed-attempt tracker per client IP: lock out after 5 wrong PINs.
 const MAX_FAILS = 5;
@@ -332,16 +344,14 @@ router.get('/cash-registers', requireCapability('cash:write'), asyncHandler(asyn
   res.json(branch ? rows.filter((r) => r.branchId == null || String(r.branchId) === branch) : rows);
 }));
 // INV7-2: the Stock Audit Trail and Transfer History are readable by Billing and
-// Purchase too (they have the menu), scoped to their own branch's movements and
-// the transfers into or out of it. Stock-writing roles keep the full lists.
+// Purchase too (they have the menu). Every branch-locked user (a Manager too)
+// gets their own branch's movements and the transfers into or out of it, the
+// same as their bootstrap; the CEO gets the full lists.
 const stockHistoryRead = (key: 'stockAdjustmentLogs' | 'stockTransfers') =>
   asyncHandler(async (req, res) => {
     const user = (req as any).user;
     if (!user) throw new AppError('UNAUTHENTICATED', 'Login required', 401);
-    if (roleCan(user.role, 'stock:write')) {
-      return res.json(key === 'stockAdjustmentLogs' ? await prisma.stockAdjustmentLog.findMany() : await prisma.stockTransfer.findMany());
-    }
-    if (!roleCan(user.role, 'sales:write') && !roleCan(user.role, 'purchase:write')) {
+    if (!roleCan(user.role, 'stock:write') && !roleCan(user.role, 'sales:write') && !roleCan(user.role, 'purchase:write')) {
       throw new AppError('FORBIDDEN', `Role ${user.role} is not permitted to perform this action`, 403);
     }
     res.json((await system.branchStockHistory(user))[key]);
@@ -372,6 +382,9 @@ router.delete('/vendors/:id', requireCapability('purchase:write'), asyncHandler(
 }));
 router.delete('/employees/:id', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
   const id = req.params.id;
+  // A branch-locked Manager removes only their own branch's staff.
+  const emp = await prisma.employee.findUnique({ where: { id }, select: { branchId: true } });
+  assertBranchAllowed((req as any).user, emp?.branchId ?? null);
   const linkedUser = await prisma.user.findFirst({ where: { employeeId: id, status: 'active' } });
   if (linkedUser) throw new AppError('EMPLOYEE_HAS_LOGIN', 'This employee has an active app login. Remove the login first.', 409);
   await prisma.employee.deleteMany({ where: { id } });

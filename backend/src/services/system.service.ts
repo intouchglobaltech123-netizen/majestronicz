@@ -57,7 +57,7 @@ async function itemSales90d(): Promise<Record<string, Record<string, number>>> {
  * Stock Audit Trail and Transfer History screens were empty for them).
  */
 export async function branchStockHistory(user: SessionUser) {
-  const branch = user.assignedBranchId || null;
+  const branch = user.role === 'CEO' ? null : user.assignedBranchId || null;
   const [stockAdjustmentLogs, stockTransfers] = await Promise.all([
     prisma.stockAdjustmentLog.findMany(branch ? { where: { branchId: branch } } : undefined),
     prisma.stockTransfer.findMany(branch ? { where: { OR: [{ fromBranch: branch }, { toBranch: branch }] } } : undefined),
@@ -66,46 +66,50 @@ export async function branchStockHistory(user: SessionUser) {
 }
 
 /**
- * Restrict a bootstrap payload to a non-CEO user's own branch, and strip
- * salary/PIN from employees (SEC2-1 reads + SEC2-2). CEO is cross-branch and
- * sees everything. Stock rows/transfers are left unfiltered so branch transfers
- * still work; the sensitive leaks (other branches' invoices/cash/payments and
- * every employee's salary & PIN) are closed.
+ * Restrict a payload to a non-CEO user's own branch, and strip salary/PIN from
+ * employees (SEC2-1 reads + SEC2-2). CEO is cross-branch and sees everything.
+ * Used for the bootstrap AND for every write reply (the snapshot each service
+ * returns), so a sale, a payment or a payroll action never hands a
+ * branch-locked user other branches' bills, cash, payments, staff, payroll,
+ * POs or stock history. Only the collections present in `data` are touched;
+ * filtering is idempotent. Stock rows (quantities) and the cross-branch masters
+ * (items, combos, customers, vendors) stay whole; stock history keeps the
+ * branch's own movements and transfers are the ones into or out of it.
  */
-function scopeBootstrap(data: any, user: SessionUser) {
+export function scopePayload(data: any, user: SessionUser | null | undefined) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !user) return data;
   // The login/kiosk PIN is NEVER sent to any client (SEC2-2) — the kiosk verifies
   // it on the server now. Strip it for every role, including CEO.
   const stripPin = (arr: any) =>
-    Array.isArray(arr) ? arr.map((e: any) => { const { pin, ...rest } = e; return rest; }) : arr;
+    Array.isArray(arr) ? arr.map((e: any) => { const { pin, ...rest } = e || {}; return rest; }) : arr;
 
-  if (user.role === 'CEO') return { ...data, employees: stripPin(data.employees) };
+  if (user.role === 'CEO') return Array.isArray(data.employees) ? { ...data, employees: stripPin(data.employees) } : data;
   const branch = user.assignedBranchId;
   const byBranch = (arr: any) =>
     branch && Array.isArray(arr) ? arr.filter((r: any) => !r?.branchId || r.branchId === branch) : arr;
-  const employees = Array.isArray(data.employees)
-    ? data.employees
-        .filter((e: any) => !branch || e.branchId === branch)
-        .map((e: any) => {
-          // Hide salary/incentive from non-CEO, and never expose the PIN.
-          const { monthlySalary, incentivePercent, pin, ...safe } = e;
-          return safe;
-        })
-    : data.employees;
-  return {
-    ...data,
-    invoices: byBranch(data.invoices),
-    estimates: byBranch(data.estimates),
-    challans: byBranch(data.challans),
-    enquiries: byBranch(data.enquiries),
-    pendingOrders: byBranch(data.pendingOrders),
-    reminders: byBranch(data.reminders),
-    cashRegisters: byBranch(data.cashRegisters),
-    recurringExpenses: byBranch(data.recurringExpenses),
-    purchaseOrders: byBranch(data.purchaseOrders),
-    payments: Array.isArray(data.payments) ? maskStaffPayments(byBranch(data.payments), user) : data.payments,
-    employees,
-  };
+  const out: any = { ...data };
+  for (const key of [
+    'invoices', 'estimates', 'challans', 'enquiries', 'pendingOrders', 'reminders', 'cashRegisters',
+    'recurringExpenses', 'purchaseOrders', 'attendanceRecords', 'payrollRecords', 'stockAdjustmentLogs',
+  ]) {
+    if (key in out) out[key] = byBranch(out[key]);
+  }
+  if (branch && Array.isArray(out.stockTransfers)) {
+    out.stockTransfers = out.stockTransfers.filter((t: any) => t?.fromBranch === branch || t?.toBranch === branch);
+  }
+  if (Array.isArray(out.payments)) out.payments = maskStaffPayments(byBranch(out.payments), user);
+  if (Array.isArray(out.employees)) {
+    out.employees = out.employees
+      .filter((e: any) => !branch || e?.branchId === branch)
+      .map((e: any) => {
+        // Hide salary/incentive from non-CEO, and never expose the PIN.
+        const { monthlySalary, incentivePercent, pin, ...safe } = e || {};
+        return safe;
+      });
+  }
+  return out;
 }
+const scopeBootstrap = scopePayload;
 
 /** Scoped ERP state payload matching role authorization. */
 export async function getBootstrap(user?: SessionUser | null) {
