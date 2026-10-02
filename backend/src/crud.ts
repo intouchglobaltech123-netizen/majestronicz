@@ -89,9 +89,10 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
     '/:id',
     wrap(async (req) => {
       const row = await delegate.findUnique({ where: { id: req.params.id } });
-      if (!row) return { error: 'Not found' };
+      // ERR-1: an unknown id is a 404, not a 200 carrying {"error"}.
+      if (!row) throw new AppError('NOT_FOUND', 'Not found', 404);
       // Don't leak another branch's record by direct id either (SEC2-3).
-      if (branchScoped && !inBranch(row, branchLock((req as any).user))) return { error: 'Not found' };
+      if (branchScoped && !inBranch(row, branchLock((req as any).user))) throw new AppError('NOT_FOUND', 'Not found', 404);
       return toClient(row);
     })
   );

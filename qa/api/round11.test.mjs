@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   post, get, put, ok, expectStatus, near, createItem, line, saleBody, mustSell, getInvoice, resave,
-  freshDay, thisMonthDay, randomPhone, sql, returnLine,
+  freshDay, thisMonthDay, randomPhone, sql, returnLine, createPO, getPO, stockOf, together,
 } from './lib.mjs';
 
 async function newEmployee(branchId, extra = {}) {
@@ -101,6 +101,27 @@ describe('round 11: staff, purchases and stock', () => {
     const stored = ok(await get('/api/employees')).find((e) => e.id === emp.id);
     assert.equal(stored.status, 'Active');
     ok(await post('/api/employees', { ...base, phone: '98421 01122', email: 'qa@example.com', joinedDate: '2026-01-05' }, 'Manager'), 'valid values save');
+  });
+
+  test('FIN-B-10 salary for a month that has not started cannot be paid', async () => {
+    const emp = await newEmployee('erode-hq');
+    const [y, m] = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7).split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    const record = { employeeId: emp.id, month: next, monthlySalary: 15000, computedPay: 15000, finalPayable: 15000, standardHoursPerMonth: 208, hourlyRate: 72.12 };
+    const res = await post('/api/hrm/payroll-paid', { payrollId: `calc-${emp.id}-${next}`, paymentMode: 'Cash', record });
+    expectStatus(res, 400);
+    assert.equal(res.body.error, 'FUTURE_MONTH');
+  });
+
+  test('FIN-B-8 a supplier payment stores the supplier\'s own name; FIN-B-9 a new supplier needs a contact number', async () => {
+    const v = ok(await post('/api/vendors', { vendorName: `QA Vendor ${Date.now()}`, contactNo: randomPhone(), address: 'QA' })).vendor;
+    const pay = ok(await post('/api/payments', { type: 'out', partyType: 'vendor', partyId: v.id, partyName: 'Someone Else', branchId: 'erode-hq', date: await thisMonthDay(), amount: 10, paymentMode: 'Cash' }));
+    assert.equal(pay.partyName, v.vendorName);
+    for (const contactNo of ['', '123']) {
+      const res = await post('/api/vendors', { vendorName: `QA Bare ${Date.now()}${contactNo}`, contactNo, address: '' });
+      expectStatus(res, 400, `contact "${contactNo}"`);
+      assert.equal(res.body.error, 'BAD_PHONE');
+    }
   });
 });
 
@@ -218,5 +239,47 @@ describe('round 11: enquiries', () => {
     assert.equal(after.notes, 'QA edited');
     assert.equal(after.status, saved.status);
     assert.equal(after.createdAt, saved.createdAt);
+  });
+});
+
+describe('round 11: purchases', async () => {
+  const { importTs } = await import('./lib-ts.mjs');
+  const retry = await importTs('backend/src/lib/retry.ts');
+
+  test('FIN-B-3 PO receipts at the same time as sales all land (a timed-out try is retried)', async () => {
+    assert.equal(retry.isRetryableTxError({ code: 'P2028', message: 'Transaction already closed: timeout' }), true);
+    const items = [await createItem({ stock: { 'erode-hq': 100 } }), await createItem({ stock: { 'erode-hq': 100 } }), await createItem({ stock: { 'erode-hq': 100 } })];
+    const pos = [];
+    for (let i = 0; i < 6; i++) pos.push(await createPO(items.map((item) => ({ item, qty: 5, price: 100, tax: 18 }))));
+    const date = await thisMonthDay();
+    const res = await Promise.all([
+      ...pos.map((po, i) => post('/api/purchase/receive', { poId: po.id, receipts: (i % 2 ? items : [...items].reverse()).map((it) => ({ itemId: it.id, quantityReceived: 5, taxPercent: 18 })), actor: 'QA' }, i % 2 ? 'CEO' : 'Purchase')),
+      ...[0, 1, 2, 3].map((i) => post('/api/tx/sale', saleBody({ date, lines: (i % 2 ? items : [...items].reverse()).map((it) => line(it, 1)) }), 'Billing')),
+    ]);
+    assert.deepEqual(res.map((r) => r.status), res.map(() => 200), JSON.stringify(res.filter((r) => r.status !== 200).map((r) => r.body)).slice(0, 300));
+    for (const it of items) assert.equal(await stockOf(it.id, 'erode-hq'), 100 + 30 - 4);
+  });
+
+  test('FIN-B-5 a PO line GST must be a real slab; a PO of only 0% lines takes no GST on its bill', async () => {
+    const item = await createItem({ price: 300, purchasePrice: 100, stock: {} });
+    const v = (await get('/api/vendors')).body[0];
+    const po = (tax) => ({ vendorId: v.id, vendorName: v.vendorName, branchId: 'erode-hq', date: '2026-09-15', expectedDeliveryDate: '2026-09-30', totalAmount: 0, notes: 'QA',
+      items: [{ itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, quantityOrdered: 10, receivedQuantity: 0, purchasePrice: 100, taxPercent: tax }] });
+    const bad = await post('/api/purchase/save', { po: po(7), actor: 'QA' });
+    expectStatus(bad, 400, '7% GST');
+    assert.equal(bad.body.error, 'BAD_TAX');
+    const zero = ok(await post('/api/purchase/save', { po: po(0), actor: 'QA' }), '0% PO').saved;
+    const res = await post('/api/purchase/bill', { poId: zero.id, bill: { number: `B0-${Date.now()}`, date: '2026-09-16', taxable: 1000, gst: 180 } });
+    expectStatus(res, 400, 'GST on a 0% PO');
+    ok(await post('/api/purchase/bill', { poId: zero.id, bill: { number: `B0-${Date.now()}x`, date: '2026-09-16', taxable: 1000, gst: 0 } }), 'no GST');
+  });
+});
+
+describe('round 11: errors', () => {
+  test('ERR-1 a generic GET of an unknown id is a 404', async () => {
+    for (const p of ['/api/invoices/inv-nope', '/api/payroll-records/pay-nope', '/api/purchase-orders/po-nope']) {
+      const res = await get(p);
+      expectStatus(res, 404, p);
+    }
   });
 });
