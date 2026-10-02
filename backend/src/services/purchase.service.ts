@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { istToday } from '../lib/businessDate.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isValidTaxPercent, taxAmountFor } from '../lib/tax.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
@@ -321,7 +322,7 @@ export function receivePurchaseOrderStock(
     });
     const receivingEvent = {
       id: `rec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: ts.split('T')[0], timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
+      date: istToday(), timestamp: ts, receivedBy: actor, notes: notes?.trim() || undefined, lines: eventLines,
     };
 
     // Damaged (defective) AND missing (short-shipped) units are both billed back
@@ -346,7 +347,7 @@ export function receivePurchaseOrderStock(
       const newNote = {
         id: `dn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         noteNumber: `${po.poNumber}-DN${existingNotes.length + 1}`,
-        date: ts.split('T')[0], createdBy: actor, lines: dnLines,
+        date: istToday(), createdBy: actor, lines: dnLines,
         totalAmount: Math.round(dnTotal * 100) / 100, notes: notes?.trim() || undefined,
       };
       debitNotes = [newNote, ...existingNotes];
@@ -365,7 +366,7 @@ export function receivePurchaseOrderStock(
 
     // Optional vendor payment recorded at the moment of receiving — CAPPED at what
     // is still owed so "pay now" can't exceed the PO's value (PUR2-9).
-    const today = ts.split('T')[0];
+    const today = istToday(); // the IST cash day, not the UTC date (CASH7-11 / PUR7-5)
     const debitTotalNow = (debitNotes as any[]).reduce((s, dn) => s + (dn.totalAmount || 0), 0);
     const owedCap = Math.max(0, Math.round(((newTotalAmount + newTotalTax + newOtherCharges) - debitTotalNow - (po.amountPaid || 0)) * 100) / 100);
     const payNow = Math.min(Math.max(0, Number(payment?.amount) || 0), owedCap);
@@ -546,7 +547,7 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     if (remaining <= 0) throw new AppError('ALREADY_PAID', 'This purchase order is already fully paid.', 400);
     if (pay > remaining) throw new AppError('OVERPAYMENT', `Payment of ₹${pay} exceeds the remaining balance of ₹${remaining.toLocaleString('en-IN')}.`, 400);
     const ts = nowIso();
-    const today = ts.split('T')[0];
+    const today = istToday(); // the IST cash day, not the UTC date (CASH7-11 / PUR7-5)
     // A vendor payment hits the drawer of the PO's branch today — if that day is
     // already closed, it would change a reconciled day (the Parties screen already
     // refuses this; the PO page must too). (CASH-2)
@@ -568,7 +569,7 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     // cash drawer / Payments Log (CASH3-5). The PO page and To Pay previously only
     // wrote the PO-embedded entry, which the drawer never sees, so vendor cash
     // paid there never left the drawer. Booked against the PO's branch.
-    const like = `PAY-${ts.slice(0, 7).replace('-', '')}-`;
+    const like = `PAY-${today.slice(0, 7).replace('-', '')}-`;
     const existingRows = await tx.payment.findMany({ where: { receiptNumber: { startsWith: like }, type: 'out' }, select: { receiptNumber: true } });
     let maxNo = 0;
     for (const r of existingRows) {

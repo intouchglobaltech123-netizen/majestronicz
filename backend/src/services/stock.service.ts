@@ -1,4 +1,5 @@
 import { AppError } from '../middleware/errorHandler.js';
+import { istToday, istTime } from '../lib/businessDate.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { branchName, branchLocation, isValidBranch } from '../lib/constants.js';
 import { serializableTx } from '../lib/tx.js';
@@ -82,8 +83,9 @@ export function transferStockBatch(
     }
 
     const transferRef = `TRF-${Date.now().toString(36).toUpperCase()}`;
-    const todayStr = ts.split('T')[0];
-    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    // Challan date/time in IST — the server clock is UTC (E2E8-10).
+    const todayStr = istToday();
+    const timeStr = istTime();
     let generatedChallanNo: string | undefined;
 
     if (autoGenerateChallan) {
@@ -261,8 +263,9 @@ export function transferStock(
       update: { quantity: Math.max(0, fromPrevQty - quantity), updatedAt: ts },
     });
 
-    const todayStr = ts.split('T')[0];
-    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    // Challan date/time in IST — the server clock is UTC (E2E8-10).
+    const todayStr = istToday();
+    const timeStr = istTime();
     let generatedChallanNo: string | undefined;
 
     if (autoGenerateChallan) {
