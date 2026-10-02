@@ -40,6 +40,9 @@ export const addAttachment = async (req: Request, res: Response) => {
   const { poId, attachment } = req.body;
   res.json(await purchase.addAttachment(poId, attachment, actorOf(req), (req as any).user));
 };
+export const getAttachment = async (req: Request, res: Response) => {
+  res.json(await purchase.getAttachment(req.params.poId, req.params.attachmentId, (req as any).user));
+};
 export const deleteAttachment = async (req: Request, res: Response) => {
   const { poId, attachmentId } = req.body;
   res.json(await purchase.deleteAttachment(poId, attachmentId, (req as any).user));

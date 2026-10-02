@@ -11,5 +11,7 @@ router.post('/payment', asyncHandler(ctrl.recordPayment));
 router.post('/bill', asyncHandler(ctrl.recordBill));
 router.post('/bill/delete', asyncHandler(ctrl.deleteBill));
 router.post('/attachment', asyncHandler(ctrl.addAttachment));
+// PUR2-12: a file body on demand (the PO list carries only the file list).
+router.get('/attachment/:poId/:attachmentId', asyncHandler(ctrl.getAttachment));
 router.post('/attachment/delete', asyncHandler(ctrl.deleteAttachment));
 export default router;

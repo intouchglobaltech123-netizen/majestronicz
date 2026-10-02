@@ -586,3 +586,21 @@ model CourierPartner {
   createdAt       String
   updatedAt       String
 }
+
+// PUR2-12: a supplier-bill file attached to a purchase order. Kept OUT of the PO
+// row (whose `attachments` JSON keeps only the list: id, name, type, size), so
+// the PO list and the bootstrap never carry file bodies; a file is fetched on
+// demand. Older POs may still hold `dataUrl` inside their JSON list — those are
+// stripped from list payloads and served by the same endpoint.
+model PoAttachment {
+  id         String @id
+  poId       String
+  name       String
+  mimeType   String
+  bytes      Int
+  dataUrl    String
+  uploadedAt String
+  uploadedBy String?
+
+  @@index([poId])
+}

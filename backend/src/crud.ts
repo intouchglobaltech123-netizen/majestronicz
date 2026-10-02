@@ -26,7 +26,7 @@ const branchLock = (user: any): string | null =>
 const inBranch = (row: any, branch: string | null): boolean =>
   !branch || row == null || row.branchId == null || String(row.branchId) === branch;
 
-export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability, readCap?: Capability, branchScoped?: boolean): Router {
+export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capability, readCap?: Capability, branchScoped?: boolean, toClient: (row: any) => any = (r) => r): Router {
   const router = Router();
 
   // Enforce RBAC on both read and mutating requests
@@ -70,10 +70,10 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
   router.get(
     '/',
     wrap(async (req) => {
-      const rows = await delegate.findMany();
+      const rows = ((await delegate.findMany()) as any[]).map(toClient);
       if (!branchScoped) return rows;
       const branch = branchLock((req as any).user);
-      return branch ? (rows as any[]).filter((r) => inBranch(r, branch)) : rows;
+      return branch ? rows.filter((r) => inBranch(r, branch)) : rows;
     })
   );
 
@@ -92,7 +92,7 @@ export function crudRouter(delegate: any, prismaClient?: any, writeCap?: Capabil
       if (!row) return { error: 'Not found' };
       // Don't leak another branch's record by direct id either (SEC2-3).
       if (branchScoped && !inBranch(row, branchLock((req as any).user))) return { error: 'Not found' };
-      return row;
+      return toClient(row);
     })
   );
 

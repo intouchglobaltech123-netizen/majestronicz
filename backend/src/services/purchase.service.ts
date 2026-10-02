@@ -11,8 +11,19 @@ import { allowsFractionalQty } from '../lib/units.js';
 import { archivedItemError } from '../lib/lineValidation.js';
 import { lineSettled, lineGoodValue, poPayCap, supplierBillsOf, billNumberKey, SupplierBill } from '../lib/poMoney.js';
 
+/**
+ * PUR2-12: a PO as sent to screens — the attachment LIST only, never a file
+ * body. Older POs stored each file's base64 `dataUrl` inside the row; it is
+ * left in the database but dropped here (fetched on demand instead).
+ */
+export function stripAttachmentBodies<T = any>(po: T): T {
+  const atts = (po as any)?.attachments;
+  if (!Array.isArray(atts) || !atts.some((a: any) => a && 'dataUrl' in a)) return po;
+  return { ...(po as any), attachments: atts.map((a: any) => { const { dataUrl, ...meta } = a || {}; return meta; }) };
+}
+
 const poSnapshot = async (tx: any) => ({
-  purchaseOrders: await tx.purchaseOrder.findMany(),
+  purchaseOrders: (await tx.purchaseOrder.findMany()).map(stripAttachmentBodies),
   pendingOrders: await tx.pendingOrder.findMany(),
   branchStocks: await tx.branchStock.findMany(),
 });
@@ -204,7 +215,7 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
         },
       });
     }
-    return { ...(await poSnapshot(tx)), saved };
+    return { ...(await poSnapshot(tx)), saved: stripAttachmentBodies(saved) };
   });
 }
 
@@ -574,32 +585,80 @@ export function receivePurchaseOrderStock(
 
 /** Largest supplier-bill attachment accepted (decoded bytes). */
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+/** PUR2-12: all files on one PO together. */
+const MAX_PO_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/** PUR-12: what the file really is, from its first bytes — the browser's
+ *  claimed type is not trusted (an .exe sent as "application/pdf"). */
+function sniffMime(buf: Buffer): string | null {
+  if (buf.length >= 5 && buf.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf.length >= 12 && buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  if (buf.length >= 6 && /^GIF8[79]a$/.test(buf.subarray(0, 6).toString('latin1'))) return 'image/gif';
+  return null;
+}
+
+/** Decoded size of the files already on a PO (new table + older in-row files). */
+async function poAttachmentBytes(tx: any, po: any): Promise<number> {
+  const rows = await tx.poAttachment.findMany({ where: { poId: po.id }, select: { bytes: true } });
+  let total = rows.reduce((t: number, r: any) => t + (Number(r.bytes) || 0), 0);
+  for (const a of (po.attachments as any[]) || []) {
+    const b64 = String(a?.dataUrl || '').split(',')[1] || '';
+    total += Math.floor((b64.replace(/\s/g, '').length * 3) / 4);
+  }
+  return total;
+}
 
 export function addAttachment(poId: string, attachmentData: any, actor: string, reqUser?: any) {
+  // PUR2-12: only an image or a PDF, as a base64 data URL, up to 5 MB — a 15 MB
+  // .exe used to be stored inside the PO row and sent with every response.
+  const dataUrl = String(attachmentData?.dataUrl || '').trim();
+  const m = /^data:(image\/(?:png|jpe?g|webp|gif)|application\/pdf);base64,([A-Za-z0-9+/=\s]*)$/i.exec(dataUrl);
+  if (!m) throw new AppError('BAD_ATTACHMENT', 'Only an image (JPG, PNG, WEBP, GIF) or a PDF can be attached.', 400);
+  const body = Buffer.from(m[2].replace(/\s/g, ''), 'base64');
+  const bytes = body.length;
+  if (bytes > MAX_ATTACHMENT_BYTES) throw new AppError('ATTACHMENT_TOO_LARGE', 'The file is larger than 5 MB.', 413);
+  if (bytes === 0) throw new AppError('BAD_ATTACHMENT', 'The file is empty.', 400);
+  // PUR-12: the bytes must really be the claimed kind of file.
+  const claimed = m[1].toLowerCase().replace('image/jpg', 'image/jpeg');
+  const actual = sniffMime(body);
+  if (!actual || actual !== claimed) {
+    throw new AppError('BAD_ATTACHMENT', `This file is not a real ${claimed === 'application/pdf' ? 'PDF' : claimed.replace('image/', '').toUpperCase() + ' image'}. Only PDF, PNG, JPEG, WEBP or GIF files can be attached.`, 400);
+  }
+  const fileType = actual === 'application/pdf' ? 'pdf' : 'image';
   return prisma.$transaction(async (tx: any) => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
-    // PUR2-12: only an image or a PDF, as a base64 data URL, up to 5 MB — a 15 MB
-    // .exe used to be stored inside the PO row and sent with every response.
-    const dataUrl = String(attachmentData?.dataUrl || '').trim();
-    const m = /^data:(image\/(?:png|jpe?g|webp|gif)|application\/pdf);base64,([A-Za-z0-9+/=\s]*)$/i.exec(dataUrl);
-    if (!m) throw new AppError('BAD_ATTACHMENT', 'Only an image (JPG, PNG, WEBP, GIF) or a PDF can be attached.', 400);
-    const bytes = Math.floor((m[2].replace(/\s/g, '').length * 3) / 4);
-    if (bytes > MAX_ATTACHMENT_BYTES) throw new AppError('ATTACHMENT_TOO_LARGE', 'The file is larger than 5 MB.', 413);
-    if (bytes === 0) throw new AppError('BAD_ATTACHMENT', 'The file is empty.', 400);
-    const fileType = /^application\/pdf$/i.test(m[1]) ? 'pdf' : 'image';
+    if ((await poAttachmentBytes(tx, po)) + bytes > MAX_PO_ATTACHMENT_BYTES) {
+      throw new AppError('ATTACHMENT_TOO_LARGE', 'This purchase order already holds close to 10 MB of files. Remove a file before adding another.', 413);
+    }
     const name = String(attachmentData?.name || (fileType === 'pdf' ? 'bill.pdf' : 'bill.jpg')).trim().slice(0, 200);
-    const newAttachment = {
-      name, fileType, fileSize: `${Math.max(1, Math.round(bytes / 1024))} KB`, dataUrl,
-      id: rid('po-att'), uploadedAt: nowIso(), uploadedBy: actor,
-    };
+    const id = rid('po-att');
+    const uploadedAt = nowIso();
+    await tx.poAttachment.create({ data: { id, poId: po.id, name, mimeType: actual, bytes, dataUrl: `data:${actual};base64,${body.toString('base64')}`, uploadedAt, uploadedBy: actor || null } });
+    // The PO row keeps only the list entry (no file body).
+    const meta = { id, name, fileType, mimeType: actual, fileSize: `${Math.max(1, Math.round(bytes / 1024))} KB`, uploadedAt, uploadedBy: actor };
     await tx.purchaseOrder.update({
       where: { id: poId },
-      data: { attachments: [newAttachment, ...((po.attachments as any[]) || [])], updatedAt: nowIso() },
+      data: { attachments: [meta, ...((po.attachments as any[]) || [])], updatedAt: uploadedAt },
     });
     return poSnapshot(tx);
-  });
+  }, { timeout: 20_000 });
+}
+
+/** PUR2-12: one attached file's body, fetched on demand by the viewer. */
+export async function getAttachment(poId: string, attachmentId: string, reqUser?: any) {
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: String(poId || '') } });
+  if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
+  assertBranchAllowed(reqUser, po.branchId);
+  const meta = ((po.attachments as any[]) || []).find((a: any) => a?.id === attachmentId);
+  if (!meta) throw new AppError('NOT_FOUND', 'That file is not on this purchase order.', 404);
+  const row = await prisma.poAttachment.findFirst({ where: { id: String(attachmentId), poId: po.id } });
+  const dataUrl = row?.dataUrl || meta.dataUrl;
+  if (!dataUrl) throw new AppError('NOT_FOUND', 'The file could not be found.', 404);
+  return { id: meta.id, name: meta.name, fileType: meta.fileType, mimeType: row?.mimeType || meta.mimeType || null, dataUrl };
 }
 
 export function deleteAttachment(poId: string, attachmentId: string, reqUser?: any) {
@@ -607,6 +666,7 @@ export function deleteAttachment(poId: string, attachmentId: string, reqUser?: a
     const po = await tx.purchaseOrder.findUnique({ where: { id: poId } });
     if (!po) throw new AppError('NOT_FOUND', 'Purchase order not found', 404);
     assertBranchAllowed(reqUser, po.branchId); // SEC2-1
+    await tx.poAttachment.deleteMany({ where: { id: String(attachmentId || ''), poId: po.id } });
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {

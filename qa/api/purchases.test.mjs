@@ -492,3 +492,62 @@ describe('PO GST per line', () => {
     assert.deepEqual(po.items.map((l) => l.taxPercent), [18, 5]);
   });
 });
+
+describe('round 9: purchases', () => {
+  const b64 = (buf) => Buffer.from(buf).toString('base64');
+  const PNG = b64([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+
+  test('PUR-12 a file must really be the type it claims (magic bytes)', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 1, price: 100 }]);
+    const att = (dataUrl, name = 'x') => post('/api/purchase/attachment', { poId: po.id, attachment: { name, dataUrl }, actor: 'QA' });
+    expectStatus(await att(`data:application/pdf;base64,${b64('MZ\x90\x00 exe body')}`, 'evil.pdf'), 400, 'exe sent as PDF');
+    expectStatus(await att(`data:image/png;base64,${b64('<html><script>alert(1)</script></html>')}`, 'x.png'), 400, 'html sent as PNG');
+    expectStatus(await att(`data:image/jpeg;base64,${PNG}`, 'x.jpg'), 400, 'PNG claimed as JPEG');
+    ok(await att(`data:image/png;base64,${PNG}`, 'ok.png'), 'real PNG');
+    ok(await att(`data:image/jpeg;base64,${b64([0xff, 0xd8, 0xff, 0xe0, 0, 0x10])}`, 'ok.jpg'), 'real JPEG');
+    ok(await att(`data:image/webp;base64,${b64('RIFF\x00\x00\x00\x00WEBPVP8 ')}`, 'ok.webp'), 'real WEBP');
+  });
+
+  test('PUR2-12 file bodies stay out of the PO list and bootstrap; fetched on demand; 10 MB per PO', async () => {
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 1, price: 100 }]);
+    const pdf = `data:application/pdf;base64,${b64(Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(4 * 1024 * 1024, 65)]))}`;
+    const att = (name) => post('/api/purchase/attachment', { poId: po.id, attachment: { name, dataUrl: pdf }, actor: 'QA' });
+    const r1 = ok(await att('a.pdf'), 'first 4 MB');
+    assert.ok(!JSON.stringify(r1).includes('base64'), 'no file body in the reply');
+    ok(await att('b.pdf'), 'second 4 MB');
+    expectStatus(await att('c.pdf'), 413, 'third would pass 10 MB on the PO');
+    const listed = await getPO(po.id);
+    assert.equal(listed.attachments.length, 2);
+    assert.ok(listed.attachments.every((a) => !a.dataUrl), 'list carries no dataUrl');
+    const boot = ok(await get('/api/bootstrap'));
+    assert.ok(!JSON.stringify(boot.purchaseOrders.find((p) => p.id === po.id)).includes('base64'), 'bootstrap carries no body');
+    const body = ok(await get(`/api/purchase/attachment/${po.id}/${listed.attachments[0].id}`), 'fetch body');
+    assert.ok(body.dataUrl.startsWith('data:application/pdf;base64,JVBERi0'), 'the file comes back');
+    ok(await post('/api/purchase/attachment/delete', { poId: po.id, attachmentId: listed.attachments[0].id }), 'remove one');
+    expectStatus(await get(`/api/purchase/attachment/${po.id}/${listed.attachments[0].id}`), 404, 'removed file is gone');
+    ok(await att('c.pdf'), 'room again after removing one');
+  });
+
+  test('PUR9-2 the Purchase role sees its branch\'s supplier payments (not customer receipts) in bootstrap and the payments list', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    const pay = ok(await vendorPay(vendor, 150, [{ refId: po.id, amount: 100 }]), 'pay 150 (50 advance)');
+    const boot = ok(await get('/api/bootstrap', 'Purchase'));
+    assert.ok(boot.payments.some((p) => p.id === pay.id), 'vendor payment in Purchase bootstrap');
+    assert.ok(boot.payments.every((p) => p.partyType === 'vendor' && p.branchId === 'erode-hq'), 'only its branch\'s supplier payments');
+    const list = ok(await get('/api/payments', 'Purchase'));
+    assert.ok(list.some((p) => p.id === pay.id) && list.every((p) => p.partyType === 'vendor'));
+  });
+
+  test('PUR9-3 a payment out to a non-vendor party can\'t settle a PO; ₹0 rows refused', async () => {
+    const vendor = await newVendor();
+    const item = await createItem();
+    const po = await createPO([{ item, qty: 2, price: 100 }], { vendor });
+    expectStatus(await post('/api/payments', { type: 'out', partyType: 'customer', partyName: 'X', branchId: 'erode-hq', amount: 100, paymentMode: 'Cash', allocations: [{ refId: po.id, amount: 100 }] }), 400, 'customer-type out on a PO');
+    expectStatus(await vendorPay(vendor, 100, [{ refId: po.id, amount: 0 }]), 400, 'zero row');
+    near((await getPO(po.id)).amountPaid || 0, 0);
+  });
+});

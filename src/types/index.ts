@@ -1012,7 +1012,10 @@ export interface PurchaseOrderAttachment {
   name: string;
   fileType: 'image' | 'pdf';
   fileSize?: string;
-  dataUrl: string; // Base64 data URL stopgap
+  /** PUR2-12: not sent with the PO list — fetched on demand from
+   *  GET /api/purchase/attachment/:poId/:id (only set while uploading). */
+  dataUrl?: string;
+  mimeType?: string;
   uploadedAt: string;
   uploadedBy: string;
 }

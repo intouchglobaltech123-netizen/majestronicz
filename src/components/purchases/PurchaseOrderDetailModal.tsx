@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Printer,
@@ -39,6 +39,7 @@ import { useErp } from '../../context/ErpContext';
 import { formatCurrency, formatDate, cn, getTodayDateString } from '../../lib/utils';
 import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { toast } from 'sonner';
+import { apiGet } from '../../lib/api';
 import { ReceiveStockModal } from './ReceiveStockModal';
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 
@@ -49,6 +50,29 @@ import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal';
 const safeAttachmentDataUrl = (raw: unknown): string => {
   const s = typeof raw === 'string' ? raw.trim() : '';
   return /^data:(image\/[a-z0-9.+-]+|application\/pdf);base64,/i.test(s) ? s : '';
+};
+
+/** PUR2-12: the PO list carries only the file list — a file's body is loaded
+ *  when it is opened, downloaded or shown as a thumbnail. */
+const attachmentBodyCache = new Map<string, string>();
+async function loadAttachmentBody(poId: string, att: PurchaseOrderAttachment): Promise<string> {
+  if (att.dataUrl) return safeAttachmentDataUrl(att.dataUrl);
+  const key = `${poId}/${att.id}`;
+  if (!attachmentBodyCache.has(key)) {
+    const res = await apiGet<{ dataUrl: string }>(`/api/purchase/attachment/${encodeURIComponent(poId)}/${encodeURIComponent(att.id)}`);
+    attachmentBodyCache.set(key, safeAttachmentDataUrl(res?.dataUrl));
+  }
+  return attachmentBodyCache.get(key) || '';
+}
+
+const AttachmentThumb: React.FC<{ poId: string; att: PurchaseOrderAttachment }> = ({ poId, att }) => {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    let live = true;
+    loadAttachmentBody(poId, att).then((u) => { if (live) setSrc(u); }).catch(() => {});
+    return () => { live = false; };
+  }, [poId, att]);
+  return src ? <img src={src} alt={att.name} className="h-full w-full object-cover" /> : <FileText className="h-7 w-7 text-slate-400" />;
 };
 
 /** "2 damaged · 1 missing" — never "× 0 damaged" for a short shipment (PUR4-5). */
@@ -195,10 +219,15 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       return;
     }
 
-    // Client-side storage size cap: Max 2.5MB to protect browser localStorage
-    const MAX_BYTES = 2.5 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      toast.error('File size exceeds the 2.5MB cap for client storage.');
+    // PUR-12: the server accepts up to 5 MB per file (10 MB per PO). A photo is
+    // compressed first, so only its compressed size counts; a PDF is sent as is.
+    const MAX_BYTES = 5 * 1024 * 1024;
+    if (isPdf && file.size > MAX_BYTES) {
+      toast.error('The PDF is larger than 5 MB.');
+      return;
+    }
+    if (!isPdf && file.size > 40 * 1024 * 1024) {
+      toast.error('The photo is too large to process (over 40 MB).');
       return;
     }
 
@@ -208,7 +237,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
       if (isImg) {
         // Compress client-side (longest edge 1200px for invoice text legibility, 85% quality JPEG)
         const processed = await resizeAndCompressImage(file, 1200, 0.85);
-        addPurchaseOrderAttachment(purchaseOrder.id, {
+        if (processed.sizeKb * 1024 > MAX_BYTES) {
+          toast.error('The photo is still larger than 5 MB after compression.');
+          return;
+        }
+        await addPurchaseOrderAttachment(purchaseOrder.id, {
           name: file.name,
           fileType: 'image',
           fileSize: `${processed.sizeKb} KB`,
@@ -249,8 +282,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     }
   };
 
-  const handleDownloadAttachment = (attachment: PurchaseOrderAttachment) => {
-    const safe = safeAttachmentDataUrl(attachment.dataUrl);
+  const handleDownloadAttachment = async (attachment: PurchaseOrderAttachment) => {
+    const safe = await loadAttachmentBody(purchaseOrder.id, attachment).catch(() => '');
     if (!safe) {
       toast.error('This attachment is not a valid file and cannot be opened.');
       return;
@@ -267,8 +300,8 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     }
   };
 
-  const handleOpenAttachment = (attachment: PurchaseOrderAttachment) => {
-    const safe = safeAttachmentDataUrl(attachment.dataUrl);
+  const handleOpenAttachment = async (attachment: PurchaseOrderAttachment) => {
+    const safe = await loadAttachmentBody(purchaseOrder.id, attachment).catch(() => '');
     if (!safe) {
       toast.error('This attachment is not a valid file and cannot be opened.');
       return;
@@ -1412,11 +1445,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         title="Click to preview"
                       >
                         {att.fileType === 'image' ? (
-                          <img
-                            src={safeAttachmentDataUrl(att.dataUrl)}
-                            alt={att.name}
-                            className="h-full w-full object-cover"
-                          />
+                          <AttachmentThumb poId={purchaseOrder.id} att={att} />
                         ) : (
                           <div className="flex flex-col items-center justify-center text-rose-600">
                             <FileText className="h-7 w-7" />

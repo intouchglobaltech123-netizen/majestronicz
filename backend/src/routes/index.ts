@@ -51,6 +51,7 @@ import {
 } from '../services/shopify.service.js';
 import { listCouriers, saveCourier, deleteCourier } from '../services/courier.service.js';
 import { getFlipkartStatus, previewFlipkartOrders } from '../services/flipkart.service.js';
+import { stripAttachmentBodies } from '../services/purchase.service.js';
 
 const actorOf = (req: any) => (req.user ? `${req.user.name} [${req.user.role}]` : 'unknown');
 
@@ -315,7 +316,7 @@ router.post('/recurring-expenses', requireManagerOrCEO, asyncHandler(async (req,
 // the caller's own branch when they are branch-locked (SEC2-3 / CASH6-1). The
 // cross-branch masters (items, combos, vendors, customers) stay unscoped, as do
 // the inter-branch stock movement logs, which are meant to be seen from both ends.
-const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability; scoped?: boolean }> = {
+const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capability; scoped?: boolean; toClient?: (row: any) => any }> = {
   items: { delegate: prisma.item, cap: 'items:write' },
   combos: { delegate: prisma.comboItem, cap: 'items:write' },
   'stock-adjustments': { delegate: prisma.stockAdjustmentLog, cap: 'stock:write', readCap: 'stock:write' },
@@ -328,7 +329,8 @@ const resources: Record<string, { delegate: any; cap: Capability; readCap?: Capa
   'cash-registers': { delegate: prisma.dailyCashRegister, cap: 'cash:write', readCap: 'cash:write', scoped: true },
   'recurring-expenses': { delegate: prisma.recurringExpenseTemplate, cap: 'cash:write', readCap: 'cash:write', scoped: true },
   vendors: { delegate: prisma.vendor, cap: 'purchase:write', readCap: 'purchase:write' },
-  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write', readCap: 'purchase:write', scoped: true },
+  // PUR2-12: the PO list carries the attachment list, never file bodies.
+  'purchase-orders': { delegate: prisma.purchaseOrder, cap: 'purchase:write', readCap: 'purchase:write', scoped: true, toClient: stripAttachmentBodies },
   employees: { delegate: prisma.employee, cap: 'hrm:write', readCap: 'hrm:write', scoped: true },
   'attendance-records': { delegate: prisma.attendanceRecord, cap: 'hrm:write', readCap: 'hrm:write', scoped: true },
   'payroll-records': { delegate: prisma.payrollRecord, cap: 'payroll:admin', readCap: 'payroll:admin', scoped: true },
@@ -358,8 +360,8 @@ const stockHistoryRead = (key: 'stockAdjustmentLogs' | 'stockTransfers') =>
   });
 router.get('/stock-adjustments', stockHistoryRead('stockAdjustmentLogs'));
 router.get('/stock-transfers', stockHistoryRead('stockTransfers'));
-for (const [path, { delegate, cap, readCap, scoped }] of Object.entries(resources)) {
-  router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap, scoped));
+for (const [path, { delegate, cap, readCap, scoped, toClient }] of Object.entries(resources)) {
+  router.use(`/${path}`, crudRouter(delegate, prisma, cap, readCap, scoped, toClient));
 }
 
 // Dedicated delete routes for vendors & employees (the generic DELETE /:id was
@@ -495,7 +497,9 @@ router.get('/payments', requireCapability('payment:write'), asyncHandler(async (
   // SEC2-3: a branch-locked user must not read another branch's payment ledger.
   const user = (req as any).user;
   const branch = user && user.role !== 'CEO' && user.assignedBranchId ? String(user.assignedBranchId) : null;
-  const rows: any[] = await listPayments({ partyType, partyId, type });
+  let rows: any[] = await listPayments({ partyType, partyId, type });
+  // PUR9-2: a role without the cash desk (Purchase) sees supplier payments only.
+  if (user && !roleCan(user.role, 'cash:write')) rows = rows.filter((p) => p.type === 'out' && p.partyType === 'vendor');
   res.json(maskStaffPayments(branch ? rows.filter((p) => p.branchId == null || String(p.branchId) === branch) : rows, user));
 }));
 router.post('/payments', requireCapability('payment:write'), asyncHandler(async (req, res) => {

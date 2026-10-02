@@ -80,12 +80,14 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
         const currentLoc = getBranchStock(item.itemId, purchaseOrder.branchId)?.location || '';
         initialLocs[item.id] = currentLoc;
         initialPrices[item.id] = item.purchasePrice || 0;
-        // Prefer a rate this branch already corrected; fall back to the
-        // catalog, then to whatever the PO line carried.
+        // PUR9-1: the GST agreed on the PO line is what the supplier bills — use
+        // it. Only a line saved without a rate falls back to the branch's
+        // corrected rate, then the catalogue.
         const branchRow = getBranchStock(item.itemId, purchaseOrder.branchId) as any;
         const catalogItem = items.find((i) => i.id === item.itemId);
+        const lineTax = (item as any).taxPercent;
         initialTax[item.id] =
-          branchRow?.gstTaxSlab ?? catalogItem?.gstTaxSlab ?? (item as any).taxPercent ?? 0;
+          typeof lineTax === 'number' && Number.isFinite(lineTax) ? lineTax : branchRow?.gstTaxSlab ?? catalogItem?.gstTaxSlab ?? 0;
       });
       setQuantitiesToReceive(initial);
       setLocationsToAssign(initialLocs);

@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { SessionUser, roleCan } from '../lib/auth.js';
 import { istToday } from '../lib/businessDate.js';
+import { stripAttachmentBodies } from './purchase.service.js';
 
 /**
  * NET units of each catalogue item sold per branch over the last 90 days
@@ -151,18 +152,22 @@ export async function getBootstrap(user?: SessionUser | null) {
   // delivered (server-side enforcement, not just UI — see R03-01).
   if (role === 'Purchase') {
     const branchScope = user.assignedBranchId ? { branchId: user.assignedBranchId } : {};
-    const [vendors, purchaseOrders, enquiries, pendingOrders, history] = await Promise.all([
+    const [vendors, purchaseOrders, enquiries, pendingOrders, history, vendorPayments] = await Promise.all([
       prisma.vendor.findMany(),
-      prisma.purchaseOrder.findMany({ where: branchScope }),
+      prisma.purchaseOrder.findMany({ where: branchScope }).then((rows) => rows.map(stripAttachmentBodies)),
       prisma.enquiry.findMany({ where: branchScope }),
       prisma.pendingOrder.findMany({ where: branchScope }),
       branchStockHistory(user),
+      // PUR9-2: the supplier payments of the user's branch, so payables, supplier
+      // advances and vendor statements are right for the Purchase role. Never
+      // customer or salary rows.
+      prisma.payment.findMany({ where: { type: 'out', partyType: 'vendor', ...branchScope } }),
     ]);
     return {
       items, branchStocks, combos, stockAdjustmentLogs: history.stockAdjustmentLogs, estimates: [], challans: [], invoices: [],
       enquiries, pendingOrders, reminders: [], cashRegisters: [], recurringExpenses: [], vendors,
       purchaseOrders, employees: [], attendanceRecords: [], payrollRecords: [], customers: [],
-      stockTransfers: history.stockTransfers, payments: [], ...config,
+      stockTransfers: history.stockTransfers, payments: vendorPayments, ...config,
     };
   }
 
@@ -195,7 +200,7 @@ export async function getBootstrap(user?: SessionUser | null) {
     prisma.stockAdjustmentLog.findMany(), prisma.estimate.findMany(), prisma.deliveryChallan.findMany(),
     prisma.invoice.findMany(), prisma.enquiry.findMany(), prisma.pendingOrder.findMany(),
     prisma.followUpReminder.findMany(), prisma.dailyCashRegister.findMany(),
-    prisma.recurringExpenseTemplate.findMany(), prisma.vendor.findMany(), prisma.purchaseOrder.findMany(),
+    prisma.recurringExpenseTemplate.findMany(), prisma.vendor.findMany(), prisma.purchaseOrder.findMany().then((rows) => rows.map(stripAttachmentBodies)),
     prisma.employee.findMany(), prisma.attendanceRecord.findMany(),
     canPayroll ? prisma.payrollRecord.findMany() : Promise.resolve([]),
     prisma.customer.findMany(), prisma.stockTransfer.findMany(), prisma.payment.findMany(),
