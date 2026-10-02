@@ -27,8 +27,10 @@
  *      the stored payment split, else the audit trail's first saved state, else
  *      an EXACT replay of the older builds' bill updates (their receipts,
  *      returns and refunds) that ends on the bill's stored figures. A bill whose
- *      history does not replay to exactly one answer is NOT changed: it is
- *      listed as REVIEW until --overrides says what was collected.
+ *      history does not replay to exactly one amount — tried over 0 … total,
+ *      so a history whose end no longer depends on the amount is caught too
+ *      (UPG10-1) — is NOT changed: it is listed as REVIEW, with the amounts
+ *      that fit, until --overrides says what was collected.
  *   2. Freezes that as the bill's payment split (paymentSplits / partialAmount /
  *      isPartialPayment), so the drawer reads the bill's own day exactly as it
  *      was billed and later receipts never move it again.
@@ -58,7 +60,9 @@
  *
  * Idempotent: everything is computed from the data, and every row it adds has a
  * fixed id / reference, so a second run finds nothing to change. Each --apply
- * run is recorded in AppConfig key 'migration:fix-existing-bills'.
+ * run is recorded in AppConfig key 'migration:fix-existing-bills' (with the
+ * bills still under REVIEW). Once it is, bills and receipts made or changed in
+ * the app after the first run are the app's and are left alone (UPG10-5).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -243,7 +247,7 @@ interface Hit { c0: number; builds: Build[] }
 
 /** Every (amount collected at billing, build per event) that replays the
  *  bill's history exactly to its stored figures. */
-function replay(inv: any, evs: Ev[], candidates: number[]): Hit[] {
+function replay(inv: any, evs: Ev[], candidates: number[], only?: Set<string>): Hit[] {
   const n = evs.length;
   const hits: Hit[] = [];
   const variants = [
@@ -254,6 +258,7 @@ function replay(inv: any, evs: Ev[], candidates: number[]): Hit[] {
     for (let i2 = i1; i2 <= n; i2++) {
       for (let i3 = i2; i3 <= n; i3++) {
         const builds: Build[] = evs.map((_, j) => (j < i1 ? 'S' : j < i2 ? 'RC' : j < i3 ? 'N4' : 'NW'));
+        if (only && !only.has(builds.join())) continue;
         // Every build since 4068f1e writes an audit row for each receipt and
         // return; one without any is from before that (or demo data): build S.
         if (evs.some((e, j) => e.kind !== 'refund' && !e.audited && builds[j] !== 'S')) continue;
@@ -269,6 +274,41 @@ function replay(inv: any, evs: Ev[], candidates: number[]): Hit[] {
     }
   }
   return hits;
+}
+
+/**
+ * Once some amount has replayed exactly, more amounts are replayed (UPG10-1):
+ * ₹0.02 either side of every candidate and steps around each hit, under every
+ * build order; and a grid over 0 … grand total under the build orders that hit.
+ * Each output of the replay is piecewise linear in the amount, so an amount
+ * whose final state does NOT depend on it is part of an interval of hits — and
+ * then the amount next to it (₹0.02 away) replays too. A bill is settled only
+ * when exactly one tested amount replays.
+ */
+function widerReplay(inv: any, evs: Ev[], base: number[], hits: Hit[]): { hits: Hit[]; tested: number[] } {
+  const G = r2(inv.grandTotal);
+  const inRange = (xs: number[]) => [...new Set(xs.map(r2).filter((v) => v >= 0 && v <= G + 0.009).map((v) => Math.min(v, G)))];
+  const probes = inRange([...base.flatMap((c) => [c - 0.02, c + 0.02]), ...hits.flatMap((h) => [0.02, 0.5, 1, 10, 100].flatMap((d) => [h.c0 - d, h.c0 + d]))])
+    .filter((c) => !base.includes(c));
+  const steps = evs.length > 8 ? 50 : 100;
+  const grid = inRange(Array.from({ length: steps + 1 }, (_, k) => (G * k) / steps)).filter((c) => !base.includes(c) && !probes.includes(c));
+  const all = [...hits, ...replay(inv, evs, probes), ...replay(inv, evs, grid, new Set(hits.map((h) => h.builds.join())))];
+  return { hits: all, tested: [...new Set([...base, ...probes, ...grid])].sort((a, b) => a - b) };
+}
+
+/** The amounts that replay, as runs over the tested amounts ("₹0–₹4,000" when
+ *  every tested amount in between replays too). */
+function hitRuns(tested: number[], hits: Hit[]): { from: number; to: number; n: number }[] {
+  const hit = new Set(hits.map((h) => h.c0));
+  const runs: { from: number; to: number; n: number }[] = [];
+  let open = false;
+  for (const c of tested) {
+    if (!hit.has(c)) { open = false; continue; }
+    const last = runs[runs.length - 1];
+    if (open && last) { last.to = c; last.n++; } else runs.push({ from: c, to: c, n: 1 });
+    open = true;
+  }
+  return runs;
 }
 
 /**
@@ -339,7 +379,9 @@ async function main() {
       const prev = await tx.appConfig.findUnique({ where: { key: MARKER_KEY } });
       const prevValue: any = prev?.value && typeof prev.value === 'object' ? prev.value : {};
       const runs = Array.isArray(prevValue.runs) ? prevValue.runs : [];
-      runs.push({ appliedAt: new Date().toISOString(), totals: report.totals });
+      // unresolved: bills left under REVIEW, so a later run still works on them
+      // even after the app has changed them (UPG10-5).
+      runs.push({ appliedAt: new Date().toISOString(), totals: report.totals, unresolved: report.unresolved });
       await tx.appConfig.upsert({ where: { key: MARKER_KEY }, create: { key: MARKER_KEY, value: { runs } as any }, update: { value: { ...prevValue, runs } as any } });
     }, { timeout: 60 * 60 * 1000, maxWait: 60 * 1000 });
   } catch (e) {
@@ -363,6 +405,12 @@ async function main() {
   writeFileSync(`${base}.csv`, [cols.join(','), ...report.bills.map((b: BillRow) => cols.map((c) => csvCell(b[c])).join(','))].join('\n') + '\n');
 
   const t = report.totals;
+  if (report.alreadyApplied) {
+    const a = report.alreadyApplied;
+    console.log(a.runs
+      ? `\nAlready applied (first run ${a.at}, ${a.runs} run(s) so far). ${a.billsLeftToTheApp} bill(s) made or changed in the app since then are the app's and are left as they are.`
+      : `\nThis database was seeded by this release and is already in the corrected shape: its ${a.billsLeftToTheApp} bill(s) are left as they are.`);
+  }
   const review = report.bills.filter((b: BillRow) => b.flags.some((f) => f.startsWith('REVIEW') || f.startsWith('CHECK')));
   const gating = review.length + report.salaries.filter((s: any) => String(s.note || '').startsWith('REVIEW')).length;
   if (!CHECK) {
@@ -382,6 +430,11 @@ async function main() {
       console.log(`\n${report.openingGaps.length} closed day(s) whose stored opening doesn't follow from the day before (left as they are — see openingGaps):`);
       for (const g of report.openingGaps.slice(0, 30)) console.log(`  ${g.branchId} ${g.date}: stored ${g.storedOpening}, carried forward ${g.carriedForward} (gap ${g.gap})`);
     }
+    const od = report.openDays.filter((d: any) => !report.alreadyApplied || d.changedByFix);
+    if (od.length) {
+      console.log(`\n${od.length} day(s) never closed whose opening the app shows live, not as stored (see openDays; check them in the Cash Register):`);
+      for (const d of od.slice(0, 30)) console.log(`  ${d.branchId} ${d.date}: stored opening ${d.storedOpening}, shown ${d.openingShownAfterFix}${d.changedByFix ? ` (before the fix ${d.openingShownBeforeFix ?? '—'}; closing ${d.closingBeforeFix ?? '—'} -> ${d.closingAfterFix})` : ''}${d.openingOverridden ? ' [opening overridden — kept]' : ''}`);
+    }
   }
   console.log(`\nNeeds a decision: ${gating ? `${gating} item(s)` : 'nothing'}`);
   if (report.adjustRows.length) {
@@ -397,6 +450,10 @@ async function main() {
     for (const b of review.slice(0, 50)) console.log(`  ${b.invoiceNumber}: ${b.flags.filter((f: string) => f.startsWith('REVIEW') || f.startsWith('CHECK')).join('; ')}`);
   }
   console.log(`\nReport: ${base}.csv and .json  (${t.seconds}s)`);
+  const nothing = !t.billsChanged && !t.refundRowsCreated && !t.storeCreditAdded && !t.salaryPaymentsBackfilled && !t.lineCostsBackfilled &&
+    !t.openingStockRowsAdded && !t.adjustRefundRowsConvertedToCredit && !t.receiptMoneyToppedUpOntoBills && !t.refundsCutOnRequest &&
+    !t.employeeStatusesNormalised && !t.quotationStatusesSet;
+  if (report.alreadyApplied && nothing) console.log('Already migrated; nothing to do.');
   console.log(APPLY ? 'Applied in one transaction.' : 'Dry run — nothing was changed. Re-run with --apply --i-have-a-backup to write.');
   if (CHECK && gating) process.exitCode = 3;
 }
@@ -404,7 +461,8 @@ async function main() {
 async function run(tx: any, overrides: Record<string, Override>) {
   const t0 = Date.now();
   const progress = (msg: string) => process.stderr.write(`  [${((Date.now() - t0) / 1000).toFixed(1)}s] ${msg}\n`);
-  const closedBefore = (await registerFigures(tx)).filter((r) => r.isClosed);
+  const figBefore = await registerFigures(tx);
+  const closedBefore = figBefore.filter((r) => r.isClosed);
 
   const invoices: any[] = await tx.invoice.findMany();
   const payments: any[] = await tx.payment.findMany();
@@ -423,6 +481,35 @@ async function run(tx: any, overrides: Record<string, Override>) {
   const customers = new Map<string, any>(((await tx.customer.findMany()) as any[]).map((c) => [c.id, { ...c, creditHistory: Array.isArray(c.creditHistory) ? [...c.creditHistory] : [] }]));
   const invById = new Map(invoices.map((i) => [i.id, i]));
   progress(`loaded ${invoices.length} bills, ${payments.length} payments, ${customers.size} customers`);
+
+  // ---- already applied? (UPG10-5) ----------------------------------------------
+  // Once an --apply run is recorded, the app keeps every bill in the corrected
+  // shape. A bill made or changed in the app since that first run (it, a receipt
+  // or refund on it, a return or a store-credit entry for it carries a later
+  // time) is the app's, not an older build's: it is left exactly as it is —
+  // unless it was still under REVIEW then and --overrides now settles it.
+  // A freshly seeded database (marker seededAlreadyCorrect) is the app's entirely.
+  const marker = await tx.appConfig.findUnique({ where: { key: MARKER_KEY } });
+  const mv: any = marker?.value && typeof marker.value === 'object' ? marker.value : {};
+  const priorRuns: any[] = Array.isArray(mv.runs) ? mv.runs : [];
+  const cutoff: string | null = priorRuns.length ? String(priorRuns[0].appliedAt || '') : mv.seededAlreadyCorrect ? '' : null;
+  const stillReview = new Set<string>(Array.isArray(priorRuns[priorRuns.length - 1]?.unresolved) ? priorRuns[priorRuns.length - 1].unresolved : []);
+  const later = (t: unknown) => cutoff != null && t != null && t !== '' && String(t) >= cutoff;
+  const touched = new Set<string>();
+  if (cutoff != null) {
+    for (const inv of invoices) {
+      if (later(inv.createdAt) || later(inv.updatedAt) || (Array.isArray(inv.returns) ? inv.returns : []).some((r: any) => later(r?.returnedAt))) touched.add(inv.id);
+    }
+    // Rows this script wrote on a later run (e.g. after an override) are not the app's.
+    for (const p of payments) {
+      if (p.createdByName === BY || (!later(p.createdAt) && !later(p.updatedAt))) continue;
+      for (const a of Array.isArray(p.allocations) ? p.allocations : []) if (a?.refId) touched.add(a.refId);
+    }
+    for (const c of customers.values()) for (const h of c.creditHistory) if (h && h.by !== BY && later(h.date)) for (const k of [h.billId, h.refId]) if (k && invById.has(k)) touched.add(k);
+  }
+  // frozen: skipped by every money step below.
+  const frozen = new Set([...touched].filter((id) => invById.has(id) && !(stillReview.has(id) && overrides[invById.get(id).invoiceNumber])));
+  const appliedBefore = cutoff != null ? { at: cutoff || '(seeded already correct)', runs: priorRuns.length, billsLeftToTheApp: [...frozen].filter((id) => !invById.get(id).isVoided).length } : null;
 
   // ---- in-memory ledger, indexed once (UPG9-7) --------------------------------
   const allocTo = (p: any, invoiceId: string) =>
@@ -500,12 +587,13 @@ async function run(tx: any, overrides: Record<string, Override>) {
 
   // ---- 1. collected at billing ------------------------------------------------
   let n1 = 0;
-  const pending: { inv: any; evs: Ev[]; hits: Hit[]; flags: string[]; row: number; review: (why: string) => void }[] = [];
+  const pending: { inv: any; evs: Ev[]; hits: Hit[]; tested: number[]; flags: string[]; row: number; review: (why: string) => void }[] = [];
   // Returns that show which build made them, on any bill: a refund row stamped
   // with the return's own time was written by RC or newer (the first builds
   // never recorded a refund), a credit note by N4 or newer, a return batch id
   // only by this release.
   const known: { level: number; at: string }[] = [];
+  const replayMemo = new Map<string, { hits: Hit[]; tested: number[] }>();
   for (const inv of invoices) {
     if (inv.isVoided) continue;
     const rows = refundRows(inv.id).filter((p) => !String(p.id).startsWith('pay-fix-'));
@@ -518,6 +606,22 @@ async function run(tx: any, overrides: Record<string, Override>) {
   for (const inv of invoices) {
     if (++n1 % 5000 === 0) progress(`collected-at-billing: ${n1}/${invoices.length} bills`);
     const G = r2(inv.grandTotal);
+    if (frozen.has(inv.id) && !inv.isVoided) {
+      const wasReview = stillReview.has(inv.id);
+      bills.push({
+        invoiceNumber: inv.invoiceNumber, invoiceId: inv.id, branchId: inv.branchId, date: inv.date, customer: inv.customerName,
+        total: G, method: 'kept by the app', reason: wasReview ? '' : 'made or changed in the app after the fix was applied — left as it is',
+        collectedAtBilling: r2(G - (Number(inv.creditOriginal) || 0)), receipts: receiptsOf(inv.id), receiptsToppedUp: 0, returns: r2(inv.totalReturnedAmount || 0),
+        refundsExisting: refundsOf(inv.id), refundsBackfilled: 0, creditNotes: 0, oldDue: inv.balanceDue ?? null, newDue: inv.balanceDue ?? 0,
+        oldCreditOriginal: inv.creditOriginal ?? null, newCreditOriginal: inv.creditOriginal ?? null, oldPartialAmount: inv.partialAmount ?? null,
+        newPartialAmount: inv.partialAmount ?? null, storeCreditAdded: 0, unitCostLines: 0,
+        flags: wasReview ? [`REVIEW: left for review by the earlier run and changed in the app since — add { "${inv.invoiceNumber}": <collected at billing> } to --overrides once checked`] : [],
+        action: wasReview ? 'no change (REVIEW)' : 'skip (kept by the app since the fix)',
+      });
+      C0.set(inv.id, r2(G - (Number(inv.creditOriginal) || 0)));
+      if (wasReview) blocked.add(inv.id);
+      continue;
+    }
     const splits: Split[] = Array.isArray(inv.paymentSplits) ? inv.paymentSplits : [];
     const nonCodSum = r2(splits.filter((s) => s?.mode !== 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
     const receipts = receiptRows(inv.id);
@@ -616,21 +720,39 @@ async function run(tx: any, overrides: Record<string, Override>) {
             if (e.kind === 'receipt') { cumPrev = r2(cumPrev + e.amount); addPrev = r2(addPrev + cumPrev); }
           }
         }
-        const valid = [...cands].filter((c) => c >= 0 && c <= G + 0.009).map(r2);
-        pending.push({ inv, evs, hits: replay(inv, evs, [...new Set(valid)]), flags, row: bills.length, review });
+        const valid = [...new Set([...cands].filter((c) => c >= 0 && c <= G + 0.009).map(r2))];
+        // Bills with the same figures and history replay the same (go-live
+        // bills often do): replay each shape once.
+        const shape = JSON.stringify([G, inv.paymentMode, inv.balanceDue, inv.partialAmount, !!inv.isPartialPayment, inv.creditOriginal,
+          evs.map((e) => ({ ...e, at: undefined })), valid]);
+        let memo = replayMemo.get(shape);
+        if (!memo) {
+          let hits = replay(inv, evs, valid);
+          let tested = valid;
+          // UPG10-1: an exact replay must not depend on which candidates were
+          // tried — replay more amounts around and across the whole range too.
+          if (hits.length) ({ hits, tested } = widerReplay(inv, evs, valid, hits));
+          memo = { hits, tested };
+          replayMemo.set(shape, memo);
+        }
+        const hits = memo.hits.map((h) => ({ ...h }));
+        const tested = memo.tested;
+        pending.push({ inv, evs, hits, tested, flags, row: bills.length, review });
         method = 'replay';
         deferred = true;
       }
       if (evs.length && !deferred) legacyTouched.push({ invoiceNumber: inv.invoiceNumber, method, reason: c0 != null ? reason : '', review: flags.find((f) => f.startsWith('REVIEW')) || '' });
     }
-    if (c0 != null) c0 = Math.max(0, Math.min(G, r2(c0)));
+    // A stored split is what was collected, even beyond a total edited down
+    // below it later (CRM9-3 keeps that split): no cap at the total (UPG10-5).
+    if (c0 != null) c0 = Math.max(0, method === 'split' ? r2(c0) : Math.min(G, r2(c0)));
     else if (!inv.isVoided && !deferred) blocked.add(inv.id);
     C0.set(inv.id, c0 ?? 0);
     bills.push({
       invoiceNumber: inv.invoiceNumber, invoiceId: inv.id, branchId: inv.branchId, date: inv.date, customer: inv.customerName,
       total: G, method, reason, collectedAtBilling: c0 ?? r2(G - (Number(inv.creditOriginal) || 0)), receipts: R, receiptsToppedUp: 0, returns: r2(inv.totalReturnedAmount || 0),
       refundsExisting: refundsOf(inv.id), refundsBackfilled: 0, creditNotes: 0,
-      oldDue: inv.balanceDue ?? null, newDue: inv.balanceDue ?? 0, oldCreditOriginal: inv.creditOriginal ?? null, newCreditOriginal: c0 != null ? r2(G - c0) : inv.creditOriginal ?? null,
+      oldDue: inv.balanceDue ?? null, newDue: inv.balanceDue ?? 0, oldCreditOriginal: inv.creditOriginal ?? null, newCreditOriginal: c0 != null ? Math.max(0, r2(G - c0)) : inv.creditOriginal ?? null,
       oldPartialAmount: inv.partialAmount ?? null, newPartialAmount: inv.partialAmount ?? null, storeCreditAdded: 0, unitCostLines: 0, flags,
       action: inv.isVoided ? 'skip (voided)' : '',
     });
@@ -643,22 +765,44 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const row = bills[pnd.row];
     const G = r2(inv.grandTotal);
     const distinct = [...new Set(hits.map((h) => h.c0))];
+    const runs = hitRuns(pnd.tested, hits);
+    // Widen each range to the exact paise where it starts and ends.
+    const allowed = new Set(hits.map((h) => h.builds.join()));
+    const replays = (x: number) => replay(inv, pnd.evs, [x]).some((h) => allowed.has(h.builds.join()));
+    const edge = (inside: number, outside: number) => {
+      let a = Math.round(inside * 100), b = Math.round(outside * 100);
+      while (Math.abs(b - a) > 1) { const m = Math.round((a + b) / 2); if (replays(m / 100)) a = m; else b = m; }
+      // The stored figures match to ±₹0.01, so an edge one paisa off a rupee is that rupee.
+      return Math.abs(a / 100 - Math.round(a / 100)) <= 0.011 ? Math.round(a / 100) : a / 100;
+    };
+    for (const r of runs.filter((x) => x.n > 1)) {
+      const i = pnd.tested.indexOf(r.from), j = pnd.tested.indexOf(r.to);
+      r.from = i > 0 ? edge(r.from, pnd.tested[i - 1]) : r.from;
+      r.to = j < pnd.tested.length - 1 ? edge(r.to, pnd.tested[j + 1]) : r.to;
+    }
+    const candidates = runs.map((r) => (r.n > 1 ? `${inr(r.from)}–${inr(r.to)}` : inr(r.from)));
     if (distinct.length === 1) {
       const c0 = Math.max(0, Math.min(G, distinct[0]));
       const used = [...new Set(hits.flatMap((h) => h.builds.filter((_, j) => pnd.evs[j].kind !== 'refund')))].sort((a, b) => LEVEL[a] - LEVEL[b]);
       row.method = `replay (${used.join('→') || 'no events'})`;
-      row.reason = `the older builds' updates replay exactly to the stored figures from ${inr(c0)} collected at billing`;
+      row.reason = `of ${pnd.tested.length} amounts tried (₹0 to the bill total, ₹0.02 either side of each candidate), only ${inr(c0)} collected at billing replays the older builds' updates to the stored figures`;
       row.collectedAtBilling = c0;
       row.newCreditOriginal = r2(G - c0);
       C0.set(inv.id, c0);
     } else {
-      row.method = distinct.length ? 'replay (ambiguous)' : 'replay (no match)';
-      pnd.review(distinct.length
-        ? `the history replays exactly from more than one amount collected at billing (${distinct.map(inr).join(' or ')})`
-        : 'the receipts/returns on this bill do not replay to its stored figures under any older build');
+      // UPG10-1: several amounts — or a whole range, i.e. the stored figures no
+      // longer depend on what was collected — is never an answer.
+      const range = runs.some((r) => r.n > 1);
+      row.method = !distinct.length ? 'replay (no match)' : range ? 'replay (does not depend on the amount)' : 'replay (ambiguous)';
+      const list = candidates.length > 8 ? `${candidates.slice(0, 8).join(', ')}, …` : candidates.join(', ');
+      pnd.review(!distinct.length
+        ? 'the receipts/returns on this bill do not replay to its stored figures under any older build'
+        : range
+          ? `the stored figures come out the same whatever was collected at billing within ${list} — the history no longer shows the amount`
+          : `the history replays exactly from more than one amount collected at billing (${list})`);
       if (!inv.isVoided) blocked.add(inv.id);
     }
-    legacyTouched.push({ invoiceNumber: inv.invoiceNumber, method: row.method, reason: blocked.has(inv.id) ? '' : row.reason, review: pnd.flags.find((f) => f.startsWith('REVIEW')) || '' });
+    legacyTouched.push({ invoiceNumber: inv.invoiceNumber, method: row.method, reason: blocked.has(inv.id) ? '' : row.reason, review: pnd.flags.find((f) => f.startsWith('REVIEW')) || '', candidates: distinct.length > 1 ? candidates : undefined });
   }
   const rowOf = new Map(bills.map((b) => [b.invoiceId, b]));
   progress('collected-at-billing done');
@@ -679,7 +823,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
   const creditBackOf = (inv: any) => (inv.customerId ? creditBackForBill(customers.get(inv.customerId)?.creditHistory, inv) : 0);
   // The app's due formula (payment.service invoiceDueRaw), unfloored.
   const dueOf = (inv: any) => billDueRaw({
-    creditOriginal: r2(r2(inv.grandTotal) - (C0.get(inv.id) || 0)), overCollected: overCollectedOf(inv),
+    creditOriginal: Math.max(0, r2(r2(inv.grandTotal) - (C0.get(inv.id) || 0))), overCollected: overCollectedOf(inv),
     receipts: receiptsOf(inv.id), returns: Number(inv.totalReturnedAmount) || 0, refunds: refundsOf(inv.id), creditBack: creditBackOf(inv),
   });
   const payMax = new Map<string, number>();
@@ -699,9 +843,35 @@ async function run(tx: any, overrides: Record<string, Override>) {
     return `${like}${String(n).padStart(4, '0')}`;
   };
 
+  // Store credit lives on a customer account. A bill without one is linked to
+  // its customer by phone — exactly what saving the bill would do — creating the
+  // account when there is none yet. Done the first time any step needs to hold
+  // credit for the bill (receipts, credit notes, over-payment), so one --apply
+  // reaches the final state and a second finds nothing to do (UPG10-2).
+  const linkedBills = new Map<string, string>();
+  const linkByPhone = (inv: any): string | null => {
+    if (inv.customerId) return inv.customerId;
+    if (inv.isVoided || blocked.has(inv.id) || frozen.has(inv.id)) return null;
+    const phone = cleanPhone(inv.customerPhone);
+    if (!/^[6-9]\d{9}$/.test(phone)) return null;
+    let cust = [...customers.values()].find((c) => cleanPhone(c.phone) === phone);
+    if (!cust) {
+      const now = new Date().toISOString();
+      const G = r2(inv.grandTotal);
+      cust = { id: `cust-fix-${inv.id}`.slice(0, 120), name: (inv.customerName || 'Customer').trim(), phone: inv.customerPhone, address: inv.customerAddress || '', firstPurchaseDate: inv.date, purchaseCount: 1, totalSpent: G, notes: `Created by ${BY} to hold store credit for bill ${inv.invoiceNumber}`, createdAt: now, updatedAt: now, creditBalance: 0, creditHistory: [] };
+      customers.set(cust.id, cust);
+      customerCreates.push(cust);
+    }
+    inv.customerId = cust.id;
+    linkedBills.set(inv.id, cust.id);
+    for (const p of paymentCreates) if ((p.allocations as any[]).some((a) => a.refId === inv.id) && !p.partyId) p.partyId = cust.id;
+    rowOf.get(inv.id)?.flags.push(`linked to customer ${cust.name} (${cust.id}) by phone to hold its store credit`);
+    return cust.id;
+  };
+
   // ---- 2. over-refunds by older builds: decide before anything moves ----------
   for (const inv of invoices) {
-    if (inv.isVoided || blocked.has(inv.id)) continue;
+    if (inv.isVoided || blocked.has(inv.id) || frozen.has(inv.id)) continue;
     const row = rowOf.get(inv.id)!;
     const G = r2(inv.grandTotal);
     // Receipts for this bill alone that an older build capped: step 3 puts
@@ -752,11 +922,15 @@ async function run(tx: any, overrides: Record<string, Override>) {
   const inRows = payments.filter((p) => p.type === 'in' && p.partyType === 'customer' && !/store\s*credit/i.test(p.paymentMode || ''))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   for (const p of inRows) {
+    // Receipts the app took after the fix ran, and receipts only for bills the
+    // app has kept since, are the app's (UPG10-5).
+    if (p.createdByName !== BY && (later(p.createdAt) || later(p.updatedAt))) continue;
     const allocs: any[] = Array.isArray(p.allocations) ? p.allocations.map((a: any) => ({ ...a })) : [];
+    if (allocs.length && allocs.every((a) => frozen.has(a?.refId))) continue;
     let rest = r2((Number(p.amount) || 0) - allocs.reduce((t, a) => t + (Number(a.amount) || 0), 0));
     if (rest <= 0.009) continue;
-    const hist = p.partyId ? customers.get(p.partyId)?.creditHistory || [] : [];
-    if (hist.some((h: any) => h?.refId === p.id || h?.refId === `fix-unapplied:${p.id}`)) continue; // already held as credit
+    const heldBy = [p.partyId, ...allocs.map((a) => invById.get(a.refId)?.customerId)].filter(Boolean);
+    if (heldBy.some((id) => (customers.get(id)?.creditHistory || []).some((h: any) => h?.refId === p.id || h?.refId === `fix-unapplied:${p.id}`))) continue; // already held as credit
     if (allocs.some((a) => blocked.has(a.refId))) {
       for (const a of allocs) rowOf.get(a.refId)?.flags.push(`CHECK: receipt ${p.receiptNumber} took ${inr(rest)} more than it applied; left as it is while this bill is under review`);
       continue;
@@ -780,7 +954,8 @@ async function run(tx: any, overrides: Record<string, Override>) {
     }
     if (topped > 0) { stats.receiptsToppedUp = r2(stats.receiptsToppedUp + topped); extraLog.push({ receipt: p.receiptNumber, toppedUp: topped }); }
     if (rest > 0.009) {
-      const billCust = allocs.map((a) => invById.get(a.refId)?.customerId).find(Boolean) || null;
+      const billCust = allocs.map((a) => invById.get(a.refId)?.customerId).find(Boolean) ||
+        allocs.map((a) => invById.get(a.refId)).filter(Boolean).map((inv) => linkByPhone(inv)).find(Boolean) || null;
       const cid = p.partyId || billCust;
       const got = credit(cid, rest, `fix-unapplied:${p.id}`, `Unapplied part of receipt ${p.receiptNumber} kept as store credit`, { refNumber: p.receiptNumber });
       extraLog.push({ receipt: p.receiptNumber, unapplied: rest, creditedTo: got ? cid : null, note: got ? 'store credit' : 'CHECK: no customer to hold it' });
@@ -794,7 +969,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
 
   // ---- 4. refunds for older returns, one per return batch (UPG9-1 / UPG9-4) ---
   for (const inv of invoices) {
-    if (inv.isVoided || blocked.has(inv.id)) continue;
+    if (inv.isVoided || blocked.has(inv.id) || frozen.has(inv.id)) continue;
     const batches = batchesOf(inv);
     if (!batches.length) continue;
     const row = rowOf.get(inv.id)!;
@@ -819,6 +994,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
       // store-credit entry for the over-paid part, linked to this bill and batch.
       for (const p of pb.adjustRows) {
         const share = Math.max(0, Math.min(allocTo(p, inv.id), r2(owed - back)));
+        if (share > 0.009) linkByPhone(inv);
         const got = credit(inv.customerId, share, `fix-adjust:${p.id}`, `Credit note on return #${inv.invoiceNumber} (was refund row ${p.receiptNumber})`, { refNumber: inv.invoiceNumber, billId: inv.id, batchAt: b.at, date: b.at });
         if (share > 0.009 && !got) row.flags.push(inv.customerId ? `CHECK: credit note row ${p.receiptNumber} was already converted` : `CHECK: credit note ${inr(share)} on a bill with no customer account — not held anywhere`);
         row.storeCreditAdded = r2(row.storeCreditAdded + got);
@@ -861,7 +1037,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
   const invoiceUpdates = new Map<string, any>();
   for (const inv of invoices) {
     const row = rowOf.get(inv.id)!;
-    if (inv.isVoided) continue;
+    if (inv.isVoided || frozen.has(inv.id)) continue;
     if (blocked.has(inv.id)) { row.action = 'no change (REVIEW)'; continue; }
     const G = r2(inv.grandTotal);
     const c0 = C0.get(inv.id) || 0;
@@ -870,15 +1046,17 @@ async function run(tx: any, overrides: Record<string, Override>) {
     let collectedSplits: Split[];
     if (row.method === 'split' || (nonCod.length && eq(r2(nonCod.reduce((t, s) => t + s.amount, 0)), c0))) collectedSplits = nonCod;
     else collectedSplits = c0 > 0 ? [{ mode: !inv.paymentMode || inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: c0 }] : [];
-    const codDue = r2(G - c0);
+    const codDue = Math.max(0, r2(G - c0));
     const storedNonCod = r2(splits.filter((s) => s?.mode !== 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
     const storedCod = r2(splits.filter((s) => s?.mode === 'COD-Credit').reduce((t, s) => t + (Number(s.amount) || 0), 0));
     // A stored split that already says exactly this is kept as it is.
     const newSplits = splits.length && eq(storedNonCod, c0) && eq(storedCod, codDue)
       ? splits.map((s) => ({ mode: s.mode, amount: r2(s.amount) }))
       : codDue > 0.009 ? [...collectedSplits, { mode: 'COD-Credit', amount: codDue }] : collectedSplits;
-    const partialAmount = codDue > 0.009 ? c0 : null;
-    const isPartialPayment = codDue > 0.009 && c0 > 0.009;
+    // A bill edited below what it collected keeps the split and the
+    // part-payment fields the app left on it (CRM9-3); they say nothing more.
+    const partialAmount = codDue > 0.009 ? c0 : c0 > G + 0.009 ? (inv.partialAmount ?? null) : null;
+    const isPartialPayment = codDue > 0.009 ? c0 > 0.009 : c0 > G + 0.009 ? !!inv.isPartialPayment : false;
     const R = receiptsOf(inv.id);
     const refunds = refundsOf(inv.id);
     const ret = r2(inv.totalReturnedAmount || 0);
@@ -894,26 +1072,8 @@ async function run(tx: any, overrides: Record<string, Override>) {
     });
     const due = Math.max(0, raw);
     const unpaidBack = r2(-raw);
-    let linked: string | null = null;
-    if (unpaidBack > 0.009 && !inv.customerId) {
-      // Store credit lives on a customer account. Link the bill to its customer
-      // by phone — exactly what saving the bill would do — creating the account
-      // when there is none yet.
-      const phone = cleanPhone(inv.customerPhone);
-      if (/^[6-9]\d{9}$/.test(phone)) {
-        let cust = [...customers.values()].find((c) => cleanPhone(c.phone) === phone);
-        if (!cust) {
-          const now = new Date().toISOString();
-          cust = { id: `cust-fix-${inv.id}`.slice(0, 120), name: (inv.customerName || 'Customer').trim(), phone: inv.customerPhone, address: inv.customerAddress || '', firstPurchaseDate: inv.date, purchaseCount: 1, totalSpent: G, notes: `Created by ${BY} to hold store credit for bill ${inv.invoiceNumber}`, createdAt: now, updatedAt: now, creditBalance: 0, creditHistory: [] };
-          customers.set(cust.id, cust);
-          customerCreates.push(cust);
-        }
-        inv.customerId = cust.id;
-        linked = cust.id;
-        for (const p of paymentCreates) if ((p.allocations as any[]).some((a) => a.refId === inv.id) && !p.partyId) p.partyId = cust.id;
-        row.flags.push(`linked to customer ${cust.name} (${cust.id}) by phone to hold its store credit`);
-      }
-    }
+    if (unpaidBack > 0.009) linkByPhone(inv);
+    const linked = linkedBills.get(inv.id) || null;
     if (unpaidBack > 0.009) {
       const got = credit(inv.customerId, unpaidBack, `fix-overpay:${inv.id}`, `Over-payment on bill ${inv.invoiceNumber} kept as store credit`, { refNumber: inv.invoiceNumber, billId: inv.id });
       row.storeCreditAdded = r2(row.storeCreditAdded + got);
@@ -980,6 +1140,7 @@ async function run(tx: any, overrides: Record<string, Override>) {
     return hit ? { cost: r2(hit.price), from: 'purchase' } : { cost: Number(itemById.get(itemId)?.purchasePrice) || 0, from: 'item' };
   };
   for (const inv of invoices) {
+    if (frozen.has(inv.id)) continue;
     const lines: any[] = Array.isArray(inv.items) ? inv.items : [];
     if (!lines.some((l) => l && l.unitCost == null)) continue;
     let n = 0;
@@ -1181,10 +1342,24 @@ async function run(tx: any, overrides: Record<string, Override>) {
     const expected = r2(prev.closing + between);
     if (!eq(expected, r.opening)) openingGaps.push({ branchId: r.branchId, date: r.date, storedOpening: r.opening, carriedForward: expected, gap: r2(expected - r.opening), previousDay: prev.date });
   }
+  // Days that were never closed: the app shows their opening LIVE (the day
+  // before's closing plus the cash of register-less days in between), not the
+  // figure an older build stored when the register was opened (UPG10-6).
+  const regRows = (await tx.dailyCashRegister.findMany({ select: { branchId: true, date: true, isClosed: true, openingAmount: true, isOpeningOverridden: true } })) as any[];
+  const openDays = allAfter.filter((r) => !r.isClosed).map((r) => {
+    const reg = regRows.find((x) => x.branchId === r.branchId && x.date === r.date);
+    const b = figBefore.find((x) => x.branchId === r.branchId && x.date === r.date);
+    return {
+      branchId: r.branchId, date: r.date, storedOpening: r2(reg?.openingAmount), openingOverridden: !!reg?.isOpeningOverridden,
+      openingShownBeforeFix: b ? r2(b.opening) : null, openingShownAfterFix: r2(r.opening), closingBeforeFix: b ? r2(b.closing) : null, closingAfterFix: r2(r.closing),
+      changedByFix: !b || !eq(b.opening, r.opening) || !eq(b.closing, r.closing),
+    };
+  }).filter((d) => d.changedByFix || !eq(d.storedOpening, d.openingShownAfterFix));
   const live = bills.filter((b) => !b.action.startsWith('skip'));
   const totals = {
     bills: bills.length,
-    billsVoidedSkipped: bills.length - live.length,
+    billsVoidedSkipped: bills.filter((b) => b.action === 'skip (voided)').length,
+    billsKeptByTheAppSinceTheFix: bills.filter((b) => b.action.startsWith('skip (kept')).length,
     billsChanged: live.filter((b) => b.action !== 'no change' && !b.action.startsWith('no change')).length,
     billsNeedingReview: live.filter((b) => b.flags.some((f) => f.startsWith('REVIEW'))).length,
     billsToCheck: live.filter((b) => b.flags.some((f) => f.startsWith('CHECK'))).length,
@@ -1209,12 +1384,15 @@ async function run(tx: any, overrides: Record<string, Override>) {
     quotationStatusesSet: stats.quoteStatusesSet,
     closedDaysWhoseClosingChanges: closedDays.filter((d) => d.why).length,
     closedDaysWithOpeningGap: openingGaps.length,
+    openDaysShownDifferently: openDays.length,
+    openDaysChangedByTheFix: openDays.filter((d) => d.changedByFix).length,
   };
   const legacyAdvances = (await tx.pendingOrder.findMany()).filter((o: any) => (Number(o.advanceAmount) || 0) > 0 &&
     !payments.some((p) => p.type === 'in' && p.reference === o.orderNumber));
   progress('report done');
   return {
-    totals, bills, receipts: extraLog, adjustRows: adjustLog, legacyTouched, stock: stockLog, salaries: salaryLog, closedDays, openingGaps,
+    alreadyApplied: appliedBefore, unresolved: [...blocked].filter((id) => !invById.get(id)?.isVoided),
+    totals, bills, receipts: extraLog, adjustRows: adjustLog, legacyTouched, stock: stockLog, salaries: salaryLog, closedDays, openingGaps, openDays,
     legacyPendingOrderAdvances: legacyAdvances.map((o: any) => ({ order: o.orderNumber, customer: o.customerName, amount: o.advanceAmount, status: o.status, note: 'advance recorded before advances became receipts — not changed; check by hand' })),
   };
 }
