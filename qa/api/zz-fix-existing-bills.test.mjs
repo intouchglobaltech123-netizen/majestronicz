@@ -7,7 +7,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { get, post, ok, near, sql, uid, freshDays, insertLegacyBill, randomPhone, getInvoice, createItem, createPO, line, saleBody, mustSell, istToday, expectStatus } from './lib.mjs';
+import { get, post, ok, near, sql, uid, freshDays, insertLegacyBill, randomPhone, getInvoice, createItem, createPO, line, saleBody, mustSell, istToday, expectStatus, receive, resave, returnLine } from './lib.mjs';
 
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend');
 const hasDb = !!process.env.DATABASE_URL;
@@ -197,6 +197,8 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
   });
 
   test('UPG9-1..4 older Adjust rows, returns and receipts by older builds: one credit, exact replays, per-batch refunds, REVIEW leaves a bill alone', async () => {
+    // A database the fix has not run on yet (the test above applied it).
+    sql(`DELETE FROM "AppConfig" WHERE key='migration:fix-existing-bills'`);
     const [d1, d2, d3] = await freshDays('erode-hq', 3);
     const item = await createItem({ price: 3400, stock: {} });
     const at = (d, hh = '06') => `${d}T${hh}:00:00.000Z`;
@@ -344,6 +346,87 @@ describe('one-time fix for existing bills', { skip: !hasDb && 'needs DATABASE_UR
     const fourth = runScript('--apply', '--i-have-a-backup', '--overrides', file);
     assert.equal(fourth.totals.billsChanged, 0, 'with the same overrides a further run changes nothing');
     assert.equal(fourth.totals.refundRowsCreated, 0);
+  });
+
+  test('UPG10-1 / UPG10-2 / UPG10-5 an amount the history no longer shows is REVIEW; one apply links and credits; a re-run after the app was used is a no-op', async () => {
+    sql(`DELETE FROM "AppConfig" WHERE key='migration:fix-existing-bills'`);
+    const [d1, d2, d3, d4] = await freshDays('coimbatore', 4);
+    const item = await createItem({ price: 3400, stock: {} });
+    const at = (d, hh = '09') => `${d}T${hh}:30:00.000Z`;
+    // M: seed bill 7308 (no stored split, ₹5,000 part-paid on ₹8,024, no
+    // customer account, a phone) under cf9b5b4: receipts 1,000 and 500, one unit
+    // (₹4,012) returned with a ₹4,012 refund row, then a ₹5,000 receipt of which
+    // ₹2,512 was applied. That build left due 0, no part-payment, no anchor —
+    // the same figures whatever was collected at billing.
+    const m = insertLegacyBill({ branchId: 'coimbatore', date: d1, grand: 8024, partial: null, due: 0, customerName: `QA Legacy ${uid()}`, items: smpsLines(item) });
+    const phone = randomPhone();
+    sql(`UPDATE "Invoice" SET "customerPhone"=${q(phone)} WHERE id=${q(m.id)}`);
+    insertReceipt({ bill: m, amount: 1000, date: d2, at: at(d2) });
+    insertReceipt({ bill: m, amount: 500, date: d3, at: at(d3) });
+    setReturns(m, item, [{ value: 4012, at: at(d3, '10'), audited: true }]);
+    insertRefundRow({ bill: m, amount: 4012, at: at(d3, '10') });
+    insertReceipt({ bill: m, amount: 5000, applied: 2512, date: d4, at: at(d4) });
+    const untouched = await getInvoice(m.id);
+
+    // N: a part-paid credit bill of this release edited below what it collected
+    // (CRM9-3): split Cash 3,000 on a ₹1,180 total, part-payment fields kept.
+    const ns = await createItem({ price: 1000, stock: { coimbatore: 10 } });
+    const n = await mustSell(saleBody({ branchId: 'coimbatore', date: d1, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 4)], splits: [{ mode: 'Cash', amount: 3000 }, { mode: 'COD-Credit', amount: 1720 }] }));
+    ok(await receive(n, 1000, { date: d1 }), 'receipt on N');
+    ok(await resave(await getInvoice(n.id), { items: [line(ns, 1)] }), 'edit N down to 1 unit');
+    // R: an untouched go-live bill, ₹1,000 part-paid on ₹4,012.
+    const cr = await newCustomer();
+    const r = insertLegacyBill({ branchId: 'coimbatore', date: d1, grand: 4012, mode: 'Cash', partial: 1000, due: 3012, customerId: cr.id, customerName: cr.name });
+
+    const check = runScript('--check');
+    assert.equal(check.status, 3);
+    const row = (rep, bill) => rep.bills.find((x) => x.invoiceId === bill.id);
+    assert.equal(row(check, m).action, 'no change (REVIEW)', 'never presented as exact');
+    assert.match(row(check, m).flags.join(' '), /whatever was collected at billing within ₹[\d,.]+–₹[\d,.]+/, 'the range of amounts that replay is listed');
+    const lt = check.legacyTouched.find((x) => x.invoiceNumber === m.invoiceNumber);
+    assert.ok(lt?.candidates?.length, 'candidates in the report');
+    assert.equal(row(check, n).action, 'no change', 'a bill edited below what it collected is left as the app keeps it');
+
+    const first = runScript('--apply', '--i-have-a-backup');
+    const still = await getInvoice(m.id);
+    for (const f of ['balanceDue', 'creditOriginal', 'partialAmount', 'isPartialPayment', 'paymentSplits', 'customerId']) {
+      assert.deepEqual(still[f] ?? null, untouched[f] ?? null, `M ${f} untouched while under REVIEW`);
+    }
+    assert.ok(first.unresolved.includes(m.id), 'the run records what is still under REVIEW');
+
+    // With the amount from the paper bill: ONE apply links the bill to a
+    // customer by phone and holds both the receipt's unapplied ₹2,488 and the
+    // ₹988 over-paid on the kept goods as store credit.
+    const dir = mkdtempSync(join(tmpdir(), 'fixbills-over-'));
+    const file = join(dir, 'overrides.json');
+    writeFileSync(file, JSON.stringify({ [m.invoiceNumber]: 5000 }));
+    const second = runScript('--apply', '--i-have-a-backup', '--overrides', file);
+    assert.equal(row(second, m).method, 'override');
+    const M = await getInvoice(m.id);
+    assert.ok(M.customerId, 'linked to a customer by phone');
+    near(M.balanceDue, 0);
+    near(M.partialAmount, 5000);
+    near((await customer(M.customerId)).creditBalance, 3476, '2,488 unapplied + 988 over-paid');
+    assert.ok(!second.bills.some((x) => x.flags.some((f) => /no customer account/.test(f))), 'no CHECK about a missing account');
+    const third = runScript('--apply', '--i-have-a-backup', '--overrides', file);
+    assert.equal(row(third, m).action, 'no change', 'rows the script itself added on a later run do not hide the bill from a re-check');
+    for (const k of ['billsChanged', 'storeCreditAdded', 'refundRowsCreated', 'receiptMoneyToppedUpOntoBills', 'lineCostsBackfilled']) assert.equal(third.totals[k], 0, `second apply: ${k}`);
+
+    // The app is used: a receipt and a return on migrated bills, a new bill
+    // edited below what it collected. Running the script again changes nothing.
+    const p = await mustSell(saleBody({ branchId: 'coimbatore', date: d4, transactionType: 'Credit', customerPhone: randomPhone(), lines: [line(ns, 2)], splits: [{ mode: 'Cash', amount: 1000 }, { mode: 'COD-Credit', amount: 1360 }] }));
+    ok(await receive(p, 1360, { date: d4 }), 'receipt on P');
+    ok(await resave(await getInvoice(p.id), { items: [line(ns, 1)] }), 'edit P below what was paid');
+    ok(await receive(await getInvoice(r.id), 500, { date: d4 }), 'receipt on R after the fix');
+    ok(await post('/api/tx/sale-return', { invoiceId: m.id, returnLines: [returnLine(item, 1, 3400)], reason: 'QA', actor: 'QA', refundMode: 'Cash' }), 'return the last unit of M');
+    const again = runScript();
+    for (const k of ['billsChanged', 'storeCreditAdded', 'refundRowsCreated', 'receiptMoneyToppedUpOntoBills', 'lineCostsBackfilled']) assert.equal(again.totals[k], 0, `after the app was used: ${k}`);
+    near((await getInvoice(r.id)).balanceDue, 2512);
+    for (const bill of [m, p, r]) {
+      assert.match(row(again, bill).action, /^skip \(kept by the app/, `${bill.invoiceNumber} is the app's now`);
+      assert.deepEqual(row(again, bill).flags, [], `${bill.invoiceNumber}: nothing to review`);
+    }
+    assert.match(again.stdout, /Already migrated; nothing to do/);
   });
 
   test('UPG8-3 --apply without --i-have-a-backup is refused', () => {
