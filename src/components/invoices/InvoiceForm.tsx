@@ -1644,7 +1644,13 @@ export const InvoiceForm: React.FC<Props> = ({
     return newEstimate;
   };
 
+  const savingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSave = async () => {
+    // M1: a second click (or Ctrl+Enter) while the first save is still in flight
+    // must not create a second bill with its own number and a second stock hit.
+    if (savingRef.current) return;
     // Guard against negative prices / shipping and impossible discounts (SAL-17).
     if (lineItems.some((li) => (li.unitPrice || 0) < 0)) {
       toast.error('Item price cannot be negative');
@@ -1676,6 +1682,9 @@ export const InvoiceForm: React.FC<Props> = ({
       return;
     }
 
+    savingRef.current = true;
+    setIsSaving(true);
+    try {
     if (documentType === 'Quotation') {
       const est = assembleEstimateObject();
       if (!est) return;
@@ -1716,6 +1725,10 @@ export const InvoiceForm: React.FC<Props> = ({
         await markEnquiryConverted(saved.sourceEnquiryId, 'invoice', saved.id, saved.invoiceNumber);
       }
       onSaved(saved);
+    }
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -2077,7 +2090,7 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={documentType === 'Invoice' && !isPaymentReconciled}
+            disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
             className={cn(
               "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-none border transition-colors shadow-none cursor-pointer",
               documentType === 'Invoice' && !isPaymentReconciled
@@ -3090,7 +3103,7 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={documentType === 'Invoice' && !isPaymentReconciled}
+            disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
             className={cn(
               "w-full py-3 rounded-none text-white font-bold text-xs shadow-none border transition-colors flex items-center justify-center gap-2 cursor-pointer",
               documentType === 'Invoice' && !isPaymentReconciled
@@ -3173,7 +3186,7 @@ export const InvoiceForm: React.FC<Props> = ({
         <button
           type="button"
           onClick={handleSave}
-          disabled={documentType === 'Invoice' && !isPaymentReconciled}
+          disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
           className={cn(
             'flex items-center gap-2 px-5 py-2.5 rounded-none text-white font-bold text-xs border transition-colors shrink-0 cursor-pointer',
             documentType === 'Invoice' && !isPaymentReconciled
