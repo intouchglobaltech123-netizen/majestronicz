@@ -435,6 +435,7 @@ interface ErpContextType {
   saveVendor: (vendor: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Vendor;
   deleteVendor: (vendorId: string) => void;
   savePurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<PurchaseOrder | null>;
+  createDirectPurchaseBill: (bill: any) => Promise<boolean>;
   deletePurchaseOrder: (poId: string) => Promise<boolean>;
   cancelPurchaseOrder: (poId: string) => Promise<boolean>;
   receivePurchaseOrderStock: (
@@ -3775,6 +3776,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved;
   };
 
+  /** Record a direct purchase bill (no prior PO) — the "Bill" option on the
+   *  main Purchase screen. Adds stock + a payable (and optionally pays now). */
+  const createDirectPurchaseBill = async (bill: any): Promise<boolean> => {
+    const snap = await runPurchase(() => apiPost('/api/purchase/direct-bill', { bill }), 'Could not record the purchase bill');
+    if (!snap) return false;
+    toast.success('Purchase bill recorded — stock in and payable updated');
+    return true;
+  };
+
   const deletePurchaseOrder = async (poId: string): Promise<boolean> => {
     const po = purchaseOrders.find((p) => p.id === poId);
     const snap = await runPurchase(() => apiDelete(`/api/purchase/${poId}`), 'Could not delete the purchase order');
@@ -4312,6 +4322,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveVendor,
         deleteVendor,
         savePurchaseOrder,
+        createDirectPurchaseBill,
         deletePurchaseOrder,
         cancelPurchaseOrder,
         receivePurchaseOrderStock,

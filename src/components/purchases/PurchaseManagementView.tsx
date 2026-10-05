@@ -8,11 +8,13 @@ import {
   Wallet,
   IndianRupee,
   HandCoins,
+  Receipt,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Vendor, purchaseOrderBalanceDue, purchaseOrderTotalValue, purchaseOrderOpenValue, poLineOpen, vendorPayables, totalVendorPayable } from '../../types';
 import { PurchaseOrderList } from './PurchaseOrderList';
 import { PurchaseOrderFormModal } from './PurchaseOrderFormModal';
+import { DirectPurchaseBillModal } from './DirectPurchaseBillModal';
 import { VendorMasterModal } from './VendorMasterModal';
 import { VendorCreditModal } from './VendorCreditModal';
 import { SupplierPayablesView } from './SupplierPayablesView';
@@ -24,6 +26,7 @@ export const PurchaseManagementView: React.FC = () => {
   const [isPoFormOpen, setIsPoFormOpen] = useState(false);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [isVendorCreditOpen, setIsVendorCreditOpen] = useState(false);
+  const [isDirectBillOpen, setIsDirectBillOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
   const [showPayables, setShowPayables] = useState(false);
 
@@ -114,6 +117,14 @@ export const PurchaseManagementView: React.FC = () => {
             >
               <Building2 className="h-4 w-4 text-slate-500" />
               <span>+ Add Supplier</span>
+            </button>
+            <button
+              onClick={() => setIsDirectBillOpen(true)}
+              title="Record a supplier purchase directly — stock in + payable, no PO needed"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 border border-amber-700 rounded-none shadow-none transition-colors cursor-pointer"
+            >
+              <Receipt className="h-4 w-4" />
+              <span>Purchase Bill</span>
             </button>
             <button
               onClick={handleOpenGeneralPo}
@@ -281,6 +292,13 @@ export const PurchaseManagementView: React.FC = () => {
       <VendorMasterModal
         isOpen={isVendorModalOpen}
         onClose={() => setIsVendorModalOpen(false)}
+      />
+
+      {/* Direct purchase bill (no PO) */}
+      <DirectPurchaseBillModal
+        isOpen={isDirectBillOpen}
+        onClose={() => setIsDirectBillOpen(false)}
+        defaultBranch={(isAllBranches ? 'erode-hq' : currentBranch) as any}
       />
     </div>
   );
