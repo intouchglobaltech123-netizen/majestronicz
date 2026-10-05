@@ -231,6 +231,9 @@ interface ErpContextType {
   setCourierStatus: (invoiceId: string, status: string) => Promise<void>;
   assignOrderStaff: (invoiceId: string, stage: string, staffName: string) => Promise<void>;
   recordDeliveryProof: (invoiceId: string, patch: { receiverName: string; note?: string; receivedAt?: string }) => Promise<void>;
+  setReturnStatus: (invoiceId: string, status: string, note?: string) => Promise<void>;
+  setRtoStatus: (invoiceId: string, status: string, note?: string) => Promise<void>;
+  reviseOnlineOrder: (invoiceId: string, items: any[], note?: string) => Promise<void>;
   saveOrderPacking: (
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
@@ -2920,6 +2923,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-pod', { invoiceId, ...patch, actor: currentUser.name }), 'Delivery proof recorded'); }
     catch (e: any) { toast.error('Could not record delivery proof', { description: e?.message }); }
   };
+  const setReturnStatus = async (invoiceId: string, status: string, note?: string) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-return-status', { invoiceId, status, note, actor: currentUser.name }), `Return: ${status}`); }
+    catch (e: any) { toast.error('Could not update return', { description: e?.message }); }
+  };
+  const setRtoStatus = async (invoiceId: string, status: string, note?: string) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-rto-status', { invoiceId, status, note, actor: currentUser.name }), `RTO: ${status}`); }
+    catch (e: any) { toast.error('Could not update RTO', { description: e?.message }); }
+  };
+  const reviseOnlineOrder = async (invoiceId: string, items: any[], note?: string) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-revise', { invoiceId, items, note, actor: currentUser.name }), 'Order revised'); }
+    catch (e: any) { toast.error('Could not revise the order', { description: e?.message }); }
+  };
 
   const saveOrderPacking = async (
     invoiceId: string,
@@ -4287,6 +4302,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCourierStatus,
         assignOrderStaff,
         recordDeliveryProof,
+        setReturnStatus,
+        setRtoStatus,
+        reviseOnlineOrder,
         addOrderCommunication,
         saveOrderPacking,
         courierPartners,

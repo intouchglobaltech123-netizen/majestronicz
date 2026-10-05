@@ -68,6 +68,44 @@ describe('shopify demo orders', () => {
     expectStatus(await post('/api/shopify/order-pod', { invoiceId: o.id, receiverName: '' }), 400, 'receiver name required');
   });
 
+  test('SHOP-RETURN the return state machine only allows valid transitions', async () => {
+    ok(await post('/api/shopify/demo-orders', { count: 1 }));
+    const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo' && !i.returnStatus)[0];
+    assert.ok(o, 'a fresh order with no return');
+    expectStatus(await post('/api/shopify/order-return-status', { invoiceId: o.id, status: 'Received' }), 400, 'cannot jump to Received');
+    ok(await post('/api/shopify/order-return-status', { invoiceId: o.id, status: 'Requested' }), 'Requested');
+    ok(await post('/api/shopify/order-return-status', { invoiceId: o.id, status: 'Review' }), 'Review');
+    const r = ok(await post('/api/shopify/order-return-status', { invoiceId: o.id, status: 'Approved' }), 'Approved');
+    assert.equal(r.invoice.returnStatus, 'Approved');
+    assert.ok((r.invoice.returnLog || []).length >= 3, 'the return trail is kept');
+  });
+
+  test('SHOP-RTO the RTO track advances in order', async () => {
+    ok(await post('/api/shopify/demo-orders', { count: 1 }));
+    const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo' && !i.rtoStatus)[0];
+    ok(await post('/api/shopify/order-rto-status', { invoiceId: o.id, status: 'RTO Initiated' }), 'initiate');
+    const r = ok(await post('/api/shopify/order-rto-status', { invoiceId: o.id, status: 'In Transit' }), 'in transit');
+    assert.equal(r.invoice.rtoStatus, 'In Transit');
+    expectStatus(await post('/api/shopify/order-rto-status', { invoiceId: o.id, status: 'Decided' }), 400, 'cannot skip Received');
+  });
+
+  test('SHOP-REVISE a revision keeps the original total, records the delta, and is blocked after dispatch', async () => {
+    ok(await post('/api/shopify/demo-orders', { count: 1 }));
+    const preShip = ['New', 'Picking', 'Tray Photo', 'Confirmed', 'Billed', 'Packed'];
+    const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo' && preShip.includes(i.onlineStatus) && !(i.revisions || []).length)[0];
+    assert.ok(o, 'a pre-dispatch order to revise');
+    const li = o.items[0];
+    const r = ok(await post('/api/shopify/order-revise', { invoiceId: o.id, items: [{ itemId: li.itemId, quantity: (li.quantity || 1) + 2, unitPrice: li.unitPrice }], note: 'customer added 2' }), 'revise');
+    assert.ok(r.invoice.originalGrandTotal != null, 'the original total is preserved');
+    assert.equal((r.invoice.revisions || []).length, 1, 'the revision is recorded');
+    // A shipped order can't be revised.
+    const shipped = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo' && ['Shipped', 'In Transit', 'Delivered'].includes(i.onlineStatus))[0];
+    if (shipped) {
+      const li2 = shipped.items[0];
+      expectStatus(await post('/api/shopify/order-revise', { invoiceId: shipped.id, items: [{ itemId: li2.itemId, quantity: 1, unitPrice: li2.unitPrice }] }), 409, 'no revising after dispatch');
+    }
+  });
+
   test('SHOP-FLOW an invalid order stage is refused', async () => {
     ok(await post('/api/shopify/demo-orders', { count: 1 }));
     const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];

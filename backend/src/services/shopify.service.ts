@@ -801,6 +801,113 @@ export async function saveOrderTracking(
 /** The separate COURIER status track (distinct from the ERP workflow stage). */
 export const COURIER_STEPS = ['Selected', 'Booked', 'Pickup Pending', 'Handed', 'Tracking Received'];
 
+// Return and RTO are separate state machines. Keys are current state (''=none),
+// values are the states it may move to — forward-only, with Reject/Close exits.
+const RETURN_NEXT: Record<string, string[]> = {
+  '': ['Requested'],
+  Requested: ['Review', 'Rejected', 'Closed'],
+  Review: ['Approved', 'Rejected'],
+  Approved: ['In Transit', 'Received', 'Closed'],
+  'In Transit': ['Received'],
+  Received: ['Inspection'],
+  Inspection: ['Refunded', 'Replaced', 'Rejected'],
+  Refunded: ['Closed'],
+  Replaced: ['Closed'],
+  Rejected: ['Closed'],
+  Closed: [],
+};
+const RTO_NEXT: Record<string, string[]> = {
+  '': ['RTO Initiated'],
+  'RTO Initiated': ['In Transit'],
+  'In Transit': ['Received'],
+  Received: ['Decided'],
+  Decided: [],
+};
+
+async function advanceTrack(
+  invoiceId: string, status: string, note: string | undefined, actor: string,
+  map: Record<string, string[]>, statusField: 'returnStatus' | 'rtoStatus', logField: 'returnLog' | 'rtoLog', label: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Not an online order.', 400);
+  const current = String((inv as any)[statusField] || '');
+  const allowed = map[current] ?? [];
+  if (!allowed.includes(status)) {
+    throw new AppError('BAD_TRANSITION', `${label} can't go from ${current || 'none'} to ${String(status).slice(0, 40)}. Allowed: ${allowed.join(', ') || 'none'}.`, 400);
+  }
+  const now = nowIso();
+  const log = Array.isArray((inv as any)[logField]) ? (inv as any)[logField] : [];
+  log.push({ status, at: now, by: actor, note: String(note || '').trim() || undefined });
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus, at: now, by: actor, note: `${label}: ${status}` });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { [statusField]: status, [logField]: log, onlineStatusHistory: history } as any });
+  return { invoice: await prisma.invoice.findUnique({ where: { id: invoiceId } }) };
+}
+
+/** Advance the RETURN state machine (Requested→Review→Approved→…→Closed). The
+ *  actual refund/stock posting stays with the hardened sale-return flow; this is
+ *  the process track per the fulfillment spec. */
+export function setReturnStatus(invoiceId: string, status: string, note: string | undefined, actor: string) {
+  return advanceTrack(invoiceId, status, note, actor, RETURN_NEXT, 'returnStatus', 'returnLog', 'Return');
+}
+/** Advance the RTO (return-to-origin) state machine. */
+export function setRtoStatus(invoiceId: string, status: string, note: string | undefined, actor: string) {
+  return advanceTrack(invoiceId, status, note, actor, RTO_NEXT, 'rtoStatus', 'rtoLog', 'RTO');
+}
+
+/**
+ * Order Revision — a customer change (add / remove / change qty) BEFORE dispatch.
+ * The original order total is preserved (originalGrandTotal), the new lines and
+ * total are saved, and a revision entry records the delta so the screen can show
+ * Original / Final / Extra-or-Refund / Balance. Payment splits are NOT rewritten
+ * (what was collected stays), so the balance reflects the extra to collect or the
+ * refund due — the actual money is posted through the normal receipt/refund flow.
+ */
+export async function reviseOnlineOrder(invoiceId: string, opts: { items: any[]; note?: string }, actor: string): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Not an online order.', 400);
+  const stageIdx = ONLINE_PIPELINE.indexOf((inv as any).onlineStatus);
+  if (stageIdx >= ONLINE_PIPELINE.indexOf('Shipped')) throw new AppError('TOO_LATE', 'This order has already shipped — it can no longer be revised.', 409);
+  const rows = Array.isArray(opts.items) ? opts.items : [];
+  if (!rows.length) throw new AppError('NO_ITEMS', 'A revised order needs at least one line.', 400);
+  const ids = rows.map((l) => l?.itemId).filter(Boolean);
+  const known = new Map((await prisma.item.findMany({ where: { id: { in: ids } } })).map((i: any) => [i.id, i]));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const lines = rows.map((l, k) => {
+    const it: any = known.get(l?.itemId);
+    if (!it) throw new AppError('BAD_ITEM', 'A line references an item that does not exist.', 400);
+    const qty = Number(l.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) throw new AppError('BAD_QTY', 'Each line quantity must be greater than zero.', 400);
+    const price = Number(l.unitPrice);
+    if (!Number.isFinite(price) || price < 0) throw new AppError('BAD_PRICE', 'A line price cannot be negative.', 400);
+    const taxable = r2(qty * price);
+    return {
+      id: l.id || `sli-rev-${Date.now()}-${k}`, itemId: it.id, itemCode: it.itemCode || '', itemName: it.itemName,
+      itemHSN: it.itemHSN || '', unit: it.unit || 'PCS', quantity: qty, unitPrice: price,
+      discountType: '%', discountValue: 0, discountAmount: 0, taxRate: 0, taxableAmount: taxable,
+      cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: taxable, unitCost: Number(it.purchasePrice) || 0,
+    };
+  });
+  const subtotal = r2(lines.reduce((s, l) => s + l.taxableAmount, 0));
+  const shipping = Number(inv.shippingCharges) || 0;
+  const grandTotal = r2(subtotal + shipping);
+  const prevGrand = Number(inv.grandTotal) || 0;
+  const original = (inv as any).originalGrandTotal != null ? Number((inv as any).originalGrandTotal) : prevGrand;
+  const delta = r2(grandTotal - prevGrand);
+  const now = nowIso();
+  const revisions = Array.isArray((inv as any).revisions) ? (inv as any).revisions : [];
+  revisions.push({ id: rid('rev'), at: now, by: actor, change: `${lines.length} line(s), total ₹${grandTotal.toLocaleString('en-IN')}`, deltaAmount: delta, note: String(opts.note || '').trim() || undefined });
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus, at: now, by: actor, note: `Order revised (Δ ₹${delta.toLocaleString('en-IN')})` });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { items: lines as any, subtotal, grandTotal, originalGrandTotal: original, revisions: revisions as any, onlineStatusHistory: history },
+  });
+  return { invoice: await prisma.invoice.findUnique({ where: { id: invoiceId } }) };
+}
+
 /** Advance/record the courier handoff step for an order (a track of its own). */
 export async function setCourierStatus(invoiceId: string, status: string, actor: string): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });

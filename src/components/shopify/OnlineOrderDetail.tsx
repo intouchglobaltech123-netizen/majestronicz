@@ -13,11 +13,12 @@ import {
 } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { formatCurrency, cn } from '../../lib/utils';
+import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import {
   ArrowLeft, ArrowRight, Truck, CheckCircle2, Clock, Camera, MapPin,
   User, Phone, Package, Receipt, History, Link as LinkIcon, Boxes,
   MessageSquare, Image as ImageIcon, Send, Scale, Save, CheckSquare, Square,
-  AlertTriangle, ShieldCheck,
+  AlertTriangle, ShieldCheck, RotateCcw, Pencil, Trash2,
 } from 'lucide-react';
 
 /** Build a wa.me link to the customer with a prefilled message. */
@@ -54,6 +55,9 @@ interface Props {
   onSetCourierStatus: (status: string) => void;
   onAssignStaff: (stage: string, staffName: string) => void;
   onRecordPod: (patch: { receiverName: string; note?: string }) => void;
+  onSetReturnStatus: (status: string, note?: string) => void;
+  onSetRtoStatus: (status: string, note?: string) => void;
+  onRevise: (items: { itemId: string; quantity: number; unitPrice: number }[], note?: string) => void;
   onSavePacking: (patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }) => void;
   onAddIssue: (type: OrderIssueType, description?: string) => void;
   onResolveIssue: (issueId: string, resolution?: string) => void;
@@ -71,8 +75,17 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
 const COURIER_STEPS = ['Selected', 'Booked', 'Pickup Pending', 'Handed', 'Tracking Received'];
+// Mirror of the backend state machines, so the UI only offers valid next steps.
+const RETURN_NEXT: Record<string, string[]> = {
+  '': ['Requested'], Requested: ['Review', 'Rejected', 'Closed'], Review: ['Approved', 'Rejected'],
+  Approved: ['In Transit', 'Received', 'Closed'], 'In Transit': ['Received'], Received: ['Inspection'],
+  Inspection: ['Refunded', 'Replaced', 'Rejected'], Refunded: ['Closed'], Replaced: ['Closed'], Rejected: ['Closed'], Closed: [],
+};
+const RTO_NEXT: Record<string, string[]> = {
+  '': ['RTO Initiated'], 'RTO Initiated': ['In Transit'], 'In Transit': ['Received'], Received: ['Decided'], Decided: [],
+};
 
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSaveTracking, onSetCourierStatus, onAssignStaff, onRecordPod, onSavePacking, onAddIssue, onResolveIssue }) => {
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSaveTracking, onSetCourierStatus, onAssignStaff, onRecordPod, onSetReturnStatus, onSetRtoStatus, onRevise, onSavePacking, onAddIssue, onResolveIssue }) => {
   const { courierPartners } = useErp();
   const recommended = recommendCouriers(inv, courierPartners || []);
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
@@ -101,6 +114,21 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
   const assignedStaff = (inv.assignedStaff && typeof inv.assignedStaff === 'object' ? inv.assignedStaff : {}) as Record<string, string>;
   const [pod, setPod] = useState({ receiver: inv.podReceiverName || '', note: inv.podNote || '' });
   const [assignName, setAssignName] = useState('');
+
+  // Order-revision editor (add / remove / change qty before dispatch).
+  const shipped = idx >= onlinePipelineIndex('Shipped' as OnlineOrderStatus);
+  const [showRevise, setShowRevise] = useState(false);
+  const [revNote, setRevNote] = useState('');
+  const [revLines, setRevLines] = useState<{ itemId: string; itemName: string; quantity: number; unitPrice: number }[]>(
+    () => (inv.items || []).map((l: any) => ({ itemId: l.itemId, itemName: l.itemName, quantity: Number(l.quantity) || 1, unitPrice: Number(l.unitPrice) || 0 })),
+  );
+  const [addSearch, setAddSearch] = useState('');
+  const revisedTotal = revLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0) + (Number(inv.shippingCharges) || 0);
+  const origTotal = inv.originalGrandTotal != null ? inv.originalGrandTotal : (Number(inv.grandTotal) || 0);
+  const saveRevision = () => {
+    const items = revLines.filter((l) => l.itemId && l.quantity > 0).map((l) => ({ itemId: l.itemId, quantity: l.quantity, unitPrice: l.unitPrice }));
+    if (items.length) { onRevise(items, revNote.trim() || undefined); setShowRevise(false); }
+  };
 
   const name = inv.customerName || 'Customer';
   const photoMsg = `Hello ${name}, your order ${inv.invoiceNumber} is getting ready for dispatch. Please check the products before we pack.`;
@@ -403,6 +431,79 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
                 <button type="button" disabled={busy || !pod.receiver.trim()} onClick={() => onRecordPod({ receiverName: pod.receiver.trim(), note: pod.note.trim() || undefined })} className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 disabled:opacity-50 cursor-pointer">Record delivery</button>
               </div>
             </div>
+          </div>
+        </Section>
+
+        {/* Returns & RTO — separate state machines (forward-only; only valid next). */}
+        <Section title="Returns & RTO" icon={<RotateCcw className="h-3.5 w-3.5" />}>
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Return{inv.returnStatus ? <> — <span className="text-slate-800">{inv.returnStatus}</span></> : ''}</p>
+              <div className="flex flex-wrap gap-1">
+                {(RETURN_NEXT[inv.returnStatus || ''] || []).map((st) => (
+                  <button key={st} type="button" disabled={busy} onClick={() => onSetReturnStatus(st)} className="px-2 py-1 rounded-md text-[11px] font-bold border bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer">{st}</button>
+                ))}
+                {!(RETURN_NEXT[inv.returnStatus || ''] || []).length && <span className="text-[11px] text-slate-400">No further return steps.</span>}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">RTO (return to origin){inv.rtoStatus ? <> — <span className="text-slate-800">{inv.rtoStatus}</span></> : ''}</p>
+              <div className="flex flex-wrap gap-1">
+                {(RTO_NEXT[inv.rtoStatus || ''] || []).map((st) => (
+                  <button key={st} type="button" disabled={busy} onClick={() => onSetRtoStatus(st)} className="px-2 py-1 rounded-md text-[11px] font-bold border bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer">{st}</button>
+                ))}
+                {!(RTO_NEXT[inv.rtoStatus || ''] || []).length && <span className="text-[11px] text-slate-400">No further RTO steps.</span>}
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400">The cash refund / replacement itself is posted from the normal return flow; this tracks the process.</p>
+          </div>
+        </Section>
+
+        {/* Order revisions — customer changes before dispatch; original kept. */}
+        <Section title="Revisions" icon={<Pencil className="h-3.5 w-3.5" />} right={!shipped ? (
+          <button type="button" onClick={() => setShowRevise((v) => !v)} className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800">{showRevise ? 'Close' : 'Revise order'}</button>
+        ) : undefined}>
+          <div className="space-y-2 text-sm">
+            {(inv.revisions || []).length > 0 ? (
+              <div className="space-y-1">
+                <div className="flex gap-4 text-xs">
+                  <span>Original <b className="font-mono">{formatCurrency(origTotal)}</b></span>
+                  <span>Current <b className="font-mono">{formatCurrency(inv.grandTotal || 0)}</b></span>
+                  <span className={cn((inv.grandTotal || 0) - origTotal >= 0 ? 'text-amber-700' : 'text-emerald-700')}>
+                    {(inv.grandTotal || 0) - origTotal >= 0 ? 'Extra to collect' : 'Refund due'} <b className="font-mono">{formatCurrency(Math.abs((inv.grandTotal || 0) - origTotal))}</b>
+                  </span>
+                </div>
+                {(inv.revisions || []).map((r) => (
+                  <div key={r.id} className="text-[11px] text-slate-500">{new Date(r.at).toLocaleString('en-IN')} · {r.by} · {r.change} · Δ {formatCurrency(r.deltaAmount)}{r.note ? ` — ${r.note}` : ''}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400">No revisions. {shipped ? 'Order already dispatched.' : 'Use “Revise order” to add/remove items or change quantities.'}</p>
+            )}
+
+            {showRevise && !shipped && (
+              <div className="mt-1 border-t border-slate-200 pt-2 space-y-1.5">
+                {revLines.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <span className="flex-1 text-xs truncate">{l.itemName}</span>
+                    <input type="number" min={0} value={l.quantity} onChange={(e) => setRevLines((ls) => ls.map((x, k) => (k === i ? { ...x, quantity: Number(e.target.value) } : x)))} className="w-16 px-2 py-1 rounded-md border border-slate-200 text-xs font-mono" />
+                    <span className="text-[11px] text-slate-500 font-mono w-20 text-right">× {formatCurrency(l.unitPrice)}</span>
+                    <button type="button" onClick={() => setRevLines((ls) => ls.filter((_, k) => k !== i))} className="text-rose-500 hover:text-rose-700"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))}
+                <ItemSearchDropdown
+                  value={addSearch}
+                  onChange={setAddSearch}
+                  onSelectItem={(it: any) => { setRevLines((ls) => [...ls, { itemId: it.id, itemName: it.itemName, quantity: 1, unitPrice: Number(it.salePrice) || 0 }]); setAddSearch(''); }}
+                  placeholder="Add an item…"
+                />
+                <input value={revNote} onChange={(e) => setRevNote(e.target.value)} placeholder="Reason for the change (optional)" className="w-full px-2 py-1 rounded-md border border-slate-200 text-xs" />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs">New total <b className="font-mono">{formatCurrency(revisedTotal)}</b></span>
+                  <button type="button" disabled={busy || revLines.filter((l) => l.itemId && l.quantity > 0).length === 0} onClick={saveRevision} className="px-3 py-1.5 rounded-md text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 disabled:opacity-50 cursor-pointer">Save revision</button>
+                </div>
+              </div>
+            )}
           </div>
         </Section>
 

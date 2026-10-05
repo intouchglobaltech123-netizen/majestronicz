@@ -49,6 +49,9 @@ import {
   setCourierStatus,
   assignOrderStaff,
   recordDeliveryProof,
+  setReturnStatus,
+  setRtoStatus,
+  reviseOnlineOrder,
   addOrderCommunication,
   saveOrderPacking,
   addOrderIssue,
@@ -776,6 +779,21 @@ router.post('/shopify/order-assign', requireCapability('sales:write'), asyncHand
 router.post('/shopify/order-pod', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await recordDeliveryProof(req.body?.invoiceId, { receiverName: req.body?.receiverName, note: req.body?.note, receivedAt: req.body?.receivedAt, actor: actorOf(req) });
   broadcastChange('shopify-order-pod');
+  res.json(result);
+}));
+router.post('/shopify/order-return-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await setReturnStatus(req.body?.invoiceId, req.body?.status, req.body?.note, actorOf(req));
+  broadcastChange('shopify-order-return');
+  res.json(result);
+}));
+router.post('/shopify/order-rto-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await setRtoStatus(req.body?.invoiceId, req.body?.status, req.body?.note, actorOf(req));
+  broadcastChange('shopify-order-rto');
+  res.json(result);
+}));
+router.post('/shopify/order-revise', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await reviseOnlineOrder(req.body?.invoiceId, { items: req.body?.items, note: req.body?.note }, actorOf(req));
+  broadcastChange('shopify-order-revise');
   res.json(result);
 }));
 router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandler(async (req, res) => {
