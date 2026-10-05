@@ -4,6 +4,8 @@ import * as ctrl from '../controllers/purchase.controller.js';
 
 const router = Router();
 router.post('/save', asyncHandler(ctrl.savePO));
+// Direct purchase bill (no prior PO) — the "Bill" option on the main screen.
+router.post('/direct-bill', asyncHandler(ctrl.createDirectBill));
 router.delete('/:id', asyncHandler(ctrl.deletePO));
 router.post('/:id/cancel', asyncHandler(ctrl.cancelPO));
 router.post('/receive', asyncHandler(ctrl.receive));

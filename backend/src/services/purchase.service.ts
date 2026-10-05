@@ -893,3 +893,57 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
     return poSnapshot(tx);
   });
 }
+
+/**
+ * Record a DIRECT purchase bill — a supplier purchase entered without first
+ * raising a PO (the "Bill" option on the main Purchase screen). It creates the
+ * purchase as a fully-received, billed order so everything downstream (stock,
+ * payables / To Pay, Vendor Credit, ITC / GSTR-3B, the stock ledger) sees it the
+ * same as a normal PO that was received and billed. Orchestrates the existing,
+ * tested flows rather than duplicating their validation and money rules.
+ *   input: { vendorId, branchId, date, items:[{itemId, quantityOrdered,
+ *            purchasePrice, taxPercent}], supplierBillNumber?, supplierBillDate?,
+ *            otherCharges?, payNow?, payMode?, notes? }
+ */
+export async function createDirectPurchaseBill(input: any, reqUser?: any) {
+  const actor = reqUser?.name || 'System';
+  // 1) Create the order (validates supplier, branch, items, tax slabs, totals).
+  const created = await savePurchaseOrder(
+    {
+      vendorId: input?.vendorId,
+      branchId: input?.branchId,
+      date: input?.date,
+      expectedDeliveryDate: input?.date,
+      items: input?.items,
+      notes: input?.notes || 'Direct purchase bill',
+    },
+    actor,
+    reqUser,
+  );
+  const poId = created.saved.id;
+  // 2) Receive every ordered unit — stock in + 'Received' + any other charges.
+  const receipts = (created.saved.items as any[]).map((l) => ({ itemId: l.itemId, quantityReceived: Number(l.quantityOrdered) || 0 }));
+  await receivePurchaseOrderStock(poId, receipts, input?.notes, undefined, actor, Number(input?.otherCharges) || 0, reqUser);
+  // 3) Record the supplier's tax invoice (so ITC / GSTR-3B pick it up), if given.
+  if (String(input?.supplierBillNumber || '').trim()) {
+    const po2 = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+    await recordPurchaseBill(
+      poId,
+      {
+        number: input.supplierBillNumber,
+        date: input.supplierBillDate || input.date,
+        taxable: Number(po2?.totalAmount) || 0,
+        gst: Number(po2?.totalTax) || 0,
+      },
+      reqUser,
+    );
+  }
+  // 4) Pay the supplier now if asked — books a vendor 'out' row to the drawer and
+  // respects the closed-day guard (reuses the tested PO-payment path).
+  const payNow = Math.max(0, Number(input?.payNow) || 0);
+  if (payNow > 0) {
+    await recordPurchaseOrderPayment(poId, payNow, input?.payMode || 'Cash', actor, reqUser);
+  }
+  const snap = await poSnapshot(prisma);
+  return { ...snap, savedId: poId };
+}

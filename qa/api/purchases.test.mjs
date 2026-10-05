@@ -612,3 +612,42 @@ describe('round 9: purchases', () => {
   });
 });
 
+
+describe('direct purchase bill (no PO)', () => {
+  test('PUR-DB a direct bill adds stock, books a payable and records the supplier bill', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 5 } });
+    const v = await anyVendor();
+    const before = await stockOf(item.id, 'erode-hq');
+    const billNo = `SB-${uid()}`;
+    const res = ok(await post('/api/purchase/direct-bill', { bill: {
+      vendorId: v.id, branchId: 'erode-hq', date: '2026-09-15',
+      items: [{ itemId: item.id, quantityOrdered: 4, purchasePrice: 100, taxPercent: 18 }],
+      supplierBillNumber: billNo, supplierBillDate: '2026-09-15',
+    } }), 'create direct purchase bill');
+    assert.equal(await stockOf(item.id, 'erode-hq'), before + 4, 'stock received into the branch');
+    const po = res.purchaseOrders.find((p) => p.id === res.savedId);
+    assert.ok(po, 'the bill created a purchase record');
+    assert.equal(po.status, 'Received', 'booked as fully received');
+    near(po.totalAmount, 400, 'taxable = 4 x 100');
+    near(po.totalTax, 72, 'GST = 18% of 400');
+    assert.equal(po.amountPaid || 0, 0, 'nothing paid yet (settle via To Pay)');
+    assert.ok(String(po.supplierBillNumber || '').includes(billNo), 'supplier bill number recorded for ITC');
+  });
+
+  test('PUR-DB a direct bill paid now books a vendor payment to the drawer', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 0 } });
+    const v = await anyVendor();
+    const res = ok(await post('/api/purchase/direct-bill', { bill: {
+      vendorId: v.id, branchId: 'erode-hq', date: '2026-09-15',
+      items: [{ itemId: item.id, quantityOrdered: 2, purchasePrice: 50, taxPercent: 0 }],
+      payNow: 100, payMode: 'Cash',
+    } }), 'direct bill paid now');
+    const po = res.purchaseOrders.find((p) => p.id === res.savedId);
+    near(po.amountPaid, 100, 'the 100 paid now is recorded against the bill');
+    assert.ok((await paymentsFor(po.id)).some((p) => p.type === 'out'), 'a vendor payment row hit the ledger/drawer');
+  });
+
+  test('PUR-DB a direct bill needs a real supplier and a line item', async () => {
+    expectStatus(await post('/api/purchase/direct-bill', { bill: { vendorId: '', branchId: 'erode-hq', date: '2026-09-15', items: [] } }), 400, 'no supplier / no items');
+  });
+});

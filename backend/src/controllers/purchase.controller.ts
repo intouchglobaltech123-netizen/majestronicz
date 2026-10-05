@@ -20,6 +20,17 @@ async function auditPoPayment(req: Request, poId: string, amount: unknown, mode:
 const actorOf = (req: Request): string =>
   ((req as any).user?.name as string | undefined)?.trim() || String((req.body as any)?.actor || 'System');
 
+export const createDirectBill = async (req: Request, res: Response) => {
+  const result: any = await purchase.createDirectPurchaseBill(req.body?.bill ?? req.body, (req as any).user);
+  const po = result?.savedId ? await prisma.purchaseOrder.findUnique({ where: { id: result.savedId }, select: { poNumber: true, vendorName: true, branchId: true, totalAmount: true, totalTax: true, otherCharges: true } }) : null;
+  await recordAudit({
+    actor: (req as any).user ? `${(req as any).user.name} [${(req as any).user.role}]` : actorOf(req), action: 'purchase.direct-bill',
+    entity: 'purchaseOrder', entityId: String(result?.savedId || ''), branchId: po?.branchId ?? null,
+    summary: `Direct purchase bill ${po?.poNumber || ''} from ${po?.vendorName || 'supplier'} · ₹${((po?.totalAmount || 0) + (po?.totalTax || 0) + (po?.otherCharges || 0))}`,
+  });
+  res.json(result);
+};
+
 export const savePO = async (req: Request, res: Response) => {
   const { po } = req.body;
   res.json(await purchase.savePurchaseOrder(po, actorOf(req), (req as any).user));
