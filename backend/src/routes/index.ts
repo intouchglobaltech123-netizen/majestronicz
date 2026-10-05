@@ -8,6 +8,7 @@ import { assertBranchAllowed } from '../lib/branchGuard.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { verifyGstin, gstinProviderConfigured, GSTIN_RE, gstinChecksumValid } from '../services/gstin.service.js';
 import { nowIso } from '../lib/stockLedger.js';
+import { launchGuardsOn } from '../lib/businessDate.js';
 import { cleanRecurringFields } from '../lib/validate.js';
 import { isValidBranch } from '../lib/constants.js';
 import invoiceRoutes from './invoice.routes.js';
@@ -72,25 +73,38 @@ router.use((req, res, next) => {
 });
 
 // ---- Auth: verify PIN → signed token (open, but brute-force protected) ----
-// In-memory failed-attempt tracker per client IP: lock out after 5 wrong PINs.
+// In-memory failed-attempt tracker per client IP: lock out after 5 wrong PINs,
+// with a daily cap (M3). Login carries no user name — every guess is tried against
+// every account — so brute force must be throttled at the network level.
 const MAX_FAILS = 5;
 const LOCK_MS = 60_000;
-const loginAttempts = new Map<string, { fails: number; lockUntil: number }>();
+const DAILY_CAP = 50;      // M3: wrong PINs allowed per address per day
+const DAY_MS = 86_400_000;
+const loginAttempts = new Map<string, { fails: number; lockUntil: number; dayFails: number; dayStart: number }>();
 
 router.post('/auth/login', asyncHandler(async (req, res) => {
   res.locals.broadcast = true; // SAL10-1: signing in changes no shared data — no live-update event
   const ip = req.ip || 'unknown';
   const now = Date.now();
-  const rec = loginAttempts.get(ip) ?? { fails: 0, lockUntil: 0 };
+  const rec = loginAttempts.get(ip) ?? { fails: 0, lockUntil: 0, dayFails: 0, dayStart: now };
+  if (now - rec.dayStart > DAY_MS) { rec.dayFails = 0; rec.dayStart = now; } // roll the daily window
+
+  // M3: on the LIVE server a tripped throttle (the 1-minute lock, or the daily
+  // cap) blocks EVERY attempt from this address — including a correct PIN — so a
+  // script can't ride the lockout window to a lucky hit. In dev / the test suite
+  // the shop-friendly rule stays (SEC3-5: a correct PIN always logs in), because
+  // the whole counter shares one address and must never be locked out by typos.
+  const hardThrottled = rec.lockUntil > now || rec.dayFails >= DAILY_CAP;
+  if (launchGuardsOn() && hardThrottled) {
+    const until = rec.lockUntil > now ? rec.lockUntil : rec.dayStart + DAY_MS;
+    const secs = Math.ceil((until - now) / 1000);
+    throw new AppError('LOCKED', `Too many sign-in attempts from this network. Try again in ${secs}s, or ask the CEO.`, 429);
+  }
 
   const { pin, branchId } = req.body;
   const auth = await authenticateUser(String(pin || ''), branchId);
 
-  // SEC3-5: a CORRECT PIN always logs in (and clears the counter). The whole shop
-  // shares one public IP, so a per-IP lock used to lock out EVERY user — including
-  // the CEO with the right PIN — after 5 wrong guesses by anyone. Check the PIN
-  // first so a legitimate login is never blocked; the lock only throttles WRONG
-  // attempts.
+  // A CORRECT PIN logs in and clears the counter (in dev even during a lock).
   if (auth) {
     loginAttempts.delete(ip);
     const { user, mustResetPin } = auth;
@@ -108,6 +122,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
     throw new AppError('LOCKED', `Too many wrong attempts. Try again in ${secs}s.`, 429);
   }
   rec.fails += 1;
+  rec.dayFails += 1;
   const remaining = Math.max(0, MAX_FAILS - rec.fails);
   if (rec.fails >= MAX_FAILS) {
     rec.lockUntil = now + LOCK_MS;

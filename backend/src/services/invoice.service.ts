@@ -15,7 +15,7 @@ import { applySupplySplit } from '../lib/supply.js';
 import { isValidBranch, PAYMENT_TERMS_OPTIONS, isValidYmd } from '../lib/constants.js';
 import { isWholeUnit } from '../lib/units.js';
 import { roleFlags } from '../lib/auth.js';
-import { assertBusinessDate, assertDayOpen, closedDayFrom, istToday } from '../lib/businessDate.js';
+import { assertBusinessDate, assertDayOpen, closedDayFrom, istToday, istYesterday, istDateOf, launchGuardsOn } from '../lib/businessDate.js';
 import { collectedAtBilling, billingSplitsOf } from '../lib/billingSplit.js';
 import { assertMode, REFUND_MODES } from '../lib/paymentModes.js';
 
@@ -410,6 +410,21 @@ export function createSale(inv: any, reqUser?: any) {
     const existing = await tx.invoice.findUnique({ where: { id: inv.id } });
     const isNewSale = !existing;
     const oldInvoice = existing;
+    // M4: a NEW bill can't be back-dated into an earlier month / financial year (it
+    // would land in a GST month that may already be filed). Billing may date only
+    // today or yesterday; a Manager/CEO may go back within the current open month.
+    // (Editing an existing bill across months/years is already blocked below.)
+    if (isNewSale && launchGuardsOn()) {
+      const today = istToday();
+      const role = reqUser?.role;
+      if (role === 'CEO' || role === 'Manager') {
+        if (String(inv.date).slice(0, 7) < today.slice(0, 7)) {
+          throw new AppError('BACKDATED_BILL', `A new bill can't be dated into ${String(inv.date).slice(0, 7)} — that month is closed for new sales. Record it in the current month, or use a return / credit note.`, 409);
+        }
+      } else if (String(inv.date) < istYesterday()) {
+        throw new AppError('BACKDATED_BILL', 'A new bill can only be dated today or yesterday. Ask a Manager to record an older sale.', 400);
+      }
+    }
     if (existing) {
       // A voided bill is final — it must not be edited back into a live sale that
       // adds phantom stock (SAL2-7).
@@ -1500,6 +1515,20 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     const damaged = batch.some((r) => r.damaged === true || (r.damaged == null && /damag/i.test(String(r.reason || ''))));
     const ts = nowIso();
     const today = istToday();
+    // M8: a return carries a credit note into its own GST month. Reversing one made
+    // in an ended month would silently change a filed GST report; reversing one on
+    // or before a closed cash day would change a reconciled day. Block both (as
+    // edits and voids already are). The return's own date is where its credit lives.
+    if (launchGuardsOn()) {
+      const returnDate = istDateOf(target.returnedAt || inv.date);
+      if (returnDate.slice(0, 7) < today.slice(0, 7)) {
+        throw new AppError('MONTH_CLOSED', `This return was made in ${returnDate.slice(0, 7)}, a month that has ended and whose GST is already reported — it can't be reversed. Issue a fresh sale/credit note instead.`, 409);
+      }
+      const closed = await closedDayFrom(tx, inv.branchId, returnDate);
+      if (closed) {
+        throw new AppError('DAY_CLOSED', `This return was recorded on ${returnDate}, on or before the closed cash day ${closed}. Reopen that day before reversing it.`, 409);
+      }
+    }
 
     // ---- money ---------------------------------------------------------------
     let refundPaymentId: string | null = target.batchRefundPaymentId ?? null;

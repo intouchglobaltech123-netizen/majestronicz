@@ -58,6 +58,18 @@ export async function closedDayFrom(tx: any, branchId: string, date: string): Pr
 }
 
 /**
+ * Launch guards (M3/M4/M8) are enforced only on the live server. The test suite
+ * deliberately back-dates sales to isolated 2016–2024 days for isolation, so these
+ * month/date windows run in production only (Railway sets NODE_ENV=production);
+ * the dev/test server leaves them off so those flows still work.
+ */
+export const launchGuardsOn = (): boolean => process.env.NODE_ENV === 'production';
+
+/** Yesterday's IST calendar day, YYYY-MM-DD. */
+export const istYesterday = (): string =>
+  new Date(Date.parse(`${istToday()}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+
+/**
  * A closed cash day is final: its totals are derived from the bills and payments
  * dated to it, so any write that would change them must be refused until a
  * Manager/CEO reopens the day (CASH-2 / CASH7-4). The same holds for every day

@@ -11,6 +11,11 @@ import { attachUser } from './middleware/rbac.js';
 
 const app = express();
 
+// M3: Railway/Vercel sit behind a proxy, so without this every request's req.ip
+// is the proxy's address and the per-address login throttle would treat the whole
+// internet as one client. Trust the first proxy hop so the real client IP is used.
+app.set('trust proxy', 1);
+
 // CORS: restrict to an allowlist when CORS_ORIGINS is set (comma-separated),
 // otherwise allow all (dev). Auth is Bearer-token based (no cookies), so this is
 // the main cross-origin control.
