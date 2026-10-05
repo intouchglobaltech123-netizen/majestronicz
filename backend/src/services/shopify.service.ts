@@ -751,6 +751,54 @@ export async function updateOnlineOrderStatus(
 }
 
 /**
+ * Record or update an online order's tracking at ANY stage — the courier usually
+ * gives the AWB after dispatch, so this is not tied to "Mark Shipped". Saves the
+ * courier, AWB/tracking number, tracking URL, courier reference and (optionally)
+ * a photo of the courier slip, stamps when it was recorded, logs the activity,
+ * and — for a real, shipped, linked order — syncs the fulfillment to Shopify.
+ */
+export async function saveOrderTracking(
+  invoiceId: string,
+  opts: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null; actor: string },
+): Promise<{ invoice: any; shopify?: { success: boolean; error?: string } }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Tracking can only be recorded on an online order.', 400);
+  // A slip image, if sent, must be a real base64 image and not huge (it rides on
+  // the order row — keep it modest, like a phone photo).
+  const slip = opts.trackingSlipUrl;
+  if (slip) {
+    if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(slip)) throw new AppError('BAD_SLIP', 'The courier slip must be a JPG, PNG or WebP image.', 400);
+    if (slip.length > 3_500_000) throw new AppError('SLIP_TOO_BIG', 'The courier slip image is too large (max ~2.5 MB).', 400);
+  }
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  const label = [opts.courierName, opts.trackingNumber].filter(Boolean).join(' ');
+  history.push({ status: (inv as any).onlineStatus, at: now, by: opts.actor, note: `Tracking recorded${label ? ` — ${label}` : ''}` });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      ...(opts.courierName !== undefined ? { courierName: opts.courierName.trim() || null } : {}),
+      ...(opts.trackingNumber !== undefined ? { trackingNumber: opts.trackingNumber.trim() || null } : {}),
+      ...(opts.trackingUrl !== undefined ? { trackingUrl: opts.trackingUrl.trim() || null } : {}),
+      ...(opts.trackingReference !== undefined ? { trackingReference: opts.trackingReference.trim() || null } : {}),
+      ...(slip !== undefined ? { trackingSlipUrl: slip || null } : {}),
+      trackingReceivedAt: now,
+      onlineStatusHistory: history,
+    },
+  });
+  // Sync to Shopify when a real linked order is already at/after Shipped.
+  let shopify: { success: boolean; error?: string } | undefined;
+  const idx = ONLINE_PIPELINE.indexOf((inv as any).onlineStatus);
+  const ext = inv.externalOrderId;
+  if (idx >= ONLINE_PIPELINE.indexOf('Shipped') && ext && !String(ext).startsWith('DEMO-') && getShopifyConfig()) {
+    shopify = await fulfillShopifyOrder(ext, opts.trackingNumber ?? inv.trackingNumber ?? undefined, opts.courierName ?? inv.courierName ?? undefined);
+  }
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice, shopify };
+}
+
+/**
  * Save the Packing details for an online order (weight, boxes, address-label,
  * invoice-included). Stamps packedBy/packedAt and logs it to the append-only
  * activity history. Only these whitelisted fields can be changed here.

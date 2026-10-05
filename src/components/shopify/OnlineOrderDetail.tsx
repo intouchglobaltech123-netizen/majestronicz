@@ -50,6 +50,7 @@ interface Props {
   onAdvance: (to: OnlineOrderStatus, opts?: { trackingNumber?: string; courierName?: string; trackingUrl?: string }) => void;
   onUploadPhoto: (kind: 'tray' | 'parcel', file: File | null) => void;
   onComm: (type: OrderCommType, note?: string) => void;
+  onSaveTracking: (patch: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null }) => void;
   onSavePacking: (patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }) => void;
   onAddIssue: (type: OrderIssueType, description?: string) => void;
   onResolveIssue: (issueId: string, resolution?: string) => void;
@@ -66,7 +67,7 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 );
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSavePacking, onAddIssue, onResolveIssue }) => {
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSaveTracking, onSavePacking, onAddIssue, onResolveIssue }) => {
   const { courierPartners } = useErp();
   const recommended = recommendCouriers(inv, courierPartners || []);
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
@@ -76,7 +77,21 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
   const next = idx >= 0 && idx < ONLINE_ORDER_PIPELINE.length - 1 ? ONLINE_ORDER_PIPELINE[idx + 1] : null;
   const history = Array.isArray(inv.onlineStatusHistory) ? inv.onlineStatusHistory : [];
   const comms = Array.isArray(inv.communicationLog) ? inv.communicationLog : [];
-  const [t, setT] = useState({ number: inv.trackingNumber || '', courier: inv.courierName || '', url: inv.trackingUrl || '' });
+  const [t, setT] = useState({ number: inv.trackingNumber || '', courier: inv.courierName || '', url: inv.trackingUrl || '', reference: inv.trackingReference || '', slip: (inv.trackingSlipUrl || null) as string | null });
+
+  const readSlip = (file: File | null) => {
+    if (!file) { setT((p) => ({ ...p, slip: null })); return; }
+    const r = new FileReader();
+    r.onload = () => setT((p) => ({ ...p, slip: String(r.result || '') }));
+    r.readAsDataURL(file);
+  };
+  const saveTracking = () => onSaveTracking({
+    courierName: t.courier.trim(),
+    trackingNumber: t.number.trim(),
+    trackingUrl: t.url.trim(),
+    trackingReference: t.reference.trim(),
+    trackingSlipUrl: t.slip,
+  });
 
   const name = inv.customerName || 'Customer';
   const photoMsg = `Hello ${name}, your order ${inv.invoiceNumber} is getting ready for dispatch. Please check the products before we pack.`;
@@ -262,49 +277,67 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
           </div>
         </Section>
 
-        {/* Courier & tracking */}
+        {/* Courier & tracking — editable at ANY stage (the courier often gives the
+            AWB after dispatch), per the fulfillment spec. */}
         <Section title="Courier & Tracking" icon={<Truck className="h-3.5 w-3.5" />}>
-          {inv.trackingNumber ? (
-            <div className="space-y-1 text-sm">
-              <Row label="Courier" value={inv.courierName || '—'} />
-              <Row label="Tracking / AWB" value={inv.trackingNumber} mono />
-              {inv.trackingUrl && (
-                <div className="pt-1"><a href={inv.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800"><LinkIcon className="h-3.5 w-3.5" /> Open tracking link</a></div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Recommended couriers for this order's state / payment / weight */}
-              {recommended.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Recommended couriers</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {recommended.slice(0, 5).map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setT({ ...t, courier: c.name })}
-                        className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold border',
-                          t.courier === c.name ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50')}
-                        title={[c.deliveryDays ? `~${c.deliveryDays}d` : '', c.maxWeightKg ? `≤${c.maxWeightKg}kg` : ''].filter(Boolean).join(' · ')}
-                      >
-                        <Truck className="h-3 w-3" /> {c.name}{c.deliveryDays ? ` · ~${c.deliveryDays}d` : ''}
-                      </button>
-                    ))}
-                  </div>
+          <div className="space-y-2.5">
+            {/* Recommended couriers for this order's state / payment / weight */}
+            {recommended.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Recommended couriers</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {recommended.slice(0, 5).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setT({ ...t, courier: c.name })}
+                      className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold border',
+                        t.courier === c.name ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50')}
+                      title={[c.deliveryDays ? `~${c.deliveryDays}d` : '', c.maxWeightKg ? `≤${c.maxWeightKg}kg` : ''].filter(Boolean).join(' · ')}
+                    >
+                      <Truck className="h-3 w-3" /> {c.name}{c.deliveryDays ? ` · ~${c.deliveryDays}d` : ''}
+                    </button>
+                  ))}
                 </div>
-              )}
-              {courierPartners.length === 0 && (
-                <p className="text-[11px] text-amber-600">No couriers set up yet — add them in Shopify → Couriers to get recommendations.</p>
-              )}
-              <p className="text-xs text-slate-500">Enter tracking, then use “Mark Shipped”.</p>
-              <div className="flex flex-wrap gap-1.5">
-                <input value={t.number} onChange={(e) => setT({ ...t, number: e.target.value })} placeholder="Tracking / AWB no." className="w-40 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500" />
-                <input value={t.courier} onChange={(e) => setT({ ...t, courier: e.target.value })} placeholder="Courier" className="w-32 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
-                <input value={t.url} onChange={(e) => setT({ ...t, url: e.target.value })} placeholder="Tracking link (URL)" className="w-48 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
               </div>
+            )}
+            {courierPartners.length === 0 && (
+              <p className="text-[11px] text-amber-600">No couriers set up yet — add them in Shopify → Couriers to get recommendations.</p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <input value={t.courier} onChange={(e) => setT({ ...t, courier: e.target.value })} placeholder="Courier" className="px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
+              <input value={t.number} onChange={(e) => setT({ ...t, number: e.target.value })} placeholder="Tracking / AWB no." className="px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500" />
+              <input value={t.reference} onChange={(e) => setT({ ...t, reference: e.target.value })} placeholder="Reference / docket no." className="px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500" />
+              <input value={t.url} onChange={(e) => setT({ ...t, url: e.target.value })} placeholder="Tracking link (URL)" className="px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
             </div>
-          )}
+
+            {/* Courier slip image */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                <ImageIcon className="h-3.5 w-3.5" /> {t.slip ? 'Change slip photo' : 'Attach courier slip'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => readSlip(e.target.files?.[0] || null)} />
+              </label>
+              {t.slip && (
+                <>
+                  <a href={t.slip} target="_blank" rel="noreferrer" className="h-9 w-9 rounded border border-slate-300 overflow-hidden"><img src={t.slip} alt="Courier slip" className="w-full h-full object-cover" /></a>
+                  <button type="button" onClick={() => setT({ ...t, slip: null })} className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold">Remove</button>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+              <div className="text-[11px] text-slate-500">
+                {inv.trackingReceivedAt ? <>Tracking recorded {new Date(inv.trackingReceivedAt).toLocaleString('en-IN')}</> : 'Not recorded yet'}
+                {inv.trackingUrl && (
+                  <> · <a href={inv.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800"><LinkIcon className="h-3 w-3" /> open link</a></>
+                )}
+              </div>
+              <button type="button" disabled={busy} onClick={saveTracking} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 disabled:opacity-50 cursor-pointer">
+                <Truck className="h-3.5 w-3.5" /> Save tracking
+              </button>
+            </div>
+          </div>
         </Section>
 
         {/* Communication (WhatsApp / contact) */}

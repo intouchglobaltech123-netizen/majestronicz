@@ -227,6 +227,7 @@ interface ErpContextType {
     }
   ) => Promise<void>;
   addOrderCommunication: (invoiceId: string, type: OrderCommType, note?: string) => Promise<void>;
+  saveOrderTracking: (invoiceId: string, patch: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null }) => Promise<void>;
   saveOrderPacking: (
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
@@ -2882,6 +2883,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const saveOrderTracking = async (
+    invoiceId: string,
+    patch: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null }
+  ) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>(
+        '/api/shopify/order-tracking',
+        { invoiceId, ...patch, actor: currentUser.name }
+      );
+      if (res?.invoice) {
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      }
+      toast.success('Tracking saved');
+    } catch (e: any) {
+      toast.error('Failed to save tracking', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
   const saveOrderPacking = async (
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
@@ -4244,6 +4263,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoices,
         saveInvoice,
         updateOnlineOrderStatus,
+        saveOrderTracking,
         addOrderCommunication,
         saveOrderPacking,
         courierPartners,

@@ -45,6 +45,7 @@ import {
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
   updateOnlineOrderStatus,
+  saveOrderTracking,
   addOrderCommunication,
   saveOrderPacking,
   addOrderIssue,
@@ -751,6 +752,12 @@ router.post('/shopify/order-status', requireCapability('sales:write'), asyncHand
   const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note } = req.body;
   const result = await updateOnlineOrderStatus(invoiceId, status, { trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note, actor: actorOf(req) });
   broadcastChange('shopify-order-status');
+  res.json(result);
+}));
+router.post('/shopify/order-tracking', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, courierName, trackingNumber, trackingUrl, trackingReference, trackingSlipUrl } = req.body;
+  const result = await saveOrderTracking(invoiceId, { courierName, trackingNumber, trackingUrl, trackingReference, trackingSlipUrl, actor: actorOf(req) });
+  broadcastChange('shopify-order-tracking');
   res.json(result);
 }));
 router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandler(async (req, res) => {

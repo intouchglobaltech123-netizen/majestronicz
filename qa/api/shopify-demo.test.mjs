@@ -37,6 +37,23 @@ describe('shopify demo orders', () => {
     assert.ok(Array.isArray(after.onlineStatusHistory) && after.onlineStatusHistory.length >= 3, 'append-only activity history kept');
   });
 
+  test('SHOP-TRACK tracking (courier, AWB, reference, URL) can be recorded on an order at any stage', async () => {
+    ok(await post('/api/shopify/demo-orders', { count: 1 }), 'load a demo order');
+    const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];
+    assert.ok(o, 'a demo order exists');
+    const res = ok(await post('/api/shopify/order-tracking', {
+      invoiceId: o.id, courierName: 'DTDC', trackingNumber: 'AWB-123456', trackingUrl: 'https://dtdc.in/track/AWB-123456', trackingReference: 'DKT-9',
+    }), 'save tracking');
+    const inv = res.invoice;
+    assert.equal(inv.courierName, 'DTDC');
+    assert.equal(inv.trackingNumber, 'AWB-123456');
+    assert.equal(inv.trackingReference, 'DKT-9');
+    assert.ok(inv.trackingReceivedAt, 'the recorded time is stamped');
+    assert.ok((inv.onlineStatusHistory || []).some((h) => /Tracking recorded/.test(h.note || '')), 'logged to the activity history');
+    // A non-image courier slip is refused.
+    expectStatus(await post('/api/shopify/order-tracking', { invoiceId: o.id, trackingSlipUrl: 'definitely-not-an-image' }), 400, 'a bad slip image is rejected');
+  });
+
   test('SHOP-FLOW an invalid order stage is refused', async () => {
     ok(await post('/api/shopify/demo-orders', { count: 1 }));
     const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];

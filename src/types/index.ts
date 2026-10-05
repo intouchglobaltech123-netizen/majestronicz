@@ -488,6 +488,9 @@ export interface Invoice {
   trackingNumber?: string;
   courierName?: string;
   trackingUrl?: string; // courier tracking link sent to the customer
+  trackingReference?: string; // courier docket / consignment reference
+  trackingSlipUrl?: string; // photo of the courier slip (data URL)
+  trackingReceivedAt?: string; // when the tracking/AWB was recorded
   trayPhotoUrl?: string; // photo of the picked products in the tray (data URL)
   parcelPhotoUrl?: string; // photo of the packed parcel / dispatch (data URL)
   onlineStatusHistory?: { status: OnlineOrderStatus; at: string; by: string; note?: string }[];

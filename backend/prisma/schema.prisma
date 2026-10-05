@@ -212,6 +212,11 @@ model Invoice {
   trackingNumber            String?
   courierName               String?
   trackingUrl               String?
+  // Tracking details per the fulfillment spec — recordable at any stage (the
+  // courier often gives the AWB after dispatch), not only at Mark Shipped.
+  trackingReference         String?  // courier docket / consignment reference
+  trackingSlipUrl           String?  // photo of the courier slip (data URL)
+  trackingReceivedAt        String?  // when the AWB/tracking was recorded
   trayPhotoUrl              String?
   parcelPhotoUrl            String?
   onlineStatusHistory       Json?    // [{ status, at, by, note? }]
