@@ -48,7 +48,7 @@ const statusOf = (inv: Invoice): OnlineOrderStatus => (inv.onlineStatus as Onlin
 export const OnlineOrderPipeline: React.FC = () => {
   const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, saveOrderTracking, setCourierStatus, assignOrderStaff, recordDeliveryProof, setReturnStatus, setRtoStatus, reviseOnlineOrder, addOrderIssue, resolveOrderIssue, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'active' | 'all' | OnlineOrderStatus>('active');
+  const [filter, setFilter] = useState<'active' | 'all' | 'issues' | 'returns' | 'tracking-pending' | OnlineOrderStatus>('active');
   // Per-order tracking inputs (shown when shipping).
   const [tracking, setTracking] = useState<Record<string, { number: string; courier: string; url: string }>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,24 +56,39 @@ export const OnlineOrderPipeline: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const online = useMemo(() => {
+    // Both real Shopify imports AND loaded demo orders are online orders.
     return invoices
-      .filter((i) => i.sourceChannel === 'shopify' && !i.isVoided)
+      .filter((i) => String(i.sourceChannel || '').startsWith('shopify') && !i.isVoided)
       .filter((i) => isAllBranches || i.branchId === currentBranch)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [invoices, currentBranch, isAllBranches]);
+
+  const hasOpenIssue = (o: Invoice) => Array.isArray(o.issues) && o.issues.some((x: any) => x?.status !== 'resolved');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return online.filter((o) => {
       const s = statusOf(o);
+      // Quick filters.
       if (filter === 'active' && (s === 'Delivered' || s === 'Completed' || s === 'Cancelled')) return false;
-      if (filter !== 'active' && filter !== 'all' && s !== filter) return false;
+      if (filter === 'issues' && !hasOpenIssue(o)) return false;
+      if (filter === 'returns' && !o.returnStatus && !o.rtoStatus) return false;
+      if (filter === 'tracking-pending' && !(onlinePipelineIndex(s) >= onlinePipelineIndex('Shipped' as OnlineOrderStatus) && !o.trackingNumber)) return false;
+      if (filter !== 'active' && filter !== 'all' && filter !== 'issues' && filter !== 'returns' && filter !== 'tracking-pending' && s !== filter) return false;
       if (!q) return true;
+      // Spec search: order no / Shopify id / customer / phone / email / item name
+      // or SKU / tracking / courier / courier reference.
+      const itemHit = Array.isArray(o.items) && o.items.some((li: any) =>
+        (li.itemName || '').toLowerCase().includes(q) || (li.itemCode || '').toLowerCase().includes(q));
       return (
         o.invoiceNumber.toLowerCase().includes(q) ||
+        (o.externalOrderId || '').toLowerCase().includes(q) ||
         (o.customerName || '').toLowerCase().includes(q) ||
         (o.customerPhone || '').includes(q) ||
-        (o.trackingNumber || '').toLowerCase().includes(q)
+        (o.trackingNumber || '').toLowerCase().includes(q) ||
+        (o.trackingReference || '').toLowerCase().includes(q) ||
+        (o.courierName || '').toLowerCase().includes(q) ||
+        itemHit
       );
     });
   }, [online, filter, search]);
@@ -164,10 +179,16 @@ export const OnlineOrderPipeline: React.FC = () => {
     return stageAge(o)?.overdue;
   }).length;
   const openIssuesCount = online.filter((o) => (Array.isArray(o.issues) ? o.issues : []).some((i) => i.status !== 'resolved')).length;
-  const tiles: { key: 'active' | 'all' | OnlineOrderStatus; label: string; count: number }[] = [
+  const trackingPendingCount = online.filter((o) => onlinePipelineIndex(statusOf(o)) >= onlinePipelineIndex('Shipped' as OnlineOrderStatus) && !o.trackingNumber).length;
+  const returnsCount = online.filter((o) => o.returnStatus || o.rtoStatus).length;
+  const tiles: { key: 'active' | 'all' | 'issues' | 'returns' | 'tracking-pending' | OnlineOrderStatus; label: string; count: number }[] = [
     { key: 'active', label: 'Active', count: counts.active || 0 },
-    ...ONLINE_ORDER_PIPELINE.map((s) => ({ key: s, label: s, count: counts[s] || 0 })),
+    ...ONLINE_ORDER_PIPELINE.map((s) => ({ key: s as OnlineOrderStatus, label: s, count: counts[s] || 0 })),
     { key: 'Cancelled', label: 'Cancelled', count: counts.Cancelled || 0 },
+    { key: 'issues', label: 'Has issue', count: openIssuesCount },
+    { key: 'returns', label: 'Returns/RTO', count: returnsCount },
+    { key: 'tracking-pending', label: 'Tracking pending', count: trackingPendingCount },
+    { key: 'all', label: 'All', count: online.length },
   ];
 
   return (
@@ -208,7 +229,7 @@ export const OnlineOrderPipeline: React.FC = () => {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search order, customer, phone, tracking…"
+            placeholder="Search order, Shopify id, customer, phone, item/SKU, tracking, courier…"
             className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-600"
           />
         </div>
