@@ -36,6 +36,7 @@ import {
   getShopInfo,
   previewOrders,
   importOrders,
+  createDemoOnlineOrders,
   previewProducts,
   importProducts,
   handleOrderWebhook,
@@ -793,6 +794,13 @@ router.delete('/couriers/:id', requireCapability('sales:write'), asyncHandler(as
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await importOrders(Number(req.body?.limit) || 50);
   broadcastChange('shopify-import');
+  res.json(result);
+}));
+// Load demo online orders to exercise the fulfillment flow without a live store
+// (CEO/Manager; refused on production unless ALLOW_DEMO_ORDERS=true).
+router.post('/shopify/demo-orders', requireManagerOrCEO, asyncHandler(async (req, res) => {
+  const result = await createDemoOnlineOrders(Number(req.body?.count) || 100, (req as any).user);
+  broadcastChange('shopify-demo');
   res.json(result);
 }));
 router.get('/shopify/inventory', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewInventory(Number(req.query.limit) || 100))));

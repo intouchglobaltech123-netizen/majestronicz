@@ -397,6 +397,7 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         customerAddress: fullShopifyAddress(o.shipping_address || o.billing_address) || null,
         date, time: o.created_at ? String(o.created_at).slice(11, 19) || '00:00:00' : istTime(),
         paymentTerms: 'Paid', dueDate: date, stateOfSupply: '33-Tamil Nadu', withGst: false,
+        termsAndConditions: 'Online order',
         items: invLines, subtotal, totalTax: 0, totalCgst: 0, totalSgst: 0,
         overallDiscountType: '%', overallDiscountValue: 0, overallDiscountAmount: 0,
         shippingCharges: shipping, roundOff: 0, roundOffEnabled: false,
@@ -944,4 +945,86 @@ export async function findSimilarErpItems(query?: string, category?: string, lim
     unit: it.unit,
     stockOnHand: stockMap.get(it.id) || 0,
   }));
+}
+
+/** The fulfillment stages a freshly-loaded set of demo orders is spread across,
+ *  so every dashboard tile and pipeline column has something to show. */
+const DEMO_ONLINE_STAGES = ['New', 'Picking', 'Tray Photo', 'Confirmed', 'Billed', 'Packed', 'Shipped', 'In Transit', 'Delivered'];
+const DEMO_NAMES = ['Arjun Kumar', 'Priya Raman', 'Karthik S', 'Divya Nair', 'Ramesh Babu', 'Anitha V', 'Suresh Kumar', 'Lakshmi P', 'Vijay Anand', 'Meena R', 'Gokul Krishnan', 'Sneha Iyer'];
+
+/**
+ * Load N demo online orders so the Shopify fulfillment flow can be exercised
+ * without a connected store (the client's "give 100 dummy datas and start using"
+ * request). They are plain online-order invoices — clearly marked sourceChannel
+ * 'shopify-demo' / externalOrderId 'DEMO-…' — spread across the pipeline stages,
+ * built from real catalogue items. Refused on the live server unless explicitly
+ * allowed, so the real books are never polluted.
+ */
+export async function createDemoOnlineOrders(count: number, reqUser?: any): Promise<{ created: number }> {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_ORDERS !== 'true') {
+    throw new AppError('FORBIDDEN', 'Loading demo online orders is disabled on the live server. Set ALLOW_DEMO_ORDERS=true to allow it, or connect a real Shopify store.', 403);
+  }
+  const n = Math.max(1, Math.min(200, Math.round(Number(count) || 0)));
+  const branchId = shopifyBranch();
+  const items = await prisma.item.findMany({ take: 60 });
+  if (!items.length) throw new AppError('NO_ITEMS', 'Add some catalogue items first — demo orders need items to put on the order.', 400);
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+  const today = istToday();
+  let created = 0;
+  await prisma.$transaction(async (tx: any) => {
+    for (let i = 0; i < n; i++) {
+      const stage = DEMO_ONLINE_STAGES[i % DEMO_ONLINE_STAGES.length];
+      const nLines = 1 + Math.floor(Math.random() * 3);
+      const used = new Set<string>();
+      const lines: any[] = [];
+      for (let k = 0; k < nLines; k++) {
+        const it: any = pick(items);
+        if (used.has(it.id)) continue;
+        used.add(it.id);
+        const qty = 1 + Math.floor(Math.random() * 3);
+        const price = Number(it.salePrice) || 100;
+        const taxable = r2(qty * price);
+        lines.push({
+          id: `sli-demo-${Date.now()}-${i}-${k}`, itemId: it.id, itemCode: it.itemCode || '', itemName: it.itemName,
+          itemHSN: it.itemHSN || '', unit: it.unit || 'PCS', quantity: qty, unitPrice: price,
+          discountType: '%', discountValue: 0, discountAmount: 0, taxRate: 0, taxableAmount: taxable,
+          cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: taxable, unitCost: Number(it.purchasePrice) || 0,
+        });
+      }
+      if (!lines.length) continue;
+      const subtotal = r2(lines.reduce((s, l) => s + l.taxableAmount, 0));
+      const shipping = pick([0, 0, 40, 60, 80]);
+      const grandTotal = r2(subtotal + shipping);
+      const daysBack = Math.floor(Math.random() * 20);
+      const date = new Date(Date.parse(`${today}T00:00:00Z`) - daysBack * 86400000).toISOString().slice(0, 10);
+      const ts = nowIso();
+      const invoiceNumber = await nextInvoiceNumber(tx, branchId, date);
+      const stageIdx = DEMO_ONLINE_STAGES.indexOf(stage);
+      const shipped = stageIdx >= DEMO_ONLINE_STAGES.indexOf('Shipped');
+      const id = `inv-demo-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`;
+      await tx.invoice.create({
+        data: {
+          id, invoiceNumber, branchId, transactionType: 'Cash',
+          customerName: `${pick(DEMO_NAMES)} (demo)`,
+          customerPhone: `9${String(400000000 + Math.floor(Math.random() * 99999999)).slice(0, 9)}`,
+          customerAddress: `${1 + Math.floor(Math.random() * 90)}, Demo Street, ${pick(['Erode', 'Coimbatore', 'Chennai', 'Salem'])}`,
+          date, time: istTime(), paymentTerms: 'Paid', dueDate: date, stateOfSupply: '33-Tamil Nadu', withGst: false,
+          termsAndConditions: 'Demo online order',
+          items: lines, subtotal, totalTax: 0, totalCgst: 0, totalSgst: 0,
+          overallDiscountType: '%', overallDiscountValue: 0, overallDiscountAmount: 0,
+          shippingCharges: shipping, roundOff: 0, roundOffEnabled: false, grandTotal, amountInWords: '',
+          paymentMode: 'Online', paymentSplits: [{ mode: 'Online', amount: grandTotal }],
+          sourceChannel: 'shopify-demo', externalOrderId: `DEMO-${Date.now()}-${i}`,
+          onlineStatus: stage, onlineStatusUpdatedAt: ts,
+          trackingNumber: shipped ? `DMO${Math.floor(Math.random() * 1e9)}` : null,
+          courierName: shipped ? pick(['Delhivery', 'DTDC', 'ST Courier', 'Professional']) : null,
+          onlineStatusHistory: [{ status: stage, at: ts, by: 'demo-loader', note: 'Demo order loaded for testing' }],
+          createdById: 'demo-loader', createdAt: ts, updatedAt: ts,
+        },
+      });
+      created++;
+    }
+  });
+  return { created };
 }
