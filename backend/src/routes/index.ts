@@ -722,6 +722,17 @@ router.post('/attendance/self-clock', asyncHandler(async (req, res) => {
   broadcastChange('attendance');
   res.json(result);
 }));
+// M6: a check-in/out selfie is fetched only when someone opens it — it is NOT in
+// the bootstrap payload. Branch-scoped so a Manager only sees their branch's.
+router.get('/attendance/:id/photo', requireCapability('hrm:write'), asyncHandler(async (req, res) => {
+  const rec = await prisma.attendanceRecord.findUnique({
+    where: { id: String(req.params.id) },
+    select: { branchId: true, checkInPhoto: true, checkOutPhoto: true },
+  });
+  if (!rec) throw new AppError('NOT_FOUND', 'Attendance record not found', 404);
+  assertBranchAllowed((req as any).user, rec.branchId);
+  res.json({ checkInPhoto: rec.checkInPhoto || null, checkOutPhoto: rec.checkOutPhoto || null });
+}));
 
 // ---- Shopify integration ----
 // ---- Flipkart (marketplace; same shape as the Shopify endpoints above) ----

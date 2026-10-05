@@ -449,6 +449,7 @@ export interface Invoice {
   customerName: string;
   customerPhone?: string;
   customerAddress?: string;
+  buyerGstin?: string; // M9: buyer GSTIN frozen on the bill at save (print + GST report use this)
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   paymentTerms: string; // e.g. "Due on Receipt", "Net 15"

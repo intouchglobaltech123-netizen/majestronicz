@@ -287,7 +287,18 @@ export async function getBootstrap(user?: SessionUser | null, q: Record<string, 
     prisma.invoice.findMany(full ? undefined : { where: recentInvoicesWhere(cut, lockBranch) }), prisma.enquiry.findMany(), prisma.pendingOrder.findMany(),
     prisma.followUpReminder.findMany(), prisma.dailyCashRegister.findMany(),
     prisma.recurringExpenseTemplate.findMany(), prisma.vendor.findMany(), prisma.purchaseOrder.findMany().then((rows) => rows.map(stripAttachmentBodies)),
-    prisma.employee.findMany(), prisma.attendanceRecord.findMany(),
+    // M6: the selfie JPEGs (base64) are left OUT of the start-up payload — they
+    // were hundreds of MB over time and loaded on every page open. The times and
+    // locations still come through; a photo is fetched only when someone opens it
+    // (GET /api/attendance/:id/photo).
+    prisma.employee.findMany(), prisma.attendanceRecord.findMany({
+      select: {
+        id: true, employeeId: true, employeeName: true, branchId: true, date: true,
+        checkInTime: true, checkInLocation: true, checkOutTime: true, checkOutLocation: true,
+        hoursWorked: true, status: true, notes: true, createdAt: true, updatedAt: true,
+        // checkInPhoto / checkOutPhoto are intentionally excluded (fetched on demand).
+      },
+    }),
     canPayroll ? prisma.payrollRecord.findMany() : Promise.resolve([]),
     prisma.customer.findMany(), prisma.stockTransfer.findMany(), prisma.payment.findMany(),
   ]);

@@ -59,12 +59,13 @@ export const GstReportTab: React.FC<Props> = ({ startDate, endDate, branchScope 
     [purchaseOrders, startDate, endDate, branchScope],
   );
 
-  // Resolve a buyer's GSTIN from the customer master (invoices don't store it directly).
+  // M9: the buyer GSTIN is frozen on the bill at save, so a filed month never
+  // shifts between B2B and B2C when a customer's GSTIN is edited later. Use the
+  // bill's own value; for legacy bills without it, fall back to the master BY ID
+  // only (never by phone — a walk-in whose phone matched a dealer was printed B2B).
   const buyerGstin = (inv: any): string => {
-    const phone = (inv.customerPhone || '').replace(/\D/g, '');
-    const c = customers.find(
-      (x) => (inv.customerId && x.id === inv.customerId) || (phone && (x.phone || '').replace(/\D/g, '') === phone)
-    );
+    if (inv.buyerGstin) return String(inv.buyerGstin).trim().toUpperCase();
+    const c = inv.customerId ? customers.find((x) => x.id === inv.customerId) : undefined;
     return (c?.gstin || '').trim().toUpperCase();
   };
 

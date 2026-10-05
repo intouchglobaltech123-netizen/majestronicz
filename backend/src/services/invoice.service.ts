@@ -630,6 +630,14 @@ export function createSale(inv: any, reqUser?: any) {
     await lockCustomers(tx, [custId, oldInvoice?.customerId]);
     const cust = custId ? await tx.customer.findUnique({ where: { id: custId } }) : null;
 
+    // M9: freeze the buyer's GSTIN on the bill. A NEW bill takes the customer's
+    // GSTIN as it stands now (or one typed on the bill); an EDIT keeps the bill's
+    // own stored value, so correcting a customer's GSTIN later never reprints an
+    // old bill or shifts it between B2B/B2C in a month already filed.
+    inv.buyerGstin = isNewSale
+      ? ((cust?.gstin || (inv as any).buyerGstin || '').toString().trim().toUpperCase() || null)
+      : (oldInvoice?.buyerGstin ?? null);
+
     // Customer this bill was previously linked to (edit path). If the edit moves
     // the bill to a different customer, the old one's totals must be reversed
     // (CRM2-12) — handled after the new link is applied below.

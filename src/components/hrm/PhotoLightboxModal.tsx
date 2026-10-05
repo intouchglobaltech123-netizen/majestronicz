@@ -7,6 +7,8 @@ interface PhotoLightboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   photoUrl: string | null;
+  /** M6: photos load on demand — true while fetching the selfie. */
+  loading?: boolean;
   title: string;
   timestamp?: string;
   date?: string;
@@ -17,12 +19,13 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   isOpen,
   onClose,
   photoUrl,
+  loading = false,
   title,
   timestamp,
   date,
   location,
 }) => {
-  if (!isOpen || !photoUrl) return null;
+  if (!isOpen) return null;
 
   const mapsUrl = mapsLink(location);
 
@@ -58,11 +61,17 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
         {/* Photo Container */}
         <div className="relative aspect-4/3 bg-black flex items-center justify-center overflow-hidden">
-          <img
-            src={photoUrl}
-            alt={title}
-            className="w-full h-full object-contain"
-          />
+          {loading ? (
+            <span className="text-sm text-slate-400">Loading selfie…</span>
+          ) : photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={title}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <span className="text-sm text-slate-400">No selfie was captured for this entry.</span>
+          )}
         </div>
 
         {/* Footer with Geolocation Details */}

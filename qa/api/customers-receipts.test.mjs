@@ -237,6 +237,19 @@ describe('customers & receipts', () => {
     near((await getInvoice(inv.id)).balanceDue, 1860, 'due = new 2,360 − 500 receipt');
   });
 
+  test('M9 the buyer GSTIN is frozen on the bill, not re-read from the customer later', async () => {
+    const phone = randomPhone();
+    const gstin = '33ABZFM5739L1ZD';
+    ok(await post('/api/catalog/customer', { name: 'QA GST Buyer', phone, address: '', gstin }), 'customer with a GSTIN');
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 10 } });
+    const inv = await mustSell(saleBody({ date, customerName: 'QA GST Buyer', customerPhone: phone, lines: [line(item, 1)] }));
+    assert.equal((await getInvoice(inv.id)).buyerGstin, gstin, 'the bill stores the buyer GSTIN at save');
+    // Correcting/clearing the customer's GSTIN later must NOT change the old bill.
+    ok(await post('/api/catalog/customer', { id: inv.customerId, name: 'QA GST Buyer', phone, address: '', gstin: '' }), 'clear the customer GSTIN');
+    assert.equal((await getInvoice(inv.id)).buyerGstin, gstin, 'the old bill keeps its own GSTIN');
+  });
+
   test('CRM-3 "Adjust to credit note" banks store credit instead of paying cash', async () => {
     const inv = await creditBill();
     ok(await receive(inv, 1180), 'pay in full');

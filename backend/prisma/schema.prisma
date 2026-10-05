@@ -167,6 +167,10 @@ model Invoice {
   customerName              String
   customerPhone             String?
   customerAddress           String?
+  // M9: the buyer's GSTIN as it stood WHEN THE BILL WAS SAVED, so a later edit to
+  // the customer's GSTIN never reprints an old bill or moves it between B2B/B2C in
+  // a filed GST month. Print and the GST report use this, not a live customer lookup.
+  buyerGstin                String?
   date                      String
   time                      String
   paymentTerms              String

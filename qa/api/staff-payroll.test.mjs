@@ -67,6 +67,22 @@ describe('staff & payroll', () => {
     near(rec.hoursWorked, 8.5);
   });
 
+  test('M6 attendance selfies load on demand, not in the bootstrap payload', async () => {
+    const { emp } = await newEmployee();
+    const photoDataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAB//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8Af//Z';
+    const snap = ok(await post('/api/hrm/clock-in', { employeeId: emp.id, photoDataUrl, location: { lat: 11.34, lng: 77.71 }, customTime: '09:00:00' }), 'clock-in with a selfie');
+    const rec = snap.attendanceRecords.find((a) => a.employeeId === emp.id);
+    assert.ok(rec && rec.checkInTime, 'the attendance record was created');
+    // The start-up payload carries the time but NOT the selfie blob (M6).
+    const boot = ok(await get('/api/bootstrap'));
+    const bootRec = boot.attendanceRecords.find((a) => a.id === rec.id);
+    assert.ok(bootRec, 'the record is in the bootstrap');
+    assert.equal(bootRec.checkInPhoto, undefined, 'the selfie is NOT in the bootstrap payload');
+    // The selfie is fetched only when someone opens it.
+    const got = ok(await get(`/api/attendance/${rec.id}/photo`));
+    assert.ok(typeof got.checkInPhoto === 'string' && got.checkInPhoto.startsWith('data:image'), 'the selfie is fetched on demand');
+  });
+
   test('HRM6-1 a check-in without a location is stored and attendance can still be read', async () => {
     const { emp } = await newEmployee();
     ok(await post('/api/hrm/clock-in', { employeeId: emp.id }), 'clock-in without location');

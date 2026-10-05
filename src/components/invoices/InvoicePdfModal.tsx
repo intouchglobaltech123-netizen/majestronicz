@@ -29,14 +29,14 @@ interface Props {
 export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) => {
   const { customers } = useErp();
 
-  // Resolve the buyer's master record to surface GSTIN + State on the tax invoice.
-  const buyerPhone = (invoice?.customerPhone || '').replace(/\D/g, '');
-  const buyer = customers.find(
-    (c) =>
-      (invoice?.customerId && c.id === invoice.customerId) ||
-      (buyerPhone && (c.phone || '').replace(/\D/g, '') === buyerPhone)
-  );
-  const buyerGstin = buyer?.gstin;
+  // M9: print the GSTIN that was frozen on the bill when it was saved. Only fall
+  // back to the live customer master (by id, never by phone) for legacy bills
+  // that predate the stored field — so correcting a GSTIN never reprints an old
+  // bill with a new number/classification.
+  const legacyBuyer = !invoice?.buyerGstin && invoice?.customerId
+    ? customers.find((c) => c.id === invoice.customerId)
+    : undefined;
+  const buyerGstin = (invoice?.buyerGstin || legacyBuyer?.gstin || '').trim() || undefined;
   const buyerState = gstStateInfo(buyerGstin);
   const [copied, setCopied] = React.useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);

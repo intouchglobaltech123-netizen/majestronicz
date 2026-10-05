@@ -6,11 +6,11 @@ import {
   CheckCircle2,
   Users,
   LogIn,
-  LogOut,
   Camera,
   AlertTriangle,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
+import { apiGet } from '../../lib/api';
 import { getTodayDateString } from '../../lib/utils';
 import { GeoLocationCapture, BRANCHES, BranchScope } from '../../types';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
@@ -34,6 +34,7 @@ export const AttendanceLogView: React.FC = () => {
   // Lightbox modal state
   const [lightboxData, setLightboxData] = useState<{
     isOpen: boolean;
+    loading: boolean;
     photoUrl: string | null;
     title: string;
     timestamp?: string;
@@ -41,6 +42,7 @@ export const AttendanceLogView: React.FC = () => {
     location?: GeoLocationCapture | null;
   }>({
     isOpen: false,
+    loading: false,
     photoUrl: null,
     title: '',
   });
@@ -83,21 +85,25 @@ export const AttendanceLogView: React.FC = () => {
   const totalHours = filteredRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
   const averageHoursPerShift = totalShifts > 0 ? (totalHours / totalShifts).toFixed(1) : '0';
 
-  const openLightbox = (
-    photoUrl: string,
+  // M6: selfies are NOT in the page's start-up data any more — fetch the one the
+  // user clicked on demand. Open the lightbox immediately (loading), then fill in
+  // the photo (or leave it null → "no selfie").
+  const openPhoto = async (
+    recId: string,
+    which: 'in' | 'out',
     title: string,
     timestamp?: string,
     date?: string,
     location?: GeoLocationCapture | null
   ) => {
-    setLightboxData({
-      isOpen: true,
-      photoUrl,
-      title,
-      timestamp,
-      date,
-      location,
-    });
+    setLightboxData({ isOpen: true, loading: true, photoUrl: null, title, timestamp, date, location });
+    try {
+      const r = await apiGet<{ checkInPhoto: string | null; checkOutPhoto: string | null }>(`/api/attendance/${recId}/photo`);
+      const url = which === 'in' ? r.checkInPhoto : r.checkOutPhoto;
+      setLightboxData((d) => (d.isOpen ? { ...d, loading: false, photoUrl: url || null } : d));
+    } catch {
+      setLightboxData((d) => (d.isOpen ? { ...d, loading: false, photoUrl: null } : d));
+    }
   };
 
   return (
@@ -264,34 +270,28 @@ export const AttendanceLogView: React.FC = () => {
                               optional), so guard every field — dereferencing a null
                               checkInLocation/checkInPhoto here crashed the whole
                               Attendance screen and blocked payroll. */}
-                          {rec.checkInPhoto ? (
+                          {rec.checkInTime ? (
                             <button
                               type="button"
                               onClick={() =>
-                                openLightbox(
-                                  rec.checkInPhoto!,
+                                openPhoto(
+                                  rec.id,
+                                  'in',
                                   `${rec.employeeName} (Check-In)`,
                                   rec.checkInTime,
                                   rec.date,
                                   rec.checkInLocation || undefined
                                 )
                               }
-                              className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
-                              title="Click to view full photo"
+                              className="relative group h-11 w-11 rounded-none border border-slate-300 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 cursor-pointer"
+                              title="View check-in selfie"
                             >
-                              <img
-                                src={rec.checkInPhoto}
-                                alt="Check-in selfie"
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors flex items-center justify-center">
-                                <LogIn className="h-3 w-3 text-white drop-shadow-sm" />
-                              </div>
+                              <Camera className="h-4 w-4" />
                             </button>
                           ) : (
                             <div
                               className="h-11 w-11 rounded-none border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 shrink-0"
-                              title="No selfie captured"
+                              title="No check-in"
                             >
                               <LogIn className="h-4 w-4" />
                             </div>
@@ -326,31 +326,25 @@ export const AttendanceLogView: React.FC = () => {
 
                       {/* Check-Out Details */}
                       <td className="py-3 px-4">
-                        {rec.checkOutTime && rec.checkOutPhoto ? (
+                        {rec.checkOutTime ? (
                           <div className="flex items-center gap-3">
-                            {/* Thumbnail */}
+                            {/* View the check-out selfie on demand (M6). */}
                             <button
                               type="button"
                               onClick={() =>
-                                openLightbox(
-                                  rec.checkOutPhoto!,
+                                openPhoto(
+                                  rec.id,
+                                  'out',
                                   `${rec.employeeName} (Check-Out)`,
                                   rec.checkOutTime,
                                   rec.date,
                                   rec.checkOutLocation
                                 )
                               }
-                              className="relative group h-11 w-11 rounded-none overflow-hidden border border-slate-300 shadow-2xs shrink-0 cursor-pointer"
-                              title="Click to view full photo"
+                              className="relative group h-11 w-11 rounded-none border border-slate-300 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 cursor-pointer"
+                              title="View check-out selfie"
                             >
-                              <img
-                                src={rec.checkOutPhoto}
-                                alt="Check-out selfie"
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors flex items-center justify-center">
-                                <LogOut className="h-3 w-3 text-white drop-shadow-sm" />
-                              </div>
+                              <Camera className="h-4 w-4" />
                             </button>
 
                             {/* Time & Map Link */}
@@ -418,6 +412,7 @@ export const AttendanceLogView: React.FC = () => {
       {/* Lightbox Modal */}
       <PhotoLightboxModal
         isOpen={lightboxData.isOpen}
+        loading={lightboxData.loading}
         onClose={() => setLightboxData((prev) => ({ ...prev, isOpen: false }))}
         photoUrl={lightboxData.photoUrl}
         title={lightboxData.title}
