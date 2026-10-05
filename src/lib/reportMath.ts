@@ -11,7 +11,7 @@ import {
   isDamagedReturn,
   isInterStateSupply,
   expenseIsEffective,
-  BANK_DEPOSIT_CATEGORY,
+  isBankDepositCategory,
 } from '../types';
 
 /**
@@ -246,7 +246,7 @@ export function gstCollected(invoices: Invoice[], costOf: CostOf = () => 0, inRa
 
 /** A register expense that is a real operating expense (approved, not a bank deposit). */
 export const isOperatingExpense = (e: DailyCashRegister['expenses'][number]): boolean =>
-  expenseIsEffective(e) && e.category !== BANK_DEPOSIT_CATEGORY;
+  expenseIsEffective(e) && !isBankDepositCategory(e.category);
 
 /**
  * The category an expense reports under. Expenses posted from a recurring

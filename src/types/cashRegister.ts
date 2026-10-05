@@ -19,11 +19,24 @@ export interface CashExpense {
 /** Category name for cash taken out of the drawer and deposited to the bank. */
 export const BANK_DEPOSIT_CATEGORY = 'Deposit to Bank';
 
+/**
+ * A bank deposit is a cash transfer to the bank, not an operating expense, and it
+ * needs Manager/CEO approval. The category box is free text, so the same thing
+ * gets typed as "Deposit to Bank", "Bank deposit" or "deposit to bank". Match it
+ * by meaning — both the words "bank" and "deposit" present — so the approval and
+ * the P&L can never be skipped by a different spelling (M5). A "security deposit"
+ * (no "bank") is a real expense and is NOT matched.
+ */
+export const isBankDepositCategory = (category?: string): boolean => {
+  const n = (category || '').toLowerCase();
+  return /\bbank\b/.test(n) && /\bdeposit/.test(n);
+};
+
 /** Expense categories that require Manager/CEO approval before they hit the drawer. */
 export const APPROVAL_REQUIRED_CATEGORIES: string[] = [BANK_DEPOSIT_CATEGORY];
 
 export const expenseNeedsApproval = (category?: string): boolean =>
-  !!category && APPROVAL_REQUIRED_CATEGORIES.includes(category);
+  isBankDepositCategory(category) || (!!category && APPROVAL_REQUIRED_CATEGORIES.includes(category));
 
 /** An expense reduces the drawer only when it is NOT waiting on / rejected by approval. */
 export const expenseIsEffective = (e: CashExpense): boolean =>

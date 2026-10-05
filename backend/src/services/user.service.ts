@@ -322,7 +322,9 @@ export async function adminResetPin(id: string, newPin: string) {
   if (!existing) throw new AppError('NOT_FOUND', 'Account not found', 404);
   const clash = await prisma.user.findFirst({ where: { pin: hashPin(newPin), NOT: { id } } });
   if (clash) throw new AppError('CONFLICT', 'That PIN is already used by another account.', 409);
-  await prisma.user.update({ where: { id }, data: { pin: hashPin(newPin), mustResetPin: true, updatedAt: nowIso() } });
+  // M2: end every live session on a PIN reset — an old token must stop working
+  // the moment the PIN changes, not keep billing for 12 more hours.
+  await prisma.user.update({ where: { id }, data: { pin: hashPin(newPin), mustResetPin: true, tokensValidAfter: Date.now(), updatedAt: nowIso() } });
   await syncEmployeePin(existing.employeeId, newPin);
   return { ok: true };
 }

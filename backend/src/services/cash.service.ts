@@ -160,14 +160,22 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
     if (cashAmt < 0 || gpayAmt < 0) throw new AppError('BAD_AMOUNT', 'Expense amount cannot be negative', 400);
     if (cashAmt <= 0 && gpayAmt <= 0) throw new AppError('BAD_AMOUNT', 'Enter a Cash or GPay amount greater than zero', 400);
     if (!((expense.reason || '').trim())) throw new AppError('REASON_REQUIRED', 'Expense reason is required', 400);
-    const category = (expense.category || '').trim() || undefined;
+    const rawCategory = (expense.category || '').trim() || undefined;
+    // A bank deposit is a cash transfer, not an expense, and needs approval. The
+    // box is free text, so "Bank deposit" / "deposit to bank" were slipping past
+    // the exact-match check and counting as expenses in the P&L (M5). Canonicalise
+    // any bank-deposit wording to the one stored value so approval and the reports
+    // treat it the same however it was typed.
+    const n = (rawCategory || '').toLowerCase();
+    const isBankDeposit = /\bbank\b/.test(n) && /\bdeposit/.test(n);
+    const category = isBankDeposit ? 'Deposit to Bank' : rawCategory;
     const newExpense = {
       id: rid('exp'), reason: (expense.reason || '').trim(),
       category,
       billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0, gpayAmount: Number(expense.gpayAmount) || 0,
       // Bank deposits require Manager/CEO approval before they reduce the drawer.
-      approvalStatus: category === 'Deposit to Bank' ? 'pending' : undefined,
+      approvalStatus: isBankDeposit ? 'pending' : undefined,
       createdBy: actor, createdAt: nowIso(),
     };
     await tx.dailyCashRegister.update({

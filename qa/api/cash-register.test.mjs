@@ -55,6 +55,20 @@ describe('cash register', () => {
     near(await nextOpening(BR, d2), 4800, 'opening = 5000 - 200 (deposit still pending)');
   });
 
+  test('M5 a free-text "bank deposit" is treated as a deposit (approval + canonical category)', async () => {
+    const d = await freshDay(BR);
+    // Typed with a different spelling than the exact "Deposit to Bank".
+    const snap = ok(await post('/api/cash/expense', { branchId: BR, date: d, expense: { reason: 'to bank', category: 'bank deposit', cashAmount: 500 }, actor: 'QA' }));
+    const exp = snap.cashRegisters.find((r) => r.branchId === BR && r.date === d).expenses.find((e) => e.reason === 'to bank');
+    assert.equal(exp.category, 'Deposit to Bank', 'canonicalised to the deposit category');
+    assert.equal(exp.approvalStatus, 'pending', 'needs Manager/CEO approval like any deposit');
+    // A "security deposit" (no "bank") is a real expense, not a bank transfer.
+    const snap2 = ok(await post('/api/cash/expense', { branchId: BR, date: d, expense: { reason: 'shop advance', category: 'Security deposit', cashAmount: 100 }, actor: 'QA' }));
+    const exp2 = snap2.cashRegisters.find((r) => r.branchId === BR && r.date === d).expenses.find((e) => e.reason === 'shop advance');
+    assert.equal(exp2.category, 'Security deposit', 'a security deposit is left as a normal expense');
+    assert.notEqual(exp2.approvalStatus, 'pending', 'and does not need deposit approval');
+  });
+
   test('CASH2-9 an approved deposit reduces the next day\'s opening', async () => {
     const [d1, d2] = await freshDays(BR, 2);
     await openDay(BR, d1, 5000);

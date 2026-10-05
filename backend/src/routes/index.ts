@@ -369,6 +369,22 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
     if (!setPin) throw new AppError('PIN_REQUIRED', 'A 4-digit PIN is required for a new employee', 400);
     employee = await prisma.employee.create({ data: { id, createdAt: nowIso(), ...base } });
   }
+  // M2: the app login follows the employee's HR status. Marking an employee
+  // Inactive disables their login at once AND ends any open session (so a
+  // departed cashier can't keep billing that evening); marking them Active again
+  // re-enables it. Previously the login was only touched when a new PIN was typed.
+  if (allowed.status !== undefined) {
+    const target = String(allowed.status) === 'Inactive' ? 'disabled' : 'active';
+    const linked = await prisma.user.findFirst({ where: { employeeId: id } });
+    if (linked && linked.status !== target) {
+      await prisma.user.update({
+        where: { id: linked.id },
+        // Disabling ends every open session (tokensValidAfter = now); re-enabling
+        // clears that cutoff so the account can sign in cleanly again.
+        data: { status: target, tokensValidAfter: target === 'disabled' ? Date.now() : null, updatedAt: nowIso() },
+      });
+    }
+  }
   broadcastChange('POST /api/employees');
   res.json({ ok: true, employee: safeEmployee(employee, user) });
 }));
@@ -663,6 +679,12 @@ router.post('/ai/ask', requireCapability('ai:use'), asyncHandler(async (req, res
 
 // ---- Admin: reset to demo dataset (CEO only) ----
 router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (req, res) => {
+  // M7: reseed WIPES every table (payments, audit log, the lot). It must never be
+  // reachable on the live server — one stray click would erase both counters'
+  // billing. Allow it only off production, or with an explicit opt-in env flag.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_RESEED !== 'true') {
+    throw new AppError('FORBIDDEN', 'Resetting to demo data is disabled in production.', 403);
+  }
   await reseedDatabase();
   res.json(await system.getBootstrap((req as any).user));
 }));

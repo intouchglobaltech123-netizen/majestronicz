@@ -359,5 +359,26 @@ describe('write replies are branch-scoped', () => {
     ]);
     assert.equal(ended, true, 'the stream ended after sign-out');
   });
+
+  test('M2 marking a staff member Inactive in HR disables their login and ends their session', async () => {
+    const { user, pin } = await createStaff('Billing', 'erode-hq');
+    const token = await loginPin(pin);
+    ok(await api('GET', '/api/bootstrap', { as: { token } }), 'the login works while Active');
+    // Mark the linked employee Inactive through the HR form.
+    const emp = ok(await get(`/api/employees/${user.employeeId}`));
+    ok(await post('/api/employees', { id: user.employeeId, name: emp.name, designation: emp.designation, branchId: emp.branchId, status: 'Inactive' }), 'mark Inactive');
+    // The open session is dead immediately.
+    expectStatus(await api('GET', '/api/bootstrap', { as: { token } }), 401, 'the old session is rejected');
+    // A fresh login no longer yields a working session either.
+    const relogin = await api('POST', '/api/auth/login', { as: null, body: { pin } });
+    if (relogin.status === 200) {
+      expectStatus(await api('GET', '/api/bootstrap', { as: { token: relogin.body.token } }), 401, 're-login gives no working session');
+    } else {
+      expectStatus(relogin, [401, 403], 'login refused for a disabled account');
+    }
+    // Marking them Active again restores the login.
+    ok(await post('/api/employees', { id: user.employeeId, name: emp.name, designation: emp.designation, branchId: emp.branchId, status: 'Active' }), 'mark Active');
+    ok(await api('GET', '/api/bootstrap', { as: { token: await loginPin(pin) } }), 'login works again once Active');
+  });
 });
 
