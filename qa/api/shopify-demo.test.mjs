@@ -106,6 +106,15 @@ describe('shopify demo orders', () => {
     }
   });
 
+  test('SHOP-SYNC a sync run is logged and can be listed', async () => {
+    // No store is configured in tests, so "Sync now" records a logged (failed) run.
+    ok(await post('/api/shopify/import', { limit: 5 }), 'sync now');
+    const logs = ok(await get('/api/shopify/sync-logs'));
+    assert.ok(Array.isArray(logs) && logs.length >= 1, 'a sync-log row was recorded');
+    assert.equal(logs[0].kind, 'manual', 'the manual run is logged newest-first');
+    assert.equal(typeof logs[0].ok, 'boolean');
+  });
+
   test('SHOP-FLOW an invalid order stage is refused', async () => {
     ok(await post('/api/shopify/demo-orders', { count: 1 }));
     const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];

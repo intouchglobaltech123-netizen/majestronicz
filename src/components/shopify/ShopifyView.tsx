@@ -35,6 +35,11 @@ export const ShopifyView: React.FC = () => {
   const { invoices, activeSubTab, navigateToTab, setCurrentView, currentUser } = useErp();
   const canLoadDemo = currentUser.role === 'CEO' || currentUser.role === 'Manager';
   const [loadingDemo, setLoadingDemo] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<any[]>([]);
+  const [showSyncLogs, setShowSyncLogs] = useState(false);
+  const loadSyncLogs = useCallback(async () => {
+    try { setSyncLogs(await apiGet<any[]>('/api/shopify/sync-logs?limit=15')); } catch { /* ignore */ }
+  }, []);
   const [activeTab, setActiveTab] = useState<ShopifyTab>('orders');
   const [status, setStatus] = useState<ShopifyShopStatus | null>(null);
   const [orders, setOrders] = useState<ShopifyOrder[]>([]);
@@ -114,6 +119,7 @@ export const ShopifyView: React.FC = () => {
         });
       }
       await loadOrders();
+      loadSyncLogs();
     } catch (e: any) {
       toast.error('Order import failed', { description: e?.message });
     } finally {
@@ -418,6 +424,43 @@ export const ShopifyView: React.FC = () => {
                 {importingOrders ? 'Importing…' : `Import ${readyToImportCount || ''} Paid Orders`}
               </button>
             </div>
+          </div>
+
+          {/* Sync logs — what each import run brought in / failed, with Retry */}
+          <div className="bg-white border border-slate-300 shadow-xs">
+            <button type="button" onClick={() => { setShowSyncLogs((v) => { const n = !v; if (n) loadSyncLogs(); return n; }); }} className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 cursor-pointer">
+              <span className="inline-flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" /> Sync logs</span>
+              <span className="text-[11px] text-slate-400">{showSyncLogs ? 'Hide' : 'Show'}</span>
+            </button>
+            {showSyncLogs && (
+              <div className="border-t border-slate-200 p-3 space-y-1.5">
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" onClick={loadSyncLogs} className="text-[11px] font-bold text-slate-600 hover:text-slate-900">Refresh</button>
+                  <button type="button" onClick={handleImportOrders} disabled={importingOrders} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-none bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold border border-red-700 disabled:opacity-50 cursor-pointer">
+                    <DownloadCloud className={`h-3 w-3 ${importingOrders ? 'animate-pulse' : ''}`} /> Sync now
+                  </button>
+                </div>
+                {syncLogs.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">No sync runs yet. Use “Sync now” to pull paid Shopify orders.</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {syncLogs.map((l) => (
+                      <div key={l.id} className="flex items-center justify-between gap-2 text-[11px] border border-slate-100 rounded px-2 py-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className={cn('h-1.5 w-1.5 rounded-full', l.ok ? 'bg-emerald-500' : 'bg-rose-500')} />
+                          <span className="text-slate-500">{new Date(l.at).toLocaleString('en-IN')}</span>
+                          <span className="font-bold text-slate-700">{l.kind}</span>
+                          <span className="text-slate-600">{l.message || `${l.imported} in · ${l.skipped} skipped · ${l.failed} failed`}</span>
+                        </span>
+                        {!l.ok && (
+                          <button type="button" onClick={handleImportOrders} disabled={importingOrders} className="text-[11px] font-bold text-red-600 hover:text-red-800 disabled:opacity-50">Retry</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Orders Table */}

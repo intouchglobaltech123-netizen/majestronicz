@@ -416,10 +416,25 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
   return 'imported';
 }
 
+/** Record one order-sync run so staff can review it and retry (spec: Sync Logs). */
+export async function logSync(entry: { by?: string; kind: 'manual' | 'webhook'; ok: boolean; imported: number; skipped: number; failed: number; message?: string }): Promise<void> {
+  try {
+    await prisma.shopifySyncLog.create({ data: { id: rid('sync'), at: nowIso(), by: entry.by ?? null, kind: entry.kind, ok: entry.ok, imported: entry.imported, skipped: entry.skipped, failed: entry.failed, message: entry.message?.slice(0, 300) ?? null } });
+  } catch { /* logging must never break the sync itself */ }
+}
+
+/** Recent sync runs, newest first. */
+export async function listSyncLogs(limit = 50): Promise<any[]> {
+  return prisma.shopifySyncLog.findMany({ orderBy: { at: 'desc' }, take: Math.min(200, Math.max(1, limit)) });
+}
+
 /** Bulk-import recent PAID Shopify orders. */
-export async function importOrders(limit = 50): Promise<{ configured: boolean; imported: number; skipped: number; results: { order: string; status: string }[] }> {
+export async function importOrders(limit = 50, by?: string): Promise<{ configured: boolean; imported: number; skipped: number; results: { order: string; status: string }[] }> {
   const cfg = getShopifyConfig();
-  if (!cfg) return { configured: false, imported: 0, skipped: 0, results: [] };
+  if (!cfg) {
+    await logSync({ by, kind: 'manual', ok: false, imported: 0, skipped: 0, failed: 0, message: 'Shopify is not configured (no store/API key).' });
+    return { configured: false, imported: 0, skipped: 0, results: [] };
+  }
 
   const data = await shopifyFetch<{ orders: any[] }>(`orders.json?status=any&financial_status=paid&limit=${Math.min(250, limit)}`);
   const orders = data.orders || [];
@@ -428,6 +443,7 @@ export async function importOrders(limit = 50): Promise<{ configured: boolean; i
   const results: { order: string; status: string }[] = [];
   let imported = 0;
   let skipped = 0;
+  let failed = 0;
 
   for (const o of orders) {
     const orderName = o.name || `#${o.order_number}`;
@@ -436,10 +452,12 @@ export async function importOrders(limit = 50): Promise<{ configured: boolean; i
       if (r === 'imported') { imported++; results.push({ order: orderName, status: 'imported' }); }
       else { skipped++; results.push({ order: orderName, status: 'already imported' }); }
     } catch (e: any) {
+      failed++;
       results.push({ order: orderName, status: `error: ${e?.message?.slice(0, 80) || 'failed'}` });
     }
   }
 
+  await logSync({ by, kind: 'manual', ok: failed === 0, imported, skipped, failed, message: `${orders.length} fetched · ${imported} imported · ${skipped} already · ${failed} failed` });
   return { configured: true, imported, skipped, results };
 }
 
@@ -511,10 +529,13 @@ export async function importProducts(limit = 100): Promise<{ configured: boolean
 export async function handleOrderWebhook(rawBody: Buffer | string, hmac: string | undefined, order: any): Promise<{ ok: boolean; status?: string }> {
   if (!verifyWebhookHmac(rawBody, hmac)) return { ok: false };
   if (!order?.id) return { ok: true, status: 'ignored' };
+  const name = order.name || `#${order.order_number || order.id}`;
   try {
     const status = await importOneOrder(order);
+    await logSync({ kind: 'webhook', ok: true, imported: status === 'imported' ? 1 : 0, skipped: status === 'imported' ? 0 : 1, failed: 0, message: `Webhook ${name}: ${status}` });
     return { ok: true, status };
-  } catch {
+  } catch (e: any) {
+    await logSync({ kind: 'webhook', ok: false, imported: 0, skipped: 0, failed: 1, message: `Webhook ${name} failed: ${e?.message?.slice(0, 120) || 'error'}` });
     return { ok: true, status: 'error' };
   }
 }

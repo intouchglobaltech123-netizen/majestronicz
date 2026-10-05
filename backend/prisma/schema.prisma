@@ -637,3 +637,19 @@ model PoAttachment {
 
   @@index([poId])
 }
+
+// Shopify sync audit: one row per order-import run (manual "Sync Now" or a
+// webhook), so staff can see what came in / failed and retry (spec: Sync Logs).
+model ShopifySyncLog {
+  id       String  @id
+  at       String
+  by       String?
+  kind     String  // 'manual' | 'webhook'
+  ok       Boolean
+  imported Int
+  skipped  Int
+  failed   Int
+  message  String?
+
+  @@index([at])
+}
