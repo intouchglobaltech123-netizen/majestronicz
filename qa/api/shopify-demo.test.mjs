@@ -54,6 +54,20 @@ describe('shopify demo orders', () => {
     expectStatus(await post('/api/shopify/order-tracking', { invoiceId: o.id, trackingSlipUrl: 'definitely-not-an-image' }), 400, 'a bad slip image is rejected');
   });
 
+  test('SHOP-COURIER courier step, staff assignment and proof of delivery are recorded', async () => {
+    ok(await post('/api/shopify/demo-orders', { count: 1 }));
+    const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];
+    let r = ok(await post('/api/shopify/order-courier-status', { invoiceId: o.id, status: 'Booked' }), 'set courier step');
+    assert.equal(r.invoice.courierStatus, 'Booked', 'courier status is its own track');
+    expectStatus(await post('/api/shopify/order-courier-status', { invoiceId: o.id, status: 'Nope' }), 400, 'invalid courier step refused');
+    r = ok(await post('/api/shopify/order-assign', { invoiceId: o.id, stage: 'Picking', staffName: 'Gokul' }), 'assign staff');
+    assert.equal(r.invoice.assignedStaff.Picking, 'Gokul', 'staff assigned to the step');
+    r = ok(await post('/api/shopify/order-pod', { invoiceId: o.id, receiverName: 'Neighbour', note: 'left with watchman' }), 'record POD');
+    assert.equal(r.invoice.podReceiverName, 'Neighbour');
+    assert.ok(r.invoice.podReceivedAt, 'delivery time captured');
+    expectStatus(await post('/api/shopify/order-pod', { invoiceId: o.id, receiverName: '' }), 400, 'receiver name required');
+  });
+
   test('SHOP-FLOW an invalid order stage is refused', async () => {
     ok(await post('/api/shopify/demo-orders', { count: 1 }));
     const o = ok(await get('/api/invoices')).filter((i) => i.sourceChannel === 'shopify-demo')[0];

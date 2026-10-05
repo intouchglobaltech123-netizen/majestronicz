@@ -228,6 +228,20 @@ model Invoice {
   addressLabelDone          Boolean?
   invoiceIncluded           Boolean?
   issues                    Json?    // [{ id, type, description, status, createdBy, createdAt, resolvedBy?, resolvedAt?, resolution? }]
+  // Fulfillment-spec additions: a SEPARATE courier status track, staff assigned
+  // per workflow step, proof of delivery, and the returns/RTO + revision tracks.
+  courierStatus             String?  // Selected|Booked|Pickup Pending|Handed|Tracking Received
+  courierStatusUpdatedAt    String?
+  assignedStaff             Json?    // { "<stage>": "<staff name>" } — who owns each step
+  podReceiverName           String?  // who received the parcel
+  podReceivedAt             String?  // delivery date/time captured as proof
+  podNote                   String?
+  returnStatus              String?  // Requested|Review|Approved|Rejected|In Transit|Received|Inspection|Refunded|Replaced|Closed
+  returnLog                 Json?    // [{ status, at, by, note? }] — return state-machine trail
+  rtoStatus                 String?  // RTO Initiated|In Transit|Received|Decided
+  rtoLog                    Json?    // [{ status, at, by, note? }]
+  revisions                 Json?    // [{ id, at, by, change, deltaAmount, note? }] customer order changes
+  originalGrandTotal        Float?   // the order's first total, kept across revisions
   createdById               String?
   createdAt                 String
   updatedAt                 String?

@@ -491,6 +491,18 @@ export interface Invoice {
   trackingReference?: string; // courier docket / consignment reference
   trackingSlipUrl?: string; // photo of the courier slip (data URL)
   trackingReceivedAt?: string; // when the tracking/AWB was recorded
+  courierStatus?: string; // separate courier track: Selected|Booked|Pickup Pending|Handed|Tracking Received
+  courierStatusUpdatedAt?: string;
+  assignedStaff?: Record<string, string>; // { stage: staffName } — who owns each step
+  podReceiverName?: string; // proof of delivery: who received it
+  podReceivedAt?: string;
+  podNote?: string;
+  returnStatus?: string;
+  returnLog?: { status: string; at: string; by: string; note?: string }[];
+  rtoStatus?: string;
+  rtoLog?: { status: string; at: string; by: string; note?: string }[];
+  revisions?: { id: string; at: string; by: string; change: string; deltaAmount: number; note?: string }[];
+  originalGrandTotal?: number;
   trayPhotoUrl?: string; // photo of the picked products in the tray (data URL)
   parcelPhotoUrl?: string; // photo of the packed parcel / dispatch (data URL)
   onlineStatusHistory?: { status: OnlineOrderStatus; at: string; by: string; note?: string }[];

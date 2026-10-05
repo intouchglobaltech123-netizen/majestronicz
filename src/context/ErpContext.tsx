@@ -228,6 +228,9 @@ interface ErpContextType {
   ) => Promise<void>;
   addOrderCommunication: (invoiceId: string, type: OrderCommType, note?: string) => Promise<void>;
   saveOrderTracking: (invoiceId: string, patch: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null }) => Promise<void>;
+  setCourierStatus: (invoiceId: string, status: string) => Promise<void>;
+  assignOrderStaff: (invoiceId: string, stage: string, staffName: string) => Promise<void>;
+  recordDeliveryProof: (invoiceId: string, patch: { receiverName: string; note?: string; receivedAt?: string }) => Promise<void>;
   saveOrderPacking: (
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
@@ -2901,6 +2904,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const applyOrderInvoice = (invoiceId: string, res: any, okMsg: string) => {
+    if (res?.invoice) setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+    toast.success(okMsg);
+  };
+  const setCourierStatus = async (invoiceId: string, status: string) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-courier-status', { invoiceId, status, actor: currentUser.name }), `Courier: ${status}`); }
+    catch (e: any) { toast.error('Could not update courier status', { description: e?.message }); }
+  };
+  const assignOrderStaff = async (invoiceId: string, stage: string, staffName: string) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-assign', { invoiceId, stage, staffName, actor: currentUser.name }), staffName ? `${stage} assigned to ${staffName}` : `${stage} unassigned`); }
+    catch (e: any) { toast.error('Could not assign staff', { description: e?.message }); }
+  };
+  const recordDeliveryProof = async (invoiceId: string, patch: { receiverName: string; note?: string; receivedAt?: string }) => {
+    try { applyOrderInvoice(invoiceId, await apiPost('/api/shopify/order-pod', { invoiceId, ...patch, actor: currentUser.name }), 'Delivery proof recorded'); }
+    catch (e: any) { toast.error('Could not record delivery proof', { description: e?.message }); }
+  };
+
   const saveOrderPacking = async (
     invoiceId: string,
     patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
@@ -4264,6 +4284,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveInvoice,
         updateOnlineOrderStatus,
         saveOrderTracking,
+        setCourierStatus,
+        assignOrderStaff,
+        recordDeliveryProof,
         addOrderCommunication,
         saveOrderPacking,
         courierPartners,

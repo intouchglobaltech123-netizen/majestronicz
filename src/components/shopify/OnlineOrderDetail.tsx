@@ -51,6 +51,9 @@ interface Props {
   onUploadPhoto: (kind: 'tray' | 'parcel', file: File | null) => void;
   onComm: (type: OrderCommType, note?: string) => void;
   onSaveTracking: (patch: { courierName?: string; trackingNumber?: string; trackingUrl?: string; trackingReference?: string; trackingSlipUrl?: string | null }) => void;
+  onSetCourierStatus: (status: string) => void;
+  onAssignStaff: (stage: string, staffName: string) => void;
+  onRecordPod: (patch: { receiverName: string; note?: string }) => void;
   onSavePacking: (patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }) => void;
   onAddIssue: (type: OrderIssueType, description?: string) => void;
   onResolveIssue: (issueId: string, resolution?: string) => void;
@@ -67,7 +70,9 @@ const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.
 );
 
 /** Full-page ERP view of one online order — everything about it on one screen. */
-export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSaveTracking, onSavePacking, onAddIssue, onResolveIssue }) => {
+const COURIER_STEPS = ['Selected', 'Booked', 'Pickup Pending', 'Handed', 'Tracking Received'];
+
+export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvance, onUploadPhoto, onComm, onSaveTracking, onSetCourierStatus, onAssignStaff, onRecordPod, onSavePacking, onAddIssue, onResolveIssue }) => {
   const { courierPartners } = useErp();
   const recommended = recommendCouriers(inv, courierPartners || []);
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
@@ -92,6 +97,10 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
     trackingReference: t.reference.trim(),
     trackingSlipUrl: t.slip,
   });
+
+  const assignedStaff = (inv.assignedStaff && typeof inv.assignedStaff === 'object' ? inv.assignedStaff : {}) as Record<string, string>;
+  const [pod, setPod] = useState({ receiver: inv.podReceiverName || '', note: inv.podNote || '' });
+  const [assignName, setAssignName] = useState('');
 
   const name = inv.customerName || 'Customer';
   const photoMsg = `Hello ${name}, your order ${inv.invoiceNumber} is getting ready for dispatch. Please check the products before we pack.`;
@@ -281,6 +290,24 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
             AWB after dispatch), per the fulfillment spec. */}
         <Section title="Courier & Tracking" icon={<Truck className="h-3.5 w-3.5" />}>
           <div className="space-y-2.5">
+            {/* Separate courier handoff track (Selected → … → Tracking Received). */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Courier step</span>
+              <div className="flex flex-wrap gap-1">
+                {COURIER_STEPS.map((step) => (
+                  <button
+                    key={step}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onSetCourierStatus(step)}
+                    className={cn('px-2 py-1 rounded-md text-[11px] font-bold border cursor-pointer',
+                      inv.courierStatus === step ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50')}
+                  >
+                    {step}
+                  </button>
+                ))}
+              </div>
+            </div>
             {/* Recommended couriers for this order's state / payment / weight */}
             {recommended.length > 0 && (
               <div>
@@ -336,6 +363,45 @@ export const OnlineOrderDetail: React.FC<Props> = ({ inv, busy, onBack, onAdvanc
               <button type="button" disabled={busy} onClick={saveTracking} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 disabled:opacity-50 cursor-pointer">
                 <Truck className="h-3.5 w-3.5" /> Save tracking
               </button>
+            </div>
+          </div>
+        </Section>
+
+        {/* Delivery proof + staff assignment for the current step */}
+        <Section title="Delivery & Assignment" icon={<User className="h-3.5 w-3.5" />}>
+          <div className="space-y-3">
+            {/* Assign the person who owns THIS workflow step */}
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Assigned for “{s}”</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <input
+                  value={assignName || assignedStaff[s] || ''}
+                  onChange={(e) => setAssignName(e.target.value)}
+                  placeholder="Staff name"
+                  className="w-40 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                />
+                <button type="button" disabled={busy} onClick={() => onAssignStaff(s, assignName || assignedStaff[s] || '')} className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-white bg-slate-700 hover:bg-slate-800 border border-slate-800 disabled:opacity-50 cursor-pointer">Assign</button>
+              </div>
+              {Object.keys(assignedStaff).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {Object.entries(assignedStaff).map(([stage, who]) => (
+                    <span key={stage} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">{stage}: <b>{who}</b></span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Proof of delivery (receiver + note) */}
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Proof of delivery</p>
+              {inv.podReceiverName && (
+                <p className="text-[11px] text-emerald-700 mb-1">Received by <b>{inv.podReceiverName}</b>{inv.podReceivedAt ? ` · ${new Date(inv.podReceivedAt).toLocaleString('en-IN')}` : ''}{inv.podNote ? ` — ${inv.podNote}` : ''}</p>
+              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <input value={pod.receiver} onChange={(e) => setPod({ ...pod, receiver: e.target.value })} placeholder="Received by (name)" className="w-40 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
+                <input value={pod.note} onChange={(e) => setPod({ ...pod, note: e.target.value })} placeholder="Note (relation / proof)" className="w-48 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
+                <button type="button" disabled={busy || !pod.receiver.trim()} onClick={() => onRecordPod({ receiverName: pod.receiver.trim(), note: pod.note.trim() || undefined })} className="px-2.5 py-1.5 rounded-md text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 disabled:opacity-50 cursor-pointer">Record delivery</button>
+              </div>
             </div>
           </div>
         </Section>

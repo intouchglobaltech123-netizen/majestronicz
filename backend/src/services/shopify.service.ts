@@ -1,4 +1,4 @@
-import { istToday, istTime } from '../lib/businessDate.js';
+import { istToday, istTime, isValidYmd } from '../lib/businessDate.js';
 import crypto from 'crypto';
 import { prisma } from '../db.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
@@ -796,6 +796,57 @@ export async function saveOrderTracking(
   }
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   return { invoice, shopify };
+}
+
+/** The separate COURIER status track (distinct from the ERP workflow stage). */
+export const COURIER_STEPS = ['Selected', 'Booked', 'Pickup Pending', 'Handed', 'Tracking Received'];
+
+/** Advance/record the courier handoff step for an order (a track of its own). */
+export async function setCourierStatus(invoiceId: string, status: string, actor: string): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Not an online order.', 400);
+  if (!COURIER_STEPS.includes(status)) throw new AppError('BAD_COURIER_STATUS', `Invalid courier step: ${String(status).slice(0, 40)}`, 400);
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus, at: now, by: actor, note: `Courier: ${status}` });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { courierStatus: status, courierStatusUpdatedAt: now, onlineStatusHistory: history } });
+  return { invoice: await prisma.invoice.findUnique({ where: { id: invoiceId } }) };
+}
+
+/** Assign the staff member who owns a given workflow step (spec: staff per step). */
+export async function assignOrderStaff(invoiceId: string, stage: string, staffName: string, actor: string): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Not an online order.', 400);
+  const key = String(stage || '').trim();
+  if (!key) throw new AppError('BAD_STAGE', 'A step is required to assign staff.', 400);
+  const now = nowIso();
+  const assigned = { ...((inv as any).assignedStaff && typeof (inv as any).assignedStaff === 'object' ? (inv as any).assignedStaff : {}) };
+  const name = String(staffName || '').trim();
+  if (name) assigned[key] = name; else delete assigned[key];
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus, at: now, by: actor, note: name ? `Assigned ${key} to ${name}` : `Unassigned ${key}` });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { assignedStaff: assigned, onlineStatusHistory: history } });
+  return { invoice: await prisma.invoice.findUnique({ where: { id: invoiceId } }) };
+}
+
+/** Record proof of delivery (who received it, when, note) — the spec's POD. */
+export async function recordDeliveryProof(invoiceId: string, opts: { receiverName?: string; note?: string; receivedAt?: string; actor: string }): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  if (!(inv as any).onlineStatus) throw new AppError('NOT_ONLINE', 'Not an online order.', 400);
+  const receiver = String(opts.receiverName || '').trim();
+  if (!receiver) throw new AppError('RECEIVER_REQUIRED', "Enter who received the parcel.", 400);
+  const at = opts.receivedAt && isValidYmd(opts.receivedAt) ? opts.receivedAt : nowIso();
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus, at: now, by: opts.actor, note: `Delivery proof — received by ${receiver}` });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { podReceiverName: receiver, podReceivedAt: at, podNote: String(opts.note || '').trim() || null, onlineStatusHistory: history },
+  });
+  return { invoice: await prisma.invoice.findUnique({ where: { id: invoiceId } }) };
 }
 
 /**

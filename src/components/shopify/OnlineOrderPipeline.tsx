@@ -46,7 +46,7 @@ const STATUS_STYLE: Record<OnlineOrderStatus, string> = {
 const statusOf = (inv: Invoice): OnlineOrderStatus => (inv.onlineStatus as OnlineOrderStatus) || 'New';
 
 export const OnlineOrderPipeline: React.FC = () => {
-  const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, saveOrderTracking, addOrderIssue, resolveOrderIssue, currentBranch, isAllBranches } = useErp();
+  const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, saveOrderTracking, setCourierStatus, assignOrderStaff, recordDeliveryProof, addOrderIssue, resolveOrderIssue, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'all' | OnlineOrderStatus>('active');
   // Per-order tracking inputs (shown when shipping).
@@ -133,6 +133,9 @@ export const OnlineOrderPipeline: React.FC = () => {
         onUploadPhoto={(kind, file) => uploadPhoto(selected, kind, file)}
         onComm={(type, note) => addOrderCommunication(selected.id, type, note)}
         onSaveTracking={(patch) => saveOrderTracking(selected.id, patch)}
+        onSetCourierStatus={(status) => setCourierStatus(selected.id, status)}
+        onAssignStaff={(stage, staffName) => assignOrderStaff(selected.id, stage, staffName)}
+        onRecordPod={(patch) => recordDeliveryProof(selected.id, patch)}
         onSavePacking={(patch) => saveOrderPacking(selected.id, patch)}
         onAddIssue={(type, description) => addOrderIssue(selected.id, type, description)}
         onResolveIssue={(issueId, resolution) => resolveOrderIssue(selected.id, issueId, resolution)}

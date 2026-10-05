@@ -46,6 +46,9 @@ import {
   fulfillShopifyOrder,
   updateOnlineOrderStatus,
   saveOrderTracking,
+  setCourierStatus,
+  assignOrderStaff,
+  recordDeliveryProof,
   addOrderCommunication,
   saveOrderPacking,
   addOrderIssue,
@@ -758,6 +761,21 @@ router.post('/shopify/order-tracking', requireCapability('sales:write'), asyncHa
   const { invoiceId, courierName, trackingNumber, trackingUrl, trackingReference, trackingSlipUrl } = req.body;
   const result = await saveOrderTracking(invoiceId, { courierName, trackingNumber, trackingUrl, trackingReference, trackingSlipUrl, actor: actorOf(req) });
   broadcastChange('shopify-order-tracking');
+  res.json(result);
+}));
+router.post('/shopify/order-courier-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await setCourierStatus(req.body?.invoiceId, req.body?.status, actorOf(req));
+  broadcastChange('shopify-courier-status');
+  res.json(result);
+}));
+router.post('/shopify/order-assign', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await assignOrderStaff(req.body?.invoiceId, req.body?.stage, req.body?.staffName, actorOf(req));
+  broadcastChange('shopify-order-assign');
+  res.json(result);
+}));
+router.post('/shopify/order-pod', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const result = await recordDeliveryProof(req.body?.invoiceId, { receiverName: req.body?.receiverName, note: req.body?.note, receivedAt: req.body?.receivedAt, actor: actorOf(req) });
+  broadcastChange('shopify-order-pod');
   res.json(result);
 }));
 router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandler(async (req, res) => {
