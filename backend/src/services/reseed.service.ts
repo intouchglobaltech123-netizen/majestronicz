@@ -7,6 +7,7 @@ import {
   INITIAL_STOCK_ADJUSTMENT_LOGS, INITIAL_COMBOS, INITIAL_RECURRING_EXPENSE_TEMPLATES,
   INITIAL_CUSTOMERS, INITIAL_LOYALTY_SETTINGS,
 } from '../data/seedData.js';
+import { IMPORTED_CATALOG } from '../data/importedCatalog.js';
 import { STANDARD_UNITS, GST_RATES, PAYMENT_TERMS_OPTIONS } from '../lib/constants.js';
 import { buildDefaultMatrix, hashPin, isPinHashed, setLiveMatrix } from '../lib/auth.js';
 import { buildOpeningStockRows } from '../lib/openingStock.js';
@@ -121,6 +122,105 @@ export async function reseedDatabase() {
   // self check-in until the server restarted. Re-link them now (a no-op when
   // there are no logins yet, as on the very first seed).
   await provisionUserEmployees();
+}
+
+/**
+ * ONE-TIME production go-live: wipe every piece of business/demo data but KEEP
+ * the staff logins (the User table, which no reset ever touches), then load ONLY
+ * the client's real catalog (backend/src/data/importedCatalog.ts, imported from
+ * their Vyapar export) with opening stock at one branch. Config singletons
+ * (categories, units, GST slabs, access matrix, settings) are rebuilt so the app
+ * stays usable; categories come from the imported items.
+ *
+ * Destructive and irreversible — guarded behind CEO + (in production)
+ * ALLOW_RESET_TO_CATALOG=true at the route. The opening-stock branch defaults to
+ * 'erode-hq' and can be overridden with CATALOG_BRANCH.
+ */
+export async function resetToCatalog(): Promise<{ items: number; branchId: string }> {
+  const branchId = process.env.CATALOG_BRANCH || 'erode-hq';
+  const now = new Date().toISOString();
+
+  // Same wipe as the demo reset — note User is deliberately NOT in this list, so
+  // every staff login survives. appConfig is cleared and rebuilt below.
+  await prisma.$transaction([
+    prisma.item.deleteMany(), prisma.branchStock.deleteMany(), prisma.comboItem.deleteMany(),
+    prisma.stockAdjustmentLog.deleteMany(), prisma.estimate.deleteMany(), prisma.deliveryChallan.deleteMany(),
+    prisma.invoice.deleteMany(), prisma.enquiry.deleteMany(), prisma.pendingOrder.deleteMany(),
+    prisma.followUpReminder.deleteMany(), prisma.dailyCashRegister.deleteMany(),
+    prisma.recurringExpenseTemplate.deleteMany(), prisma.vendor.deleteMany(), prisma.poAttachment.deleteMany(), prisma.purchaseOrder.deleteMany(),
+    prisma.employee.deleteMany(), prisma.attendanceRecord.deleteMany(), prisma.payrollRecord.deleteMany(),
+    prisma.customer.deleteMany(), prisma.stockTransfer.deleteMany(),
+    prisma.payment.deleteMany(), prisma.auditLog.deleteMany(), prisma.appConfig.deleteMany(),
+    prisma.shopifySyncLog.deleteMany(),
+  ]);
+
+  // Build catalog rows. The item code is unique, so derive a stable id from it.
+  const idFor = (code: string) => `item-${code.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`;
+  const items = IMPORTED_CATALOG.map((it) => ({
+    id: idFor(it.itemCode),
+    itemName: it.itemName,
+    itemHSN: it.itemHSN || '',
+    category: it.category,
+    subcategory: null,
+    itemCode: it.itemCode,
+    unit: it.unit,
+    salePrice: it.salePrice,
+    salePriceTaxMode: it.salePriceTaxMode,
+    wholesalePrice: it.wholesalePrice,
+    minWholesaleQty: it.minWholesaleQty,
+    purchasePrice: it.purchasePrice,
+    gstTaxSlab: it.gstTaxSlab,
+    reorderThreshold: it.minStockAlert,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  const stocks = IMPORTED_CATALOG.map((it) => ({
+    itemId: idFor(it.itemCode),
+    branchId,
+    quantity: it.openingStock,
+    location: it.location || null,
+    minStockAlert: it.minStockAlert,
+    updatedAt: now,
+  }));
+  // Opening-stock ledger rows so the movement history reconciles to stock from
+  // day one (no prior movements, so opening qty == current qty). STK-3.
+  const openingLogs = buildOpeningStockRows(stocks as any[], [], items as any[], {
+    idFor: (b, i) => `adj-open-${b}-${i}`,
+    timestampFor: () => now,
+    notes: 'Opening balance at go-live',
+    adjustedBy: 'System (Catalog Import)',
+  });
+
+  await prisma.item.createMany({ data: items as any });
+  await prisma.branchStock.createMany({ data: stocks as any });
+  if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
+
+  // Categories come from the imported catalog; the rest are the usual config
+  // singletons so dropdowns, settings and rights exist on a clean system.
+  const categories = [...new Set(items.map((i) => i.category))].sort();
+  const usesSqft = items.some((i) => i.unit === 'SQFT');
+  const unitsList = usesSqft ? [...STANDARD_UNITS, { value: 'SQFT', label: 'SQFT (Square Feet)' }] : STANDARD_UNITS;
+  await prisma.appConfig.createMany({
+    data: [
+      { key: 'categories', value: categories as any },
+      { key: 'subcategoriesByCategory', value: {} as any },
+      { key: 'categoryPrefixMap', value: {} },
+      { key: 'subcategoryPrefixMap', value: {} },
+      { key: 'unitsList', value: unitsList as any },
+      { key: 'gstSlabsList', value: GST_RATES as any },
+      { key: 'paymentTermsOptions', value: PAYMENT_TERMS_OPTIONS as any },
+      { key: 'loyaltySettings', value: INITIAL_LOYALTY_SETTINGS as any },
+      { key: 'payrollSettings', value: INITIAL_PAYROLL_SETTINGS as any },
+      { key: 'inventorySettings', value: { deadStockThresholdDays: 90 } },
+      { key: 'accessMatrix', value: buildDefaultMatrix() as any },
+      { key: 'migration:fix-existing-bills', value: { runs: [], seededAlreadyCorrect: true } as any },
+    ],
+  });
+  setLiveMatrix(buildDefaultMatrix());
+  // Re-link attendance profiles to the surviving staff logins (HRM3-8).
+  await provisionUserEmployees();
+  return { items: items.length, branchId };
 }
 
 /**

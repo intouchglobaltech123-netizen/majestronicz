@@ -20,7 +20,7 @@ import enquiryRoutes from './enquiry.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
 import { sseHandler, broadcastChange, closeUserStreams } from '../lib/events.js';
-import { reseedDatabase } from '../services/reseed.service.js';
+import { reseedDatabase, resetToCatalog } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
@@ -711,6 +711,21 @@ router.post('/admin/reseed', requireCapability('admin'), asyncHandler(async (req
   }
   await reseedDatabase();
   res.json(await system.getBootstrap((req as any).user));
+}));
+
+// ---- Admin: ONE-TIME go-live — wipe all data, keep logins, load the real
+// catalog (CEO only). Same danger as reseed: gated off production unless the
+// operator sets ALLOW_RESET_TO_CATALOG=true for the single run. A typed
+// confirm ("RESET") in the body is required so it can't fire on a stray call. ----
+router.post('/admin/reset-to-catalog', requireCapability('admin'), asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_RESET_TO_CATALOG !== 'true') {
+    throw new AppError('FORBIDDEN', 'Resetting to the real catalog is disabled in production. Set ALLOW_RESET_TO_CATALOG=true for the one-time run.', 403);
+  }
+  if (String(req.body?.confirm || '') !== 'RESET') {
+    throw new AppError('CONFIRM_REQUIRED', 'This erases all data except logins. Send { "confirm": "RESET" } to proceed.', 400);
+  }
+  const result = await resetToCatalog();
+  res.json({ ...result, bootstrap: await system.getBootstrap((req as any).user) });
 }));
 
 // ---- Bootstrap + health (bootstrap is scoped by authenticated role) ----
