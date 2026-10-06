@@ -32,9 +32,7 @@ import { CourierMasterTab } from './CourierMasterTab';
 export type ShopifyTab = 'orders' | 'inventory' | 'products' | 'customers' | 'couriers' | 'settings';
 
 export const ShopifyView: React.FC = () => {
-  const { invoices, activeSubTab, navigateToTab, setCurrentView, currentUser } = useErp();
-  const canLoadDemo = currentUser.role === 'CEO' || currentUser.role === 'Manager';
-  const [loadingDemo, setLoadingDemo] = useState(false);
+  const { invoices, activeSubTab, navigateToTab, setCurrentView } = useErp();
   const [syncLogs, setSyncLogs] = useState<any[]>([]);
   const [showSyncLogs, setShowSyncLogs] = useState(false);
   const loadSyncLogs = useCallback(async () => {
@@ -88,20 +86,6 @@ export const ShopifyView: React.FC = () => {
       toast.error('Could not fetch Shopify orders', { description: e?.message });
     } finally {
       setSyncingOrders(false);
-    }
-  };
-
-  const handleLoadDemoOrders = async () => {
-    setLoadingDemo(true);
-    try {
-      const res = await apiPost<{ created: number }>('/api/shopify/demo-orders', { count: 100 });
-      toast.success(`Loaded ${res.created} demo online order(s)`, {
-        description: 'Spread across every fulfillment stage. Live updates will refresh the pipeline.',
-      });
-    } catch (e: any) {
-      toast.error('Could not load demo orders', { description: e?.message });
-    } finally {
-      setLoadingDemo(false);
     }
   };
 
@@ -331,28 +315,14 @@ export const ShopifyView: React.FC = () => {
 
           {/* Fulfillment Pipeline — track imported online orders Ordered → Delivered */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
-                  <Truck className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline</h3>
-                  <p className="text-[11px] text-slate-500">Move each online order through New → Confirmed → Packed → Shipped → Out for Delivery → Delivered.</p>
-                </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                <Truck className="h-4 w-4" />
               </div>
-              {canLoadDemo && (
-                <button
-                  type="button"
-                  onClick={handleLoadDemoOrders}
-                  disabled={loadingDemo}
-                  title="Create sample online orders across every stage so you can try the full flow without a live Shopify store"
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-none cursor-pointer disabled:opacity-50"
-                >
-                  <DownloadCloud className={`h-3.5 w-3.5 ${loadingDemo ? 'animate-pulse' : ''}`} />
-                  {loadingDemo ? 'Loading…' : 'Load demo orders'}
-                </button>
-              )}
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline</h3>
+                <p className="text-[11px] text-slate-500">Move each online order through New → Confirmed → Packed → Shipped → Out for Delivery → Delivered.</p>
+              </div>
             </div>
             <OnlineOrderPipeline />
           </div>

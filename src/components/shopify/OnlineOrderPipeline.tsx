@@ -56,9 +56,10 @@ export const OnlineOrderPipeline: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const online = useMemo(() => {
-    // Both real Shopify imports AND loaded demo orders are online orders.
+    // Real Shopify online orders. (Demo/test orders use 'shopify-demo' and are
+    // never shown on the live fulfillment board.)
     return invoices
-      .filter((i) => String(i.sourceChannel || '').startsWith('shopify') && !i.isVoided)
+      .filter((i) => i.sourceChannel === 'shopify' && !i.isVoided)
       .filter((i) => isAllBranches || i.branchId === currentBranch)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [invoices, currentBranch, isAllBranches]);
