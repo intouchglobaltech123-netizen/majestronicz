@@ -12,8 +12,8 @@ import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { toast } from 'sonner';
 import { OnlineOrderDetail } from './OnlineOrderDetail';
 import {
-  Package, Truck, CheckCircle2, XCircle, Clock, Search, MapPin,
-  Camera, ArrowRight, History, ChevronDown, ChevronUp, Link as LinkIcon, AlertTriangle,
+  Package, Truck, CheckCircle2, Clock, Search,
+  ArrowRight, AlertTriangle,
 } from 'lucide-react';
 
 /** How long an order has sat in its current stage, and whether it's overdue. */
@@ -49,10 +49,7 @@ export const OnlineOrderPipeline: React.FC = () => {
   const { invoices, updateOnlineOrderStatus, addOrderCommunication, saveOrderPacking, saveOrderTracking, setCourierStatus, assignOrderStaff, recordDeliveryProof, setReturnStatus, setRtoStatus, reviseOnlineOrder, addOrderIssue, resolveOrderIssue, currentBranch, isAllBranches } = useErp();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'all' | 'issues' | 'returns' | 'tracking-pending' | OnlineOrderStatus>('active');
-  // Per-order tracking inputs (shown when shipping).
-  const [tracking, setTracking] = useState<Record<string, { number: string; courier: string; url: string }>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const online = useMemo(() => {
@@ -110,12 +107,9 @@ export const OnlineOrderPipeline: React.FC = () => {
     optsOverride?: { trackingNumber?: string; courierName?: string; trackingUrl?: string },
   ) => {
     setBusy(inv.id);
-    const t = tracking[inv.id];
-    // Tracking details are captured when the order is dispatched (Packed → Shipped).
-    const opts = optsOverride ?? (to === 'Shipped'
-      ? { trackingNumber: t?.number || undefined, courierName: t?.courier || undefined, trackingUrl: t?.url || undefined }
-      : undefined);
-    await updateOnlineOrderStatus(inv.id, to, opts);
+    // The quick "Mark" buttons just advance the stage; tracking, photos and the
+    // rest are captured on the order's full detail page (click a row to open it).
+    await updateOnlineOrderStatus(inv.id, to, optsOverride);
     setBusy(null);
   };
 
@@ -241,243 +235,68 @@ export const OnlineOrderPipeline: React.FC = () => {
       {filtered.length === 0 ? (
         <div className="py-10 text-center text-xs text-slate-400 bg-white border border-slate-200 rounded-xl">No orders match this filter.</div>
       ) : (
-        filtered.map((inv) => {
-          const s = statusOf(inv);
-          const idx = onlinePipelineIndex(s);
-          const isCancelled = s === 'Cancelled';
-          const isDone = s === 'Completed' || s === 'Delivered';
-          const next = idx >= 0 && idx < ONLINE_ORDER_PIPELINE.length - 1 ? ONLINE_ORDER_PIPELINE[idx + 1] : null;
-          const shipping = next === 'Shipped';
-          const t = tracking[inv.id] || { number: inv.trackingNumber || '', courier: inv.courierName || '', url: inv.trackingUrl || '' };
-          const setT = (patch: Partial<typeof t>) => setTracking((p) => ({ ...p, [inv.id]: { ...t, ...patch } }));
-          const history = Array.isArray(inv.onlineStatusHistory) ? inv.onlineStatusHistory : [];
-          const showHistory = !!historyOpen[inv.id];
+        <div className="bg-white border border-slate-200 rounded-xl shadow-2xs divide-y divide-slate-100 overflow-hidden">
+          {filtered.map((inv) => {
+            const s = statusOf(inv);
+            const idx = onlinePipelineIndex(s);
+            const isCancelled = s === 'Cancelled';
+            const isDone = s === 'Completed' || s === 'Delivered';
+            const next = idx >= 0 && idx < ONLINE_ORDER_PIPELINE.length - 1 ? ONLINE_ORDER_PIPELINE[idx + 1] : null;
+            const age = stageAge(inv);
+            const openIssues = (Array.isArray(inv.issues) ? inv.issues : []).filter((i) => i.status !== 'resolved').length;
+            const itemCount = Array.isArray(inv.items) ? inv.items.reduce((n: number, l: any) => n + (Number(l.quantity) || 0), 0) : 0;
 
-          return (
-            <div key={inv.id} className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
-              {/* Header (click to open full detail) */}
-              <button
-                type="button"
-                onClick={() => setSelectedId(inv.id)}
-                className="w-full text-left px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{inv.invoiceNumber}</span>
-                  <span className="text-sm font-bold text-slate-900 truncate">{inv.customerName || 'Online customer'}</span>
-                  {inv.customerPhone && <span className="text-xs text-slate-500 font-mono">· {inv.customerPhone}</span>}
-                  {(() => {
-                    const age = stageAge(inv);
-                    if (!age || isCancelled || isDone) return null;
-                    return (
-                      <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-1',
-                        age.overdue ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200')}>
-                        {age.overdue && <AlertTriangle className="h-3 w-3" />}{age.label} in stage
-                      </span>
-                    );
-                  })()}
-                  {(() => {
-                    const open = (Array.isArray(inv.issues) ? inv.issues : []).filter((i) => i.status !== 'resolved').length;
-                    if (!open) return null;
-                    return (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-rose-100 text-rose-800 border-rose-300 inline-flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />{open} issue{open > 1 ? 's' : ''}
-                      </span>
-                    );
-                  })()}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold font-mono text-slate-900">{formatCurrency(inv.grandTotal || 0)}</span>
-                  <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border', STATUS_STYLE[s])}>{s}</span>
-                </div>
-              </button>
-
-              {/* Current stage + NEXT ACTION */}
-              {!isCancelled && (
-                <div className="px-4 pt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Current stage:</span>
-                  <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border', STATUS_STYLE[s])}>{s}</span>
-                  {!isDone && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-600">
-                      <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="font-bold text-slate-700">NEXT:</span> {ONLINE_NEXT_ACTION[s]}
+            // One compact row per order; the full stepper, photos, tracking,
+            // returns, revisions and history open on its detail page.
+            return (
+              <div key={inv.id} className="flex items-center gap-3 px-3 sm:px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                <button type="button" onClick={() => setSelectedId(inv.id)} className="flex-1 min-w-0 text-left flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">{inv.invoiceNumber}</span>
+                  <span className="text-sm font-bold text-slate-900 truncate max-w-[9rem] sm:max-w-none">{inv.customerName || 'Online customer'}</span>
+                  {inv.customerPhone && <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">· {inv.customerPhone}</span>}
+                  <span className="hidden md:inline text-[11px] text-slate-400">· {itemCount} item{itemCount === 1 ? '' : 's'}</span>
+                  {!isCancelled && !isDone && age && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border inline-flex items-center gap-1',
+                      age.overdue ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200')}>
+                      {age.overdue && <AlertTriangle className="h-3 w-3" />}{age.label}
                     </span>
                   )}
-                </div>
-              )}
-
-              {/* Stepper (scrolls horizontally — the flow has many stages) */}
-              {!isCancelled && (
-                <div className="px-4 py-3 overflow-x-auto">
-                  <div className="flex items-center min-w-max">
-                    {ONLINE_ORDER_PIPELINE.map((stage, i) => {
-                      const done = i < idx;
-                      const active = i === idx;
-                      return (
-                        <React.Fragment key={stage}>
-                          <div className="flex flex-col items-center shrink-0" style={{ width: 74 }}>
-                            <div className={cn(
-                              'h-6 w-6 rounded-full flex items-center justify-center border text-[11px] font-bold',
-                              done ? 'bg-emerald-600 text-white border-emerald-700'
-                                : active ? 'bg-blue-600 text-white border-blue-700'
-                                : 'bg-white text-slate-400 border-slate-300'
-                            )}>
-                              {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
-                            </div>
-                            <span className={cn('mt-1 text-[9px] font-bold uppercase tracking-wide text-center leading-tight', active ? 'text-blue-700' : done ? 'text-emerald-700' : 'text-slate-400')}>{stage}</span>
-                          </div>
-                          {i < ONLINE_ORDER_PIPELINE.length - 1 && (
-                            <div className={cn('h-0.5 w-6 shrink-0', i < idx ? 'bg-emerald-500' : 'bg-slate-200')} />
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Photos: tray (picking proof) + parcel (dispatch proof) */}
-              {!isCancelled && (
-                <div className="px-4 pb-2 flex flex-wrap gap-4">
-                  {(['tray', 'parcel'] as const).map((kind) => {
-                    const url = kind === 'tray' ? inv.trayPhotoUrl : inv.parcelPhotoUrl;
-                    const label = kind === 'tray' ? 'Tray photo' : 'Parcel photo';
-                    return (
-                      <div key={kind} className="flex items-center gap-2">
-                        {url ? (
-                          <img src={url} alt={label} className="h-12 w-12 object-cover rounded border border-slate-200" />
-                        ) : (
-                          <div className="h-12 w-12 rounded border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-slate-300">
-                            <Camera className="h-5 w-5" />
-                          </div>
-                        )}
-                        <label className="text-[11px] font-bold text-slate-600 cursor-pointer hover:text-emerald-700">
-                          <span className="block">{label}</span>
-                          <span className="text-[10px] font-normal text-emerald-700 underline">{url ? 'Replace' : 'Upload'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            disabled={busy === inv.id}
-                            onChange={(e) => uploadPhoto(inv, kind, e.target.files?.[0] || null)}
-                          />
-                        </label>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Tracking + actions */}
-              <div className="px-4 py-3 bg-slate-50/60 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                {(inv.trackingNumber || isCancelled) && (
-                  <span className="text-[11px] text-slate-600 flex items-center gap-1">
-                    {isCancelled ? <XCircle className="h-3.5 w-3.5 text-rose-500" /> : <Truck className="h-3.5 w-3.5 text-indigo-500" />}
-                    {isCancelled ? 'Order cancelled' : <>Tracking: <span className="font-mono font-bold">{inv.trackingNumber}</span>{inv.courierName ? ` · ${inv.courierName}` : ''}</>}
-                    {!isCancelled && inv.trackingUrl && (
-                      <a href={inv.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800"><LinkIcon className="h-3 w-3" />track</a>
-                    )}
-                  </span>
-                )}
-
-                {shipping && !isCancelled && !isDone && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <input
-                      value={t.number}
-                      onChange={(e) => setT({ number: e.target.value })}
-                      placeholder="Tracking / AWB no."
-                      className="w-36 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500"
-                    />
-                    <input
-                      value={t.courier}
-                      onChange={(e) => setT({ courier: e.target.value })}
-                      placeholder="Courier"
-                      className="w-28 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500"
-                    />
-                    <input
-                      value={t.url}
-                      onChange={(e) => setT({ url: e.target.value })}
-                      placeholder="Tracking link (URL)"
-                      className="w-44 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                )}
-
-                <div className="ml-auto flex items-center gap-2">
-                  {history.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setHistoryOpen((p) => ({ ...p, [inv.id]: !showHistory }))}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-bold border border-slate-200"
-                    >
-                      <History className="h-3.5 w-3.5" /> History
-                      {showHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    </button>
+                  {openIssues > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-rose-100 text-rose-800 border-rose-300 inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />{openIssues}
+                    </span>
                   )}
+                </button>
+
+                {/* Compact progress + total + status */}
+                <span className="hidden lg:inline text-[10px] font-mono text-slate-400 shrink-0">{idx >= 0 ? `${idx + 1}/${ONLINE_ORDER_PIPELINE.length}` : ''}</span>
+                <span className="text-sm font-bold font-mono text-slate-900 shrink-0 w-20 text-right hidden sm:block">{formatCurrency(inv.grandTotal || 0)}</span>
+                <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0', STATUS_STYLE[s])}>{s}</span>
+
+                {/* Quick advance + open */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   {!isCancelled && next && s !== 'Delivered' && (
-                    <button
-                      type="button"
-                      disabled={busy === inv.id}
-                      onClick={() => advance(inv, next)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors disabled:opacity-60"
-                    >
-                      {next === 'Shipped' ? <Truck className="h-3.5 w-3.5" /> : next === 'Delivered' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    <button type="button" disabled={busy === inv.id} onClick={() => advance(inv, next)} title={ONLINE_NEXT_ACTION[s]}
+                      className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border border-emerald-700 disabled:opacity-60">
+                      {next === 'Shipped' ? <Truck className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                       <span>Mark {next}</span>
                     </button>
                   )}
                   {s === 'Delivered' && (
-                    <button
-                      type="button"
-                      disabled={busy === inv.id}
-                      onClick={() => advance(inv, 'Completed')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-700 transition-colors disabled:opacity-60"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" /> <span>Mark Completed</span>
+                    <button type="button" disabled={busy === inv.id} onClick={() => advance(inv, 'Completed')}
+                      className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border border-emerald-700 disabled:opacity-60">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Complete
                     </button>
                   )}
-                  {s === 'Completed' && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Completed</span>
-                  )}
-                  {!isCancelled && !isDone && (
-                    <button
-                      type="button"
-                      disabled={busy === inv.id}
-                      onClick={() => advance(inv, 'Cancelled')}
-                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold border border-rose-200 transition-colors disabled:opacity-60"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                  <button type="button" onClick={() => setSelectedId(inv.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-300">
+                    Open <ArrowRight className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
-
-              {/* Activity history (append-only: who did what, when) */}
-              {showHistory && history.length > 0 && (
-                <div className="px-4 py-2 border-t border-slate-100 bg-white">
-                  <ul className="space-y-1">
-                    {[...history].reverse().map((h, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[11px] text-slate-600">
-                        <span className={cn('mt-0.5 inline-block h-2 w-2 rounded-full shrink-0', 'bg-emerald-400')} />
-                        <span>
-                          <span className="font-bold text-slate-800">{h.status}</span>
-                          {h.note ? ` — ${h.note}` : ''} · <span className="font-medium">{h.by}</span>
-                          <span className="text-slate-400"> · {new Date(h.at).toLocaleString('en-IN')}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Delivery address (if present) */}
-              {inv.customerAddress && (
-                <div className="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-start gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
-                  <span className="truncate">{inv.customerAddress}</span>
-                </div>
-              )}
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
     </div>
   );
