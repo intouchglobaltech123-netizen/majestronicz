@@ -320,11 +320,25 @@ export const ShopifyView: React.FC = () => {
                 <Truck className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline</h3>
-                <p className="text-[11px] text-slate-500">Move each online order through New → Confirmed → Packed → Shipped → Out for Delivery → Delivered.</p>
+                <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5">Step 2 · inside the ERP</span></h3>
+                <p className="text-[11px] text-slate-500">Orders already imported into the ERP. Work each one from New → Confirmed → Packed → Shipped → Delivered. (Nothing to import from a store yet? This stays empty.)</p>
               </div>
             </div>
             <OnlineOrderPipeline />
+          </div>
+
+          {/* Shopify store orders — the SOURCE list. These are the raw orders in the
+              Shopify store; importing a paid one creates the ERP order that then shows
+              in the Fulfillment Pipeline above. The two lists are the same orders at two
+              stages (store → ERP), not duplicate data. */}
+          <div className="flex items-center gap-2 pt-1">
+            <div className="h-8 w-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">
+              <Package className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Shopify Store Orders <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5">Step 1 · from your store</span></h3>
+              <p className="text-[11px] text-slate-500">Live orders from your Shopify store. Import a paid order here and it moves up into the Fulfillment Pipeline — the “ERP Status” column shows what’s already imported.</p>
+            </div>
           </div>
 
           {/* Action Toolbar */}
