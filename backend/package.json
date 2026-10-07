@@ -14,6 +14,7 @@
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "fix:existing-bills": "tsx scripts/fix-existing-bills.ts",
+    "reset:catalog": "tsx scripts/reset-to-catalog.ts",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json"
   },
   "prisma": {
