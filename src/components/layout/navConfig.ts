@@ -146,6 +146,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'reports', subTabId: 'stock-valuation', label: 'Stock Valuation', cap: 'reports' },
       { id: 'reports', subTabId: 'enquiry-conversion', label: 'Enquiry Conversion', cap: 'reports' },
       { id: 'reports', subTabId: 'purchase-orders', label: 'PO Procurement', cap: 'reports' },
+      { id: 'reports', subTabId: 'vendor-prices', label: 'Vendor Price Tracking', cap: 'reports' },
       { id: 'reports', subTabId: 'gst', label: 'GST Filing (GSTR-1 & 3B)', cap: 'reports' },
       { id: 'reports', subTabId: 'itc', label: 'Input Tax Credit', cap: 'reports' },
       // These three were reachable only on mobile — the desktop tab strip is

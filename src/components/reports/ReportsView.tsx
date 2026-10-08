@@ -19,6 +19,7 @@ import {
   History,
   Banknote,
   ReceiptText,
+  Tag,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -32,6 +33,7 @@ import { ExpenseReportTab } from './ExpenseReportTab';
 import { AuditLogReportTab } from './AuditLogReportTab';
 import { PaymentsLogReportTab } from './PaymentsLogReportTab';
 import { InputTaxCreditReportTab } from './InputTaxCreditReportTab';
+import { VendorPriceTrackingReportTab } from './VendorPriceTrackingReportTab';
 
 export type ReportTabType =
   | 'sales'
@@ -39,6 +41,7 @@ export type ReportTabType =
   | 'stock-valuation'
   | 'enquiry-conversion'
   | 'purchase-orders'
+  | 'vendor-prices'
   | 'gst'
   | 'itc'
   | 'expenses'
@@ -125,6 +128,7 @@ export const ReportsView: React.FC = () => {
     { id: 'stock-valuation' as const, label: 'Stock Valuation', icon: Boxes, description: 'Physical asset costs and retail margins' },
     { id: 'enquiry-conversion' as const, label: 'Enquiry Conversion', icon: TrendingUp, description: 'Funnel velocity and open pending orders' },
     { id: 'purchase-orders' as const, label: 'PO Procurement', icon: ShoppingBag, description: 'Vendor fulfillment and overdue orders' },
+    { id: 'vendor-prices' as const, label: 'Vendor Price Tracking', icon: Tag, description: 'How each supplier’s price per item changes over time' },
     { id: 'gst' as const, label: 'GST Summary', icon: Landmark, description: 'GSTR-1 / 3B rate-wise & HSN tax report' },
     { id: 'itc' as const, label: 'Input Tax Credit', icon: ReceiptText, description: 'Supplier bills → claimable GST (purchase register)' },
     { id: 'expenses' as const, label: 'Expense Report', icon: Wallet, description: 'Daily expenses by category, cash vs GPay' },
@@ -160,6 +164,7 @@ export const ReportsView: React.FC = () => {
       {activeTab === 'stock-valuation' && <StockValuationReportTab branchScope={branchScope} />}
       {activeTab === 'enquiry-conversion' && <EnquiryConversionReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'purchase-orders' && <PurchaseOrderStatusReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'vendor-prices' && <VendorPriceTrackingReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'gst' && <GstReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'itc' && <InputTaxCreditReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'expenses' && <ExpenseReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}

@@ -338,6 +338,13 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
         tag: 'Tab',
       },
       {
+        id: 'vendor-prices',
+        label: 'Vendor Price Tracking',
+        description: 'Supplier price changes per item over time',
+        icon: ShoppingBag,
+        tag: 'Tab',
+      },
+      {
         id: 'gst',
         label: 'GST Filing (GSTR-1 & 3B)',
         description: 'HSN breakdown & tax liabilities',
