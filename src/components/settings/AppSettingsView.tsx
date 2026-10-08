@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useThemeSettings, ErpTheme, ErpFontSize, ErpFontFamily, ShortcutConfig } from '../../context/ThemeSettingsContext';
 import { useErp } from '../../context/ErpContext';
+import { CompanyProfileSettings } from './CompanyProfileSettings';
 import {
   Palette,
   Keyboard,
+  Building2,
   Check,
   RotateCcw,
   Type,
@@ -31,9 +33,12 @@ export const AppSettingsView: React.FC = () => {
 
   const { setCurrentView, navigateToTab, activeSubTab } = useErp();
 
-  const [activeTab, setActiveTab] = useState<'appearance' | 'shortcuts'>(() => {
+  const [activeTab, setActiveTab] = useState<'appearance' | 'shortcuts' | 'company'>(() => {
     if (activeSubTab?.view === 'settings' && activeSubTab.tab === 'shortcuts') {
       return 'shortcuts';
+    }
+    if (activeSubTab?.view === 'settings' && activeSubTab.tab === 'company') {
+      return 'company';
     }
     return 'appearance';
   });
@@ -42,6 +47,8 @@ export const AppSettingsView: React.FC = () => {
     if (activeSubTab?.view === 'settings') {
       if (activeSubTab.tab === 'shortcuts') {
         setActiveTab('shortcuts');
+      } else if (activeSubTab.tab === 'company') {
+        setActiveTab('company');
       } else if (activeSubTab.tab === 'appearance') {
         setActiveTab('appearance');
       }
@@ -257,8 +264,27 @@ export const AppSettingsView: React.FC = () => {
               <Keyboard className="h-3.5 w-3.5" />
               <span>Keyboard Shortcuts</span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('company');
+                navigateToTab('settings', 'company');
+              }}
+              className={cn(
+                'px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5',
+                activeTab === 'company'
+                  ? 'bg-white text-red-700 shadow-xs border border-slate-300'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span>Company &amp; Invoice</span>
+            </button>
           </div>
         </div>
+
+        {/* TAB 3: COMPANY & INVOICE (#6) */}
+        {activeTab === 'company' && <CompanyProfileSettings />}
 
         {/* TAB 1: APPEARANCE & TYPOGRAPHY */}
         {activeTab === 'appearance' && (

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportElementToPdfFile, printDocument } from '../../utils/pdfExport';
+import { QrCode } from '../common/QrCode';
 import { useFitScale } from '../../lib/useFitScale';
 
 interface Props {
@@ -27,7 +28,9 @@ interface Props {
 }
 
 export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) => {
-  const { customers } = useErp();
+  const { customers, companyProfile } = useErp();
+  // #6 — fall back to the built-in profile for any field not set in Settings.
+  const company = { ...COMPANY_PROFILE, ...(companyProfile || {}) };
 
   // M9: print the GSTIN that was frozen on the bill when it was saved. Only fall
   // back to the live customer master (by id, never by phone) for legacy bills
@@ -550,6 +553,50 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               </div>
             </div>
           </div>
+
+          {/* Bank details + QR codes (#6) — shows only what is set in Settings */}
+          {(() => {
+            const upiLink = company.upiId
+              ? `upi://pay?pa=${encodeURIComponent(company.upiId)}&pn=${encodeURIComponent(company.name)}&cu=INR`
+              : '';
+            const hasBank = company.bankName || company.bankAccountNumber || company.bankIfsc || company.upiId;
+            const qrs = [
+              { label: 'Scan to Pay (UPI)', value: upiLink },
+              { label: 'Our Website', value: company.website },
+              { label: 'Rate us on Google', value: company.ratingLink },
+            ].filter((q) => q.value && String(q.value).trim());
+            if (!hasBank && !qrs.length) return null;
+            return (
+              <div className="border border-black border-t-0 grid grid-cols-[1fr_auto]">
+                {/* Bank / payment details */}
+                <div className="p-2 border-r border-black">
+                  <span className="text-[9px] text-black/60 block underline mb-0.5">Bank &amp; Payment Details</span>
+                  {hasBank ? (
+                    <div className="text-[10px] leading-snug space-y-0.5">
+                      {company.bankAccountName && <div><span className="text-black/60">A/c Name: </span><span className="font-semibold">{company.bankAccountName}</span></div>}
+                      {company.bankName && <div><span className="text-black/60">Bank: </span><span className="font-semibold">{company.bankName}{company.bankBranch ? `, ${company.bankBranch}` : ''}</span></div>}
+                      {company.bankAccountNumber && <div><span className="text-black/60">A/c No: </span><span className="font-semibold font-mono">{company.bankAccountNumber}</span></div>}
+                      {company.bankIfsc && <div><span className="text-black/60">IFSC: </span><span className="font-semibold font-mono">{company.bankIfsc}</span></div>}
+                      {company.upiId && <div><span className="text-black/60">UPI: </span><span className="font-semibold font-mono">{company.upiId}</span></div>}
+                    </div>
+                  ) : (
+                    <p className="text-[9px] text-black/40">Set bank details in Settings → Company &amp; Invoice.</p>
+                  )}
+                </div>
+                {/* QR codes */}
+                {qrs.length > 0 && (
+                  <div className="p-2 flex items-start gap-3">
+                    {qrs.map((q) => (
+                      <div key={q.label} className="flex flex-col items-center">
+                        <QrCode value={q.value as string} size={64} />
+                        <span className="text-[8px] text-black/70 mt-0.5 text-center max-w-[70px] leading-tight">{q.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Computer-generated note */}
           <p className="text-center text-[10px] text-black/60 mt-2">This is a Computer Generated Invoice</p>

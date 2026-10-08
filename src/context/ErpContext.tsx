@@ -73,6 +73,8 @@ import {
   RecurringExpenseTemplate,
   Customer,
   LoyaltySettings,
+  CompanyProfile,
+  COMPANY_PROFILE,
   StockTransfer,
   Payment,
   RecordPaymentInput,
@@ -537,6 +539,8 @@ interface ErpContextType {
   receiveStockTransfer: (transferId: string) => void;
   inventorySettings: InventorySettings;
   updateInventorySettings: (settings: Partial<InventorySettings>) => void;
+  companyProfile: CompanyProfile;
+  updateCompanyProfile: (patch: Partial<CompanyProfile>) => void;
   /** Net units sold per item per branch over the last 90 days (server-computed, every role). */
   itemSales90d: ItemSales90d;
   /** The one low-stock threshold for an item in a branch scope (INV2-10). */
@@ -749,6 +753,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [mustResetPin, setMustResetPin] = useState(false);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [inventorySettings, setInventorySettings] = useState<InventorySettings>({ deadStockThresholdDays: 90 });
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(COMPANY_PROFILE);
   // Dynamic role-based access matrix (managed by CEO, hydrated from backend).
   const [accessMatrix, setAccessMatrix] = useState<AccessMatrix | null>(null);
 
@@ -873,6 +878,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.itemSales90d && typeof data.itemSales90d === 'object') setItemSales90d(data.itemSales90d);
     if (data.itemLastSale && typeof data.itemLastSale === 'object') setItemLastSale(data.itemLastSale);
     if (data.inventorySettings && typeof data.inventorySettings.deadStockThresholdDays === 'number') setInventorySettings(data.inventorySettings);
+    if (data.companyProfile && typeof data.companyProfile === 'object') setCompanyProfile({ ...COMPANY_PROFILE, ...data.companyProfile });
     if (data.accessMatrix && typeof data.accessMatrix === 'object') setAccessMatrix(data.accessMatrix);
     if (Array.isArray(data.categories)) setCategories(data.categories);
     if (data.subcategoriesByCategory) setSubcategoriesByCategory(data.subcategoriesByCategory);
@@ -2221,6 +2227,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return merged;
     });
     toast.success('Inventory settings updated');
+  };
+
+  const updateCompanyProfile = (patch: Partial<CompanyProfile>) => {
+    setCompanyProfile((prev) => {
+      const merged = { ...prev, ...patch };
+      persist(apiPut('/api/config/companyProfile', merged));
+      return merged;
+    });
+    toast.success('Company & invoice details updated');
   };
 
   const getCustomerOutstandingBalance = (customer: Customer): number =>
@@ -4478,6 +4493,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         transferStockBatch,
         receiveStockTransfer,
         inventorySettings,
+        companyProfile,
+        updateCompanyProfile,
         updateInventorySettings,
         getItemLastSaleInfo,
         getReorderThreshold,

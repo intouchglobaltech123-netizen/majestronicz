@@ -618,6 +618,15 @@ export interface CompanyProfile {
   gstin: string;
   state: string;
   ratingLink?: string; // customer review / rating URL shared on invoices
+  // #6 — printed on the GST bill as QR codes + a bank-details block.
+  website?: string;       // company website URL (website QR)
+  // Google review URL is `ratingLink` above (Google-review QR)
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
+  upiId?: string;         // UPI id for a "scan to pay" QR
 }
 
 export const COMPANY_PROFILE: CompanyProfile = {
