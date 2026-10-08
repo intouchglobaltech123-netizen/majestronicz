@@ -105,6 +105,20 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       return { ...l, quantityOrdered: qty, purchasePrice: price, taxPercent, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
     };
     const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const r2money = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+    const num0 = (v: any) => Math.max(0, r2money(v));
+    // Courier/packing charges set when creating or editing the PO (PUR #1):
+    // taxable at chargesTaxPercent (default 18 when any charge is present). When
+    // an edit payload omits a field (e.g. an Edit-Prices snapshot), the stored
+    // PO's value is kept so the charges are never silently wiped.
+    const resolveCharges = (src: any, fallback: any) => {
+      const courier = src?.courierCharges !== undefined ? num0(src.courierCharges) : num0(fallback?.courierCharges);
+      const packing = src?.packingCharges !== undefined ? num0(src.packingCharges) : num0(fallback?.packingCharges);
+      const taxable = r2money(courier + packing);
+      let rate = src?.chargesTaxPercent !== undefined ? Number(src.chargesTaxPercent) : Number(fallback?.chargesTaxPercent);
+      if (!isValidTaxPercent(rate)) rate = taxable > 0 ? 18 : 0;
+      return { courier, packing, taxable, rate, tax: taxAmountFor(taxable, rate) };
+    };
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;
     // PUR9-6: an order is placed today or earlier, and delivery can't be expected
     // before the order date (an older PO's unchanged dates are left alone).
@@ -194,6 +208,13 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       });
       rest.totalAmount = Math.round(rest.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
       rest.totalTax = Math.round(rest.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      // Courier/packing charges: add to the taxable total and the GST (PUR #1).
+      const ch = resolveCharges(poData, existingPo);
+      rest.courierCharges = ch.courier;
+      rest.packingCharges = ch.packing;
+      rest.chargesTaxPercent = ch.rate;
+      rest.totalAmount = r2money(rest.totalAmount + ch.taxable);
+      rest.totalTax = r2money(rest.totalTax + ch.tax);
       if (anySettled) {
         const allFull = rest.items.every((l: any) => lineSettled(l) >= (l.quantityOrdered || 0));
         rest.status = allFull ? 'Received' : 'Partially Received';
@@ -224,6 +245,13 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
       for (const l of clean.items) { if (seen.has(l.id)) l.id = lineId(); seen.add(l.id); }
       clean.totalAmount = Math.round(clean.items.reduce((s: number, l: any) => s + (l.amount || 0), 0) * 100) / 100;
       clean.totalTax = Math.round(clean.items.reduce((s: number, l: any) => s + (l.taxAmount || 0), 0) * 100) / 100;
+      // Courier/packing charges: add to the taxable total and the GST (PUR #1).
+      const ch = resolveCharges(poData, null);
+      clean.courierCharges = ch.courier;
+      clean.packingCharges = ch.packing;
+      clean.chargesTaxPercent = ch.rate;
+      clean.totalAmount = r2money(clean.totalAmount + ch.taxable);
+      clean.totalTax = r2money(clean.totalTax + ch.tax);
       if (!clean.vendorName) clean.vendorName = vendor.vendorName;
       if (!clean.expectedDeliveryDate) clean.expectedDeliveryDate = clean.date;
       saved = await tx.purchaseOrder.create({

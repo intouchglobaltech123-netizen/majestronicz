@@ -17,6 +17,7 @@ import {
   GstBreakdownRow,
   ComboItem,
   isLoyaltyMilestoneEligible,
+  spendTierDiscountPercent,
   cleanCustomerName,
   PaymentSplit,
   getInvoicePaymentSplits,
@@ -350,6 +351,11 @@ export const InvoiceForm: React.FC<Props> = ({
   const [overallDiscountValue, setOverallDiscountValue] = useState<number>(0);
   const [shippingCharges, setShippingCharges] = useState<number>(0);
   const [roundOffEnabled, setRoundOffEnabled] = useState(true);
+  // Loyalty spend-tier auto discount (#8): the % we auto-filled into the overall
+  // discount (0 = none). spendAutoRef tracks it so we only ever overwrite our own
+  // auto value, never a discount the user (or the milestone reward) typed.
+  const [spendDiscountAutoApplied, setSpendDiscountAutoApplied] = useState(0);
+  const spendAutoRef = useRef(0);
 
   // Terms and conditions
   const [termsPresetId, setTermsPresetId] = useState('sale-invoice-default');
@@ -1264,6 +1270,34 @@ export const InvoiceForm: React.FC<Props> = ({
     shippingCharges,
     roundOffEnabled,
   ]);
+
+  // Loyalty spend-tier auto discount (#8): when a NEW bill's taxable subtotal
+  // reaches a configured tier (e.g. ≥ ₹5000 → 5%), auto-fill that % into the
+  // overall discount. We only ever overwrite an empty field or our own previous
+  // auto value (spendAutoRef), so a discount the biller typed — or the milestone
+  // reward — is never clobbered. Skipped when editing a saved bill.
+  useEffect(() => {
+    if (documentType === 'Quotation' || isSavedBill) return;
+    const pct = spendTierDiscountPercent(loyaltySettings, totals.subtotal);
+    const fieldIsOurs = overallDiscountType === '%' && (overallDiscountValue === spendAutoRef.current || overallDiscountValue === 0);
+    if (pct > 0) {
+      if (!fieldIsOurs) return; // the biller/milestone set a discount — leave it
+      if (overallDiscountType !== '%' || overallDiscountValue !== pct) {
+        setOverallDiscountType('%');
+        setOverallDiscountValue(pct);
+      }
+      spendAutoRef.current = pct;
+      if (spendDiscountAutoApplied !== pct) setSpendDiscountAutoApplied(pct);
+    } else {
+      // No tier qualifies now — clear only if the field still holds our auto value.
+      if (spendAutoRef.current > 0 && overallDiscountType === '%' && overallDiscountValue === spendAutoRef.current) {
+        setOverallDiscountValue(0);
+      }
+      spendAutoRef.current = 0;
+      if (spendDiscountAutoApplied) setSpendDiscountAutoApplied(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totals.subtotal, loyaltySettings, documentType, isSavedBill]);
 
   // GST rate breakdown
   const gstBreakdown = useMemo((): GstBreakdownRow[] => {
@@ -2956,6 +2990,12 @@ export const InvoiceForm: React.FC<Props> = ({
                 <span className="font-mono">- {formatCurrency(totals.overallDiscountAmount)}</span>
               </div>
             )}
+            {spendDiscountAutoApplied > 0 && overallDiscountType === '%' && overallDiscountValue === spendDiscountAutoApplied && (
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                <Award className="h-3 w-3 shrink-0" />
+                <span>Loyalty spend discount {spendDiscountAutoApplied}% auto-applied for this bill amount. Edit the field above to override.</span>
+              </div>
+            )}
           </div>
 
           {/* Shipping Charges */}
@@ -3062,6 +3102,17 @@ export const InvoiceForm: React.FC<Props> = ({
               {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
             </p>
           </div>
+
+          {/* Customer store credit (#5): shows the credit this customer can spend,
+              so the biller can collect it against this bill. */}
+          {documentType !== 'Quotation' && selectedCustomerObj && (Number(selectedCustomerObj.creditBalance) || 0) > 0 && (
+            <div className="flex justify-between items-center px-3 py-2 rounded-none bg-emerald-50 border border-emerald-300 text-xs">
+              <span className="font-bold text-emerald-800">Customer Store Credit available</span>
+              <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                {formatCurrency(Number(selectedCustomerObj.creditBalance) || 0)}
+              </span>
+            </div>
+          )}
 
           {/* Amount In Words */}
           <div className="p-3 rounded-none bg-slate-50 border border-slate-300 text-xs">

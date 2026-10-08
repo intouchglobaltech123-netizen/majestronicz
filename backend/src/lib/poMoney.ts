@@ -42,6 +42,19 @@ export function lineGoodValue(l: any): { taxable: number; tax: number } {
   return { taxable, tax: taxAmountFor(taxable, num(l?.taxPercent)) };
 }
 
+/**
+ * Courier + packing charges entered at PO creation, and the GST on them
+ * (chargesTaxPercent, default 18 when charges exist). Taxable, unlike the
+ * receipt-time otherCharges. Mirrored by purchaseOrderChargesValue in
+ * src/types/index.ts.
+ */
+export function poChargesValue(po: any): { taxable: number; tax: number } {
+  const taxable = r2(num(po?.courierCharges) + num(po?.packingCharges));
+  if (taxable <= 0) return { taxable: 0, tax: 0 };
+  const rate = po?.chargesTaxPercent != null ? num(po.chargesTaxPercent) : 18;
+  return { taxable, tax: taxAmountFor(taxable, rate) };
+}
+
 /** What the vendor is owed on this PO (tax-inclusive, received-goods basis). */
 export function poOwed(po: any): number {
   if (!po) return 0;
@@ -50,7 +63,8 @@ export function poOwed(po: any): number {
     const v = lineGoodValue(l);
     total += v.taxable + v.tax;
   }
-  return r2(total + num(po.otherCharges));
+  const charges = poChargesValue(po);
+  return r2(total + num(po.otherCharges) + charges.taxable + charges.tax);
 }
 
 /** Value (incl. GST at the line's current rate) of units not yet settled. */

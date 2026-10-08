@@ -19,13 +19,28 @@ export const LoyaltySettingsTab: React.FC = () => {
   );
   const [discountValue, setDiscountValue] = useState<number>(loyaltySettings.discountValue);
   const [isActive, setIsActive] = useState<boolean>(loyaltySettings.isActive);
+  // Spend-based auto discount (#8)
+  const [autoApplySpendDiscount, setAutoApplySpendDiscount] = useState<boolean>(!!loyaltySettings.autoApplySpendDiscount);
+  const [spendTiers, setSpendTiers] = useState<{ minAmount: number | ''; discountPercent: number | '' }[]>(
+    (loyaltySettings.spendTiers && loyaltySettings.spendTiers.length
+      ? loyaltySettings.spendTiers
+      : [{ minAmount: 5000, discountPercent: 5 }]) as any
+  );
 
   useEffect(() => {
     setThreshold(loyaltySettings.purchaseThreshold);
     setDiscountType(loyaltySettings.discountType);
     setDiscountValue(loyaltySettings.discountValue);
     setIsActive(loyaltySettings.isActive);
+    setAutoApplySpendDiscount(!!loyaltySettings.autoApplySpendDiscount);
+    if (loyaltySettings.spendTiers && loyaltySettings.spendTiers.length) setSpendTiers(loyaltySettings.spendTiers as any);
   }, [loyaltySettings]);
+
+  const updateTier = (i: number, key: 'minAmount' | 'discountPercent', val: string) => {
+    setSpendTiers((prev) => prev.map((t, idx) => (idx === i ? { ...t, [key]: val === '' ? '' : Number(val) } : t)));
+  };
+  const addTier = () => setSpendTiers((prev) => [...prev, { minAmount: '', discountPercent: '' }]);
+  const removeTier = (i: number) => setSpendTiers((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,11 +64,23 @@ export const LoyaltySettingsTab: React.FC = () => {
       return;
     }
 
+    // Clean spend tiers: keep only complete, valid rows (amount ≥ 0, 0 < % ≤ 100).
+    const cleanTiers = spendTiers
+      .map((t) => ({ minAmount: Number(t.minAmount), discountPercent: Number(t.discountPercent) }))
+      .filter((t) => Number.isFinite(t.minAmount) && t.minAmount >= 0 && Number.isFinite(t.discountPercent) && t.discountPercent > 0 && t.discountPercent <= 100)
+      .sort((a, b) => a.minAmount - b.minAmount);
+    if (autoApplySpendDiscount && !cleanTiers.length) {
+      toast.error('Add at least one valid spend tier (amount + %), or turn auto-discount off');
+      return;
+    }
+
     updateLoyaltySettings({
       purchaseThreshold: Number(threshold),
       discountType,
       discountValue: Number(discountValue),
       isActive,
+      autoApplySpendDiscount,
+      spendTiers: cleanTiers,
     });
   };
 
@@ -244,6 +271,68 @@ export const LoyaltySettingsTab: React.FC = () => {
                 discount with one click!
               </p>
             </div>
+          </div>
+
+          {/* Spend-based auto discount (#8): bill ≥ ₹X → Y% off, auto-filled on the bill */}
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div>
+                <span className="text-xs font-bold text-slate-900 block">Automatic Spend Discount</span>
+                <span className="text-[11px] text-slate-500">
+                  When a bill reaches a tier below, that % is auto-filled into the invoice's overall discount.
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoApplySpendDiscount}
+                  onChange={(e) => setAutoApplySpendDiscount(e.target.checked)}
+                  disabled={!canManageLoyalty}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+              </label>
+            </div>
+
+            {autoApplySpendDiscount && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 px-1">
+                  <span>Bill amount ≥ (₹)</span>
+                  <span>Discount (%)</span>
+                  <span></span>
+                </div>
+                {spendTiers.map((t, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                    <input
+                      type="number" min="0" step="100" disabled={!canManageLoyalty}
+                      value={t.minAmount} onChange={(e) => updateTier(i, 'minAmount', e.target.value)}
+                      placeholder="5000"
+                      className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                    />
+                    <input
+                      type="number" min="0" max="100" step="0.5" disabled={!canManageLoyalty}
+                      value={t.discountPercent} onChange={(e) => updateTier(i, 'discountPercent', e.target.value)}
+                      placeholder="5"
+                      className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                    />
+                    <button
+                      type="button" disabled={!canManageLoyalty} onClick={() => removeTier(i)}
+                      className="px-2 py-2 text-rose-600 hover:text-rose-800 text-xs font-bold disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {canManageLoyalty && (
+                  <button type="button" onClick={addTier} className="text-xs font-bold text-blue-700 hover:text-blue-900">
+                    + Add tier
+                  </button>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  Highest matching tier wins. e.g. ≥ ₹5,000 → 5%, ≥ ₹10,000 → 8%.
+                </p>
+              </div>
+            )}
           </div>
 
           {canManageLoyalty && (

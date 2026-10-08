@@ -30,13 +30,40 @@ export interface CustomerCreditEntry {
   by?: string;
 }
 
+/** One spend tier: a bill at/above `minAmount` earns `discountPercent` off. */
+export interface LoyaltyTier {
+  minAmount: number;      // taxable bill subtotal ≥ this (₹)
+  discountPercent: number; // → this % off the bill
+}
+
 export interface LoyaltySettings {
   purchaseThreshold: number; // "every N purchases", default e.g. 10
   discountType: 'percentage' | 'flat'; // Percentage or Flat ₹ Amount
   discountValue: number; // e.g. 10 (%) or 500 (₹)
   isActive: boolean;
+  // Spend-based auto discount (#8): when a bill's taxable subtotal reaches a
+  // tier, that %'s automatically put into the invoice's overall discount. The
+  // highest matching tier wins. Empty list or autoApply off → no auto discount.
+  spendTiers?: LoyaltyTier[];
+  autoApplySpendDiscount?: boolean;
   updatedAt: string;
   updatedBy: string;
+}
+
+/**
+ * The best spend-tier discount % for a bill of `billAmount` (0 when the feature
+ * is off, no tier qualifies, or the inputs are invalid). Highest-minAmount tier
+ * that the bill meets wins; result is clamped to 0–100.
+ */
+export function spendTierDiscountPercent(settings: LoyaltySettings | null | undefined, billAmount: number): number {
+  if (!settings || !settings.autoApplySpendDiscount) return 0;
+  const amt = Number(billAmount) || 0;
+  const tiers = (settings.spendTiers || [])
+    .filter((t) => t && Number(t.minAmount) >= 0 && Number(t.discountPercent) > 0)
+    .filter((t) => amt >= Number(t.minAmount))
+    .sort((a, b) => Number(b.minAmount) - Number(a.minAmount));
+  if (!tiers.length) return 0;
+  return Math.min(100, Math.max(0, Number(tiers[0].discountPercent)));
 }
 
 /**

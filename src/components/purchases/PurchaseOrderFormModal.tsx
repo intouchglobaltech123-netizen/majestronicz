@@ -72,6 +72,10 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
 
   // Notes
   const [notes, setNotes] = useState('');
+  // Courier + packing charges (editable at create) — added to the total and GST (#1).
+  const [courierCharges, setCourierCharges] = useState<number>(0);
+  const [packingCharges, setPackingCharges] = useState<number>(0);
+  const [chargesTaxPercent, setChargesTaxPercent] = useState<number>(18);
 
   // Line items
   const [lines, setLines] = useState<
@@ -145,6 +149,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       setOrderDate(todayStr);
       setExpectedDeliveryDate(nextWeek);
       setNotes('');
+      setCourierCharges(0);
+      setPackingCharges(0);
+      setChargesTaxPercent(18);
       setFormErrors({});
 
       // If preFilledItems passed (e.g. from out-of-stock pending order)
@@ -349,8 +356,13 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
   // Calculations: taxable value, the GST on it per line, and the total with GST
   // (PUR-14 — the order shows its tax before anything is received).
   const r2 = (n: number) => Math.round(n * 100) / 100;
-  const totalAmount = r2(lines.reduce((sum, line) => sum + (line.item ? line.amount : 0), 0));
-  const totalTax = r2(lines.reduce((sum, line) => sum + (line.item ? r2((line.amount * (line.taxPercent ?? 0)) / 100) : 0), 0));
+  const lineTaxable = r2(lines.reduce((sum, line) => sum + (line.item ? line.amount : 0), 0));
+  const lineTax = r2(lines.reduce((sum, line) => sum + (line.item ? r2((line.amount * (line.taxPercent ?? 0)) / 100) : 0), 0));
+  // Courier + packing charges fold into the taxable base and the GST (#1).
+  const chargesTaxable = r2((Number(courierCharges) || 0) + (Number(packingCharges) || 0));
+  const chargesTax = r2((chargesTaxable * (Number(chargesTaxPercent) || 0)) / 100);
+  const totalAmount = r2(lineTaxable + chargesTaxable);
+  const totalTax = r2(lineTax + chargesTax);
 
   const handleUpdateLineTax = (index: number, rate: number) => {
     setLines((prev) => {
@@ -443,6 +455,9 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
       items: formattedLines,
       totalAmount,
       totalTax,
+      courierCharges: Number(courierCharges) || 0,
+      packingCharges: Number(packingCharges) || 0,
+      chargesTaxPercent: Number(chargesTaxPercent) || 0,
       notes: notes.trim() || undefined,
       pendingOrderId: linkedPendingOrderId,
       pendingOrderNumber: linkedPendingOrderNumber,
@@ -737,8 +752,41 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                   <span>Line Items:</span>
                   <span className="font-bold text-slate-900">{lines.filter((l) => l.item).length} items</span>
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span>Taxable value:</span>
+                {/* Courier / packing charges (editable) — taxable, add to total + GST (#1) */}
+                <div className="border-t border-slate-200 pt-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-600">Courier charges (₹):</span>
+                    <input
+                      type="number" min="0" step="1" value={courierCharges || ''}
+                      onChange={(e) => setCourierCharges(Math.max(0, Number(e.target.value)))}
+                      placeholder="0" data-testid="po-form-courier"
+                      className="w-28 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-600">Packing / box charges (₹):</span>
+                    <input
+                      type="number" min="0" step="1" value={packingCharges || ''}
+                      onChange={(e) => setPackingCharges(Math.max(0, Number(e.target.value)))}
+                      placeholder="0" data-testid="po-form-packing"
+                      className="w-28 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  {chargesTaxable > 0 && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-slate-600">GST on charges (%):</span>
+                      <select
+                        value={chargesTaxPercent}
+                        onChange={(e) => setChargesTaxPercent(Number(e.target.value))}
+                        className="w-28 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
+                      >
+                        {[0, 5, 12, 18, 28].map((r) => <option key={r} value={r}>{r}%</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-600 border-t border-slate-200 pt-3">
+                  <span>Taxable value{chargesTaxable > 0 ? ' (incl. charges)' : ''}:</span>
                   <span className="font-mono font-bold text-slate-900">{formatCurrency(totalAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-600">

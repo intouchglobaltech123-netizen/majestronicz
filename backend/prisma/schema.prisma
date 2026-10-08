@@ -406,6 +406,12 @@ model PurchaseOrder {
   // Extra charges the vendor bills on top of the goods (packing, freight, etc.),
   // entered while receiving. Accumulated across receipts and added to the payable.
   otherCharges        Float?
+  // Courier/packing charges entered WHEN CREATING the PO (editable). Unlike
+  // otherCharges these are GST-taxable at chargesTaxPercent (default 18): they
+  // add to both the taxable total and the GST, and to what the vendor is owed.
+  courierCharges      Float?
+  packingCharges      Float?
+  chargesTaxPercent   Float?
   amountPaid          Float?  // total paid to vendor against this PO (payables tracking)
   notes               String?
   pendingOrderId      String?

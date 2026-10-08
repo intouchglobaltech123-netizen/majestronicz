@@ -150,6 +150,19 @@ describe('purchases', () => {
     near(after.totalAmount, 1100, 'new price applied');
   });
 
+  test('PUR-CHG courier + packing charges are taxed, added to the total, and payable', async () => {
+    const item = await createItem({ purchasePrice: 1000 });
+    // goods: 2 x 1000 = 2000 taxable, 18% = 360 GST. charges: 100+50 = 150, 18% = 27.
+    const po = await createPO([{ item, qty: 2, price: 1000, tax: 18 }], { extra: { courierCharges: 100, packingCharges: 50, chargesTaxPercent: 18 } });
+    assert.equal(po.courierCharges, 100, 'courier charge stored');
+    assert.equal(po.packingCharges, 50, 'packing charge stored');
+    assert.equal(po.totalAmount, 2150, 'taxable value = goods 2000 + charges 150');
+    assert.equal(po.totalTax, 387, 'GST = goods 360 + charges 27');
+    // The charges are part of what the vendor is owed: full pay cap = goods 2360 + charges 177 = 2537.
+    expectStatus(await post('/api/purchase/payment', { poId: po.id, amount: 2537.01, mode: 'Cash', actor: 'QA' }), 400, 'cannot pay beyond owed incl. charges');
+    ok(await post('/api/purchase/payment', { poId: po.id, amount: 2537, mode: 'Cash', actor: 'QA' }), 'can pay full incl. charges + their GST');
+  });
+
   test('PUR2-9 a vendor payment cannot exceed what is owed', async () => {
     const item = await createItem();
     const po = await createPO([{ item, qty: 2, price: 100, tax: 18 }]);

@@ -1094,6 +1094,9 @@ export interface PurchaseOrder {
   totalAmount: number; // taxable value of the order, tax excluded
   totalTax?: number;   // GST accumulated from the rates confirmed at receipt
   otherCharges?: number; // vendor-billed extras (packing/freight) added at receipt
+  courierCharges?: number; // courier charge set at PO creation (GST-taxable)
+  packingCharges?: number; // packing/box charge set at PO creation (GST-taxable)
+  chargesTaxPercent?: number; // GST rate on courier+packing charges (default 18)
   amountPaid?: number; // total paid to vendor against this PO (payables tracking)
   notes?: string;
   pendingOrderId?: string;
@@ -1546,13 +1549,26 @@ export const poLineGoodValue = (l: POLineItem): { taxable: number; tax: number }
   return { taxable, tax: poTax(taxable, Number(l.taxPercent) || 0) };
 };
 
-export const purchaseOrderGrandOwed = (po: Pick<PurchaseOrder, 'items' | 'otherCharges'>): number => {
+/**
+ * Courier + packing charges set at PO creation, and the GST on them
+ * (chargesTaxPercent, default 18 when charges exist). Taxable, unlike the
+ * receipt-time otherCharges. Mirrors poChargesValue in backend/src/lib/poMoney.ts.
+ */
+export const purchaseOrderChargesValue = (po: Pick<PurchaseOrder, 'courierCharges' | 'packingCharges' | 'chargesTaxPercent'>): { taxable: number; tax: number } => {
+  const taxable = poR2((Number(po.courierCharges) || 0) + (Number(po.packingCharges) || 0));
+  if (taxable <= 0) return { taxable: 0, tax: 0 };
+  const rate = po.chargesTaxPercent != null ? Number(po.chargesTaxPercent) : 18;
+  return { taxable, tax: poTax(taxable, rate) };
+};
+
+export const purchaseOrderGrandOwed = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'courierCharges' | 'packingCharges' | 'chargesTaxPercent'>): number => {
   let total = 0;
   for (const l of po.items || []) {
     const v = poLineGoodValue(l);
     total += v.taxable + v.tax;
   }
-  return poR2(total + (Number(po.otherCharges) || 0));
+  const charges = purchaseOrderChargesValue(po);
+  return poR2(total + (Number(po.otherCharges) || 0) + charges.taxable + charges.tax);
 };
 
 /** Ordered value incl. GST at the line rates (what the whole order would cost). */
@@ -1568,7 +1584,7 @@ export const purchaseOrderOrderedTotal = (po: Pick<PurchaseOrder, 'items' | 'tot
  * (Damaged and missing units are never billed.) Before anything is received
  * this is the ordered value incl. GST.
  */
-export const purchaseOrderTotalValue = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'status'>): number =>
+export const purchaseOrderTotalValue = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'courierCharges' | 'packingCharges' | 'chargesTaxPercent' | 'status'>): number =>
   po.status === 'Cancelled' ? purchaseOrderGrandOwed(po) : poR2(purchaseOrderGrandOwed(po) + purchaseOrderOpenValue(po));
 
 /**
@@ -1577,7 +1593,7 @@ export const purchaseOrderTotalValue = (po: Pick<PurchaseOrder, 'items' | 'other
  * line's price and rate), and the charges — so a PO's printed and on-screen
  * breakdown always adds up to its total after mixed receipts.
  */
-export const purchaseOrderValueParts = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'status'>): {
+export const purchaseOrderValueParts = (po: Pick<PurchaseOrder, 'items' | 'otherCharges' | 'courierCharges' | 'packingCharges' | 'chargesTaxPercent' | 'status'>): {
   lines: { taxable: number; tax: number; total: number }[]; taxable: number; tax: number; charges: number; total: number;
 } => {
   const cancelled = po.status === 'Cancelled';
@@ -1590,8 +1606,11 @@ export const purchaseOrderValueParts = (po: Pick<PurchaseOrder, 'items' | 'other
     const tax = poR2(good.tax + openTax);
     return { taxable, tax, total: poR2(taxable + tax) };
   });
-  const taxable = poR2(lines.reduce((t, l) => t + l.taxable, 0));
-  const tax = poR2(lines.reduce((t, l) => t + l.tax, 0));
+  const cv = purchaseOrderChargesValue(po);
+  const taxable = poR2(lines.reduce((t, l) => t + l.taxable, 0) + cv.taxable);
+  const tax = poR2(lines.reduce((t, l) => t + l.tax, 0) + cv.tax);
+  // "charges" keeps the untaxed receipt-time extras; the taxable courier/packing
+  // charges fold into taxable/tax above so the parts add up to grandOwed.
   const charges = poR2(Number(po.otherCharges) || 0);
   return { lines, taxable, tax, charges, total: poR2(taxable + tax + charges) };
 };
@@ -1609,7 +1628,7 @@ export const purchaseOrderOpenValue = (po: Pick<PurchaseOrder, 'items'>): number
 };
 
 export const purchaseOrderBalanceDue = (
-  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'status' | 'otherCharges'>,
+  po: Pick<PurchaseOrder, 'items' | 'amountPaid' | 'status' | 'otherCharges' | 'courierCharges' | 'packingCharges' | 'chargesTaxPercent'>,
 ): number => {
   if (po.status === 'Cancelled') return 0;
   return Math.max(0, poR2(purchaseOrderGrandOwed(po) - (Number(po.amountPaid) || 0)));
