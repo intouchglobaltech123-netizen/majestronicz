@@ -1344,6 +1344,9 @@ export interface StockTransfer {
  */
 export interface InventorySettings {
   deadStockThresholdDays: number; // default 90 days
+  // Movement classification (#2), sales over a trailing window:
+  movementFastPerMonth?: number;    // ≥ this/month = Fast (default 10)
+  movementAveragePerMonth?: number; // ≥ this/month = Average, else Slow (default 2)
 }
 
 /**

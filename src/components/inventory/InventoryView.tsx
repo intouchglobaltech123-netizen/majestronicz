@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { COMBO_GST_RATE } from '../../lib/comboPricing';
+import { classifyStockMovement, unitsSoldFor, MOVEMENT_META, StockMovement } from '../../lib/stockMovement';
 import { ItemImage } from '../common/ItemImage';
 import { AdjustStockModal } from './AdjustStockModal';
 import { TransferStockModal } from './TransferStockModal';
@@ -46,6 +47,7 @@ export const InventoryView: React.FC = () => {
     setInventoryFilterQuery,
     inventorySettings,
     getItemLastSaleInfo,
+    itemSales90d,
     inventoryMovementFilter,
     setInventoryMovementFilter,
     combos,
@@ -67,6 +69,14 @@ export const InventoryView: React.FC = () => {
   const [movementFilter, setMovementFilter] = useState<'all' | 'not-moving' | 'active'>(
     inventoryMovementFilter || 'all'
   );
+  // Fast / average / slow / no-sale movement (#2), from sales over the window.
+  const [speedFilter, setSpeedFilter] = useState<'all' | StockMovement>('all');
+  const movementThresholds = {
+    fastPerMonth: inventorySettings.movementFastPerMonth,
+    averagePerMonth: inventorySettings.movementAveragePerMonth,
+  };
+  const movementOf = (itemId: string): StockMovement =>
+    classifyStockMovement(unitsSoldFor(itemSales90d, itemId, isAllBranches ? 'all' : currentBranch), movementThresholds);
 
   // Combos Tab & Expand state
   const [activeInventoryTab, setActiveInventoryTab] = useState<'items' | 'combos' | 'transfer-history' | 'audit'>('items');
@@ -300,9 +310,14 @@ export const InventoryView: React.FC = () => {
         }
       }
 
+      // 5. Speed filter (fast / average / slow / no-sale) — #2
+      if (speedFilter !== 'all' && movementOf(item.id) !== speedFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [items, searchQuery, selectedCategory, statusFilter, movementFilter, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo]);
+  }, [items, searchQuery, selectedCategory, statusFilter, movementFilter, speedFilter, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo, itemSales90d]);
 
   // Filtered combos for Combos Inventory Tab
   const filteredCombos = useMemo(() => {
@@ -652,6 +667,20 @@ export const InventoryView: React.FC = () => {
             ))}
           </select>
 
+          {/* Movement speed filter (#2): fast / average / slow / no-sale */}
+          <select
+            aria-label="Filter by stock movement speed"
+            value={speedFilter}
+            onChange={(e) => setSpeedFilter(e.target.value as 'all' | StockMovement)}
+            className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600"
+          >
+            <option value="all">All Movement</option>
+            <option value="fast">⚡ Fast moving</option>
+            <option value="average">Average moving</option>
+            <option value="slow">Slow moving</option>
+            <option value="no-sale">No sales</option>
+          </select>
+
           {/* Movement Filter Toggle (Not Moving / Active) */}
           <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
             <button
@@ -828,12 +857,21 @@ export const InventoryView: React.FC = () => {
                       {/* Item Details */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{item.itemName}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                             {item.itemCode}
                           </span>
                           <span className="text-[11px] text-slate-400">HSN: {item.itemHSN}</span>
                           <span className="text-[11px] text-slate-400">• Unit: {item.unit}</span>
+                          {(() => {
+                            const mv = movementOf(item.id);
+                            const meta = MOVEMENT_META[mv];
+                            return (
+                              <span className={cn('text-[10px] font-bold px-1.5 py-0.2 rounded border uppercase tracking-wide', meta.cls)} title={`${meta.label} — based on sales over the last 90 days`}>
+                                {meta.short}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </td>
 

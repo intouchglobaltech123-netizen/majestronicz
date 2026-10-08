@@ -14,31 +14,23 @@ import {
   Search,
 } from 'lucide-react';
 import { cn, getTodayDateString } from '../../lib/utils';
+import { classifyStockMovement, MOVEMENT_META, MOVEMENT_WINDOW_DAYS, StockMovement } from '../../lib/stockMovement';
 
 interface Props {
   branchScope: BranchScope;
 }
 
-// Trailing window used to classify how fast stock moves.
-const VELOCITY_WINDOW_DAYS = 90;
-const VELOCITY_MONTHS = VELOCITY_WINDOW_DAYS / 30;
-type Movement = 'fast' | 'average' | 'slow' | 'no-sale';
-const classifyMovement = (unitsSold: number): Movement => {
-  if (unitsSold <= 0) return 'no-sale';
-  const perMonth = unitsSold / VELOCITY_MONTHS;
-  if (perMonth >= 10) return 'fast';
-  if (perMonth >= 2) return 'average';
-  return 'slow';
-};
-const MOVEMENT_META: Record<Movement, { label: string; cls: string }> = {
-  fast: { label: 'Fast moving', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  average: { label: 'Average', cls: 'bg-blue-100 text-blue-800 border-blue-200' },
-  slow: { label: 'Slow moving', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
-  'no-sale': { label: 'No sales', cls: 'bg-rose-100 text-rose-800 border-rose-200' },
-};
+// Movement classification lives in src/lib/stockMovement.ts so the Inventory
+// screen and this report always agree, with thresholds set in Inventory Settings.
+type Movement = StockMovement;
 
 export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
-  const { items, branchStocks, itemSales90d, getReorderThreshold } = useErp();
+  const { items, branchStocks, itemSales90d, getReorderThreshold, inventorySettings } = useErp();
+  const VELOCITY_MONTHS = MOVEMENT_WINDOW_DAYS / 30;
+  const movementThresholds = {
+    fastPerMonth: inventorySettings.movementFastPerMonth,
+    averagePerMonth: inventorySettings.movementAveragePerMonth,
+  };
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
   const [movementFilter, setMovementFilter] = useState<'all' | Movement>('all');
@@ -130,7 +122,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
 
       const unitsSold = salesVelocity.get(item.id) || 0;
       const monthlyRate = Math.round((unitsSold / VELOCITY_MONTHS) * 10) / 10;
-      const movement = classifyMovement(unitsSold);
+      const movement = classifyStockMovement(unitsSold, movementThresholds);
 
       return {
         item,
@@ -242,7 +234,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
       'Total Cost Valuation (₹)',
       'Total Retail Valuation (₹)',
       'Potential Gross Margin (₹)',
-      `Units Sold (last ${VELOCITY_WINDOW_DAYS}d)`,
+      `Units Sold (last ${MOVEMENT_WINDOW_DAYS}d)`,
       'Units / month',
       'Movement',
     ];
@@ -276,7 +268,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
     rows.push(['Potential Margin (₹)', n2(valuationData.activeMargin)]);
     rows.push(['Low Stock Items Count', valuationData.activeLowStock]);
     rows.push(['Out of Stock Items Count', valuationData.activeOutOfStock]);
-    rows.push([`Fast moving (>=10/mo, last ${VELOCITY_WINDOW_DAYS}d)`, valuationData.movementCounts.fast]);
+    rows.push([`Fast moving (>=10/mo, last ${MOVEMENT_WINDOW_DAYS}d)`, valuationData.movementCounts.fast]);
     rows.push(['Average moving (2-10/mo)', valuationData.movementCounts.average]);
     rows.push(['Slow moving (<2/mo)', valuationData.movementCounts.slow]);
     rows.push(['No sales in window', valuationData.movementCounts['no-sale']]);
@@ -478,7 +470,7 @@ export const StockValuationReportTab: React.FC<Props> = ({ branchScope }) => {
             trailing window. Lets the client find dead stock and best-sellers. */}
         <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Movement (last {VELOCITY_WINDOW_DAYS}d):
+            Movement (last {MOVEMENT_WINDOW_DAYS}d):
           </span>
           <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
             <button
