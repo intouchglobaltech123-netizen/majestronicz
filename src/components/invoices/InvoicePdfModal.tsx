@@ -88,7 +88,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   // Seller (dispatching branch) block resolved from the invoice branch.
   const sellerBranch = BRANCHES.find((b) => b.id === invoice.branchId);
-  const companyState = gstStateInfo(COMPANY_PROFILE.gstin);
+  const companyState = gstStateInfo(company.gstin);
 
   // Print and "Save as PDF" share one layout: the browser's print pipeline
   // (#root hidden, the document flowing across A4 pages — SAL4-7, E2E5-17).
@@ -110,10 +110,10 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     const splitSummary = splits.length > 1
       ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
       : invoice.paymentMode;
-    const ratingLine = COMPANY_PROFILE.ratingLink
-      ? `\n\nLoved our service? Please rate us here:\n${COMPANY_PROFILE.ratingLink}`
+    const ratingLine = company.ratingLink
+      ? `\n\nLoved our service? Please rate us here:\n${company.ratingLink}`
       : '';
-    return `*TAX INVOICE — ${COMPANY_PROFILE.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with ${COMPANY_PROFILE.name}!${ratingLine}`;
+    return `*TAX INVOICE — ${company.name}*\nInvoice No: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nGrand Total: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary}${invoice.isPartialPayment ? ` (Paid: ₹${invoice.partialAmount}, Balance Due: ₹${invoice.balanceDue})` : ''}\n\nThank you for doing business with ${company.name}!${ratingLine}`;
   };
 
   const openWhatsAppText = () => {
@@ -161,7 +161,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     const splitSummary = splits.length > 1
       ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
       : invoice.paymentMode;
-    const summary = `${COMPANY_PROFILE.name} Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nTotal: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary} (${invoice.transactionType})\nItems: ${invoice.items.length}`;
+    const summary = `${company.name} Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nCustomer: ${invoice.customerName}\nTotal: ₹${invoice.grandTotal.toLocaleString('en-IN')}\nPayment: ${splitSummary} (${invoice.transactionType})\nItems: ${invoice.items.length}`;
     navigator.clipboard.writeText(summary);
     setCopied(true);
     toast.success('Invoice details copied to clipboard');
@@ -260,12 +260,13 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <div className="grid grid-cols-2">
               {/* Seller / dispatching branch */}
               <div className="p-2 border-r border-black">
-                <p className="text-sm font-bold uppercase">{COMPANY_PROFILE.name}</p>
-                <p>{COMPANY_PROFILE.address}</p>
-                <p className="mt-0.5">GSTIN/UIN: <span className="font-semibold">{COMPANY_PROFILE.gstin}</span></p>
+                <p className="text-sm font-bold uppercase">{company.name}</p>
+                <p>{company.address}</p>
+                <p className="mt-0.5">GSTIN/UIN: <span className="font-semibold">{company.gstin}</span>{company.pan ? <> · PAN: <span className="font-semibold">{company.pan}</span></> : null}</p>
+                {company.udyamReg && <p>UDYAM Reg. No. : <span className="font-semibold">{company.udyamReg}</span></p>}
                 {companyState && <p>State Name : {companyState.state}, Code : {companyState.code}</p>}
-                <p>Contact : {COMPANY_PROFILE.phone}</p>
-                <p>E-Mail : {COMPANY_PROFILE.email}</p>
+                <p>Contact : {company.phone}</p>
+                <p>E-Mail : {company.email}</p>
                 {sellerBranch && <p className="mt-0.5 text-[10px] text-black/70">Dispatch Branch : {sellerBranch.name} ({sellerBranch.location})</p>}
               </div>
               {/* Document meta grid */}
@@ -548,7 +549,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 </div>
               </div>
               <div className="p-2 flex flex-col items-end justify-between">
-                <span className="font-bold uppercase">for {COMPANY_PROFILE.name}</span>
+                <span className="font-bold uppercase">for {company.name}</span>
                 <span className="text-[10px] mt-10">Authorised Signatory</span>
               </div>
             </div>

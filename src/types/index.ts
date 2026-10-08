@@ -619,6 +619,8 @@ export interface CompanyProfile {
   state: string;
   ratingLink?: string; // customer review / rating URL shared on invoices
   // #6 — printed on the GST bill as QR codes + a bank-details block.
+  pan?: string;           // PAN number (shown in seller details)
+  udyamReg?: string;      // UDYAM / MSME registration number
   website?: string;       // company website URL (website QR)
   // Google review URL is `ratingLink` above (Google-review QR)
   bankName?: string;

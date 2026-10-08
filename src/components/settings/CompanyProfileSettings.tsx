@@ -55,6 +55,8 @@ export const CompanyProfileSettings: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field('Company Name', 'name', 'MAJESTRONICZ')}
           {field('GSTIN', 'gstin', '33ABZFM5739L1ZD', true)}
+          {field('PAN No.', 'pan', 'ABZFM5739L', true)}
+          {field('UDYAM / MSME Reg. No.', 'udyamReg', 'UDYAM-TN-00-0000000', true)}
           {field('Phone', 'phone', '')}
           {field('Email', 'email', '')}
         </div>
