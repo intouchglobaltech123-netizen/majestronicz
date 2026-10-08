@@ -199,6 +199,25 @@ describe('purchases', () => {
     assert.equal(it.purchasePrice, 640);
   });
 
+  test('MARGIN-D a band-D item reprices its sale price from the custom margin % on receipt', async () => {
+    const item = await createItem({ purchasePrice: 600, marginCategory: 'D', extra: { customMarginPercent: 20 } });
+    assert.equal(item.customMarginPercent, 20, 'custom margin % persisted on create');
+    const po = await createPO([{ item, qty: 2, price: 600 }]);
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 2, purchasePrice: 500 }], actor: 'QA' }));
+    const it = ok(await get(`/api/items/${item.id}`));
+    assert.equal(it.purchasePrice, 500);
+    assert.equal(it.salePrice, 600, 'sale price = cost 500 + custom 20% = 600');
+  });
+
+  test('MARGIN-D a non-D band never keeps a stale custom % (it is cleared)', async () => {
+    const item = await createItem({ purchasePrice: 600, marginCategory: 'A', extra: { customMarginPercent: 20 } });
+    assert.ok(item.customMarginPercent == null, 'custom % is dropped for band A');
+    const po = await createPO([{ item, qty: 1, price: 600 }]);
+    ok(await post('/api/purchase/receive', { poId: po.id, receipts: [{ itemId: item.id, quantityReceived: 1, purchasePrice: 400 }], actor: 'QA' }));
+    const it = ok(await get(`/api/items/${item.id}`));
+    assert.equal(it.salePrice, 540, 'band A still reprices at +35% (400 -> 540)');
+  });
+
   test('PUR2-8 a zero price at receipt does not wipe the item cost', async () => {
     const item = await createItem({ purchasePrice: 600 });
     const po = await createPO([{ item, qty: 2, price: 600 }]);

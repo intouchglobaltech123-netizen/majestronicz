@@ -37,7 +37,6 @@ import {
   Trash2,
   Save,
   Printer,
-  MapPin,
   FileText,
   Paperclip,
   ChevronDown,
@@ -2249,7 +2248,6 @@ export const InvoiceForm: React.FC<Props> = ({
                 {/* 390 px (V8): a narrower item column and no rack column, so Qty and
                     Price are on screen; the rest scrolls inside this card. */}
                 <th className="py-3 px-2 sm:px-3 min-w-[150px] sm:min-w-[240px]">Item Description / Search Catalog</th>
-                <th className="py-3 px-3 w-28 hidden sm:table-cell">Location</th>
                 <th className="py-3 px-3 w-20 min-w-[68px]">Qty</th>
                 <th className="py-3 px-3 w-20 min-w-[68px]">Unit</th>
                 <th className="py-3 px-3 w-28 text-right">Price/Unit (₹)</th>
@@ -2315,30 +2313,6 @@ export const InvoiceForm: React.FC<Props> = ({
                           </span>
                         </div>
                       )}
-                    </td>
-
-                    {/* Branch Rack Location */}
-                    <td className="py-2.5 px-3 hidden sm:table-cell">
-                      {(() => {
-                        const stock = branchStocks.find(
-                          (s) => s.itemId === item.itemId && s.branchId === selectedBranch
-                        );
-                        const loc = stock?.location?.trim();
-                        return (
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border max-w-[130px] truncate',
-                              loc
-                                ? 'bg-amber-50 text-amber-800 border-amber-200 font-mono'
-                                : 'bg-slate-50 text-slate-400 border-slate-200'
-                            )}
-                            title={loc ? `Shelf/Rack Location: ${loc}` : 'No rack assigned'}
-                          >
-                            <MapPin className="h-3 w-3 shrink-0 text-amber-600/70" />
-                            <span className="truncate">{loc || '—'}</span>
-                          </span>
-                        );
-                      })()}
                     </td>
 
                     {/* Quantity */}

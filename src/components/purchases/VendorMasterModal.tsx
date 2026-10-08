@@ -31,7 +31,7 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
   // costs an API call, and a half-typed number is guaranteed to fail.
   type GstinCheck = {
     gstin: string; valid: boolean; source: 'offline' | 'api' | 'cache';
-    legalName?: string; tradeName?: string; status?: string; message?: string;
+    legalName?: string; tradeName?: string; status?: string; message?: string; address?: string;
   };
   const [gstinCheck, setGstinCheck] = useState<GstinCheck | null>(null);
   const [gstinChecking, setGstinChecking] = useState(false);
@@ -42,7 +42,15 @@ export const VendorMasterModal: React.FC<VendorMasterModalProps> = ({
     if (g.length !== 15) return;
     setGstinChecking(true);
     try {
-      setGstinCheck(await apiGet<GstinCheck>(`/api/gstin/${g}`));
+      const res = await apiGet<GstinCheck>(`/api/gstin/${g}`);
+      setGstinCheck(res);
+      // Auto-fill from the GST registry, but only into fields the user hasn't
+      // filled yet — never overwrite something they typed.
+      if (res?.valid) {
+        const name = res.tradeName || res.legalName;
+        if (name && !vendorName.trim()) setVendorName(name);
+        if (res.address && !address.trim()) setAddress(res.address);
+      }
     } catch {
       // A failed check must never block saving a vendor — the field stays
       // usable and the form's own format rule still applies.

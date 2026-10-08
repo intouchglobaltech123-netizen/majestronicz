@@ -111,15 +111,22 @@ export const MARGIN_CATEGORIES: { code: MarginCategoryCode; label: string; margi
   { code: 'D', label: 'D — Custom', margin: null },
 ];
 
-/** Markup multiplier for a margin band (A=+35%, B=+25%, C=+15%, D=custom → null). */
-export function marginMultiplier(code?: MarginCategoryCode | string): number | null {
+/**
+ * Markup multiplier for a margin band (A=+35%, B=+25%, C=+15%). Band D is
+ * "Custom": the user fixes the percent per item (customMarginPercent), so it
+ * resolves to 1 + that%/100 when given, else null (manual sale price).
+ */
+export function marginMultiplier(code?: MarginCategoryCode | string, customMarginPercent?: number | null): number | null {
+  if (code === 'D') {
+    return customMarginPercent != null && customMarginPercent >= 0 ? 1 + customMarginPercent / 100 : null;
+  }
   const m = MARGIN_CATEGORIES.find((c) => c.code === code);
   return m && m.margin != null ? 1 + m.margin / 100 : null;
 }
 
-/** Sale price implied by a purchase price + margin band (null when band is D/custom/none). */
-export function computeMarginSalePrice(purchasePrice: number, code?: MarginCategoryCode | string): number | null {
-  const mult = marginMultiplier(code);
+/** Sale price implied by a purchase price + margin band (null when band is D with no custom %, or none). */
+export function computeMarginSalePrice(purchasePrice: number, code?: MarginCategoryCode | string, customMarginPercent?: number | null): number | null {
+  const mult = marginMultiplier(code, customMarginPercent);
   if (mult == null || !(purchasePrice > 0)) return null;
   return Math.round(purchasePrice * mult * 100) / 100;
 }
@@ -138,6 +145,7 @@ export interface Item {
   category: string;
   subcategory?: string;
   marginCategory?: MarginCategoryCode; // Profit band: A(35%) / B(25%) / C(15%) / D(custom)
+  customMarginPercent?: number | null; // Band D only: the fixed markup % set for this item
   itemCode: string;
   unit: string;
 

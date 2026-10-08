@@ -4,6 +4,7 @@ import { useErp } from '../../context/ErpContext';
 import { X, User, MapPin, FileText, Building2 } from 'lucide-react';
 import { cn, getTodayDateString } from '../../lib/utils';
 import { PhoneInput } from '../common/PhoneInput';
+import { apiGet } from '../../lib/api';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -27,6 +28,29 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  // GSTIN registry lookup (on blur): fills name/address from the GST registry.
+  const [gstinChecking, setGstinChecking] = useState(false);
+  const [gstinInfo, setGstinInfo] = useState<{ legalName?: string; tradeName?: string; status?: string; address?: string } | null>(null);
+
+  const verifyCustomerGstin = async (value: string) => {
+    const g = value.trim().toUpperCase();
+    setGstinInfo(null);
+    if (g.length !== 15) return;
+    setGstinChecking(true);
+    try {
+      const res = await apiGet<{ valid: boolean; legalName?: string; tradeName?: string; status?: string; address?: string }>(`/api/gstin/${g}`);
+      if (res?.valid) {
+        setGstinInfo(res);
+        const regName = res.tradeName || res.legalName;
+        if (regName && !name.trim()) setName(regName);
+        if (res.address && !address.trim()) setAddress(res.address);
+      }
+    } catch {
+      // A failed lookup never blocks saving — the manual fields still work.
+    } finally {
+      setGstinChecking(false);
+    }
+  };
 
   useEffect(() => {
     if (customerToEdit) {
@@ -273,11 +297,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               placeholder="e.g. 33ABZFM5739L1ZD"
               value={gstin}
               onChange={(e) => setGstin(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15))}
+              onBlur={(e) => verifyCustomerGstin(e.target.value)}
               className="w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600 transition-all"
             />
             {gstStateInfo(gstin) && (
               <p className="mt-1 text-[11px] text-emerald-700 font-semibold">
                 📍 State: {gstStateInfo(gstin)!.state}, Code {gstStateInfo(gstin)!.code}
+              </p>
+            )}
+            {gstinChecking && <p className="mt-1 text-[11px] text-slate-400">Looking up GSTIN…</p>}
+            {gstinInfo && (gstinInfo.legalName || gstinInfo.tradeName) && (
+              <p className="mt-1 text-[11px] text-emerald-700 font-semibold">
+                ✓ {gstinInfo.tradeName || gstinInfo.legalName}{gstinInfo.status ? ` · ${gstinInfo.status}` : ''} — name &amp; address auto-filled
               </p>
             )}
           </div>

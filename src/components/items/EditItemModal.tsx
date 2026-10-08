@@ -65,6 +65,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState('');
   const [marginCategory, setMarginCategory] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
+  const [customMarginPercent, setCustomMarginPercent] = useState<string>('');
   const [itemCode, setItemCode] = useState('');
   const [unit, setUnit] = useState('PCS');
   const [imageUrl, setImageUrl] = useState('');
@@ -98,6 +99,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       // No subcategory stays none — it is not silently set to the first one (INV4-1).
       setSubcategory(item.subcategory || '');
       setMarginCategory((item.marginCategory as 'A' | 'B' | 'C' | 'D') || '');
+      setCustomMarginPercent(item.customMarginPercent != null ? String(item.customMarginPercent) : '');
       setItemCode(item.itemCode);
       setUnit(item.unit);
       setImageUrl(item.imageUrl || '');
@@ -139,8 +141,9 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   // ONLY on an explicit user change to cost or band (see the onChange handlers),
   // NOT in an effect — otherwise merely opening Edit on a band item silently
   // overwrote a manually-set sale price (INV2-6).
-  const applyMarginPrice = (nextPurchase: number, nextMargin: 'A' | 'B' | 'C' | 'D' | '') => {
-    const sp = computeMarginSalePrice(nextPurchase || 0, nextMargin);
+  const applyMarginPrice = (nextPurchase: number, nextMargin: 'A' | 'B' | 'C' | 'D' | '', nextCustom?: string) => {
+    const custom = nextMargin === 'D' ? Number(nextCustom ?? customMarginPercent) : null;
+    const sp = computeMarginSalePrice(nextPurchase || 0, nextMargin, custom);
     if (sp != null) setSalePrice(sp);
   };
 
@@ -232,6 +235,8 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
       // band on the server — otherwise the band could never be removed and kept
       // silently re-pricing the item on every PO receipt (STK-4).
       marginCategory: marginCategory || null,
+      // Keep the custom % only for band D; any other band clears it.
+      customMarginPercent: marginCategory === 'D' && customMarginPercent !== '' ? Number(customMarginPercent) : null,
       itemCode: itemCode.trim(),
       unit,
       imageUrl: imageUrl.trim() || null,
@@ -414,6 +419,25 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                     <option key={m.code} value={m.code}>{m.label}</option>
                   ))}
                 </select>
+                {marginCategory === 'D' && (
+                  <div className="pt-1.5 space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Custom Margin %</label>
+                    <div className="relative">
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={customMarginPercent}
+                        onChange={(e) => {
+                          setCustomMarginPercent(e.target.value);
+                          applyMarginPrice(Number(purchasePrice) || 0, 'D', e.target.value);
+                        }}
+                        placeholder="e.g. 20"
+                        className="w-full px-3 py-2 pr-8 rounded-none bg-white border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-red-600"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-semibold">%</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Sale price auto-fills to Purchase Price + this %.</p>
+                  </div>
+                )}
               </div>
 
               {/* Item Code */}

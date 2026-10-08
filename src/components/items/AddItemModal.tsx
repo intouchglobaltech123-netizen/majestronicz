@@ -71,6 +71,8 @@ export const AddItemModal: React.FC<Props> = ({
   const availableSubcategories = subcategoriesByCategory[category] || ['General'];
   const [subcategory, setSubcategory] = useState(() => availableSubcategories[0] || 'General');
   const [marginCategory, setMarginCategory] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
+  // Band D only: the fixed markup % the user sets for this item.
+  const [customMarginPercent, setCustomMarginPercent] = useState<string>('');
   const [itemCode, setItemCode] = useState('');
   // INV-1: codes saved in this session (the list refreshes from the server a
   // moment later) — "Save & New" must not offer the code just used.
@@ -128,11 +130,12 @@ export const AddItemModal: React.FC<Props> = ({
   }, [isOpen, category, subcategory, isCodeOverridden]);
 
   // Margin band A/B/C → auto-fill Sale Price = Purchase Price + margin (e.g. A: 100 → 135).
-  // Band D (custom) / none leaves the sale price for manual entry.
+  // Band D (custom) uses the % the user fixed below; none leaves it for manual entry.
   useEffect(() => {
-    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory);
+    const custom = marginCategory === 'D' ? Number(customMarginPercent) : null;
+    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory, custom);
     if (sp != null) setSalePrice(sp);
-  }, [purchasePrice, marginCategory]);
+  }, [purchasePrice, marginCategory, customMarginPercent]);
 
   if (!isOpen) return null;
 
@@ -290,6 +293,7 @@ export const AddItemModal: React.FC<Props> = ({
       category,
       subcategory: subcategory.trim() || undefined,
       marginCategory: marginCategory || undefined,
+      customMarginPercent: marginCategory === 'D' && customMarginPercent !== '' ? Number(customMarginPercent) : null,
       itemCode: finalItemCode,
       unit,
       imageUrl: imageUrl.trim() || undefined,
@@ -472,6 +476,22 @@ export const AddItemModal: React.FC<Props> = ({
                     <option key={m.code} value={m.code}>{m.label}</option>
                   ))}
                 </select>
+                {marginCategory === 'D' && (
+                  <div className="pt-1.5 space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Custom Margin %</label>
+                    <div className="relative">
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={customMarginPercent}
+                        onChange={(e) => setCustomMarginPercent(e.target.value)}
+                        placeholder="e.g. 20"
+                        className="w-full px-3 py-2 pr-8 rounded-none bg-white border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:border-red-600"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-semibold">%</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Sale price auto-fills to Purchase Price + this %.</p>
+                  </div>
+                )}
               </div>
 
               {/* Item Code (Auto-generated & Editable) */}

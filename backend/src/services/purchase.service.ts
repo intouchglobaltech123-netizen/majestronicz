@@ -554,7 +554,8 @@ export function receivePurchaseOrderStock(
     }
 
     // Reflect the confirmed per-unit purchase price back onto the item master, and
-    // re-price its sale price from the margin band (A +35% / B +25% / C +15%).
+    // re-price its sale price from the margin band (A +35% / B +25% / C +15%, or
+    // band D = the item's own customMarginPercent).
     const marginMult: Record<string, number> = { A: 1.35, B: 1.25, C: 1.15 };
     for (const rec of valid) {
       // PUR2-8: only reprice the item master from a real, positive cost that was
@@ -566,7 +567,9 @@ export function receivePurchaseOrderStock(
       const item = await tx.item.findUnique({ where: { id: rec.itemId } });
       if (!item) continue;
       const data: any = { purchasePrice: rec.purchasePrice, updatedAt: ts };
-      const mult = item.marginCategory ? marginMult[item.marginCategory] : undefined;
+      const mult = item.marginCategory === 'D'
+        ? (item.customMarginPercent != null && item.customMarginPercent >= 0 ? 1 + item.customMarginPercent / 100 : undefined)
+        : (item.marginCategory ? marginMult[item.marginCategory] : undefined);
       if (mult) data.salePrice = Math.round(rec.purchasePrice * mult * 100) / 100;
       await tx.item.update({ where: { id: rec.itemId }, data });
     }

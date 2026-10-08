@@ -73,6 +73,22 @@ async function assertItemFields(tx: any, d: any, isAdd: boolean, currentUnit?: s
     if ((type || '%') !== '%' && Number.isFinite(sale) && n > sale) throw new AppError('BAD_DISCOUNT', 'The ₹ discount cannot exceed the sale price.', 400);
     d.discountOnSalePrice = n;
   }
+  // Band D custom markup %: a number ≥ 0, and only meaningful for band D. Clear
+  // it to null when empty, or when the margin band is being set to anything but
+  // D, so a stale % never re-prices the item later (the forms always send the
+  // margin band alongside the %).
+  if (d.customMarginPercent !== undefined) {
+    const clearing = d.customMarginPercent === null || d.customMarginPercent === ''
+      || d.marginCategory === null || d.marginCategory === ''
+      || (d.marginCategory !== undefined && d.marginCategory !== 'D');
+    if (clearing) {
+      d.customMarginPercent = null;
+    } else {
+      const n = Number(d.customMarginPercent);
+      if (!Number.isFinite(n) || n < 0) throw new AppError('BAD_MARGIN', 'The custom margin % must be 0 or more.', 400);
+      d.customMarginPercent = n;
+    }
+  }
   const vendorIds = [d.vendorId, ...(Array.isArray(d.vendors) ? d.vendors.map((v: any) => v?.vendorId) : [])].filter((v) => typeof v === 'string' && v);
   if (vendorIds.length) {
     const found = await tx.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true } });

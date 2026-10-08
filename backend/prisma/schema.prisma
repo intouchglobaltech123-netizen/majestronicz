@@ -20,6 +20,10 @@ model Item {
   category            String
   subcategory         String?
   marginCategory      String?
+  // Band D ("Custom"): the fixed markup % the user set for THIS item. NULL for
+  // bands A/B/C (fixed 35/25/15) or when no custom % was given. Used to reprice
+  // on stock receipt and to auto-fill the sale price in the item form.
+  customMarginPercent Float?
   itemCode            String   @unique
   unit                String
   salePrice           Float
