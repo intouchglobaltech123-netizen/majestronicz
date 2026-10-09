@@ -571,6 +571,7 @@ export const InvoiceForm: React.FC<Props> = ({
           isCombo: estItem.isCombo,
           comboId: estItem.comboId,
           comboComponents: estItem.comboComponents,
+          leadDays: estItem.leadDays,
         };
       });
       setLineItems(quoteItems);
@@ -628,6 +629,7 @@ export const InvoiceForm: React.FC<Props> = ({
           isCombo: estItem.isCombo,
           comboId: estItem.comboId,
           comboComponents: estItem.comboComponents,
+          leadDays: estItem.leadDays,
         };
       });
       setLineItems(dupQuoteItems);
@@ -1639,6 +1641,7 @@ export const InvoiceForm: React.FC<Props> = ({
       isCombo: item.isCombo,
       comboId: item.comboId,
       comboComponents: item.comboComponents,
+      leadDays: item.leadDays,
     }));
 
     const finalEstimateNumber = invoiceNumber.trim() || getNextEstimateNumber(selectedBranch, date);
@@ -2293,6 +2296,9 @@ export const InvoiceForm: React.FC<Props> = ({
                   </>
                 )}
                 <th className="py-3 px-3 w-28 text-right">Amount (₹)</th>
+                {documentType === 'Quotation' && (
+                  <th className="py-3 px-3 w-24 text-center" title="Delivery lead time for items not in stock">Lead Time</th>
+                )}
                 <th className="py-3 px-3 w-10 text-center"></th>
               </tr>
             </thead>
@@ -2332,7 +2338,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         onSelectCombo={(combo) => selectComboForRow(item.id, combo)}
                         includeCombos={true}
                         selectedBranchId={selectedBranch}
-                        lockOutOfStock={true}
+                        lockOutOfStock={documentType === 'Invoice'}
                         placeholder="Type or search product or combo..."
                         dropdownWidth="w-[520px] max-w-[calc(100vw-2rem)]"
                         inputClassName="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
@@ -2459,6 +2465,25 @@ export const InvoiceForm: React.FC<Props> = ({
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                       {item.totalAmount.toFixed(2)}
                     </td>
+
+                    {/* Lead Time (Quotation only) — fill for items not in stock */}
+                    {documentType === 'Quotation' && (
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1 justify-center">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.leadDays ?? ''}
+                            onChange={(e) => updateLineItem(item.id, { leadDays: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })}
+                            placeholder="—"
+                            title="Delivery lead time in days (leave blank if in stock)"
+                            className="w-12 px-1.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-center focus:outline-none focus:border-blue-600"
+                          />
+                          <span className="text-[10px] text-slate-400">days</span>
+                        </div>
+                      </td>
+                    )}
 
                     {/* Delete Row */}
                     <td className="py-2.5 px-3 text-center">

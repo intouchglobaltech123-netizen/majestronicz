@@ -19,6 +19,32 @@ async function createQuote(item, qty, branchId = 'erode-hq', date, extra = {}) {
 }
 
 describe('sales & quotes', () => {
+  test('QUOTE-LEAD a quotation keeps per-line lead days and accepts an out-of-catalog line', async () => {
+    const item = await createItem({ stock: { 'erode-hq': 0 } }); // out of stock, fine on a quote
+    const id = `est-qa-${uid()}`;
+    const body = ok(await post('/api/catalog/estimate', {
+      id, branchId: 'erode-hq', date: istToday(), time: '10:00', customerName: 'B2B Co', withGst: true,
+      items: [
+        // catalog item with a lead time
+        { id: `li-${uid()}`, itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, itemHSN: item.itemHSN,
+          unit: 'PCS', quantity: 5, unitPrice: item.salePrice, gstRate: item.gstTaxSlab, leadDays: 7 },
+        // out-of-catalog free-text line (no itemId) with a price and a lead time
+        { id: `li-${uid()}`, itemName: 'Special Import Widget (not stocked)', itemHSN: '85371000',
+          unit: 'PCS', quantity: 10, unitPrice: 250, gstRate: 18, leadDays: 14 },
+      ],
+      termsAndConditions: 'QA',
+    }), 'save B2B quote with lead times + out-of-catalog line');
+    const est = body.estimates.find((e) => e.id === id);
+    assert.ok(est, 'quote saved');
+    assert.equal(est.items.length, 2, 'both lines kept (including the non-catalog one)');
+    const catLine = est.items.find((l) => l.itemId === item.id);
+    const freeLine = est.items.find((l) => !l.itemId);
+    assert.equal(catLine.leadDays, 7, 'lead days kept on the catalog line');
+    assert.ok(freeLine, 'the out-of-catalog line was accepted');
+    assert.equal(freeLine.leadDays, 14, 'lead days kept on the out-of-catalog line');
+    assert.ok(freeLine.totalAmount > 0, 'the free-text line is priced');
+  });
+
   test('SAL3-1 a quote converts to an invoice only once', async () => {
     const date = await freshDay('erode-hq');
     const item = await createItem({ stock: { 'erode-hq': 20 } });

@@ -242,6 +242,9 @@ export interface InvoiceLineItem {
   /** E2E9-1: an item's ₹-off standard discount, per unit, so the line's amount
    *  discount follows its quantity (the form recomputes it on a qty change). */
   stdDiscountPerUnit?: number | null;
+  /** Quotation only (#4): estimated delivery lead time in days for a line the
+   *  shop doesn't stock, printed on the quote. Ignored on invoices. */
+  leadDays?: number;
 }
 
 export interface ComboComponent {
@@ -674,6 +677,9 @@ export interface EstimateLineItem {
   isCombo?: boolean;
   comboId?: string;
   comboComponents?: ComboComponent[];
+  // Quotation only (#4): estimated delivery lead time in days for items not in
+  // stock / not stocked, so a B2B quote can show "7 days", "4 days", etc.
+  leadDays?: number;
 }
 
 export interface GstBreakdownRow {

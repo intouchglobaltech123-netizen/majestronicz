@@ -56,6 +56,9 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
   // overall discount (qty × rate − line discount + GST). The overall discount
   // and the GST on the discounted value are shown once, in the summary.
   const overallDiscountAmount = estimate.overallDiscountAmount || 0;
+  // #4 — show the Lead Time column only when at least one line has a lead time
+  // (items not in stock), so ordinary quotes stay uncluttered.
+  const hasLeadTimes = (estimate.items || []).some((i) => i.leadDays != null && i.leadDays > 0);
 
   // Print and "Save as PDF" share one layout: the browser's print pipeline
   // (#root hidden, the document flowing across A4 pages — SAL4-7, E2E5-17).
@@ -221,6 +224,7 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                     </>
                   )}
                   <th className="py-2.5 px-3 text-right w-28">Amount (₹)</th>
+                  {hasLeadTimes && <th className="py-2.5 px-3 text-center w-20">Lead Time</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -264,6 +268,11 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                     <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900">
                       {item.totalAmount.toFixed(2)}
                     </td>
+                    {hasLeadTimes && (
+                      <td className="py-2.5 px-3 text-center text-slate-700 font-medium">
+                        {item.leadDays != null && item.leadDays > 0 ? `${item.leadDays} days` : 'In stock'}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
