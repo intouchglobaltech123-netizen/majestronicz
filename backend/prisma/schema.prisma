@@ -213,6 +213,11 @@ model Invoice {
   externalOrderId           String?  // Shopify order id (dedupe key)
   onlineStatus              String?  // fulfillment pipeline: New|Picking|Tray Photo|Confirmed|Billed|Packed|Shipped|In Transit|Delivered|Completed|Cancelled
   onlineStatusUpdatedAt     String?
+  // Counter-sale dispatch details entered at billing and printed on the GST bill
+  // (#5) — kept separate from the Shopify tracking fields below.
+  dispatchCourier           String?  // courier/transporter the goods went by
+  dispatchDate              String?  // date the goods were dispatched (YYYY-MM-DD)
+  dispatchDocket            String?  // LR / docket / consignment number
   trackingNumber            String?
   courierName               String?
   trackingUrl               String?

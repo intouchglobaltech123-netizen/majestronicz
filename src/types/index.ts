@@ -496,6 +496,10 @@ export interface Invoice {
   externalOrderId?: string; // Shopify order id (dedupe)
   onlineStatus?: OnlineOrderStatus; // fulfillment pipeline for online orders
   onlineStatusUpdatedAt?: string;
+  // Counter-sale dispatch details, printed on the GST bill (#5)
+  dispatchCourier?: string;
+  dispatchDate?: string;
+  dispatchDocket?: string;
   trackingNumber?: string;
   courierName?: string;
   trackingUrl?: string; // courier tracking link sent to the customer

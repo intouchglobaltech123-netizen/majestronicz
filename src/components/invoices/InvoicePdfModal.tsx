@@ -273,13 +273,13 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <div className="grid grid-cols-2">
                 <MetaCell label="Invoice No." value={invoice.invoiceNumber} strong />
                 <MetaCell label="Dated" value={invoice.date} strong />
-                <MetaCell label="Delivery Note" value="" />
+                <MetaCell label="Delivery Note (LR/Docket)" value={invoice.dispatchDocket || ''} />
                 <MetaCell label="Mode/Terms of Payment" value={paymentSummary} />
                 <MetaCell label="Reference No. & Date." value="" />
                 <MetaCell label="Other References" value={invoice.sourceEstimateNumber || ''} />
                 <MetaCell label="Buyer's Order No." value="" />
-                <MetaCell label="Dated" value="" />
-                <MetaCell label="Dispatched through" value={sellerBranch?.name || ''} />
+                <MetaCell label="Dispatch Date" value={invoice.dispatchDate || ''} />
+                <MetaCell label="Dispatched through" value={invoice.dispatchCourier || sellerBranch?.name || ''} />
                 <MetaCell label="Place of Supply" value={invoice.stateOfSupply || buyerState?.state || ''} />
                 <div className="col-span-2 px-2 py-1">
                   <span className="text-[9px] text-black/60 block leading-none mb-0.5">Terms of Delivery</span>

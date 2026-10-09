@@ -45,6 +45,20 @@ describe('sales & quotes', () => {
     assert.ok(freeLine.totalAmount > 0, 'the free-text line is priced');
   });
 
+  test('SAL-DISPATCH courier/dispatch details are saved on a bill and read back', async () => {
+    const date = await freshDay('erode-hq');
+    const item = await createItem({ stock: { 'erode-hq': 20 } });
+    const body = saleBody({ date, lines: [line(item, 2)] });
+    body.dispatchCourier = 'DTDC';
+    body.dispatchDocket = 'LR-99887';
+    body.dispatchDate = date;
+    const inv = await mustSell(body);
+    const saved = await getInvoice(inv.id);
+    assert.equal(saved.dispatchCourier, 'DTDC', 'courier saved');
+    assert.equal(saved.dispatchDocket, 'LR-99887', 'docket saved');
+    assert.equal(saved.dispatchDate, date, 'dispatch date saved');
+  });
+
   test('SAL3-1 a quote converts to an invoice only once', async () => {
     const date = await freshDay('erode-hq');
     const item = await createItem({ stock: { 'erode-hq': 20 } });

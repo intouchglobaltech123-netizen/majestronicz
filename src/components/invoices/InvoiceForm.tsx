@@ -840,6 +840,13 @@ export const InvoiceForm: React.FC<Props> = ({
   const [focusRowId, setFocusRowId] = useState<string | null>(null);
   // Salesperson/incentive is hidden by default to keep the billing header minimal.
   const [showSalesperson, setShowSalesperson] = useState(false);
+  // Dispatch / courier details (counter sale) — printed on the GST bill (#5).
+  const [dispatchCourier, setDispatchCourier] = useState(initialInvoice?.dispatchCourier || '');
+  const [dispatchDate, setDispatchDate] = useState(initialInvoice?.dispatchDate || '');
+  const [dispatchDocket, setDispatchDocket] = useState(initialInvoice?.dispatchDocket || '');
+  const [showDispatch, setShowDispatch] = useState(
+    !!(initialInvoice?.dispatchCourier || initialInvoice?.dispatchDocket || initialInvoice?.dispatchDate)
+  );
 
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -1588,6 +1595,10 @@ export const InvoiceForm: React.FC<Props> = ({
           : { incentivePercent: undefined, incentiveAmount: undefined };
       })(),
       termsAndConditions: terms,
+      // Dispatch / courier details (#5) — only when filled.
+      dispatchCourier: dispatchCourier.trim() || undefined,
+      dispatchDocket: dispatchDocket.trim() || undefined,
+      dispatchDate: dispatchDate || undefined,
       description: description.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
       paymentMode: primaryMode,
@@ -3207,6 +3218,55 @@ export const InvoiceForm: React.FC<Props> = ({
                 type="button"
                 onClick={() => { setShowSalesperson(false); setSalespersonId(''); }}
                 className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dispatch / Courier (counter sale) — prints on the GST bill (#5) */}
+      {documentType !== 'Quotation' && (
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xs">
+          {!showDispatch ? (
+            <button
+              type="button"
+              onClick={() => setShowDispatch(true)}
+              className="text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+            >
+              + Add Dispatch / Courier details
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 w-full">Dispatch / Courier</span>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Courier / Transport</label>
+                <input
+                  type="text" value={dispatchCourier} onChange={(e) => setDispatchCourier(e.target.value)}
+                  placeholder="e.g. DTDC, Professional"
+                  className="w-44 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">LR / Docket No.</label>
+                <input
+                  type="text" value={dispatchDocket} onChange={(e) => setDispatchDocket(e.target.value)}
+                  placeholder="Consignment no."
+                  className="w-40 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Dispatch Date</label>
+                <input
+                  type="date" value={dispatchDate} onChange={(e) => setDispatchDate(e.target.value)}
+                  className="w-36 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowDispatch(false); setDispatchCourier(''); setDispatchDocket(''); setDispatchDate(''); }}
+                className="text-[11px] text-slate-400 hover:text-slate-600 pb-1.5 cursor-pointer"
               >
                 Remove
               </button>
