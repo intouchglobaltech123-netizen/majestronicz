@@ -640,6 +640,12 @@ export const COMPANY_PROFILE: CompanyProfile = {
   state: '33-Tamil Nadu',
   // Replace with your Google review short-link (g.page/r/…/review) when available.
   ratingLink: 'https://www.google.com/search?q=Majestronicz+Erode',
+  // Bank details printed on the GST bill (#6) — editable in Settings → Company & Invoice.
+  bankName: 'HDFC Bank',
+  bankAccountName: 'MAJESTRONICZ',
+  bankAccountNumber: '50200116373311',
+  bankIfsc: 'HDFC0000232',
+  bankBranch: 'Erode - Tamilnadu',
 };
 
 export const DEFAULT_TERMS_AND_CONDITIONS = `**NO WARRANTY**
