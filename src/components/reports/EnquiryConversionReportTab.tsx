@@ -90,6 +90,24 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
     };
   }, [filteredEnquiries]);
 
+  // #2 — how many enquiries per day / per month over the selected range.
+  const volume = useMemo(() => {
+    const byDay = new Map<string, number>();
+    const byMonth = new Map<string, number>();
+    for (const e of filteredEnquiries) {
+      const d = e.date || (e.createdAt || '').slice(0, 10);
+      if (!d) continue;
+      byDay.set(d, (byDay.get(d) || 0) + 1);
+      const m = d.slice(0, 7);
+      byMonth.set(m, (byMonth.get(m) || 0) + 1);
+    }
+    const days = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const months = [...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const perDayAvg = byDay.size ? Math.round((filteredEnquiries.length / byDay.size) * 10) / 10 : 0;
+    const busiestDay = days.reduce((best, d) => (d[1] > (best?.[1] || 0) ? d : best), null as [string, number] | null);
+    return { days, months, perDayAvg, busiestDay };
+  }, [filteredEnquiries]);
+
   const calculateWaitingDays = (createdAt: string) => {
     try {
       const created = new Date(createdAt).getTime();
@@ -291,6 +309,55 @@ export const EnquiryConversionReportTab: React.FC<Props> = ({
               <span className="h-2.5 w-2.5 rounded-none bg-rose-600" />
               Cancelled ({metrics.cancelled})
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* #2 — Enquiry volume: how many per day / per month */}
+      {filteredEnquiries.length > 0 && (
+        <div className="bg-white p-4 rounded-none border border-slate-300 shadow-none space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-slate-500" /> Enquiry Volume
+            </h3>
+            <div className="flex items-center gap-4 text-[11px] text-slate-600">
+              <span><strong className="text-slate-900">{volume.perDayAvg}</strong> / day avg</span>
+              {volume.busiestDay && <span>Busiest: <strong className="text-slate-900">{volume.busiestDay[0]}</strong> ({volume.busiestDay[1]})</span>}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Per month */}
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Per Month</div>
+              <div className="border border-slate-200 rounded max-h-48 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-slate-100">
+                    {volume.months.map(([m, c]) => (
+                      <tr key={m}>
+                        <td className="py-1.5 px-3 text-slate-700">{m}</td>
+                        <td className="py-1.5 px-3 text-right font-mono font-bold text-slate-900">{c}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {/* Per day */}
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Per Day</div>
+              <div className="border border-slate-200 rounded max-h-48 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-slate-100">
+                    {volume.days.map(([d, c]) => (
+                      <tr key={d}>
+                        <td className="py-1.5 px-3 text-slate-700">{d}</td>
+                        <td className="py-1.5 px-3 text-right font-mono font-bold text-slate-900">{c}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
