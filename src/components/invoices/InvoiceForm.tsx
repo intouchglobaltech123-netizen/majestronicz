@@ -847,6 +847,9 @@ export const InvoiceForm: React.FC<Props> = ({
   const [showDispatch, setShowDispatch] = useState(
     !!(initialInvoice?.dispatchCourier || initialInvoice?.dispatchDocket || initialInvoice?.dispatchDate)
   );
+  // Bulk add by SKU (#4c) — paste the customer's list (SKU or "SKU qty").
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
 
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -900,6 +903,69 @@ export const InvoiceForm: React.FC<Props> = ({
     setLineItems((prev) => [...prev, newRow]);
     // Only auto-focus a blank row (typed entry); scanned rows already have an item.
     if (!selectedItem) setFocusRowId(newId);
+  };
+
+  // Build a complete line item from a catalog item + quantity (mirrors addNewRow).
+  const buildLineFromItem = (item: Item, qty: number): InvoiceLineItem => {
+    const price = getItemPreTaxPrice(item, qty);
+    const std = standardDiscountFor(item);
+    const rate = taxSlabFor(item);
+    const calc = calculateLineTax(qty, price, rate, withGst, std.discountType, std.discountValue);
+    return {
+      id: `li-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      itemId: item.id, itemCode: item.itemCode, itemName: item.itemName, itemHSN: item.itemHSN,
+      quantity: qty, unit: item.unit, unitPrice: price,
+      discountType: std.discountType, discountValue: std.discountValue, stdDiscountPerUnit: std.stdDiscountPerUnit,
+      discountAmount: calc.discountAmount, taxRate: rate,
+      taxableAmount: calc.taxableAmount, cgstAmount: calc.cgstAmount, sgstAmount: calc.sgstAmount,
+      totalTax: calc.totalTax, totalAmount: calc.totalAmount,
+    };
+  };
+
+  // Bulk add by SKU (#4c): paste the customer's list, one item per line as
+  // "SKU" or "SKU qty" / "SKU,qty" / "SKU<tab>qty". Known codes become catalog
+  // lines; unknown codes become editable free-text lines (fill price/name).
+  const handleBulkAdd = () => {
+    const text = bulkText.trim();
+    if (!text) return;
+    const codeMap = new Map(items.map((i) => [String(i.itemCode || '').trim().toUpperCase(), i]));
+    const added: InvoiceLineItem[] = [];
+    let matched = 0, unknown = 0, outOfStock = 0;
+    for (const raw of text.split(/\r?\n/)) {
+      const lineStr = raw.trim();
+      if (!lineStr) continue;
+      const parts = lineStr.split(/[,\t]|\s{2,}|\s+/).map((s) => s.trim()).filter(Boolean);
+      const code = parts[0];
+      const qty = Math.max(1, Math.round(Number(parts[1]) || 1));
+      if (!code) continue;
+      const item = codeMap.get(code.toUpperCase());
+      if (item) {
+        // On a bill, skip out-of-stock items (quotes may quote them).
+        if (documentType === 'Invoice') {
+          const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === selectedBranch);
+          if ((stockRow?.quantity ?? 0) <= 0) { outOfStock++; continue; }
+        }
+        added.push(buildLineFromItem(item, qty));
+        matched++;
+      } else {
+        // Unknown code → free-text line the user completes (name = code, ₹0).
+        added.push({
+          id: `li-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          itemCode: code, itemName: code, itemHSN: '', quantity: qty, unit: 'PCS', unitPrice: 0,
+          discountType: '%', discountValue: 0, discountAmount: 0, taxRate: 18,
+          taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: 0,
+        });
+        unknown++;
+      }
+    }
+    if (!added.length) { toast.error('No SKUs found to add'); return; }
+    // Drop a trailing empty row, then append all the parsed lines.
+    setLineItems((prev) => [...prev.filter((l) => l.itemName.trim() || l.itemId), ...added]);
+    setBulkOpen(false);
+    setBulkText('');
+    toast.success(`Added ${added.length} line(s)`, {
+      description: [matched && `${matched} matched`, unknown && `${unknown} new (fill price)`, outOfStock && `${outOfStock} skipped (out of stock)`].filter(Boolean).join(' · '),
+    });
   };
 
   // #3 Max sellable quantity for a line at the selected branch.
@@ -2517,19 +2583,61 @@ export const InvoiceForm: React.FC<Props> = ({
 
         {/* Add Row Button Strip */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => addNewRow()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-blue-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Add Row</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => addNewRow()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-blue-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Row</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              title="Paste the customer's SKU list to add many items at once"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-emerald-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Bulk add (SKU)</span>
+            </button>
+          </div>
           <span className="text-xs text-slate-500">
             {lineItems.length} item{lineItems.length === 1 ? '' : 's'} in invoice
           </span>
         </div>
       </div>
+
+      {/* Bulk add by SKU (#4c) */}
+      {bulkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50" onClick={() => setBulkOpen(false)}>
+          <div className="bg-white border border-slate-300 rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Bulk add by SKU</h3>
+              <button type="button" onClick={() => setBulkOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600">
+                Paste the customer's list — one item per line, as <span className="font-mono bg-slate-100 px-1">SKU</span> or
+                {' '}<span className="font-mono bg-slate-100 px-1">SKU qty</span> (you can paste two columns straight from Excel).
+                Codes you have are added from the catalog; codes you don't become editable rows to fill in.
+              </p>
+              <textarea
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                rows={8}
+                placeholder={'MC-AR-ARDU  5\nDP-ED-13NC  10\nUNKNOWN-SKU  2'}
+                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={() => setBulkOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-300">Cancel</button>
+                <button type="button" onClick={handleBulkAdd} className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg border border-emerald-700">Add items</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER & SUMMARY SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
