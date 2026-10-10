@@ -964,8 +964,14 @@ export const InvoiceForm: React.FC<Props> = ({
     const text = bulkText.trim();
     if (!text) return;
     const codeMap = new Map(items.map((i) => [String(i.itemCode || '').trim().toUpperCase(), i]));
-    const added: InvoiceLineItem[] = [];
-    let matched = 0, unknown = 0, outOfStock = 0;
+    // Start from the current non-empty lines and MERGE into them (no duplicates).
+    const working: InvoiceLineItem[] = lineItems.filter((l) => l.itemName.trim() || l.itemId).map((l) => ({ ...l }));
+    const setQty = (line: InvoiceLineItem, qty: number): InvoiceLineItem => {
+      const q = Math.min(qty, getLineMaxQty(line));
+      const calc = calculateLineTax(q, line.unitPrice, line.taxRate, withGst, line.discountType || '%', line.discountValue || 0);
+      return { ...line, quantity: q, discountAmount: calc.discountAmount, taxableAmount: calc.taxableAmount, cgstAmount: calc.cgstAmount, sgstAmount: calc.sgstAmount, totalTax: calc.totalTax, totalAmount: calc.totalAmount };
+    };
+    let matched = 0, unknown = 0, outOfStock = 0, merged = 0;
     for (const raw of text.split(/\r?\n/)) {
       const lineStr = raw.trim();
       if (!lineStr) continue;
@@ -975,31 +981,33 @@ export const InvoiceForm: React.FC<Props> = ({
       if (!code) continue;
       const item = codeMap.get(code.toUpperCase());
       if (item) {
-        // On a bill, skip out-of-stock items (quotes may quote them).
         if (documentType === 'Invoice') {
           const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === selectedBranch);
           if ((stockRow?.quantity ?? 0) <= 0) { outOfStock++; continue; }
         }
-        added.push(buildLineFromItem(item, qty));
-        matched++;
+        const ix = working.findIndex((l) => l.itemId === item.id && !l.isCombo);
+        if (ix >= 0) { working[ix] = setQty(working[ix], working[ix].quantity + qty); merged++; }
+        else { working.push(buildLineFromItem(item, qty)); matched++; }
       } else {
-        // Unknown code → free-text line the user completes (name = code, ₹0).
-        added.push({
-          id: `li-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          itemCode: code, itemName: code, itemHSN: '', quantity: qty, unit: 'PCS', unitPrice: 0,
-          discountType: '%', discountValue: 0, discountAmount: 0, taxRate: 18,
-          taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: 0,
-        });
-        unknown++;
+        const ix = working.findIndex((l) => !l.itemId && String(l.itemCode || '').toUpperCase() === code.toUpperCase());
+        if (ix >= 0) { working[ix] = setQty(working[ix], working[ix].quantity + qty); merged++; }
+        else {
+          working.push({
+            id: `li-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            itemCode: code, itemName: code, itemHSN: '', quantity: qty, unit: 'PCS', unitPrice: 0,
+            discountType: '%', discountValue: 0, discountAmount: 0, taxRate: 18,
+            taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, totalTax: 0, totalAmount: 0,
+          });
+          unknown++;
+        }
       }
     }
-    if (!added.length) { toast.error('No SKUs found to add'); return; }
-    // Drop a trailing empty row, then append all the parsed lines.
-    setLineItems((prev) => [...prev.filter((l) => l.itemName.trim() || l.itemId), ...added]);
+    if (!matched && !unknown && !merged) { toast.error('No SKUs found to add'); return; }
+    setLineItems(working);
     setBulkOpen(false);
     setBulkText('');
-    toast.success(`Added ${added.length} line(s)`, {
-      description: [matched && `${matched} matched`, unknown && `${unknown} new (fill price)`, outOfStock && `${outOfStock} skipped (out of stock)`].filter(Boolean).join(' · '),
+    toast.success(`Bulk add done`, {
+      description: [matched && `${matched} new`, merged && `${merged} merged`, unknown && `${unknown} not in catalog (fill price)`, outOfStock && `${outOfStock} skipped (out of stock)`].filter(Boolean).join(' · '),
     });
   };
 
@@ -1118,6 +1126,19 @@ export const InvoiceForm: React.FC<Props> = ({
       return;
     }
 
+    // Same product already on another line → merge quantities instead of adding
+    // a duplicate row (same behaviour as the barcode scanner).
+    const existingLine = lineItems.find((li) => li.id !== rowId && li.itemId === item.id && !li.isCombo);
+    if (existingLine) {
+      const addQty = Number(lineItems.find((l) => l.id === rowId)?.quantity) || 1;
+      const nextQty = Math.min(existingLine.quantity + addQty, getLineMaxQty(existingLine));
+      updateLineItem(existingLine.id, { quantity: nextQty });
+      updateLineItem(rowId, { itemName: '', itemId: undefined, itemCode: '', itemHSN: '', unitPrice: 0, isCombo: false, comboId: undefined, comboComponents: undefined });
+      setFocusRowId(existingLine.id);
+      toast.info(`"${item.itemName}" is already added — quantity updated to ${nextQty}.`);
+      return;
+    }
+
     const roundedPrice = getItemPreTaxPrice(item, Number(lineItems.find((l) => l.id === rowId)?.quantity) || 1);
 
     updateLineItem(rowId, {
@@ -1146,6 +1167,18 @@ export const InvoiceForm: React.FC<Props> = ({
       toast.error('Combo out of stock at this branch', {
         description: `"${combo.comboName}" currently has 0 available kits at ${BRANCHES.find((b) => b.id === selectedBranch)?.name || 'this branch'} due to component stock.`,
       });
+      return;
+    }
+
+    // Same combo already on another line → merge quantities.
+    const existingCombo = lineItems.find((li) => li.id !== rowId && li.comboId === combo.id && li.isCombo);
+    if (existingCombo) {
+      const addQty = Number(lineItems.find((l) => l.id === rowId)?.quantity) || 1;
+      const nextQty = Math.min(existingCombo.quantity + addQty, getLineMaxQty(existingCombo));
+      updateLineItem(existingCombo.id, { quantity: nextQty });
+      updateLineItem(rowId, { itemName: '', itemId: undefined, itemCode: '', itemHSN: '', unitPrice: 0, isCombo: false, comboId: undefined, comboComponents: undefined });
+      setFocusRowId(existingCombo.id);
+      toast.info(`"${combo.comboName}" is already added — quantity updated to ${nextQty}.`);
       return;
     }
 
