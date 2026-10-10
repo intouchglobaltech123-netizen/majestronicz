@@ -30,7 +30,7 @@ import { ShopifyCustomersTab } from './ShopifyCustomersTab';
 import { ShopifySettingsTab } from './ShopifySettingsTab';
 import { CourierMasterTab } from './CourierMasterTab';
 
-export type ShopifyTab = 'orders' | 'inventory' | 'products' | 'customers' | 'couriers' | 'settings';
+export type ShopifyTab = 'orders' | 'fulfillment' | 'inventory' | 'products' | 'customers' | 'couriers' | 'settings';
 
 export const ShopifyView: React.FC = () => {
   const { invoices, activeSubTab, navigateToTab, setCurrentView } = useErp();
@@ -188,6 +188,8 @@ export const ShopifyView: React.FC = () => {
             <div className="h-10 w-10 bg-red-600 text-white flex items-center justify-center font-bold shrink-0">
               {activeTab === 'orders' ? (
                 <ShoppingCart className="h-5 w-5" />
+              ) : activeTab === 'fulfillment' ? (
+                <Truck className="h-5 w-5" />
               ) : activeTab === 'inventory' ? (
                 <Boxes className="h-5 w-5" />
               ) : activeTab === 'products' ? (
@@ -205,7 +207,8 @@ export const ShopifyView: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wider text-red-600">Online Store</span>
                 <span className="text-slate-300">/</span>
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">
-                  {activeTab === 'orders' && 'Orders & Shipments'}
+                  {activeTab === 'orders' && 'Store Orders'}
+                  {activeTab === 'fulfillment' && 'Fulfillment Pipeline'}
                   {activeTab === 'inventory' && 'Stock & Inventory Sync'}
                   {activeTab === 'products' && 'Product Catalog & SKU Mapping'}
                   {activeTab === 'customers' && 'Online Customers Directory'}
@@ -214,7 +217,8 @@ export const ShopifyView: React.FC = () => {
                 </h1>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {activeTab === 'orders' && 'Real-time Shopify orders, customer addresses, live stock availability & courier dispatch'}
+                {activeTab === 'orders' && 'Live orders from your Shopify store — import a paid order to start fulfilment'}
+                {activeTab === 'fulfillment' && 'Imported orders, tracked New → Confirmed → Packed → Shipped → Delivered'}
                 {activeTab === 'inventory' && 'Side-by-side reconciliation of ERP warehouse stocks vs Shopify online inventory'}
                 {activeTab === 'products' && 'Shopify product catalog, variant retail pricing & ERP Item code mapping'}
                 {activeTab === 'customers' && 'Registered web buyers from Shopify synchronized with ERP customer parties'}
@@ -249,7 +253,8 @@ export const ShopifyView: React.FC = () => {
       {/* Sub-section tab strip (Online Store lives in the top bar; these are its sub-headings) */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mt-2">
         {([
-          { id: 'orders', label: 'Orders & Shipments' },
+          { id: 'orders', label: 'Store Orders' },
+          { id: 'fulfillment', label: 'Fulfillment' },
           { id: 'inventory', label: 'Stock & Inventory Sync' },
           { id: 'products', label: 'Product Catalog' },
           { id: 'customers', label: 'Online Customers' },
@@ -314,23 +319,9 @@ export const ShopifyView: React.FC = () => {
             </div>
           </div>
 
-          {/* Fulfillment Pipeline — track imported online orders Ordered → Delivered */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
-                <Truck className="h-4 w-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5">Step 2 · inside the ERP</span></h3>
-                <p className="text-[11px] text-slate-500">Orders already imported into the ERP. Work each one from New → Confirmed → Packed → Shipped → Delivered. (Nothing to import from a store yet? This stays empty.)</p>
-              </div>
-            </div>
-            <OnlineOrderPipeline />
-          </div>
-
           {/* Shopify store orders — the SOURCE list. These are the raw orders in the
               Shopify store; importing a paid one creates the ERP order that then shows
-              in the Fulfillment Pipeline above. The two lists are the same orders at two
+              in the Fulfillment tab. The two lists are the same orders at two
               stages (store → ERP), not duplicate data. */}
           <div className="flex items-center gap-2 pt-1">
             <div className="h-8 w-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">
@@ -338,7 +329,7 @@ export const ShopifyView: React.FC = () => {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">Shopify Store Orders <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5">Step 1 · from your store</span></h3>
-              <p className="text-[11px] text-slate-500">Live orders from your Shopify store. Import a paid order here and it moves up into the Fulfillment Pipeline — the “ERP Status” column shows what’s already imported.</p>
+              <p className="text-[11px] text-slate-500">Live orders from your Shopify store. Import a paid order here and it moves into the Fulfillment tab — the “ERP Status” column shows what’s already imported.</p>
             </div>
           </div>
 
@@ -657,6 +648,21 @@ export const ShopifyView: React.FC = () => {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'fulfillment' && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+              <Truck className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5">Step 2 · inside the ERP</span></h3>
+              <p className="text-[11px] text-slate-500">Orders already imported from Store Orders. Work each one from New → Confirmed → Packed → Shipped → Delivered.</p>
+            </div>
+          </div>
+          <OnlineOrderPipeline />
         </div>
       )}
 
