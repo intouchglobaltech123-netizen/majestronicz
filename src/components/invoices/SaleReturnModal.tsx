@@ -45,6 +45,9 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     return m && (REFUND_MODES as readonly string[]).includes(m) ? m : 'Cash';
   };
   const [refundMode, setRefundMode] = useState<string>(() => billRefundMode(invoice));
+  // G2: lock the submit while the return is saving so a double-click on a slow
+  // connection can't book two returns / two cash refunds.
+  const [submitting, setSubmitting] = useState(false);
 
   // Reset state when invoice changes
   useEffect(() => {
@@ -208,6 +211,7 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // G2: ignore a repeat click while the first is saving
     if (totalUnitsToReturn <= 0) {
       toast.error('Please select at least 1 unit to return.');
       return;
@@ -233,9 +237,10 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
     // Damaged goods are written off from STOCK, but the customer is still owed
     // their money — the refund mode applies to every return (CASH7-7 / E2E8-11).
     // Close only once the server accepted it; a refused return keeps the form.
-    void processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode).then((ok) => {
-      if (ok) onClose();
-    });
+    setSubmitting(true);
+    void processSaleReturn(invoice.id, returnLinesPayload, effectiveReason, notes, refundMode)
+      .then((ok) => { if (ok) onClose(); })
+      .finally(() => setSubmitting(false));
   };
 
   return (
@@ -536,11 +541,11 @@ export const SaleReturnModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             </button>
             <button
               type="submit"
-              disabled={totalUnitsToReturn <= 0}
+              disabled={totalUnitsToReturn <= 0 || submitting}
               className="px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-none border border-red-700 shadow-none transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <PackageCheck className="h-4 w-4" />
-              <span>Confirm Return ({totalUnitsToReturn} Units)</span>
+              <span>{submitting ? 'Processing…' : `Confirm Return (${totalUnitsToReturn} Units)`}</span>
             </button>
           </div>
         </form>

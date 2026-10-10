@@ -106,17 +106,32 @@ export function savePurchaseOrder(poData: any, _actor: string, reqUser?: any) {
     };
     const lineId = () => `pol-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const r2money = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
-    const num0 = (v: any) => Math.max(0, r2money(v));
     // Courier/packing charges set when creating or editing the PO (PUR #1):
     // taxable at chargesTaxPercent (default 18 when any charge is present). When
     // an edit payload omits a field (e.g. an Edit-Prices snapshot), the stored
     // PO's value is kept so the charges are never silently wiped.
+    // G6: a courier/packing figure above this is a typo (it fed straight into
+    // supplier dues). Refuse negatives and absurd amounts instead of silently
+    // clamping, and refuse an invalid GST rate instead of silently using 18%.
+    const CHARGE_CAP = 1_000_000; // ₹10,00,000
+    const chargeOf = (srcVal: any, fallbackVal: any, label: string): number => {
+      if (srcVal === undefined) return Math.max(0, r2money(fallbackVal)); // stored, already clean
+      const n = Number(srcVal);
+      if (!Number.isFinite(n) || n < 0) throw new AppError('BAD_CHARGE', `${label} must be 0 or more.`, 400);
+      if (n > CHARGE_CAP) throw new AppError('BAD_CHARGE', `${label} looks too large — the maximum is ₹${CHARGE_CAP.toLocaleString('en-IN')}.`, 400);
+      return r2money(n);
+    };
     const resolveCharges = (src: any, fallback: any) => {
-      const courier = src?.courierCharges !== undefined ? num0(src.courierCharges) : num0(fallback?.courierCharges);
-      const packing = src?.packingCharges !== undefined ? num0(src.packingCharges) : num0(fallback?.packingCharges);
+      const courier = chargeOf(src?.courierCharges, fallback?.courierCharges, 'Courier charges');
+      const packing = chargeOf(src?.packingCharges, fallback?.packingCharges, 'Packing charges');
       const taxable = r2money(courier + packing);
-      let rate = src?.chargesTaxPercent !== undefined ? Number(src.chargesTaxPercent) : Number(fallback?.chargesTaxPercent);
-      if (!isValidTaxPercent(rate)) rate = taxable > 0 ? 18 : 0;
+      let rate: number;
+      if (src?.chargesTaxPercent !== undefined) {
+        rate = Number(src.chargesTaxPercent);
+        if (!isValidTaxPercent(rate)) throw new AppError('BAD_CHARGE', 'The GST rate on charges must be a valid slab (0, 5, 12, 18 or 28%).', 400);
+      } else {
+        rate = isValidTaxPercent(Number(fallback?.chargesTaxPercent)) ? Number(fallback?.chargesTaxPercent) : (taxable > 0 ? 18 : 0);
+      }
       return { courier, packing, taxable, rate, tax: taxAmountFor(taxable, rate) };
     };
     const existingPo = poData.id ? await tx.purchaseOrder.findUnique({ where: { id: poData.id } }) : null;

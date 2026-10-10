@@ -400,7 +400,13 @@ router.post('/employees', requireCapability('hrm:write'), asyncHandler(async (re
   if (allowed.status !== undefined) {
     const target = String(allowed.status) === 'Inactive' ? 'disabled' : 'active';
     const linked = await prisma.user.findFirst({ where: { employeeId: id } });
-    if (linked && linked.status !== target) {
+    // G1 (launch blocker): an HR status change must NEVER lock out — or re-enable
+    // — the owner or any system/CEO login. Marking an employee Inactive here needs
+    // only HR rights, which every Manager has, so without this guard an Erode
+    // Manager could disable the CEO's own profile and no one could sign back in as
+    // CEO. System/CEO logins are managed only through Access (admin), never HR.
+    const isProtected = !!linked && (linked.isSystem || linked.role === 'CEO');
+    if (linked && !isProtected && linked.status !== target) {
       await prisma.user.update({
         where: { id: linked.id },
         // Disabling ends every open session (tokensValidAfter = now); re-enabling
@@ -569,6 +575,26 @@ router.put('/config/:key', requireCapability('config:write'), asyncHandler(async
   }
   if (CEO_ONLY_CONFIG_KEYS.has(key) && !roleCan((req as any).user?.role, 'payroll:admin')) {
     throw new AppError('FORBIDDEN', 'Only the CEO can change payroll settings.', 403);
+  }
+  // G4 (launch blocker): the company profile holds the bank account and UPI ID
+  // PRINTED (as a Scan-to-Pay QR) on every bill. A Manager could silently point
+  // customers at another account with no record. So it is CEO-only, its
+  // GSTIN/IFSC/UPI are format-checked, and every change is audited old→new.
+  if (key === 'companyProfile') {
+    if (!roleCan((req as any).user?.role, 'admin')) {
+      throw new AppError('FORBIDDEN', 'Only the CEO can change company, bank and UPI details.', 403);
+    }
+    const p = req.body || {};
+    const bad = (m: string) => { throw new AppError('BAD_COMPANY_PROFILE', m, 400); };
+    if (p.gstin && !(GSTIN_RE.test(String(p.gstin).toUpperCase()) && gstinChecksumValid(String(p.gstin).toUpperCase()))) bad('That GSTIN is not valid.');
+    if (p.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(p.bankIfsc).toUpperCase())) bad('That IFSC code is not valid (e.g. HDFC0000232).');
+    if (p.upiId && !/^[\w.-]{2,256}@[a-zA-Z]{2,64}$/.test(String(p.upiId))) bad('That UPI ID is not valid (name@bank).');
+    if (p.bankAccountNumber && !/^\d{5,20}$/.test(String(p.bankAccountNumber).replace(/\s/g, ''))) bad('That bank account number is not valid.');
+    const before = await system.getConfig('companyProfile');
+    const result = await system.setConfig(key, req.body);
+    await recordAudit({ actor: actorOf(req), action: 'config.company-profile', entity: 'config', entityId: 'companyProfile', summary: 'Changed company, bank & UPI details printed on bills', before, after: req.body });
+    res.json(result);
+    return;
   }
   res.json(await system.setConfig(key, req.body));
 }));

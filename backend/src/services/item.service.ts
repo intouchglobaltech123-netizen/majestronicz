@@ -86,6 +86,9 @@ async function assertItemFields(tx: any, d: any, isAdd: boolean, currentUnit?: s
     } else {
       const n = Number(d.customMarginPercent);
       if (!Number.isFinite(n) || n < 0) throw new AppError('BAD_MARGIN', 'The custom margin % must be 0 or more.', 400);
+      // G6: cap the markup so one mistyped number can't set a sale price to
+      // crores on the next stock receipt.
+      if (n > 500) throw new AppError('BAD_MARGIN', 'The custom margin % cannot exceed 500%.', 400);
       d.customMarginPercent = n;
     }
   }

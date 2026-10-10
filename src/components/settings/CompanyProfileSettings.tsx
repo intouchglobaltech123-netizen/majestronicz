@@ -12,7 +12,8 @@ import { QrCode } from '../common/QrCode';
  */
 export const CompanyProfileSettings: React.FC = () => {
   const { companyProfile, updateCompanyProfile, currentUser } = useErp();
-  const canEdit = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  // G4: bank/UPI details print on every bill — CEO only (the backend enforces it too).
+  const canEdit = currentUser.role === 'CEO';
   const [form, setForm] = useState<CompanyProfile>(companyProfile);
 
   useEffect(() => { setForm(companyProfile); }, [companyProfile]);
@@ -21,7 +22,7 @@ export const CompanyProfileSettings: React.FC = () => {
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) { toast.error('Only CEO or Manager can edit company details'); return; }
+    if (!canEdit) { toast.error('Only the CEO can edit company & bank details'); return; }
     if (!form.name.trim()) { toast.error('Company name is required'); return; }
     updateCompanyProfile(form);
   };
@@ -45,7 +46,7 @@ export const CompanyProfileSettings: React.FC = () => {
     <form onSubmit={save} className="max-w-3xl space-y-6">
       {!canEdit && (
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-none">
-          View only — only the CEO or a Manager can change these details.
+          View only — only the CEO can change these details (they print on every bill).
         </div>
       )}
 

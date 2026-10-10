@@ -73,7 +73,11 @@ export async function ensureUsers(): Promise<void> {
         pin: hashPin(def.pin),
         assignedBranchId: def.defaultBranch ?? null,
         status: 'active',
-        mustResetPin: false,
+        // G5 (launch blocker): in production the preset accounts are created
+        // needing a PIN change, so the published default PINs (1111–5555) can't
+        // be used to sign in and actually do anything until each is changed.
+        // Off in dev/test so the suite can log in with the known PINs.
+        mustResetPin: process.env.NODE_ENV === 'production',
         isSystem: def.role === 'CEO', // owner account is protected
         createdAt: nowIso(),
       },

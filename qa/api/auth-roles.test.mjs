@@ -7,6 +7,25 @@ import {
 } from './lib.mjs';
 
 describe('auth & roles', () => {
+  test('G4 only the CEO can change company/bank details, and they are validated', async () => {
+    const good = { name: 'MAJESTRONICZ', gstin: '33ABZFM5739L1ZD', bankName: 'HDFC Bank', bankAccountNumber: '50200116373311', bankIfsc: 'HDFC0000232', upiId: 'maj@hdfc' };
+    expectStatus(await put('/api/config/companyProfile', good, 'Manager'), 403, 'Manager cannot change company/bank details');
+    expectStatus(await put('/api/config/companyProfile', { ...good, bankIfsc: 'NOTVALID' }, 'CEO'), 400, 'a bad IFSC is refused');
+    expectStatus(await put('/api/config/companyProfile', { ...good, upiId: 'bad upi id' }, 'CEO'), 400, 'a bad UPI id is refused');
+    expectStatus(await put('/api/config/companyProfile', { ...good, gstin: '33ABZFM5739L1ZZ' }, 'CEO'), 400, 'a bad GSTIN is refused');
+    ok(await put('/api/config/companyProfile', good, 'CEO'), 'CEO saves a valid profile');
+  });
+
+  test('G1 marking the CEO Inactive in HR never disables the CEO login', async () => {
+    const ceo = ok(await get('/api/users')).find((u) => u.role === 'CEO');
+    assert.ok(ceo?.employeeId, 'CEO has a linked employee');
+    const emp = (b) => ({ id: ceo.employeeId, name: ceo.name || 'CEO', designation: 'Owner', branchId: ceo.assignedBranchId || 'erode-hq', status: b, monthlySalary: 0 });
+    await post('/api/employees', emp('Inactive')); // attempt to lock the owner out
+    assert.ok(await loginPin('1111'), 'the CEO can still sign in');
+    assert.equal(ok(await get('/api/users')).find((u) => u.role === 'CEO').status, 'active', 'CEO login stays active');
+    await post('/api/employees', emp('Active')); // restore for other tests
+  });
+
   test('SEC-1 the API refuses requests without a token', async () => {
     for (const p of ['/api/bootstrap', '/api/invoices', '/api/branch-stock', '/api/payments', '/api/config/payrollSettings']) {
       expectStatus(await api('GET', p, { as: null }), 401, p);

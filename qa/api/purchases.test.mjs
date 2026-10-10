@@ -163,6 +163,25 @@ describe('purchases', () => {
     ok(await post('/api/purchase/payment', { poId: po.id, amount: 2537, mode: 'Cash', actor: 'QA' }), 'can pay full incl. charges + their GST');
   });
 
+  test('G6 absurd courier/packing charges and GST rate are refused (not silently clamped)', async () => {
+    const item = await createItem({ purchasePrice: 100 });
+    const v = await anyVendor();
+    const base = { vendorId: v.id, vendorName: v.vendorName, branchId: 'erode-hq', date: '2026-09-15', expectedDeliveryDate: '2026-09-30',
+      items: [{ itemId: item.id, itemName: item.itemName, itemCode: item.itemCode, quantityOrdered: 1, receivedQuantity: 0, purchasePrice: 100, taxPercent: 18 }], totalAmount: 0, notes: 'QA' };
+    expectStatus(await post('/api/purchase/save', { po: { ...base, courierCharges: 1e12 }, actor: 'QA' }), 400, 'crore courier charge refused');
+    expectStatus(await post('/api/purchase/save', { po: { ...base, courierCharges: -50 }, actor: 'QA' }), 400, 'negative charge refused');
+    expectStatus(await post('/api/purchase/save', { po: { ...base, courierCharges: 100, chargesTaxPercent: 7 }, actor: 'QA' }), 400, 'invalid charges GST rate refused');
+  });
+
+  test('G6 a custom margin % above 500 is refused', async () => {
+    const res = await post('/api/catalog/item', { item: {
+      itemName: `QA Margin ${uid()}`, itemHSN: '85371000', category: 'QA', itemCode: `QA-${uid()}`.toUpperCase(),
+      unit: 'PCS', salePrice: 100, salePriceTaxMode: 'with', wholesalePrice: 100, minWholesaleQty: 10,
+      purchasePrice: 60, gstTaxSlab: 18, marginCategory: 'D', customMarginPercent: 99999,
+    } });
+    expectStatus(res, 400, 'margin over 500% refused');
+  });
+
   test('PUR2-9 a vendor payment cannot exceed what is owed', async () => {
     const item = await createItem();
     const po = await createPO([{ item, qty: 2, price: 100, tax: 18 }]);
