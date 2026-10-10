@@ -1091,6 +1091,10 @@ export interface ShopifyCustomerSummary {
   phone?: string;
   city?: string;
   province?: string;
+  /** Full postal address (line 1, line 2, city, state, PIN, country) from the customer's default address. */
+  address?: string;
+  zip?: string;
+  country?: string;
   ordersCount: number;
   totalSpent: number;
   lastOrderDate?: string;
@@ -1117,6 +1121,9 @@ export async function getShopifyCustomers(limit = 100): Promise<{ configured: bo
       phone,
       city: c.default_address?.city || '',
       province: c.default_address?.province || '',
+      address: fullShopifyAddress(c.default_address) || '',
+      zip: c.default_address?.zip || '',
+      country: c.default_address?.country || '',
       ordersCount: Number(c.orders_count) || 0,
       totalSpent: Number(c.total_spent) || 0,
       lastOrderDate: c.updated_at ? c.updated_at.split('T')[0] : undefined,

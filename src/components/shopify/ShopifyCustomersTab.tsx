@@ -223,10 +223,12 @@ export const ShopifyCustomersTab: React.FC = () => {
                     </td>
 
                     <td className="py-3 px-4">
-                      {c.city || c.province ? (
-                        <div className="flex items-center gap-1 text-slate-700">
-                          <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span>{[c.city, c.province].filter(Boolean).join(', ')}</span>
+                      {c.address || c.city || c.province ? (
+                        <div className="flex items-start gap-1 text-slate-700 max-w-[260px]">
+                          <MapPin className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
+                          <span className="leading-snug">
+                            {c.address || [c.city, c.province].filter(Boolean).join(', ')}
+                          </span>
                         </div>
                       ) : (
                         <span className="text-slate-400">-</span>

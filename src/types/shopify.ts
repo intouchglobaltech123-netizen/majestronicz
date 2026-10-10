@@ -115,6 +115,10 @@ export interface ShopifyCustomerSummary {
   phone?: string;
   city?: string;
   province?: string;
+  /** Full postal address (line 1, line 2, city, state, PIN, country). */
+  address?: string;
+  zip?: string;
+  country?: string;
   ordersCount: number;
   totalSpent: number;
   lastOrderDate?: string;
