@@ -13,6 +13,7 @@ import {
   INVOICE_TERMS_PRESETS,
   DiscountType,
   Estimate,
+  Enquiry,
   EstimateLineItem,
   GstBreakdownRow,
   ComboItem,
@@ -101,6 +102,7 @@ export const InvoiceForm: React.FC<Props> = ({
     getNextEstimateNumber,
     saveEstimate,
     markEnquiryConverted,
+    saveEnquiry,
     estimates,
     branchStocks,
     getComboAvailability,
@@ -920,6 +922,39 @@ export const InvoiceForm: React.FC<Props> = ({
       taxableAmount: calc.taxableAmount, cgstAmount: calc.cgstAmount, sgstAmount: calc.sgstAmount,
       totalTax: calc.totalTax, totalAmount: calc.totalAmount,
     };
+  };
+
+  // Out-of-catalog quote lines → Enquiries "New items" (#4d), so products the
+  // customer asked for that we don't stock get logged and can flow to a PO.
+  const outOfCatalogLines = lineItems.filter((l) => !l.itemId && !l.isCombo && l.itemName.trim());
+  const handleSendNewItemsToEnquiries = () => {
+    if (!outOfCatalogLines.length) return;
+    const now = new Date().toISOString();
+    outOfCatalogLines.forEach((l, i) => {
+      const enq: Enquiry = {
+        id: `enq-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
+        enquiryNumber: 'DRAFT', // server assigns a collision-free number
+        customerName: customerName.trim() ? cleanCustomerName(customerName) : 'Walk-in Customer',
+        customerPhone: customerPhone.trim() || undefined,
+        itemId: undefined,
+        itemName: l.itemName.trim(),
+        itemCode: l.itemCode || undefined,
+        unit: l.unit || 'Units',
+        quantity: l.quantity || 1,
+        branchId: selectedBranch,
+        date,
+        time,
+        notes: `New item requested on quotation${invoiceNumber ? ` ${invoiceNumber}` : ''}${l.leadDays ? ` · lead ${l.leadDays}d` : ''}`,
+        status: 'Follow-up',
+        isNewItemRequest: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      saveEnquiry(enq);
+    });
+    toast.success(`${outOfCatalogLines.length} new item(s) sent to Enquiries`, {
+      description: 'Logged as "New item" requests — follow up and raise a PO from Enquiries.',
+    });
   };
 
   // Bulk add by SKU (#4c): paste the customer's list, one item per line as
@@ -2601,6 +2636,17 @@ export const InvoiceForm: React.FC<Props> = ({
               <Plus className="h-3.5 w-3.5" />
               <span>Bulk add (SKU)</span>
             </button>
+            {documentType === 'Quotation' && outOfCatalogLines.length > 0 && (
+              <button
+                type="button"
+                onClick={handleSendNewItemsToEnquiries}
+                title="Log the products not in your catalog as New-item enquiries so you can raise a PO"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-violet-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>Send {outOfCatalogLines.length} new item{outOfCatalogLines.length === 1 ? '' : 's'} to Enquiries</span>
+              </button>
+            )}
           </div>
           <span className="text-xs text-slate-500">
             {lineItems.length} item{lineItems.length === 1 ? '' : 's'} in invoice
