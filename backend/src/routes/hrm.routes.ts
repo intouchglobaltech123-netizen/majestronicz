@@ -8,6 +8,8 @@ const router = Router();
 router.post('/verify-pin', asyncHandler(ctrl.verifyPin));
 router.post('/clock-in', asyncHandler(ctrl.clockIn));
 router.post('/clock-out', asyncHandler(ctrl.clockOut));
+// Manager marks the daily register (Present/Absent/Leave/Holiday) — CEO/Manager.
+router.post('/attendance/mark', asyncHandler(ctrl.markAttendance));
 // Payroll adjustments & disbursement are CEO-only.
 router.post('/payroll-adjustment', requireCapability('payroll:admin'), asyncHandler(ctrl.payrollAdjustment));
 router.post('/payroll-paid', requireCapability('payroll:admin'), asyncHandler(ctrl.markPaid));

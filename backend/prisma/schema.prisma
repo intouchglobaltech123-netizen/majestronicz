@@ -460,7 +460,9 @@ model AttendanceRecord {
   employeeName    String
   branchId        String
   date            String
-  checkInTime     String
+  // Optional: a manager register marks a day (Present/Absent/Leave/Holiday) with
+  // no clock-in time. Selfie clock-in still fills it. (#HRM register)
+  checkInTime     String?
   checkInPhoto    String?
   checkInLocation Json?
   checkOutTime    String?
@@ -469,6 +471,7 @@ model AttendanceRecord {
   hoursWorked     Float?
   status          String
   notes           String?
+  markedBy        String?  // manager who marked this day in the register
   createdAt       String
   updatedAt       String
 }

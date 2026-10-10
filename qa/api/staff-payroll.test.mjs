@@ -1,7 +1,7 @@
 // Staff, attendance, kiosk PINs and payroll.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { post, put, get, api, ok, expectStatus, near, uid, together, sql, loginPin } from './lib.mjs';
+import { post, put, get, api, ok, expectStatus, near, uid, together, sql, loginPin, istToday } from './lib.mjs';
 
 /** A fresh active employee (created by the CEO) so lockouts and payroll rows never collide. */
 async function newEmployee(branchId = 'erode-hq', salary = 20800) {
@@ -56,6 +56,30 @@ describe('staff & payroll', () => {
 
   test('SEC3-1 payroll records are CEO-only', async () => {
     expectStatus(await get('/api/payroll-records', 'Manager'), 403);
+  });
+
+  test('HRM-REG a manager marks the daily register, upserts the day, and validates', async () => {
+    const { emp } = await newEmployee('erode-hq');
+    const date = istToday();
+    let snap = ok(await post('/api/hrm/attendance/mark', { date, branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Absent', notes: 'no show' }] }), 'mark absent');
+    let rec = snap.attendanceRecords.find((a) => a.employeeId === emp.id && a.date === date);
+    assert.equal(rec.status, 'Absent');
+    assert.ok(rec.markedBy, 'who marked it is stamped');
+    // re-marking the same day updates it (no duplicate row)
+    snap = ok(await post('/api/hrm/attendance/mark', { date, branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Casual Leave' }] }), 're-mark');
+    const recs = snap.attendanceRecords.filter((a) => a.employeeId === emp.id && a.date === date);
+    assert.equal(recs.length, 1, 'one row per day (upsert)');
+    assert.equal(recs[0].status, 'Casual Leave', 'status updated');
+    // bad status + future date are refused
+    expectStatus(await post('/api/hrm/attendance/mark', { date, branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Banana' }] }), 400, 'bad status');
+    expectStatus(await post('/api/hrm/attendance/mark', { date: '2099-01-01', branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Present' }] }), 400, 'future date');
+  });
+
+  test('HRM-REG only CEO/Manager mark the register, and a manager only their own branch', async () => {
+    const { emp } = await newEmployee('erode-hq');
+    const date = istToday();
+    expectStatus(await post('/api/hrm/attendance/mark', { date, branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Present' }] }, 'Billing'), 403, 'Billing refused');
+    expectStatus(await post('/api/hrm/attendance/mark', { date, branchId: 'erode-hq', marks: [{ employeeId: emp.id, status: 'Present' }] }, 'Manager'), 403, 'Coimbatore manager cannot mark Erode');
   });
 
   test('HRM3-1 clock-in and clock-out work and record hours', async () => {

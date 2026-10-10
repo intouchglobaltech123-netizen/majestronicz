@@ -352,6 +352,13 @@ export const NAV_SUB_CONFIG: Record<ActiveNavView, NavItemSubConfig> = {
         tag: 'Tab',
       },
       {
+        id: 'attendance',
+        label: 'Attendance Report',
+        description: 'Per-staff present/absent/leave — week/month/year',
+        icon: ClipboardCheck,
+        tag: 'Tab',
+      },
+      {
         id: 'payroll',
         label: 'Payroll Summary',
         description: 'Monthly salary disbursements',

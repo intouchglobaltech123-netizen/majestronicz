@@ -12,6 +12,7 @@ import {
 import { useErp } from '../../context/ErpContext';
 import { EmployeeMasterView } from './EmployeeMasterView';
 import { AttendanceLogView } from './AttendanceLogView';
+import { AttendanceRegisterView } from './AttendanceRegisterView';
 import { PayrollSummaryView } from './PayrollSummaryView';
 import { SalaryDetailsView } from './SalaryDetailsView';
 import { AttendanceKioskModal } from './AttendanceKioskModal';
@@ -313,7 +314,11 @@ export const HrmView: React.FC = () => {
 
       {/* Active Tab View */}
       {activeTab === 'attendance' ? (
-        <AttendanceLogView />
+        <div className="space-y-6">
+          {/* Manager register (#HRM) — mark the day, then the shift log below */}
+          <AttendanceRegisterView />
+          <AttendanceLogView />
+        </div>
       ) : activeTab === 'payroll' && canSeePay ? (
         <PayrollSummaryView />
       ) : activeTab === 'salary' && canSeePay ? (

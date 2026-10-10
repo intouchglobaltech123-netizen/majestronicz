@@ -1255,21 +1255,37 @@ export interface GeoLocationCapture {
 /**
  * Attendance Record with Selfie & Geolocation
  */
+/** Old-school register statuses a manager can mark for a staff member's day. */
+export type AttendanceStatus = 'Present' | 'Half-Day' | 'Absent' | 'Casual Leave' | 'Sick Leave' | 'Holiday' | 'Week Off';
+export const ATTENDANCE_STATUSES: { value: AttendanceStatus; label: string; short: string; cls: string }[] = [
+  { value: 'Present', label: 'Present', short: 'P', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  { value: 'Half-Day', label: 'Half Day', short: 'H', cls: 'bg-teal-100 text-teal-800 border-teal-200' },
+  { value: 'Absent', label: 'Absent', short: 'A', cls: 'bg-rose-100 text-rose-800 border-rose-200' },
+  { value: 'Casual Leave', label: 'Casual Leave', short: 'CL', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { value: 'Sick Leave', label: 'Sick Leave', short: 'SL', cls: 'bg-orange-100 text-orange-800 border-orange-200' },
+  { value: 'Holiday', label: 'Holiday', short: 'HD', cls: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  { value: 'Week Off', label: 'Week Off', short: 'WO', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+];
+/** How much a status counts as a working day present (Present 1, Half-Day 0.5, else 0). */
+export const attendanceDayWeight = (status?: string): number =>
+  status === 'Present' ? 1 : status === 'Half-Day' ? 0.5 : 0;
+
 export interface AttendanceRecord {
   id: string;
   employeeId: string;
   employeeName: string;
   branchId: BranchId;
   date: string; // YYYY-MM-DD
-  checkInTime: string; // HH:mm:ss
-  checkInPhoto: string; // Base64 data URL
-  checkInLocation: GeoLocationCapture | null; // null when no GPS was captured
+  checkInTime?: string; // HH:mm:ss — absent on a register-marked day
+  checkInPhoto?: string; // Base64 data URL
+  checkInLocation?: GeoLocationCapture | null; // null when no GPS was captured
   checkOutTime?: string; // HH:mm:ss
   checkOutPhoto?: string; // Base64 data URL
   checkOutLocation?: GeoLocationCapture | null;
   hoursWorked?: number; // In hours (e.g. 8.5)
-  status: 'Present' | 'Half-Day' | 'Absent';
+  status: AttendanceStatus;
   notes?: string;
+  markedBy?: string; // manager who marked it in the register
   createdAt: string;
   updatedAt: string;
 }

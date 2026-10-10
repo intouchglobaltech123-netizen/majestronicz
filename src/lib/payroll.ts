@@ -1,4 +1,4 @@
-import { Employee, AttendanceRecord, Invoice, PayrollRecord } from '../types';
+import { Employee, AttendanceRecord, Invoice, PayrollRecord, attendanceDayWeight } from '../types';
 
 /**
  * Single source of truth for monthly payroll rows — live from attendance +
@@ -28,7 +28,9 @@ export function computePayrollRows(params: {
     const empAtt = attendanceRecords.filter(
       (a) => a.employeeId === emp.id && a.date.startsWith(month)
     );
-    const liveDaysPresent = empAtt.length;
+    // Count only days actually worked (Present = 1, Half-Day = 0.5); Absent /
+    // Leave / Holiday / Week-Off register rows do not count as days present.
+    const liveDaysPresent = empAtt.reduce((sum, a) => sum + attendanceDayWeight(a.status), 0);
     const liveHoursWorked = empAtt.reduce((sum, a) => sum + (a.hoursWorked || 0), 0);
 
     // Salary is stripped from the data non-CEO roles receive (SEC2-2), so

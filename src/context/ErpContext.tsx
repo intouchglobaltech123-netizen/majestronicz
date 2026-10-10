@@ -487,6 +487,7 @@ interface ErpContextType {
     location: GeoLocationCapture | null,
     customTime?: string
   ) => { success: boolean; message: string; record?: AttendanceRecord };
+  markAttendance: (date: string, branchId: string, marks: { employeeId: string; status: string; notes?: string }[]) => Promise<boolean>;
   updatePayrollSettings: (settings: PayrollSettings) => void;
   updatePayrollAdjustment: (
     employeeId: string,
@@ -4079,6 +4080,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Check-in successful', record: newRecord };
   };
 
+  // Manager marks the daily register (#HRM): one status per staff for a date.
+  const markAttendance = async (
+    date: string,
+    branchId: string,
+    marks: { employeeId: string; status: string; notes?: string }[]
+  ): Promise<boolean> => {
+    if (currentUser.role !== 'CEO' && currentUser.role !== 'Manager') {
+      toast.error('Only CEO or Manager can mark attendance');
+      return false;
+    }
+    try {
+      applySnapshot(await apiPost<any>('/api/hrm/attendance/mark', { date, branchId, marks }));
+      toast.success(`Attendance saved for ${marks.length} staff`, { description: date });
+      return true;
+    } catch (e: any) {
+      toast.error('Could not save attendance', { description: String(e?.message ?? 'Backend error').replace(/^API \d+[^:]*: /, '') });
+      return false;
+    }
+  };
+
   const clockOut = (
     employeeId: string,
     photoDataUrl: string,
@@ -4111,8 +4132,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Compute hours worked
-    const [inH, inM, inS] = existing.checkInTime.split(':').map(Number);
+    // Compute hours worked (a register-marked day has no clock-in time).
+    const [inH, inM, inS] = (existing.checkInTime || timeStr).split(':').map(Number);
     const [outH, outM, outS] = timeStr.split(':').map(Number);
     const inMinutes = inH * 60 + inM + (inS || 0) / 60;
     const outMinutes = outH * 60 + outM + (outS || 0) / 60;
@@ -4419,6 +4440,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteEmployee,
         clockIn,
         clockOut,
+        markAttendance,
         updatePayrollSettings,
         updatePayrollAdjustment,
         markPayrollPaid,

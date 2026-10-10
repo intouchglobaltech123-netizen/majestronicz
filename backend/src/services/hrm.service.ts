@@ -172,6 +172,50 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
   });
 }
 
+/** Old-school register statuses a manager can mark. */
+const REGISTER_STATUSES = new Set(['Present', 'Half-Day', 'Absent', 'Casual Leave', 'Sick Leave', 'Holiday', 'Week Off']);
+
+/**
+ * Manager marks the daily register (#HRM): one status per staff member for a
+ * date — Present / Absent / leave / holiday / week-off, no selfie or GPS. Behind
+ * hrm:write and branch-scoped. Upserts (re-marking a day updates it), and keeps
+ * any clock-in time already on the row.
+ */
+export function markAttendance(date: string, branchId: string, marks: any[], reqUser?: any) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new AppError('BAD_DATE', 'A valid date (YYYY-MM-DD) is required.', 400);
+  if (date > istToday()) throw new AppError('BAD_DATE', 'Attendance cannot be marked for a future date.', 400);
+  if (!Array.isArray(marks) || !marks.length) throw new AppError('NO_MARKS', 'Send at least one staff mark.', 400);
+  assertBranchAllowed(reqUser, branchId);
+  return prisma.$transaction(async (tx: any) => {
+    const now = nowIso();
+    for (const m of marks) {
+      const status = String(m?.status || '').trim();
+      if (!REGISTER_STATUSES.has(status)) throw new AppError('BAD_STATUS', `"${status.slice(0, 30)}" is not a valid attendance status.`, 400);
+      const emp = await tx.employee.findUnique({ where: { id: m?.employeeId } });
+      if (!emp) throw new AppError('NOT_FOUND', `Employee ${m?.employeeId} not found`, 404);
+      if ((emp.branchId || 'erode-hq') !== branchId) throw new AppError('WRONG_BRANCH', `${emp.name} is not in this branch.`, 400);
+      assertBranchAllowed(reqUser, emp.branchId);
+      const notes = typeof m?.notes === 'string' && m.notes.trim() ? m.notes.trim() : null;
+      const existing = await tx.attendanceRecord.findFirst({ where: { employeeId: emp.id, date } });
+      if (existing) {
+        await tx.attendanceRecord.update({
+          where: { id: existing.id },
+          data: { status, notes, markedBy: reqUser?.name || 'Manager', updatedAt: now },
+        });
+      } else {
+        await tx.attendanceRecord.create({
+          data: {
+            id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId, date,
+            checkInTime: null, status, notes, markedBy: reqUser?.name || 'Manager',
+            createdAt: now, updatedAt: now,
+          },
+        });
+      }
+    }
+    return snap(tx);
+  });
+}
+
 /**
  * Self check-in/out for the CURRENTLY LOGGED-IN user's own linked employee.
  * Any authenticated role can call this (no hrm:write needed) but it can only

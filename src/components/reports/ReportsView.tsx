@@ -20,6 +20,7 @@ import {
   Banknote,
   ReceiptText,
   Tag,
+  CalendarCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SalesReportTab } from './SalesReportTab';
@@ -34,6 +35,7 @@ import { AuditLogReportTab } from './AuditLogReportTab';
 import { PaymentsLogReportTab } from './PaymentsLogReportTab';
 import { InputTaxCreditReportTab } from './InputTaxCreditReportTab';
 import { VendorPriceTrackingReportTab } from './VendorPriceTrackingReportTab';
+import { AttendanceReportTab } from './AttendanceReportTab';
 
 export type ReportTabType =
   | 'sales'
@@ -47,6 +49,7 @@ export type ReportTabType =
   | 'expenses'
   | 'payments'
   | 'audit'
+  | 'attendance'
   | 'payroll';
 
 export const ReportsView: React.FC = () => {
@@ -134,6 +137,7 @@ export const ReportsView: React.FC = () => {
     { id: 'expenses' as const, label: 'Expense Report', icon: Wallet, description: 'Daily expenses by category, cash vs GPay' },
     { id: 'payments' as const, label: 'Payments Log', icon: Banknote, description: 'All money in & out — receipts, vendor payments, expenses' },
     { id: 'audit' as const, label: 'Audit Trail', icon: History, description: 'Who changed what, when — full activity log' },
+    { id: 'attendance' as const, label: 'Attendance', icon: CalendarCheck, description: 'Per-staff present/absent/leave — weekly, monthly, yearly' },
     ...(canViewPayrollReport
       ? [{ id: 'payroll' as const, label: 'Payroll Summary', icon: Users, description: 'Staff compensation and labor spend' }]
       : []),
@@ -170,6 +174,7 @@ export const ReportsView: React.FC = () => {
       {activeTab === 'expenses' && <ExpenseReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'payments' && <PaymentsLogReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'audit' && <AuditLogReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
+      {activeTab === 'attendance' && <AttendanceReportTab startDate={startDate} endDate={endDate} branchScope={branchScope} />}
       {activeTab === 'payroll' && canViewPayrollReport && <PayrollSummaryReportTab branchScope={branchScope} />}
     </div>
   );

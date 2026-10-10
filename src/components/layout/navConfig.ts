@@ -155,6 +155,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: 'reports', subTabId: 'expenses', label: 'Expense Report', cap: 'reports' },
       { id: 'reports', subTabId: 'payments', label: 'Payments Log', cap: 'reports' },
       { id: 'reports', subTabId: 'audit', label: 'Audit Trail', cap: 'reports' },
+      { id: 'reports', subTabId: 'attendance', label: 'Attendance Report', cap: 'reports' },
       // PLT10-3: the report shows payroll data — only for payroll (CEO); other
       // roles got an empty page.
       { id: 'reports', subTabId: 'payroll', label: 'Payroll Summary', cap: 'reports', payrollOnly: true },

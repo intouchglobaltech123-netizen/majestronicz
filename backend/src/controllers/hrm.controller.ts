@@ -12,6 +12,11 @@ export const clockIn = async (req: Request, res: Response) => {
   const { employeeId, photoDataUrl, location, customTime } = req.body;
   res.json(await hrm.clockIn(employeeId, photoDataUrl, location, customTime, (req as any).user));
 };
+
+export const markAttendance = async (req: Request, res: Response) => {
+  const { date, branchId, marks } = req.body;
+  res.json(await hrm.markAttendance(date, branchId, marks, (req as any).user));
+};
 export const clockOut = async (req: Request, res: Response) => {
   const { employeeId, photoDataUrl, location, customTime } = req.body;
   res.json(await hrm.clockOut(employeeId, photoDataUrl, location, customTime, (req as any).user));
