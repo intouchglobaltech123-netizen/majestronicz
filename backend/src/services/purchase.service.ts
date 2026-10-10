@@ -953,6 +953,48 @@ export function recordPurchaseOrderPayment(poId: string, amount: number, mode: s
  */
 export async function createDirectPurchaseBill(input: any, reqUser?: any) {
   const actor = reqUser?.name || 'System';
+  const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+  const items = Array.isArray(input?.items) ? input.items : [];
+  const otherCharges = Math.max(0, r2(input?.otherCharges));
+  const payNow = Math.max(0, Number(input?.payNow) || 0);
+  const billNo = String(input?.supplierBillNumber || '').trim();
+
+  // G3 (launch blocker): the four steps below each run in their OWN transaction,
+  // so if a LATER step is refused, the earlier ones (the order + the stock-in)
+  // stay committed — the user sees an error while the stock came in and the
+  // supplier is owed, and a retry double-books. Fix: validate EVERYTHING a later
+  // step could reject HERE, before anything is created, so the steps can't fail
+  // part-way for any of the known reasons (bad pay mode, closed day, duplicate
+  // supplier bill, over-payment, rounding).
+  if (payNow > 0) {
+    assertMode(VENDOR_PAYMENT_MODES, input?.payMode || 'Cash', 'a vendor payment');
+    await assertDayOpen(prisma, input?.branchId, istToday(), 'pay this vendor');
+  }
+  if (billNo && input?.vendorId) {
+    const key = billNumberKey(billNo);
+    const others = await prisma.purchaseOrder.findMany({ where: { vendorId: input.vendorId, NOT: { status: 'Cancelled' } } });
+    for (const other of others) for (const b of supplierBillsOf(other)) {
+      if (billNumberKey(b.number) === key) {
+        throw new AppError('DUPLICATE_SUPPLIER_BILL', `Bill ${b.number} from this supplier is already recorded on ${other.poNumber || 'another PO'}.`, 409);
+      }
+    }
+  }
+  if (payNow > 0) {
+    // What the bill will owe = goods (per-line taxable + GST) + other charges —
+    // the SAME per-line rounding the order service and poPayCap use, so paying
+    // exactly the total the form shows is never refused by a paisa.
+    let taxable = 0, tax = 0;
+    for (const l of items) {
+      const amt = r2((Number(l?.purchasePrice) || 0) * (Number(l?.quantityOrdered) || 0));
+      taxable += amt;
+      tax += taxAmountFor(amt, Number(l?.taxPercent) || 0);
+    }
+    const owed = r2(taxable + tax + otherCharges);
+    if (payNow > owed + 0.005) {
+      throw new AppError('OVERPAYMENT', `Payment of ₹${r2(payNow)} is more than the bill total of ₹${owed.toLocaleString('en-IN')}.`, 400);
+    }
+  }
+
   // 1) Create the order (validates supplier, branch, items, tax slabs, totals).
   const created = await savePurchaseOrder(
     {
@@ -986,7 +1028,6 @@ export async function createDirectPurchaseBill(input: any, reqUser?: any) {
   }
   // 4) Pay the supplier now if asked — books a vendor 'out' row to the drawer and
   // respects the closed-day guard (reuses the tested PO-payment path).
-  const payNow = Math.max(0, Number(input?.payNow) || 0);
   if (payNow > 0) {
     await recordPurchaseOrderPayment(poId, payNow, input?.payMode || 'Cash', actor, reqUser);
   }

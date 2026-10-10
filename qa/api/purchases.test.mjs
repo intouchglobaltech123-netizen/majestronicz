@@ -173,6 +173,22 @@ describe('purchases', () => {
     expectStatus(await post('/api/purchase/save', { po: { ...base, courierCharges: 100, chargesTaxPercent: 7 }, actor: 'QA' }), 400, 'invalid charges GST rate refused');
   });
 
+  test('G3 a direct purchase bill refused at a later step creates nothing', async () => {
+    const item = await createItem({ purchasePrice: 100, stock: { 'erode-hq': 0 } });
+    const v = await anyVendor();
+    const bill = (extra) => ({ bill: { vendorId: v.id, branchId: 'erode-hq', date: istToday(),
+      items: [{ itemId: item.id, quantityOrdered: 2, purchasePrice: 100, taxPercent: 18 }], ...extra } });
+    ok(await post('/api/purchase/direct-bill', bill({ supplierBillNumber: 'G3-DUP' })), 'first direct bill');
+    const stockAfterFirst = await stockOf(item.id, 'erode-hq');
+    assert.equal(stockAfterFirst, 2, 'first bill brought stock in');
+    // A duplicate supplier bill number is refused — and brings in NO stock.
+    expectStatus(await post('/api/purchase/direct-bill', bill({ supplierBillNumber: 'G3-DUP' })), 409, 'duplicate supplier bill refused');
+    assert.equal(await stockOf(item.id, 'erode-hq'), stockAfterFirst, 'the refused duplicate added no stock');
+    // An over-payment is refused up front — and brings in NO stock.
+    expectStatus(await post('/api/purchase/direct-bill', bill({ payNow: 999999, payMode: 'Cash' })), 400, 'overpay refused');
+    assert.equal(await stockOf(item.id, 'erode-hq'), stockAfterFirst, 'the refused over-payment added no stock');
+  });
+
   test('G6 a custom margin % above 500 is refused', async () => {
     const res = await post('/api/catalog/item', { item: {
       itemName: `QA Margin ${uid()}`, itemHSN: '85371000', category: 'QA', itemCode: `QA-${uid()}`.toUpperCase(),

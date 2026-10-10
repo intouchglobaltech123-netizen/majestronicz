@@ -41,17 +41,22 @@ export const DirectPurchaseBillModal: React.FC<Props> = ({ isOpen, onClose, defa
   const branchLocked = currentUser.role !== 'CEO' && !!currentUser.assignedBranchId;
 
   const totals = useMemo(() => {
+    // G3: round PER LINE then sum — exactly as the server does — so the total
+    // shown here equals what the bill owes and paying it is never off by a paisa.
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     let taxable = 0;
     let tax = 0;
     for (const l of lines) {
       const q = Number(l.qty) || 0;
       const p = Number(l.price) || 0;
       const t = Number(l.tax) || 0;
-      const amt = q * p;
+      const amt = r2(q * p);
       taxable += amt;
-      tax += (amt * t) / 100;
+      tax += r2((amt * t) / 100);
     }
-    return { taxable: Math.round(taxable * 100) / 100, tax: Math.round(tax * 100) / 100, grand: Math.round((taxable + tax) * 100) / 100 };
+    taxable = r2(taxable);
+    tax = r2(tax);
+    return { taxable, tax, grand: r2(taxable + tax) };
   }, [lines]);
 
   if (!isOpen) return null;
