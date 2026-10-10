@@ -353,6 +353,11 @@ export const InvoiceForm: React.FC<Props> = ({
   const [overallDiscountValue, setOverallDiscountValue] = useState<number>(0);
   const [shippingCharges, setShippingCharges] = useState<number>(0);
   const [roundOffEnabled, setRoundOffEnabled] = useState(true);
+  // Cash tendered by a walk-in customer — a counter helper only, to work out the
+  // change to hand back (bill ₹550, customer gives ₹600 → return ₹50). It is NOT
+  // a payment split and is never saved on the bill; the recorded payment stays at
+  // the grand total.
+  const [cashTendered, setCashTendered] = useState<number | ''>('');
   // Loyalty spend-tier auto discount (#8): the % we auto-filled into the overall
   // discount (0 = none). spendAutoRef tracks it so we only ever overwrite our own
   // auto value, never a discount the user (or the milestone reward) typed.
@@ -3011,6 +3016,56 @@ export const InvoiceForm: React.FC<Props> = ({
               <p className="text-xs text-purple-800 leading-relaxed">
                 This document is a commercial price quotation. Physical inventory is not decremented and no cash ledger entry is made until converted into a finalized Sales Invoice.
               </p>
+            </div>
+          )}
+
+          {/* Cash Tendered → Change to Return (counter helper, Invoice only).
+              Display-only: does not change the recorded payment or create credit. */}
+          {documentType === 'Invoice' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700 shrink-0">
+                  Cash Given by Customer
+                </label>
+                <div className="relative w-40">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-sm">₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+                    placeholder="0"
+                    className="w-full pl-7 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-mono font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+              {cashTendered !== '' && Number(cashTendered) > 0 && (
+                (() => {
+                  const change = Math.round((Number(cashTendered) - totals.grandTotal) * 100) / 100;
+                  if (change > 0.009) {
+                    return (
+                      <div className="mt-2.5 flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-sm">
+                        <span className="font-bold text-emerald-800">Change to return</span>
+                        <span className="font-mono font-extrabold text-emerald-700 text-base">{formatCurrency(change)}</span>
+                      </div>
+                    );
+                  }
+                  if (change < -0.009) {
+                    return (
+                      <div className="mt-2.5 flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 border border-amber-300 text-sm">
+                        <span className="font-bold text-amber-800">Short by</span>
+                        <span className="font-mono font-extrabold text-amber-700 text-base">{formatCurrency(Math.abs(change))}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-2.5 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 text-center">
+                      Exact amount — no change to return
+                    </div>
+                  );
+                })()
+              )}
             </div>
           )}
 
