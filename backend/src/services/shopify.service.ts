@@ -1109,10 +1109,45 @@ export async function getShopifyCustomers(limit = 100): Promise<{ configured: bo
   const erpCustomers = await prisma.customer.findMany();
   const erpPhones = new Set(erpCustomers.map((c) => (c.phone || '').trim()).filter(Boolean));
 
+  // A customer's profile (`default_address`) is often sparse — many buyers never
+  // save an address to their account and only type a delivery address at
+  // checkout, which lives on the ORDER, not the customer. So pull recent orders
+  // and keep each customer's latest full shipping address as a fallback, keyed by
+  // Shopify customer id (and by phone/email for guest checkouts).
+  const orderAddrById = new Map<string, string>();
+  const orderAddrByContact = new Map<string, string>();
+  try {
+    const ord = await shopifyFetch<{ orders: any[] }>(`orders.json?status=any&limit=250&fields=customer,phone,email,shipping_address,billing_address,created_at`);
+    // Shopify returns orders newest-first; the first address seen per key is the latest.
+    for (const o of ord.orders || []) {
+      const full = fullShopifyAddress(o.shipping_address || o.billing_address);
+      if (!full) continue;
+      const cid = o.customer?.id != null ? String(o.customer.id) : '';
+      if (cid && !orderAddrById.has(cid)) orderAddrById.set(cid, full);
+      const ph = (o.customer?.phone || o.phone || o.shipping_address?.phone || '').trim();
+      const em = (o.customer?.email || o.email || '').trim().toLowerCase();
+      if (ph && !orderAddrByContact.has(ph)) orderAddrByContact.set(ph, full);
+      if (em && !orderAddrByContact.has(em)) orderAddrByContact.set(em, full);
+    }
+  } catch {
+    // Orders scope may be unavailable; fall back to the profile address only.
+  }
+
   const list: ShopifyCustomerSummary[] = (data.customers || []).map((c: any) => {
     const email = c.email?.trim().toLowerCase() || '';
     const phone = c.phone?.trim() || c.default_address?.phone?.trim() || '';
     const synced = Boolean(phone && erpPhones.has(phone));
+
+    const profileAddr = fullShopifyAddress(c.default_address);
+    // Use the profile address when it has real street detail; otherwise fall back
+    // to the latest order's shipping address so the full address still shows.
+    const hasStreet = Boolean(c.default_address?.address1 || c.default_address?.address2);
+    const fallbackAddr =
+      orderAddrById.get(String(c.id)) ||
+      (phone && orderAddrByContact.get(phone)) ||
+      (email && orderAddrByContact.get(email)) ||
+      '';
+    const address = (hasStreet ? profileAddr : '') || fallbackAddr || profileAddr || '';
 
     return {
       id: String(c.id),
@@ -1121,7 +1156,7 @@ export async function getShopifyCustomers(limit = 100): Promise<{ configured: bo
       phone,
       city: c.default_address?.city || '',
       province: c.default_address?.province || '',
-      address: fullShopifyAddress(c.default_address) || '',
+      address,
       zip: c.default_address?.zip || '',
       country: c.default_address?.country || '',
       ordersCount: Number(c.orders_count) || 0,
