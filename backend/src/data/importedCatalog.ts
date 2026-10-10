@@ -135,7 +135,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 299.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 86,
     "minStockAlert": 5,
     "location": "10*1"
@@ -151,7 +151,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 390.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "11*3"
@@ -183,7 +183,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 75.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 15,
     "minStockAlert": 5,
     "location": "9*3+blue box"
@@ -263,7 +263,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 95.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 5,
     "minStockAlert": 5,
     "location": ""
@@ -327,7 +327,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 925.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 1,
     "minStockAlert": 5,
     "location": "6*1+blue box"
@@ -423,7 +423,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 269.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 4,
     "minStockAlert": 50,
     "location": "6*2+ blue box"
@@ -487,7 +487,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 399.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 10,
     "minStockAlert": 5,
     "location": "7*1 + blue box"
@@ -519,7 +519,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 9543.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -535,7 +535,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 20.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -551,7 +551,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 10.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -599,7 +599,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 3199.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "TOP"
@@ -631,7 +631,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 1495.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 6,
     "minStockAlert": 5,
     "location": "6*1"
@@ -647,7 +647,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 275.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 12,
     "minStockAlert": 5,
     "location": "6*3"
@@ -695,7 +695,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 799.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 5,
     "minStockAlert": 5,
     "location": "6*3"
@@ -743,7 +743,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 439.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 50,
     "location": "6*3+ blue box"
@@ -839,7 +839,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 5999.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "TOP"
@@ -919,7 +919,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 370.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1095,7 +1095,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 309.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 3,
     "minStockAlert": 5,
     "location": "8*4 + 8*6"
@@ -1111,7 +1111,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 309.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 12,
     "minStockAlert": 5,
     "location": "8*4+ cb"
@@ -1223,7 +1223,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 199.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 25,
     "minStockAlert": 5,
     "location": "11*3 + cb"
@@ -1255,7 +1255,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 0.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1303,7 +1303,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 0.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1415,7 +1415,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 499.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 33,
     "minStockAlert": 5,
     "location": "11*2+blue box"
@@ -1447,7 +1447,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 25.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1479,7 +1479,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 3599.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "4*5"
@@ -1543,7 +1543,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 237.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "6*4"
@@ -1559,7 +1559,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 1888.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "11*3"
@@ -1607,7 +1607,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 15.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1639,7 +1639,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 749.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 1,
     "minStockAlert": 5,
     "location": "5*1"
@@ -1671,7 +1671,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 15.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1687,7 +1687,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 286.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": ""
@@ -1703,7 +1703,7 @@ export const IMPORTED_CATALOG: ImportedCatalogItem[] = [
     "wholesalePrice": 210.0,
     "minWholesaleQty": 10,
     "gstTaxSlab": 18,
-    "salePriceTaxMode": "without",
+    "salePriceTaxMode": "with",
     "openingStock": 0,
     "minStockAlert": 5,
     "location": "7*2"

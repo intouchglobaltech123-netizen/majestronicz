@@ -93,7 +93,8 @@ export const AddItemModal: React.FC<Props> = ({
 
   // Static Master Pricing Fields
   const [salePrice, setSalePrice] = useState<number | ''>('');
-  const [salePriceTaxMode, setSalePriceTaxMode] = useState<SalePriceTaxMode>('without');
+  // Default to inclusive-of-tax (client sells at tax-included prices).
+  const [salePriceTaxMode, setSalePriceTaxMode] = useState<SalePriceTaxMode>('with');
   const [discountOnSalePrice, setDiscountOnSalePrice] = useState<number | ''>(0);
   const [discountType, setDiscountType] = useState<DiscountType>('%');
   const [wholesalePrice, setWholesalePrice] = useState<number | ''>('');
