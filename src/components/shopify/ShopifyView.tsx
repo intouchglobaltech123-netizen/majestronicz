@@ -3,6 +3,7 @@ import {
   ShoppingCart,
   Boxes,
   Package,
+  MapPin,
   Users,
   Settings,
   CheckCircle2,
@@ -527,6 +528,16 @@ export const ShopifyView: React.FC = () => {
                             {order.customerPhone && (
                               <div className="text-[11px] text-slate-500 font-mono">{order.customerPhone}</div>
                             )}
+                            {(() => {
+                              const a = order.shippingAddress || order.billingAddress;
+                              const full = a ? [a.address1, a.address2, a.city, a.province, a.zip, a.country].filter(Boolean).join(', ') : '';
+                              return full ? (
+                                <div className="text-[11px] text-slate-500 mt-0.5 flex items-start gap-1 max-w-[260px]">
+                                  <MapPin className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
+                                  <span className="leading-snug">{full}</span>
+                                </div>
+                              ) : null;
+                            })()}
                           </td>
 
                           <td className="py-3 px-4">
