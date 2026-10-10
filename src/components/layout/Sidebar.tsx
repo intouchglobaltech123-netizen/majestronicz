@@ -8,6 +8,7 @@ import {
   Building2,
   ShieldCheck,
   Lock,
+  ShoppingCart,
 } from 'lucide-react';
 import { MajestroniczLogo } from '../common/MajestroniczLogo';
 import { readScoped, writeScoped } from '../../lib/userPrefs';
@@ -169,6 +170,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Modules List with Inline Collapsible Accordions */}
           <div className="flex-1 min-h-0 overflow-y-auto py-1 text-slate-200 divide-y divide-slate-800">
+            {/* Online Store lives in the top bar on desktop, but that top-bar flyout
+                can't be reached on a phone — so surface it here in the mobile drawer
+                (CEO/Manager only, matching the top-bar gate). */}
+            {(currentUser.role === 'CEO' || currentUser.role === 'Manager') && (
+              <button
+                type="button"
+                onClick={() => { navigateToTab('shopify', 'orders'); closeOnMobile(); }}
+                className={cn(
+                  'lg:hidden w-full px-3 py-2 text-left text-xs font-bold flex items-center gap-2.5 transition-colors cursor-pointer border-l-4 select-none',
+                  currentView === 'shopify'
+                    ? 'bg-slate-800 text-white border-red-500 font-extrabold'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white border-transparent'
+                )}
+              >
+                <ShoppingCart className={cn('h-4 w-4 shrink-0', currentView === 'shopify' ? 'text-red-400' : 'text-slate-400')} />
+                <span className="truncate flex-1">Online Store</span>
+              </button>
+            )}
             {modules.map((mod) => {
               const Icon = mod.icon;
               const active = isModuleActive(mod, currentView);
