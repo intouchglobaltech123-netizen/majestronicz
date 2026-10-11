@@ -5,6 +5,7 @@ import {
   OnlineOrderStatus,
   BRANCHES,
 } from '../../types';
+import { ShopifyOrder } from '../../types/shopify';
 import { formatCurrency, cn } from '../../lib/utils';
 import { resizeAndCompressImage } from '../../lib/imageUtils';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -13,6 +14,7 @@ import {
   Package, Truck, CheckCircle2, Search, ArrowLeft, ArrowRight, User,
   Phone, MapPin, Pencil, Save, Printer, Copy, Camera, Send, Scale,
   Boxes, IndianRupee, Clock, XCircle, MessageCircle, Bell, ListChecks,
+  RefreshCw, DownloadCloud,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -87,11 +89,28 @@ const balanceOf = (inv: Invoice) => Math.max(0, Number(inv.balanceDue) || 0);
 
 /* ───────────────────────────── Board (list view) ──────────────────────────── */
 
-export const FlipkartBoard: React.FC = () => {
+interface BoardProps {
+  /** Live Shopify store orders (source list) — un-imported paid ones show in "To Accept". */
+  shopifyOrders?: ShopifyOrder[];
+  importing?: boolean;
+  syncing?: boolean;
+  onImportAll?: () => void;
+  onRefresh?: () => void;
+  onOpenShopifyOrder?: (o: ShopifyOrder) => void;
+}
+
+export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onRefresh, onOpenShopifyOrder }) => {
   const { invoices, currentBranch, isAllBranches } = useErp();
   const [bucket, setBucket] = useState<Bucket>('to_accept');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Paid Shopify orders not yet pulled into the ERP — these are the real
+  // "To Accept" queue: accepting one imports it, then it flows through the board.
+  const pending = useMemo(
+    () => shopifyOrders.filter((o) => !o.alreadyImported && o.financialStatus === 'paid'),
+    [shopifyOrders],
+  );
 
   const online = useMemo(
     () =>
@@ -105,8 +124,19 @@ export const FlipkartBoard: React.FC = () => {
   const counts = useMemo(() => {
     const c: Record<Bucket, number> = { to_accept: 0, to_pack: 0, to_dispatch: 0, in_transit: 0, completed: 0, cancelled: 0 };
     for (const o of online) c[bucketOf(o)] += 1;
+    c.to_accept += pending.length; // un-imported paid Shopify orders also wait to be accepted
     return c;
-  }, [online]);
+  }, [online, pending]);
+
+  const pendingFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return pending;
+    return pending.filter((o) =>
+      o.orderName.toLowerCase().includes(q) ||
+      (o.customerName || '').toLowerCase().includes(q) ||
+      (o.customerPhone || '').includes(q),
+    );
+  }, [pending, search]);
 
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -145,6 +175,18 @@ export const FlipkartBoard: React.FC = () => {
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600">
           <MapPin className="h-3.5 w-3.5 text-slate-400" /> {branchName}
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {onRefresh && (
+            <button onClick={onRefresh} disabled={syncing} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50 disabled:opacity-50">
+              <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} /> Refresh from Shopify
+            </button>
+          )}
+          {onImportAll && pending.length > 0 && (
+            <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+              <DownloadCloud className={cn('h-3.5 w-3.5', importing && 'animate-pulse')} /> Import {pending.length} new order{pending.length === 1 ? '' : 's'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stage tiles */}
@@ -177,14 +219,48 @@ export const FlipkartBoard: React.FC = () => {
         />
       </div>
 
-      {/* Order list */}
-      {list.length === 0 ? (
+      {/* New Shopify orders waiting to be accepted (imported). Only in To Accept. */}
+      {bucket === 'to_accept' && pendingFiltered.length > 0 && (
+        <div className="bg-amber-50/60 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 bg-amber-100/70 border-b border-amber-200">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-amber-800 inline-flex items-center gap-1.5">
+              <DownloadCloud className="h-3.5 w-3.5" /> New from Shopify — accept to start
+            </span>
+            {onImportAll && (
+              <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+                <DownloadCloud className="h-3.5 w-3.5" /> Accept all
+              </button>
+            )}
+          </div>
+          <div className="divide-y divide-amber-100">
+            {pendingFiltered.map((o) => (
+              <div key={o.externalOrderId} className="flex items-center gap-3 px-3 sm:px-4 py-2.5">
+                <button onClick={() => onOpenShopifyOrder?.(o)} className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-[11px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">{o.orderName}</span>
+                    <span className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{o.customerName || 'Online customer'}</span>
+                    {o.customerPhone && <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">· {o.customerPhone}</span>}
+                  </div>
+                  <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN')} · not yet in ERP</div>
+                </button>
+                <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
+                <button onClick={onImportAll} disabled={importing} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
+                  Accept <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Order list (orders already in the ERP) */}
+      {list.length === 0 && !(bucket === 'to_accept' && pendingFiltered.length > 0) ? (
         <div className="py-12 text-center bg-white border border-slate-200 rounded-xl">
           <Package className="h-10 w-10 mx-auto text-slate-300 mb-2" />
           <p className="text-sm font-bold text-slate-700">No orders in “{BUCKET_LABEL[bucket]}”</p>
           <p className="text-xs text-slate-400 mt-0.5">Paid Shopify orders you import show up here, stage by stage.</p>
         </div>
-      ) : (
+      ) : list.length === 0 ? null : (
         <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
           {list.map((inv) => {
             const bal = balanceOf(inv);

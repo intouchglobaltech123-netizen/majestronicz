@@ -209,8 +209,7 @@ export const ShopifyView: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wider text-red-600">Online Store</span>
                 <span className="text-slate-300">/</span>
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">
-                  {activeTab === 'orders' && 'Store Orders'}
-                  {activeTab === 'fulfillment' && 'Fulfillment Pipeline'}
+                  {activeTab === 'orders' && 'Orders'}
                   {activeTab === 'inventory' && 'Stock & Inventory Sync'}
                   {activeTab === 'products' && 'Product Catalog & SKU Mapping'}
                   {activeTab === 'customers' && 'Online Customers Directory'}
@@ -219,8 +218,7 @@ export const ShopifyView: React.FC = () => {
                 </h1>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {activeTab === 'orders' && 'Live orders from your Shopify store — import a paid order to start fulfilment'}
-                {activeTab === 'fulfillment' && 'Imported orders, tracked New → Confirmed → Packed → Shipped → Delivered'}
+                {activeTab === 'orders' && 'New Shopify orders and fulfilment together — accept, pack, dispatch, deliver'}
                 {activeTab === 'inventory' && 'Side-by-side reconciliation of ERP warehouse stocks vs Shopify online inventory'}
                 {activeTab === 'products' && 'Shopify product catalog, variant retail pricing & ERP Item code mapping'}
                 {activeTab === 'customers' && 'Registered web buyers from Shopify synchronized with ERP customer parties'}
@@ -255,8 +253,7 @@ export const ShopifyView: React.FC = () => {
       {/* Sub-section tab strip (Online Store lives in the top bar; these are its sub-headings) */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mt-2">
         {([
-          { id: 'orders', label: 'Store Orders' },
-          { id: 'fulfillment', label: 'Fulfillment' },
+          { id: 'orders', label: 'Orders' },
           { id: 'inventory', label: 'Stock & Inventory Sync' },
           { id: 'products', label: 'Product Catalog' },
           { id: 'customers', label: 'Online Customers' },
@@ -282,6 +279,39 @@ export const ShopifyView: React.FC = () => {
       {/* Tab Contents */}
       {activeTab === 'orders' && (
         <div className="space-y-5">
+          {/* Heading + Simple (merged board) ⇄ Advanced toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Orders</h3>
+              <p className="text-[11px] text-slate-500">
+                {fulfillmentView === 'simple'
+                  ? 'New Shopify orders and fulfilment in one place — accept, pack, dispatch, deliver.'
+                  : 'Full store-orders table, metrics, sync logs and the detailed pipeline.'}
+              </p>
+            </div>
+            <div className="ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                onClick={() => setFulfillmentView('simple')}
+                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'simple' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+              >Simple board</button>
+              <button
+                onClick={() => setFulfillmentView('advanced')}
+                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'advanced' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+              >Advanced</button>
+            </div>
+          </div>
+
+          {fulfillmentView === 'simple' ? (
+            <FlipkartBoard
+              shopifyOrders={orders}
+              importing={importingOrders}
+              syncing={syncingOrders}
+              onImportAll={handleImportOrders}
+              onRefresh={loadOrders}
+              onOpenShopifyOrder={setSelectedOrder}
+            />
+          ) : (
+          <div className="space-y-5">
           {/* Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-white p-4 border border-slate-300 shadow-xs">
@@ -650,36 +680,9 @@ export const ShopifyView: React.FC = () => {
               </table>
             </div>
           </div>
-        </div>
-      )}
-
-      {activeTab === 'fulfillment' && (
-        <div className="space-y-5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
-              <Truck className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Fulfillment</h3>
-              <p className="text-[11px] text-slate-500">
-                {fulfillmentView === 'simple'
-                  ? 'Simple order board — To Accept → To Pack → To Dispatch → In Transit → Completed.'
-                  : 'Full pipeline with every stage, courier, returns, issues and history.'}
-              </p>
-            </div>
-            {/* Simple (Flipkart-style) ⇄ Advanced toggle */}
-            <div className="ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-              <button
-                onClick={() => setFulfillmentView('simple')}
-                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'simple' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
-              >Simple board</button>
-              <button
-                onClick={() => setFulfillmentView('advanced')}
-                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'advanced' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
-              >Advanced</button>
-            </div>
+          <OnlineOrderPipeline />
           </div>
-          {fulfillmentView === 'simple' ? <FlipkartBoard /> : <OnlineOrderPipeline />}
+          )}
         </div>
       )}
 
