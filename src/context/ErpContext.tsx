@@ -238,7 +238,11 @@ interface ErpContextType {
   reviseOnlineOrder: (invoiceId: string, items: any[], note?: string) => Promise<void>;
   saveOrderPacking: (
     invoiceId: string,
-    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
+    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean; extraShippingAmount?: number }
+  ) => Promise<void>;
+  updateOnlineOrderContact: (
+    invoiceId: string,
+    patch: { customerName?: string; customerPhone?: string; customerAddress?: string; stateOfSupply?: string }
   ) => Promise<void>;
   courierPartners: CourierPartner[];
   saveCourier: (courier: Partial<CourierPartner>) => Promise<void>;
@@ -2954,7 +2958,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const saveOrderPacking = async (
     invoiceId: string,
-    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean }
+    patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean; extraShippingAmount?: number }
   ) => {
     try {
       const res = await apiPost<{ invoice: Invoice }>(
@@ -2967,6 +2971,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.success('Packing details saved');
     } catch (e: any) {
       toast.error('Failed to save packing details', { description: e?.message ?? 'Backend error' });
+    }
+  };
+
+  const updateOnlineOrderContact = async (
+    invoiceId: string,
+    patch: { customerName?: string; customerPhone?: string; customerAddress?: string; stateOfSupply?: string }
+  ) => {
+    try {
+      const res = await apiPost<{ invoice: Invoice }>(
+        '/api/shopify/order-contact',
+        { invoiceId, ...patch, actor: currentUser.name }
+      );
+      if (res?.invoice) {
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...res.invoice } : i)));
+      }
+      toast.success('Customer details saved');
+    } catch (e: any) {
+      toast.error('Failed to save customer details', { description: e?.message ?? 'Backend error' });
     }
   };
 
@@ -4343,6 +4365,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reviseOnlineOrder,
         addOrderCommunication,
         saveOrderPacking,
+        updateOnlineOrderContact,
         courierPartners,
         saveCourier,
         deleteCourier,

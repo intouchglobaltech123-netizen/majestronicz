@@ -531,6 +531,7 @@ export interface Invoice {
   boxCount?: number;
   addressLabelDone?: boolean;
   invoiceIncluded?: boolean;
+  extraShippingAmount?: number; // extra courier/shipping charge collected on an online order
   // Issue cases / complaints raised on the order (damage, wrong item, dispute…).
   issues?: OrderIssue[];
   createdById?: string;

@@ -57,6 +57,7 @@ import {
   reviseOnlineOrder,
   addOrderCommunication,
   saveOrderPacking,
+  updateOnlineOrderContact,
   addOrderIssue,
   resolveOrderIssue,
   getShopifyCustomers,
@@ -866,9 +867,15 @@ router.post('/shopify/order-comm', requireCapability('sales:write'), asyncHandle
   res.json(result);
 }));
 router.post('/shopify/order-packing', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded } = req.body;
-  const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded }, actorOf(req));
+  const { invoiceId, parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, extraShippingAmount } = req.body;
+  const result = await saveOrderPacking(invoiceId, { parcelWeightKg, boxCount, addressLabelDone, invoiceIncluded, extraShippingAmount }, actorOf(req));
   broadcastChange('shopify-order-packing');
+  res.json(result);
+}));
+router.post('/shopify/order-contact', requireCapability('sales:write'), asyncHandler(async (req, res) => {
+  const { invoiceId, customerName, customerPhone, customerAddress, stateOfSupply } = req.body;
+  const result = await updateOnlineOrderContact(invoiceId, { customerName, customerPhone, customerAddress, stateOfSupply }, actorOf(req));
+  broadcastChange('shopify-order-contact');
   res.json(result);
 }));
 

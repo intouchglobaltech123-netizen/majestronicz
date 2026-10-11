@@ -1151,7 +1151,7 @@ export async function recordDeliveryProof(invoiceId: string, opts: { receiverNam
  */
 export async function saveOrderPacking(
   invoiceId: string,
-  patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean },
+  patch: { parcelWeightKg?: number; boxCount?: number; addressLabelDone?: boolean; invoiceIncluded?: boolean; extraShippingAmount?: number },
   actor: string,
 ): Promise<{ invoice: any }> {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
@@ -1168,6 +1168,39 @@ export async function saveOrderPacking(
       boxCount: patch.boxCount != null ? Math.max(0, Math.trunc(Number(patch.boxCount))) : undefined,
       addressLabelDone: patch.addressLabelDone != null ? !!patch.addressLabelDone : undefined,
       invoiceIncluded: patch.invoiceIncluded != null ? !!patch.invoiceIncluded : undefined,
+      extraShippingAmount: patch.extraShippingAmount != null ? Math.max(0, Number(patch.extraShippingAmount)) : undefined,
+      onlineStatusHistory: history,
+    },
+  });
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  return { invoice };
+}
+
+/**
+ * Save an online order's customer contact + delivery address LOCALLY on the ERP
+ * record. Needed because Shopify redacts customer PII on lower plans — staff copy
+ * the name / phone / address from the Shopify admin and paste it here so the ERP
+ * order, address label and WhatsApp messages are complete. This does NOT push to
+ * Shopify (see updateShopifyOrderDetails for the two-way push). Append-only log.
+ */
+export async function updateOnlineOrderContact(
+  invoiceId: string,
+  patch: { customerName?: string; customerPhone?: string; customerAddress?: string; stateOfSupply?: string },
+  actor: string,
+): Promise<{ invoice: any }> {
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!inv) throw new AppError('NOT_FOUND', 'Order not found', 404);
+  const clip = (s: unknown, n = 400) => String(s ?? '').trim().slice(0, n);
+  const now = nowIso();
+  const history = Array.isArray((inv as any).onlineStatusHistory) ? (inv as any).onlineStatusHistory : [];
+  history.push({ status: (inv as any).onlineStatus || 'New', at: now, by: actor, note: 'Customer / address updated manually' });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      ...(patch.customerName !== undefined ? { customerName: clip(patch.customerName, 160) || 'Online Customer' } : {}),
+      ...(patch.customerPhone !== undefined ? { customerPhone: clip(patch.customerPhone, 40) || null } : {}),
+      ...(patch.customerAddress !== undefined ? { customerAddress: clip(patch.customerAddress, 600) || null } : {}),
+      ...(patch.stateOfSupply !== undefined ? { stateOfSupply: clip(patch.stateOfSupply, 80) } : {}),
       onlineStatusHistory: history,
     },
   });

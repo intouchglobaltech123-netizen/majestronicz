@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { ShopifyOrder, ShopifyShopStatus } from '../../types/shopify';
 import { ShopifyOrderDetailModal } from './ShopifyOrderDetailModal';
 import { OnlineOrderPipeline } from './OnlineOrderPipeline';
+import { FlipkartBoard } from './FlipkartBoard';
 import { ShopifyInventorySyncTab } from './ShopifyInventorySyncTab';
 import { ShopifyProductsTab } from './ShopifyProductsTab';
 import { ShopifyCustomersTab } from './ShopifyCustomersTab';
@@ -51,6 +52,7 @@ export const ShopifyView: React.FC = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [financialFilter, setFinancialFilter] = useState<'all' | 'paid' | 'pending' | 'refunded'>('all');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<'all' | 'unfulfilled' | 'fulfilled' | 'partial'>('all');
+  const [fulfillmentView, setFulfillmentView] = useState<'simple' | 'advanced'>('simple');
   const [importFilter, setImportFilter] = useState<'all' | 'ready' | 'imported'>('all');
 
   // Sync tab with sidebar sub-menu navigation
@@ -653,16 +655,31 @@ export const ShopifyView: React.FC = () => {
 
       {activeTab === 'fulfillment' && (
         <div className="space-y-5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <Truck className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Fulfillment Pipeline <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5">Step 2 · inside the ERP</span></h3>
-              <p className="text-[11px] text-slate-500">Orders already imported from Store Orders. Work each one from New → Confirmed → Packed → Shipped → Delivered.</p>
+              <h3 className="text-sm font-bold text-slate-900">Fulfillment</h3>
+              <p className="text-[11px] text-slate-500">
+                {fulfillmentView === 'simple'
+                  ? 'Simple order board — To Accept → To Pack → To Dispatch → In Transit → Completed.'
+                  : 'Full pipeline with every stage, courier, returns, issues and history.'}
+              </p>
+            </div>
+            {/* Simple (Flipkart-style) ⇄ Advanced toggle */}
+            <div className="ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                onClick={() => setFulfillmentView('simple')}
+                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'simple' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+              >Simple board</button>
+              <button
+                onClick={() => setFulfillmentView('advanced')}
+                className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'advanced' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+              >Advanced</button>
             </div>
           </div>
-          <OnlineOrderPipeline />
+          {fulfillmentView === 'simple' ? <FlipkartBoard /> : <OnlineOrderPipeline />}
         </div>
       )}
 

@@ -236,6 +236,7 @@ model Invoice {
   boxCount                  Int?
   addressLabelDone          Boolean?
   invoiceIncluded           Boolean?
+  extraShippingAmount       Float?   // extra courier/shipping charge collected on an online order (display + balance)
   issues                    Json?    // [{ id, type, description, status, createdBy, createdAt, resolvedBy?, resolvedAt?, resolution? }]
   // Fulfillment-spec additions: a SEPARATE courier status track, staff assigned
   // per workflow step, proof of delivery, and the returns/RTO + revision tracks.
