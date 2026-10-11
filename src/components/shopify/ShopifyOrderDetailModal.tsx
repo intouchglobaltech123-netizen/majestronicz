@@ -50,7 +50,65 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
   // Similar products search modal state
   const [similarItemTarget, setSimilarItemTarget] = useState<ShopifyOrderLineItem | null>(null);
 
+  // Two-way edit: contact + shipping address, pushed back to the live Shopify order.
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const sa0 = order?.shippingAddress;
+  const [detailForm, setDetailForm] = useState({
+    name: sa0?.name || order?.customerName || '',
+    email: order?.customerEmail || '',
+    phone: sa0?.phone || order?.customerPhone || '',
+    address1: sa0?.address1 || '',
+    address2: sa0?.address2 || '',
+    city: sa0?.city || '',
+    province: sa0?.province || '',
+    zip: sa0?.zip || '',
+    country: sa0?.country || 'India',
+  });
+
   if (!order) return null;
+
+  const saveDetailsToShopify = async () => {
+    setSavingDetails(true);
+    try {
+      const name = detailForm.name.trim();
+      const firstSpace = name.indexOf(' ');
+      const firstName = firstSpace === -1 ? name : name.slice(0, firstSpace);
+      const lastName = firstSpace === -1 ? '' : name.slice(firstSpace + 1);
+      const res = await apiPost<{ ok: boolean; customerUpdated?: boolean; error?: string }>(
+        `/api/shopify/orders/${order.externalOrderId}/details`,
+        {
+          email: detailForm.email,
+          phone: detailForm.phone,
+          syncCustomer: true,
+          shippingAddress: {
+            firstName,
+            lastName,
+            address1: detailForm.address1,
+            address2: detailForm.address2,
+            city: detailForm.city,
+            province: detailForm.province,
+            zip: detailForm.zip,
+            country: detailForm.country,
+            phone: detailForm.phone,
+          },
+        },
+      );
+      if (res?.ok) {
+        toast.success('Saved to Shopify', {
+          description: res.customerUpdated ? 'Order and customer updated on the live store.' : 'Order updated on the live store.',
+        });
+        setEditingDetails(false);
+        onOrderUpdated?.();
+      } else {
+        toast.error('Could not save to Shopify', { description: res?.error });
+      }
+    } catch (e: any) {
+      toast.error('Could not save to Shopify', { description: e?.message });
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   const handleFulfill = async () => {
     if (!trackingNumber.trim()) {
@@ -404,34 +462,93 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
                         <MapPin className="h-3.5 w-3.5 text-blue-600" />
                         <span>Shipping Destination</span>
                       </div>
-                      {fullShippingAddressString && (
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(fullShippingAddressString, 'Full address')}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-1.5 py-0.5 cursor-pointer"
-                          title="Copy Full Address"
-                        >
-                          <Copy className="h-2.5 w-2.5" />
-                          <span>Copy</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {fullShippingAddressString && !editingDetails && (
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(fullShippingAddressString, 'Full address')}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-1.5 py-0.5 cursor-pointer"
+                            title="Copy Full Address"
+                          >
+                            <Copy className="h-2.5 w-2.5" />
+                            <span>Copy</span>
+                          </button>
+                        )}
+                        {!editingDetails && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingDetails(true)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 px-1.5 py-0.5 cursor-pointer"
+                            title="Edit customer & address, then push to Shopify"
+                          >
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs space-y-0.5 text-slate-700 mt-2">
-                      {order.shippingAddress ? (
-                        <>
-                          <p className="font-bold text-slate-900">{order.shippingAddress.name || order.customerName}</p>
-                          <p>{order.shippingAddress.address1}</p>
-                          {order.shippingAddress.address2 && <p>{order.shippingAddress.address2}</p>}
-                          <p>
-                            {order.shippingAddress.city}, {order.shippingAddress.province}{' '}
-                            {order.shippingAddress.zip ? `- ${order.shippingAddress.zip}` : ''}
-                          </p>
-                          <p>{order.shippingAddress.country || 'India'}</p>
-                        </>
-                      ) : (
-                        <p className="text-slate-400 italic">No separate shipping address provided</p>
-                      )}
-                    </div>
+                    {editingDetails ? (
+                      <div className="mt-2 space-y-1.5">
+                        {([
+                          ['name', 'Customer name'],
+                          ['phone', 'Phone'],
+                          ['email', 'Email'],
+                          ['address1', 'Address line 1'],
+                          ['address2', 'Address line 2'],
+                          ['city', 'City'],
+                          ['province', 'State'],
+                          ['zip', 'PIN code'],
+                          ['country', 'Country'],
+                        ] as [keyof typeof detailForm, string][]).map(([key, label]) => (
+                          <input
+                            key={key}
+                            type="text"
+                            value={detailForm[key]}
+                            onChange={(e) => setDetailForm((f) => ({ ...f, [key]: e.target.value }))}
+                            placeholder={label}
+                            aria-label={label}
+                            className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded-none focus:outline-none focus:border-blue-600 text-slate-900"
+                          />
+                        ))}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={savingDetails}
+                            onClick={saveDetailsToShopify}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 border border-blue-700 disabled:opacity-50 cursor-pointer"
+                          >
+                            {savingDetails ? 'Saving…' : 'Save to Shopify'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingDetails}
+                            onClick={() => setEditingDetails(false)}
+                            className="px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 disabled:opacity-50 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-snug pt-0.5">
+                          Writes to the live Shopify order. Needs write access enabled on the Shopify app.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-xs space-y-0.5 text-slate-700 mt-2">
+                        {order.shippingAddress ? (
+                          <>
+                            <p className="font-bold text-slate-900">{order.shippingAddress.name || order.customerName}</p>
+                            <p>{order.shippingAddress.address1}</p>
+                            {order.shippingAddress.address2 && <p>{order.shippingAddress.address2}</p>}
+                            <p>
+                              {order.shippingAddress.city}, {order.shippingAddress.province}{' '}
+                              {order.shippingAddress.zip ? `- ${order.shippingAddress.zip}` : ''}
+                            </p>
+                            <p>{order.shippingAddress.country || 'India'}</p>
+                          </>
+                        ) : (
+                          <p className="text-slate-400 italic">No separate shipping address provided</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {order.shippingAddress?.zip && (

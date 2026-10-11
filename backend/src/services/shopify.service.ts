@@ -719,6 +719,107 @@ export async function fulfillShopifyOrder(
   }
 }
 
+// ---- Two-way edit: push a Shopify order's contact + shipping address back ----
+
+export interface ShopifyOrderDetailsPatch {
+  email?: string;
+  phone?: string;
+  note?: string;
+  shippingAddress?: {
+    firstName?: string;
+    lastName?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    province?: string;
+    zip?: string;
+    country?: string;
+    phone?: string;
+  };
+  /** When true, the attached customer record's name/email/phone are updated too. */
+  syncCustomer?: boolean;
+}
+
+/** Turn a raw Shopify API error into advice the biller can act on. */
+function shopifyWriteError(msg: string): string {
+  if (/\b401\b/.test(msg)) return 'Shopify rejected the change: the app token is invalid or expired.';
+  if (/\b403\b/.test(msg) || /not approved|protected customer|write_orders|write_customers/i.test(msg)) {
+    return 'Shopify blocked the change: the app needs "write_orders" + "write_customers" scopes and Protected Customer Data access. Enable them in the Shopify custom app, then try again.';
+  }
+  if (/\b404\b/.test(msg)) return 'Shopify could not find this order (it may have been deleted).';
+  if (/\b422\b/.test(msg)) return `Shopify refused the values: ${msg.replace(/^Shopify API \d+:\s*/, '')}`;
+  return msg;
+}
+
+/**
+ * Push edited contact + shipping-address details to the live Shopify order (and,
+ * optionally, the attached customer). Line items are NOT edited here — a paid
+ * order's items need Shopify's Order Editing API, which is out of scope. Requires
+ * write_orders / write_customers scopes; returns a friendly error if they are
+ * missing so the UI can tell the biller what to enable.
+ */
+export async function updateShopifyOrderDetails(
+  externalOrderId: string,
+  patch: ShopifyOrderDetailsPatch,
+): Promise<{ ok: boolean; order?: any; customerUpdated?: boolean; error?: string }> {
+  const cfg = getShopifyConfig();
+  if (!cfg) return { ok: false, error: 'Shopify is not configured (set SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_TOKEN).' };
+
+  const orderBody: any = { id: Number(externalOrderId) };
+  if (patch.email !== undefined) orderBody.email = patch.email.trim();
+  if (patch.phone !== undefined) orderBody.phone = patch.phone.trim();
+  if (patch.note !== undefined) orderBody.note = patch.note;
+  if (patch.shippingAddress) {
+    const a = patch.shippingAddress;
+    orderBody.shipping_address = {
+      first_name: a.firstName?.trim() || '',
+      last_name: a.lastName?.trim() || '',
+      address1: a.address1?.trim() || '',
+      address2: a.address2?.trim() || '',
+      city: a.city?.trim() || '',
+      province: a.province?.trim() || '',
+      zip: a.zip?.trim() || '',
+      country: a.country?.trim() || 'India',
+      phone: a.phone?.trim() || '',
+    };
+  }
+
+  let updated: any;
+  try {
+    const res = await shopifyFetch<{ order: any }>(`orders/${externalOrderId}.json`, {
+      method: 'PUT',
+      body: JSON.stringify({ order: orderBody }),
+    });
+    updated = res.order;
+  } catch (e: any) {
+    return { ok: false, error: shopifyWriteError(e?.message || 'Could not update the Shopify order.') };
+  }
+
+  // Best-effort: keep the attached customer profile in step with the edit. A
+  // failure here does not fail the order update (the order is the source of truth
+  // for dispatch); we just report that the customer side didn't sync.
+  let customerUpdated = false;
+  const customerId = updated?.customer?.id;
+  if (patch.syncCustomer && customerId) {
+    const custBody: any = { id: customerId };
+    if (patch.shippingAddress?.firstName !== undefined) custBody.first_name = patch.shippingAddress.firstName?.trim() || '';
+    if (patch.shippingAddress?.lastName !== undefined) custBody.last_name = patch.shippingAddress.lastName?.trim() || '';
+    if (patch.email !== undefined) custBody.email = patch.email.trim();
+    if (patch.phone !== undefined) custBody.phone = patch.phone.trim();
+    try {
+      await shopifyFetch(`customers/${customerId}.json`, {
+        method: 'PUT',
+        body: JSON.stringify({ customer: custBody }),
+      });
+      customerUpdated = true;
+    } catch {
+      customerUpdated = false;
+    }
+  }
+
+  return { ok: true, order: updated, customerUpdated };
+}
+
 // ---- Online-order fulfillment pipeline (ERP-side status tracking) ----
 // ERP fulfillment workflow stages (client's workflow spec). 'Out for Delivery'
 // is kept accepted for legacy imported rows.

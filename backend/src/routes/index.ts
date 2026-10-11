@@ -45,6 +45,7 @@ import {
   pushInventoryToShopify,
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
+  updateShopifyOrderDetails,
   updateOnlineOrderStatus,
   saveOrderTracking,
   setCourierStatus,
@@ -795,6 +796,24 @@ router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asy
   const result = await fulfillShopifyOrder(req.params.id, req.body?.trackingNumber, req.body?.carrier);
   broadcastChange('shopify-fulfillment');
   res.json(result);
+}));
+// Two-way edit: push contact + shipping-address changes to the live Shopify order.
+// Writing to the real store is CEO/Manager-only and audited.
+router.post('/shopify/orders/:id/details', requireManagerOrCEO, asyncHandler(async (req, res) => {
+  const { email, phone, note, shippingAddress, syncCustomer } = req.body || {};
+  const result = await updateShopifyOrderDetails(req.params.id, { email, phone, note, shippingAddress, syncCustomer });
+  if (result.ok) {
+    await recordAudit({
+      actor: actorOf(req),
+      action: 'shopify.order.edit',
+      entity: 'shopify-order',
+      entityId: req.params.id,
+      summary: `Pushed order ${req.params.id} contact/address edit to Shopify${result.customerUpdated ? ' (+ customer)' : ''}`,
+      after: { email, phone, shippingAddress, syncCustomer },
+    });
+    broadcastChange('shopify-order-edit');
+  }
+  res.status(result.ok ? 200 : 400).json(result);
 }));
 router.post('/shopify/order-status', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const { invoiceId, status, trackingNumber, courierName, trackingUrl, trayPhotoUrl, parcelPhotoUrl, note } = req.body;
