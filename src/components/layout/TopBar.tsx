@@ -112,6 +112,24 @@ export const TopBar: React.FC<TopBarProps> = ({
           />
         </div>
 
+        {/* One-click Online Store shortcut (no dropdown scrolling). CEO/Manager. */}
+        {(currentUser.role === 'CEO' || currentUser.role === 'Manager') && (
+          <button
+            type="button"
+            onClick={() => navigateToTab('shopify', 'orders')}
+            title="Open Online Store (Shopify)"
+            className={cn(
+              'shrink-0 inline-flex items-center gap-1.5 h-8 px-2.5 rounded-none border text-xs font-bold transition-colors cursor-pointer',
+              currentView === 'shopify'
+                ? 'bg-red-600 text-white border-red-700'
+                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+            )}
+          >
+            <ShopifyMark className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Online Store</span>
+          </button>
+        )}
+
       </div>
 
       {/* Center: Global search (Vyapar-style) */}
