@@ -7,9 +7,20 @@ import {
   Zap,
   Store,
   Terminal,
+  ShieldCheck,
 } from 'lucide-react';
 import { ShopifyShopStatus } from '../../types/shopify';
+import { apiGet } from '../../lib/api';
 import { toast } from 'sonner';
+
+interface ScopeCheck {
+  configured: boolean;
+  ok: boolean;
+  granted: string[];
+  missing: { handle: string; label: string }[];
+  protectedDataLikelyOn: boolean | null;
+  error?: string;
+}
 
 interface Props {
   status: ShopifyShopStatus | null;
@@ -18,6 +29,23 @@ interface Props {
 
 export const ShopifySettingsTab: React.FC<Props> = ({ status, onRefresh }) => {
   const [testing, setTesting] = useState(false);
+  const [checkingScopes, setCheckingScopes] = useState(false);
+  const [scopes, setScopes] = useState<ScopeCheck | null>(null);
+
+  const handleScopeCheck = async () => {
+    setCheckingScopes(true);
+    try {
+      const res = await apiGet<ScopeCheck>('/api/shopify/scope-check');
+      setScopes(res);
+      if (res.error) toast.error('Permission check failed', { description: res.error });
+      else if (res.ok && res.protectedDataLikelyOn) toast.success('All permissions are active');
+      else toast.warning('Some permissions are still missing — see the list');
+    } catch (e: any) {
+      toast.error('Permission check failed', { description: e?.message });
+    } finally {
+      setCheckingScopes(false);
+    }
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -107,6 +135,71 @@ export const ShopifySettingsTab: React.FC<Props> = ({ status, onRefresh }) => {
           <div className="mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
             <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
             <span>{status.error}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Permissions / Scope check — tells the owner exactly what the token can do */}
+      <div className="bg-white border border-slate-300 shadow-xs p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-900 font-bold text-sm uppercase tracking-wide">
+            <ShieldCheck className="h-4 w-4 text-red-600" />
+            App Permissions
+          </div>
+          <button
+            onClick={handleScopeCheck}
+            disabled={checkingScopes}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold disabled:opacity-50 cursor-pointer self-start sm:self-auto"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${checkingScopes ? 'animate-spin' : ''}`} />
+            {checkingScopes ? 'Checking…' : 'Check permissions'}
+          </button>
+        </div>
+        <p className="text-xs text-slate-600">
+          Reads back what your Shopify token can actually do. If you enabled scopes but they show as missing here, the token still carries the old permissions — <b>reinstall the custom app, copy the new Admin API token, and update <code className="bg-slate-100 px-1 border border-slate-200 font-mono">SHOPIFY_ADMIN_TOKEN</code> on Railway</b>.
+        </p>
+
+        {scopes && !scopes.error && (
+          <div className="space-y-3">
+            {/* Protected customer data */}
+            <div className={`flex items-center gap-2 p-3 text-xs border ${
+              scopes.protectedDataLikelyOn
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}>
+              {scopes.protectedDataLikelyOn ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+              <span>
+                <b>Protected Customer Data:</b>{' '}
+                {scopes.protectedDataLikelyOn
+                  ? 'active — full name, email, phone & address are coming through.'
+                  : 'NOT active — Shopify is still hiding name/email/phone/street. Enable it in the app’s “Protected customer data” section.'}
+              </span>
+            </div>
+
+            {/* Scope grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {scopes.missing.length === 0 ? (
+                <div className="col-span-full flex items-center gap-2 text-xs font-bold text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" /> All required scopes are granted.
+                </div>
+              ) : (
+                scopes.missing.map((m) => (
+                  <div key={m.handle} className="flex items-center gap-2 text-xs text-rose-700">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Missing: <code className="font-mono font-bold">{m.handle}</code> — {m.label}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            {scopes.granted.length > 0 && (
+              <p className="text-[11px] text-slate-400">Granted: {scopes.granted.join(', ')}</p>
+            )}
+          </div>
+        )}
+        {scopes?.error && (
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+            <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            <span>{scopes.error}</span>
           </div>
         )}
       </div>

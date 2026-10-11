@@ -46,6 +46,7 @@ import {
   pushAllErpStockToShopify,
   fulfillShopifyOrder,
   updateShopifyOrderDetails,
+  getShopifyScopeCheck,
   updateOnlineOrderStatus,
   saveOrderTracking,
   setCourierStatus,
@@ -791,6 +792,7 @@ router.get('/flipkart/status', requireCapability('sales:write'), asyncHandler(as
 router.get('/flipkart/orders', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewFlipkartOrders(Number(req.query.limit) || 50))));
 
 router.get('/shopify/status', requireCapability('sales:write'), asyncHandler(async (_req, res) => res.json(await getShopInfo())));
+router.get('/shopify/scope-check', requireManagerOrCEO, asyncHandler(async (_req, res) => res.json(await getShopifyScopeCheck())));
 router.get('/shopify/orders', requireCapability('sales:write'), asyncHandler(async (req, res) => res.json(await previewOrders(Number(req.query.limit) || 50))));
 router.post('/shopify/orders/:id/fulfill', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   const result = await fulfillShopifyOrder(req.params.id, req.body?.trackingNumber, req.body?.carrier);

@@ -80,6 +80,72 @@ export async function getShopInfo(): Promise<{ configured: boolean; connected: b
   }
 }
 
+/** Every Admin API scope the ERP uses, with a plain-English label for the UI. */
+export const SHOPIFY_REQUIRED_SCOPES: { handle: string; label: string }[] = [
+  { handle: 'read_orders', label: 'Read orders' },
+  { handle: 'write_orders', label: 'Edit orders (address/contact, fulfil)' },
+  { handle: 'read_customers', label: 'Read customers' },
+  { handle: 'write_customers', label: 'Edit customers' },
+  { handle: 'read_products', label: 'Read product catalog' },
+  { handle: 'read_inventory', label: 'Read stock levels' },
+  { handle: 'write_inventory', label: 'Push ERP stock to Shopify' },
+  { handle: 'read_locations', label: 'Read store locations' },
+  { handle: 'read_fulfillments', label: 'Read tracking/fulfilment' },
+  { handle: 'write_fulfillments', label: 'Send tracking to Shopify' },
+  { handle: 'read_merchant_managed_fulfillment_orders', label: 'Read fulfilment orders' },
+  { handle: 'write_merchant_managed_fulfillment_orders', label: 'Fulfil orders (new API)' },
+];
+
+/**
+ * Read back the scopes the CURRENT Admin token actually has (via the Shopify
+ * oauth/access_scopes endpoint — NOT under /admin/api/). This is the fastest way
+ * to tell whether "I enabled everything" actually took effect: changing scopes on
+ * a custom app does not upgrade the existing token — it must be reinstalled and the
+ * new token saved. Also probes one order to infer whether Protected Customer Data
+ * is returning real PII.
+ */
+export async function getShopifyScopeCheck(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  granted: string[];
+  missing: { handle: string; label: string }[];
+  protectedDataLikelyOn: boolean | null;
+  error?: string;
+}> {
+  const cfg = getShopifyConfig();
+  if (!cfg) {
+    return { configured: false, ok: false, granted: [], missing: SHOPIFY_REQUIRED_SCOPES, protectedDataLikelyOn: null };
+  }
+  try {
+    const res = await fetch(`https://${cfg.domain}/admin/oauth/access_scopes.json`, {
+      headers: { 'X-Shopify-Access-Token': cfg.adminToken, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Shopify API ${res.status}: ${text.slice(0, 200)}`);
+    const data = JSON.parse(text) as { access_scopes?: { handle: string }[] };
+    const granted = (data.access_scopes || []).map((s) => s.handle);
+    const missing = SHOPIFY_REQUIRED_SCOPES.filter((s) => !granted.includes(s.handle));
+
+    // Protected Customer Data isn't a scope we can list — infer it by checking
+    // whether one order actually returns PII (name/email/street) or just province.
+    let protectedDataLikelyOn: boolean | null = null;
+    try {
+      const ord = await shopifyFetch<{ orders: any[] }>(`orders.json?status=any&limit=1&fields=customer,shipping_address`);
+      const o = (ord.orders || [])[0];
+      if (o) {
+        const a = o.shipping_address || {};
+        protectedDataLikelyOn = Boolean(o.customer?.first_name || o.customer?.email || o.customer?.phone || a.address1 || a.name || a.city);
+      }
+    } catch {
+      protectedDataLikelyOn = null;
+    }
+    return { configured: true, ok: missing.length === 0, granted, missing, protectedDataLikelyOn };
+  } catch (e: any) {
+    return { configured: true, ok: false, granted: [], missing: SHOPIFY_REQUIRED_SCOPES, protectedDataLikelyOn: null, error: e?.message };
+  }
+}
+
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Flatten a Shopify address into a full single-line string for the ERP invoice /
