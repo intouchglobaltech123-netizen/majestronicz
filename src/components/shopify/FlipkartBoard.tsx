@@ -87,6 +87,22 @@ const waLink = (phone: string | undefined, text: string): string | null => {
 const orderNoOf = (inv: Invoice) => inv.externalOrderId || inv.invoiceNumber;
 const balanceOf = (inv: Invoice) => Math.max(0, Number(inv.balanceDue) || 0);
 
+/** Whether an un-imported Shopify order can be fulfilled from current ERP stock. */
+const stockStatusOf = (o: ShopifyOrder): { label: string; tone: 'ok' | 'short' | 'check' } => {
+  const lines = o.lines || [];
+  const matched = lines.filter((l) => l.matched);
+  const anyShort = matched.some((l) => (l.erpStockOnHand ?? 0) < (l.qty || 0));
+  const anyUnmatched = lines.some((l) => !l.matched);
+  if (anyShort) return { label: 'Low stock', tone: 'short' };
+  if (anyUnmatched) return { label: 'Check items', tone: 'check' };
+  return { label: 'In stock', tone: 'ok' };
+};
+const STOCK_TONE: Record<'ok' | 'short' | 'check', string> = {
+  ok: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  short: 'bg-rose-50 text-rose-700 border-rose-200',
+  check: 'bg-amber-50 text-amber-700 border-amber-200',
+};
+
 /* ───────────────────────────── Board (list view) ──────────────────────────── */
 
 interface BoardProps {
@@ -104,6 +120,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   const [bucket, setBucket] = useState<Bucket>('to_accept');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedPending, setExpandedPending] = useState<string | null>(null);
 
   // Paid Shopify orders not yet pulled into the ERP — these are the real
   // "To Accept" queue: accepting one imports it, then it flows through the board.
@@ -233,22 +250,65 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
             )}
           </div>
           <div className="divide-y divide-amber-100">
-            {pendingFiltered.map((o) => (
-              <div key={o.externalOrderId} className="flex items-center gap-3 px-3 sm:px-4 py-2.5">
-                <button onClick={() => onOpenShopifyOrder?.(o)} className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[11px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">{o.orderName}</span>
-                    <span className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{o.customerName || 'Online customer'}</span>
-                    {o.customerPhone && <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">· {o.customerPhone}</span>}
+            {pendingFiltered.map((o) => {
+              const st = stockStatusOf(o);
+              const open = expandedPending === o.externalOrderId;
+              return (
+                <div key={o.externalOrderId}>
+                  <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5">
+                    <button onClick={() => setExpandedPending(open ? null : o.externalOrderId)} className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[11px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">{o.orderName}</span>
+                        <span className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{o.customerName || 'Online customer'}</span>
+                        <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full border inline-flex items-center gap-1', STOCK_TONE[st.tone])}>
+                          <Boxes className="h-3 w-3" />{st.label}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN')} · tap to check stock</div>
+                    </button>
+                    <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
+                    <button onClick={onImportAll} disabled={importing} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
+                      Accept <ArrowRight className="h-3 w-3" />
+                    </button>
                   </div>
-                  <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN')} · not yet in ERP</div>
-                </button>
-                <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
-                <button onClick={onImportAll} disabled={importing} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
-                  Accept <ArrowRight className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
+                  {open && (
+                    <div className="px-3 sm:px-4 pb-3 -mt-1">
+                      <div className="rounded-lg border border-amber-200 bg-white divide-y divide-slate-100">
+                        {(o.lines || []).map((l, i) => {
+                          const need = l.qty || 0;
+                          const have = l.erpStockOnHand ?? 0;
+                          const enough = l.matched && have >= need;
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">{l.itemName || l.title}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">{l.sku || 'no SKU'}</div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="font-mono font-bold text-slate-900">need ×{need}</div>
+                                {!l.matched
+                                  ? <div className="text-[10px] font-bold text-amber-600">not matched to ERP item</div>
+                                  : <div className={cn('text-[10px] font-bold', enough ? 'text-emerald-600' : 'text-rose-600')}>{have} in stock {enough ? '✓' : '⚠ short'}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+                          <DownloadCloud className="h-3.5 w-3.5" /> Accept &amp; import
+                        </button>
+                        {onOpenShopifyOrder && (
+                          <button onClick={() => onOpenShopifyOrder(o)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50">
+                            View full order
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

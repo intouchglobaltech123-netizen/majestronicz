@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -8,9 +8,11 @@ import {
   Store,
   Terminal,
   ShieldCheck,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { ShopifyShopStatus } from '../../types/shopify';
-import { apiGet } from '../../lib/api';
+import { apiGet, apiPut } from '../../lib/api';
 import { toast } from 'sonner';
 
 interface ScopeCheck {
@@ -31,6 +33,28 @@ export const ShopifySettingsTab: React.FC<Props> = ({ status, onRefresh }) => {
   const [testing, setTesting] = useState(false);
   const [checkingScopes, setCheckingScopes] = useState(false);
   const [scopes, setScopes] = useState<ScopeCheck | null>(null);
+
+  // Shopify WRITE access — OFF by default (secure). Customer data is never
+  // written regardless; this toggle only governs stock + fulfillment/tracking.
+  const [writesEnabled, setWritesEnabled] = useState<boolean | null>(null);
+  const [savingWrites, setSavingWrites] = useState(false);
+  useEffect(() => {
+    apiGet<{ writesEnabled?: boolean } | null>('/api/config/shopifySettings')
+      .then((cfg) => setWritesEnabled(!!cfg?.writesEnabled))
+      .catch(() => setWritesEnabled(false));
+  }, []);
+  const toggleWrites = async (next: boolean) => {
+    setSavingWrites(true);
+    try {
+      await apiPut('/api/config/shopifySettings', { writesEnabled: next });
+      setWritesEnabled(next);
+      toast.success(next ? 'Shopify writes turned ON (stock & fulfilment only)' : 'Shopify writes turned OFF');
+    } catch (e: any) {
+      toast.error('Could not change write access', { description: e?.message ?? 'You may not have permission.' });
+    } finally {
+      setSavingWrites(false);
+    }
+  };
 
   const handleScopeCheck = async () => {
     setCheckingScopes(true);
@@ -137,6 +161,43 @@ export const ShopifySettingsTab: React.FC<Props> = ({ status, onRefresh }) => {
             <span>{status.error}</span>
           </div>
         )}
+      </div>
+
+      {/* Shopify WRITE access — security control */}
+      <div className="bg-white border border-slate-300 shadow-xs p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className={`h-12 w-12 border flex items-center justify-center shrink-0 ${writesEnabled ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}>
+              {writesEnabled ? <Unlock className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-extrabold text-slate-900">Write access to Shopify</h3>
+                {writesEnabled === null ? (
+                  <span className="text-[11px] text-slate-400">checking…</span>
+                ) : writesEnabled ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-300">ON · stock & fulfilment</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300"><ShieldCheck className="h-3 w-3" /> OFF · read-only</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                When <b>OFF</b> the ERP only reads from Shopify — nothing is sent back. Turn it <b>ON</b> only to let the ERP sync <b>stock levels and fulfilment/tracking</b> to the store.
+                <span className="block mt-1 text-emerald-700 font-semibold">Customer details (name, phone, email, address) are never written to Shopify — edit those inside the ERP.</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => toggleWrites(!writesEnabled)}
+            disabled={savingWrites || writesEnabled === null}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold border disabled:opacity-50 cursor-pointer self-start sm:self-auto shrink-0 ${
+              writesEnabled ? 'bg-white hover:bg-rose-50 border-rose-300 text-rose-700' : 'bg-slate-900 hover:bg-slate-800 border-slate-900 text-white'
+            }`}
+          >
+            {savingWrites ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : writesEnabled ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+            {writesEnabled ? 'Turn writes OFF' : 'Turn writes ON'}
+          </button>
+        </div>
       </div>
 
       {/* Permissions / Scope check — tells the owner exactly what the token can do */}

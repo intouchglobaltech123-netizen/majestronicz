@@ -4,6 +4,22 @@ import { prisma } from '../db.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { getConfig } from './system.service.js';
+
+/**
+ * Shopify WRITE guard. Writing anything to the store is OFF by default (secure);
+ * the owner turns it on in Online Store → Settings. Even when ON, customer PII
+ * (name / phone / email / address) is NEVER pushed to Shopify — only operational
+ * writes (inventory/stock and fulfillment + tracking) are allowed.
+ */
+export async function shopifyWritesEnabled(): Promise<boolean> {
+  try {
+    const cfg: any = await getConfig('shopifySettings');
+    return !!cfg?.writesEnabled;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Shopify Admin API connector. ALL credentials come from environment variables
@@ -694,6 +710,7 @@ export async function previewInventory(limit = 100): Promise<{ configured: boole
 export async function pushInventoryToShopify(inventoryItemId: string, availableQuantity: number): Promise<{ success: boolean; error?: string }> {
   const cfg = getShopifyConfig();
   if (!cfg) return { success: false, error: 'Shopify not configured' };
+  if (!(await shopifyWritesEnabled())) return { success: false, error: 'Shopify writes are turned off. Turn them on in Online Store → Settings to sync stock.' };
   try {
     const locData = await shopifyFetch<{ locations: any[] }>('locations.json');
     const loc = locData.locations?.find((l) => l.active) || locData.locations?.[0];
@@ -744,6 +761,7 @@ export async function fulfillShopifyOrder(
 ): Promise<{ success: boolean; error?: string }> {
   const cfg = getShopifyConfig();
   if (!cfg) return { success: false, error: 'Shopify not configured' };
+  if (!(await shopifyWritesEnabled())) return { success: false, error: 'Shopify writes are turned off. Turn them on in Online Store → Settings to sync fulfillment & tracking.' };
   try {
     const foData = await shopifyFetch<{ fulfillment_orders: any[] }>(`orders/${orderId}/fulfillment_orders.json`);
     const openFo = (foData.fulfillment_orders || []).find((fo) => fo.status === 'open');
@@ -828,62 +846,11 @@ export async function updateShopifyOrderDetails(
   externalOrderId: string,
   patch: ShopifyOrderDetailsPatch,
 ): Promise<{ ok: boolean; order?: any; customerUpdated?: boolean; error?: string }> {
-  const cfg = getShopifyConfig();
-  if (!cfg) return { ok: false, error: 'Shopify is not configured (set SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_TOKEN).' };
-
-  const orderBody: any = { id: Number(externalOrderId) };
-  if (patch.email !== undefined) orderBody.email = patch.email.trim();
-  if (patch.phone !== undefined) orderBody.phone = patch.phone.trim();
-  if (patch.note !== undefined) orderBody.note = patch.note;
-  if (patch.shippingAddress) {
-    const a = patch.shippingAddress;
-    orderBody.shipping_address = {
-      first_name: a.firstName?.trim() || '',
-      last_name: a.lastName?.trim() || '',
-      address1: a.address1?.trim() || '',
-      address2: a.address2?.trim() || '',
-      city: a.city?.trim() || '',
-      province: a.province?.trim() || '',
-      zip: a.zip?.trim() || '',
-      country: a.country?.trim() || 'India',
-      phone: a.phone?.trim() || '',
-    };
-  }
-
-  let updated: any;
-  try {
-    const res = await shopifyFetch<{ order: any }>(`orders/${externalOrderId}.json`, {
-      method: 'PUT',
-      body: JSON.stringify({ order: orderBody }),
-    });
-    updated = res.order;
-  } catch (e: any) {
-    return { ok: false, error: shopifyWriteError(e?.message || 'Could not update the Shopify order.') };
-  }
-
-  // Best-effort: keep the attached customer profile in step with the edit. A
-  // failure here does not fail the order update (the order is the source of truth
-  // for dispatch); we just report that the customer side didn't sync.
-  let customerUpdated = false;
-  const customerId = updated?.customer?.id;
-  if (patch.syncCustomer && customerId) {
-    const custBody: any = { id: customerId };
-    if (patch.shippingAddress?.firstName !== undefined) custBody.first_name = patch.shippingAddress.firstName?.trim() || '';
-    if (patch.shippingAddress?.lastName !== undefined) custBody.last_name = patch.shippingAddress.lastName?.trim() || '';
-    if (patch.email !== undefined) custBody.email = patch.email.trim();
-    if (patch.phone !== undefined) custBody.phone = patch.phone.trim();
-    try {
-      await shopifyFetch(`customers/${customerId}.json`, {
-        method: 'PUT',
-        body: JSON.stringify({ customer: custBody }),
-      });
-      customerUpdated = true;
-    } catch {
-      customerUpdated = false;
-    }
-  }
-
-  return { ok: true, order: updated, customerUpdated };
+  // SECURITY: customer PII (name / email / phone / address) is NEVER written back
+  // to Shopify from the ERP. Edit these details locally in the ERP instead — the
+  // Orders board has an inline "Edit / paste" for the customer & delivery address.
+  void externalOrderId; void patch; void shopifyWriteError;
+  return { ok: false, error: 'Writing customer details to Shopify is turned off for privacy. Edit the customer & address inside the ERP instead (Orders → open the order → Edit / paste).' };
 }
 
 // ---- Online-order fulfillment pipeline (ERP-side status tracking) ----

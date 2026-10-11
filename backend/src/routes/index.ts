@@ -561,7 +561,7 @@ const CEO_ONLY_CONFIG_KEYS = new Set(['payrollSettings']);
 const WRITABLE_CONFIG_KEYS = new Set([
   'categories', 'categoryPrefixMap', 'subcategoriesByCategory', 'subcategoryPrefixMap',
   'unitsList', 'gstSlabsList', 'paymentTermsOptions', 'inventorySettings',
-  'loyaltySettings', 'payrollSettings', 'companyProfile',
+  'loyaltySettings', 'payrollSettings', 'companyProfile', 'shopifySettings',
 ]);
 
 router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => {

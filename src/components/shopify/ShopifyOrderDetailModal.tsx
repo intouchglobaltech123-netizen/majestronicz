@@ -474,16 +474,9 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
                             <span>Copy</span>
                           </button>
                         )}
-                        {!editingDetails && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingDetails(true)}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 px-1.5 py-0.5 cursor-pointer"
-                            title="Edit customer & address, then push to Shopify"
-                          >
-                            <span>Edit</span>
-                          </button>
-                        )}
+                        {/* Editing customer/address here is disabled — the ERP never
+                            writes customer data to Shopify. Edit it in the Orders
+                            board (open the order → Edit / paste) instead. */}
                       </div>
                     </div>
                     {editingDetails ? (
