@@ -269,8 +269,10 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                       {item.totalAmount.toFixed(2)}
                     </td>
                     {hasLeadTimes && (
-                      <td className="py-2.5 px-3 text-center text-slate-700 font-medium">
-                        {item.leadDays != null && item.leadDays > 0 ? `${item.leadDays} days` : 'In stock'}
+                      <td className="py-2.5 px-3 text-center font-medium">
+                        {item.leadDays != null && item.leadDays > 0
+                          ? <span className="text-amber-700">Available in {item.leadDays} day{item.leadDays === 1 ? '' : 's'}</span>
+                          : <span className="text-emerald-700">In stock</span>}
                       </td>
                     )}
                   </tr>

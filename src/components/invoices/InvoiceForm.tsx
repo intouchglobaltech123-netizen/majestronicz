@@ -2616,24 +2616,46 @@ export const InvoiceForm: React.FC<Props> = ({
                       {item.totalAmount.toFixed(2)}
                     </td>
 
-                    {/* Lead Time (Quotation only) — fill for items not in stock */}
-                    {documentType === 'Quotation' && (
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1 justify-center">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.leadDays ?? ''}
-                            onChange={(e) => updateLineItem(item.id, { leadDays: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })}
-                            placeholder="—"
-                            title="Delivery lead time in days (leave blank if in stock)"
-                            className="w-12 px-1.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-center focus:outline-none focus:border-blue-600"
-                          />
-                          <span className="text-[10px] text-slate-400">days</span>
-                        </div>
-                      </td>
-                    )}
+                    {/* Lead Time (Quotation only) — fill for items not in stock.
+                        We flag out-of-stock lines so staff know to give a lead
+                        time (no new branch needed — quote it from this branch). */}
+                    {documentType === 'Quotation' && (() => {
+                      const availQty = item.itemId
+                        ? (branchStocks.find((s) => s.itemId === item.itemId && s.branchId === selectedBranch)?.quantity ?? 0)
+                        : null;
+                      const outOfStock = availQty !== null && availQty <= 0;
+                      return (
+                        <td className="py-2.5 px-3">
+                          <div className="flex flex-col items-center gap-1">
+                            {item.itemId && (
+                              outOfStock ? (
+                                <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 whitespace-nowrap">Out of stock</span>
+                              ) : (
+                                <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">In stock · {availQty}</span>
+                              )
+                            )}
+                            <div className="flex items-center gap-1 justify-center">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={item.leadDays ?? ''}
+                                onChange={(e) => updateLineItem(item.id, { leadDays: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })}
+                                placeholder={outOfStock ? 'days?' : '—'}
+                                title="Delivery lead time in days (leave blank if in stock)"
+                                className={cn(
+                                  'w-12 px-1.5 py-1 rounded-lg text-xs font-mono text-center focus:outline-none focus:border-blue-600 border',
+                                  outOfStock && (item.leadDays == null)
+                                    ? 'bg-rose-50 border-rose-300 placeholder:text-rose-400'
+                                    : 'bg-slate-50 border-slate-200',
+                                )}
+                              />
+                              <span className="text-[10px] text-slate-400">days</span>
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })()}
 
                     {/* Delete Row */}
                     <td className="py-2.5 px-3 text-center">
