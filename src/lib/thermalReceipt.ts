@@ -9,6 +9,7 @@ import { Invoice, CompanyProfile } from '../types';
  */
 
 const LS_KEY = 'thermalAutoPrint';
+const LS_WIDTH = 'thermalWidthMm';
 /** Auto-print after saving a bill is ON unless the user turned it off. */
 export const isThermalAutoPrintOn = (): boolean => {
   try { return localStorage.getItem(LS_KEY) !== 'off'; } catch { return true; }
@@ -17,11 +18,29 @@ export const setThermalAutoPrint = (on: boolean): void => {
   try { localStorage.setItem(LS_KEY, on ? 'on' : 'off'); } catch { /* ignore */ }
 };
 
+export type ThermalWidth = 58 | 80;
+/** Paper width in mm (per billing device). Default 80mm (department store). */
+export const getThermalWidth = (): ThermalWidth => {
+  try { return localStorage.getItem(LS_WIDTH) === '58' ? 58 : 80; } catch { return 80; }
+};
+export const setThermalWidth = (mm: ThermalWidth): void => {
+  try { localStorage.setItem(LS_WIDTH, String(mm)); } catch { /* ignore */ }
+};
+
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
 const money = (n: number): string => (Number(n) || 0).toFixed(2);
 
-/** Build the 80mm receipt HTML for one sale bill. */
-export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile): string => {
+/** Build the receipt HTML for one sale bill, sized to the chosen paper width. */
+export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): string => {
+  // Narrow (58mm) paper gets smaller fonts and tighter columns than 80mm.
+  const narrow = widthMm === 58;
+  const pad = narrow ? '2mm 2.5mm 4mm' : '3mm 3.5mm 5mm';
+  const fHd = narrow ? 13 : 15;
+  const fItem = narrow ? 10 : 11;
+  const fTot = narrow ? 11 : 12;
+  const fGrand = narrow ? 13 : 15;
+  const aW = narrow ? 16 : 20;
+  const gW = narrow ? 9 : 12;
   const items = Array.isArray(inv.items) ? inv.items : [];
   const subtotal = Number(inv.subtotal) || items.reduce((s, li: any) => s + (Number(li.taxableAmount) || 0), 0);
   const tax = Number(inv.totalTax) || items.reduce((s, li: any) => s + (Number(li.totalTax) || 0), 0);
@@ -45,27 +64,27 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile): 
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Bill ${esc(inv.invoiceNumber)}</title>
   <style>
-    @page { size: 80mm auto; margin: 0; }
+    @page { size: ${widthMm}mm auto; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
-    body { width: 80mm; font-family: 'Courier New', monospace; color: #000; }
-    .r { padding: 3mm 3.5mm 5mm; }
+    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; }
+    .r { padding: ${pad}; }
     .c { text-align: center; }
     .b { font-weight: 700; }
-    .hd { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; }
-    .sm { font-size: 10px; line-height: 1.35; }
-    .xs { font-size: 9px; }
+    .hd { font-size: ${fHd}px; font-weight: 800; letter-spacing: 0.5px; }
+    .sm { font-size: ${narrow ? 9 : 10}px; line-height: 1.35; }
+    .xs { font-size: ${narrow ? 8 : 9}px; }
     hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
     table { width: 100%; border-collapse: collapse; }
-    td { font-size: 11px; vertical-align: top; padding: 0; }
+    td { font-size: ${fItem}px; vertical-align: top; padding: 0; }
     .nm { font-weight: 700; padding-top: 1mm; }
     .q { color: #000; }
-    .g { text-align: center; width: 12mm; }
-    .a { text-align: right; width: 20mm; white-space: nowrap; }
-    .tot td { font-size: 12px; padding-top: 0.5mm; }
+    .g { text-align: center; width: ${gW}mm; }
+    .a { text-align: right; width: ${aW}mm; white-space: nowrap; }
+    .tot td { font-size: ${fTot}px; padding-top: 0.5mm; }
     .tl { text-align: right; }
-    .grand td { font-size: 15px; font-weight: 800; padding-top: 1mm; }
-    .foot { font-size: 10px; margin-top: 2mm; }
+    .grand td { font-size: ${fGrand}px; font-weight: 800; padding-top: 1mm; }
+    .foot { font-size: ${narrow ? 9 : 10}px; margin-top: 2mm; }
   </style></head>
   <body><div class="r">
     <div class="c hd">${esc(company.name || 'TAX INVOICE')}</div>
@@ -99,9 +118,9 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile): 
 };
 
 /** Print the bill on the thermal printer via a hidden iframe. */
-export const printThermalReceipt = (inv: Invoice, company: CompanyProfile): void => {
+export const printThermalReceipt = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): void => {
   try {
-    const html = buildThermalReceiptHtml(inv, company);
+    const html = buildThermalReceiptHtml(inv, company, widthMm);
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });

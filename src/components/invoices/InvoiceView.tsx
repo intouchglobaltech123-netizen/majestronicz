@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { printThermalReceipt } from '../../lib/thermalReceipt';
+import { ThermalSettingsModal } from './ThermalSettingsModal';
 
 // One open billing draft in the multi-tab bar (Vyapar-style). Each tab keeps its
 // own live InvoiceForm mounted so switching never loses in-progress work.
@@ -119,6 +120,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   });
   // Which challan sub-tab to show when the embedded Delivery Challans tab is open.
   const [challanTab, setChallanTab] = useState<'new' | 'history'>('history');
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
 
   // Work-in-progress drafts (per-user, browser-local)
   const [drafts, setDrafts] = useState<SalesDraft[]>(() => loadDrafts(draftUserKey));
@@ -589,6 +591,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 {activeTab !== 'new' && <HistoryLoadingHint />}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowPrintSettings(true)}
+              title="Thermal printer settings (paper width, auto-print)"
+              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[11px] font-bold hover:bg-slate-50"
+            >
+              <ReceiptText className="h-3.5 w-3.5" /> Printer settings
+            </button>
         </div>
 
         {/* Multi-tab bill strip — inline on the RIGHT of the heading, horizontal scroll */}
@@ -1383,6 +1393,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         estimate={previewEstimate}
         isOpen={!!previewEstimate}
         onClose={() => setPreviewEstimate(null)}
+      />
+
+      {/* Thermal printer settings (paper width + auto-print + test) */}
+      <ThermalSettingsModal
+        open={showPrintSettings}
+        onClose={() => setShowPrintSettings(false)}
+        company={companyProfile}
+        sampleInvoice={invoices[0] || null}
       />
 
       {/* Line-Item Return Modal */}
