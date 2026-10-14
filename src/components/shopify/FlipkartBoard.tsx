@@ -202,16 +202,22 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
 
   // All online orders already in the ERP — NOT filtered by the selected branch
   // (online orders belong to the store, not one counter), so they never vanish.
+  // Demo orders (sourceChannel 'shopify-demo', loaded to exercise the flow) show
+  // here too — otherwise moving a demo order through stages would be invisible.
   const online = useMemo(
     () =>
       invoices
-        .filter((i) => i.sourceChannel === 'shopify' && !i.isVoided)
+        .filter((i) => (i.sourceChannel === 'shopify' || i.sourceChannel === 'shopify-demo') && !i.isVoided)
         .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
     [invoices],
   );
 
   // Is an imported order sitting in the To-Accept batch (New + due by cut-off)?
-  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept' && dueByCutoff(orderTimeOf(inv), cutoff);
+  // Demo orders are always treated as "due" so moving one to To Accept is
+  // predictable when testing; real orders follow the daily 6 PM cut-off.
+  const inToAccept = (inv: Invoice) =>
+    bucketOf(inv) === 'to_accept' &&
+    (inv.sourceChannel === 'shopify-demo' || dueByCutoff(orderTimeOf(inv), cutoff));
 
   const matchesView = (inv: Invoice, v: typeof view): boolean => {
     if (v === 'all_orders') return !inToAccept(inv);
