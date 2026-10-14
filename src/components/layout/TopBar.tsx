@@ -34,6 +34,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     currentUser,
     currentView,
     navigateToTab,
+    setCurrentView,
   } = useErp();
 
   const [isSelfAttendanceOpen, setIsSelfAttendanceOpen] = useState(false);
@@ -83,6 +84,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                 return;
               }
               switchBranch(v as BranchScope);
+              // If we're currently inside a store view (Online Store), picking a
+              // branch means the user wants to leave the store and work in that
+              // branch — otherwise the dropdown would stay on "Select option…"
+              // (the store value) and the switch would look like it did nothing.
+              if (currentView === 'shopify' || currentView === 'flipkart') {
+                setCurrentView('dashboard');
+              }
             }}
             options={[
               ...(currentUser.role === 'CEO' ? [{ value: 'all', label: 'All Branches', sublabel: 'Erode · Coimbatore · Chennai' }] : []),
