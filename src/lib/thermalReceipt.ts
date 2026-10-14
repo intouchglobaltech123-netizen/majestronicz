@@ -42,25 +42,51 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
   const aW = narrow ? 16 : 20;
   const gW = narrow ? 9 : 12;
   const items = Array.isArray(inv.items) ? inv.items : [];
-  const subtotal = Number(inv.subtotal) || items.reduce((s, li: any) => s + (Number(li.taxableAmount) || 0), 0);
-  const tax = Number(inv.totalTax) || items.reduce((s, li: any) => s + (Number(li.totalTax) || 0), 0);
+  const subtotal = items.reduce((s, li: any) => s + (Number(li.taxableAmount) || 0) + (Number(li.discountAmount) || 0), 0)
+    || (Number(inv.subtotal) || 0);
   const discount = items.reduce((s, li: any) => s + (Number(li.discountAmount) || 0), 0);
   const roundOff = Number(inv.roundOff) || 0;
   const grand = Number(inv.grandTotal) || 0;
   const balance = Math.max(0, Number(inv.balanceDue) || 0);
-  const splits = Array.isArray(inv.paymentSplits) && inv.paymentSplits.length
-    ? inv.paymentSplits.map((p) => `${esc(p.mode)} ${money(p.amount)}`).join(', ')
-    : esc(inv.paymentMode || '');
-  const qty = items.reduce((s, li: any) => s + (Number(li.quantity) || 0), 0);
 
+  // Item rows: Item | Qty | Amt (line total), like the reference bill.
   const rows = items.map((li: any) => {
     const name = esc(li.itemName || '');
     const q = Number(li.quantity) || 0;
-    const rate = Number(li.unitPrice) || 0;
-    const amt = Number(li.totalAmount) || q * rate;
-    return `<tr><td class="nm" colspan="3">${name}</td></tr>
-      <tr><td class="q">${q} ${esc(li.unit || '')} x ${money(rate)}</td><td class="g">${li.taxRate ? `${li.taxRate}%` : ''}</td><td class="a">${money(amt)}</td></tr>`;
+    // Pre-tax line base (qty × rate), so the Amt column sums to Sub Total.
+    const amt = q * (Number(li.unitPrice) || 0);
+    return `<tr><td class="nm">${name}</td><td class="g">${q}</td><td class="a">${money(amt)}</td></tr>`;
   }).join('');
+
+  // GST grouped by rate → CGST @ half% / SGST @ half% lines (e.g. 18% → 9% + 9%).
+  const taxGroups = new Map<number, { cgst: number; sgst: number }>();
+  for (const li of items as any[]) {
+    const r = Number(li.taxRate) || 0;
+    if (r <= 0) continue;
+    const g = taxGroups.get(r) || { cgst: 0, sgst: 0 };
+    g.cgst += Number(li.cgstAmount) || 0;
+    g.sgst += Number(li.sgstAmount) || 0;
+    taxGroups.set(r, g);
+  }
+  const taxRows = [...taxGroups.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .flatMap(([rate, g]) => {
+      const half = (rate / 2).toFixed(2);
+      const out: string[] = [];
+      if (g.cgst > 0) out.push(`<tr class="tax"><td>CGST @ ${half}%</td><td class="tl">${money(g.cgst)}</td></tr>`);
+      if (g.sgst > 0) out.push(`<tr class="tax"><td>SGST @ ${half}%</td><td class="tl">${money(g.sgst)}</td></tr>`);
+      return out;
+    }).join('');
+
+  // Payment lines: one per mode (e.g. "Cash : Rs 811.00"), then amount tendered.
+  const paySplits = Array.isArray(inv.paymentSplits) && inv.paymentSplits.length
+    ? inv.paymentSplits
+    : [{ mode: inv.paymentMode || 'Cash', amount: grand - balance } as any];
+  const payRows = paySplits
+    .filter((p: any) => (Number(p.amount) || 0) > 0)
+    .map((p: any) => `<tr class="grand"><td>${esc(p.mode)} :</td><td class="tl">Rs ${money(p.amount)}</td></tr>`)
+    .join('');
+  const tendered = Number((inv as any).cashTendered) || (grand - balance);
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Bill ${esc(inv.invoiceNumber)}</title>
   <style>
@@ -72,47 +98,60 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     .c { text-align: center; }
     .b { font-weight: 700; }
     .hd { font-size: ${fHd}px; font-weight: 800; letter-spacing: 0.5px; }
-    .sm { font-size: ${narrow ? 9 : 10}px; line-height: 1.35; }
+    .ttl { font-size: ${fItem + 1}px; font-weight: 800; }
+    .sm { font-size: ${narrow ? 9 : 10}px; line-height: 1.45; }
     .xs { font-size: ${narrow ? 8 : 9}px; }
     hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
     table { width: 100%; border-collapse: collapse; }
     td { font-size: ${fItem}px; vertical-align: top; padding: 0; }
-    .nm { font-weight: 700; padding-top: 1mm; }
-    .q { color: #000; }
+    thead td { font-weight: 700; border-bottom: 1px solid #000; padding-bottom: 1mm; }
+    tbody tr td { padding-top: 1mm; }
+    .nm { font-weight: 400; }
     .g { text-align: center; width: ${gW}mm; }
     .a { text-align: right; width: ${aW}mm; white-space: nowrap; }
-    .tot td { font-size: ${fTot}px; padding-top: 0.5mm; }
+    .tot td { font-size: ${fTot}px; padding-top: 0.6mm; }
     .tl { text-align: right; }
-    .grand td { font-size: ${fGrand}px; font-weight: 800; padding-top: 1mm; }
-    .foot { font-size: ${narrow ? 9 : 10}px; margin-top: 2mm; }
+    .tax td { font-size: ${narrow ? 8 : 9}px; color: #000; }
+    tr.grand td { font-size: ${fGrand}px; font-weight: 800; padding-top: 1mm; }
+    .foot { font-size: ${narrow ? 8 : 9}px; margin-top: 2mm; }
   </style></head>
   <body><div class="r">
-    <div class="c hd">${esc(company.name || 'TAX INVOICE')}</div>
+    <div class="c hd">${esc(company.name || 'RETAIL INVOICE')}</div>
     <div class="c sm">${esc(company.address || '')}</div>
-    <div class="c sm">${company.phone ? 'Ph: ' + esc(company.phone) : ''}${company.gstin ? ' · GSTIN: ' + esc(company.gstin) : ''}</div>
+    <div class="c sm">${company.phone ? 'PHONE : ' + esc(company.phone) : ''}</div>
+    <div class="c sm">${company.gstin ? 'GSTIN : ' + esc(company.gstin) : ''}</div>
+    <div class="c ttl" style="margin-top:2mm">Retail Invoice</div>
     <hr/>
-    <div class="sm"><span class="b">Bill:</span> ${esc(inv.invoiceNumber)}</div>
-    <div class="sm"><span class="b">Date:</span> ${esc(inv.date || '')} ${esc(inv.time || '')}</div>
-    <div class="sm"><span class="b">Customer:</span> ${esc(inv.customerName || 'Walk-in')}${inv.customerPhone ? ' · ' + esc(inv.customerPhone) : ''}</div>
+    <div class="sm"><span class="b">Date :</span> ${esc(inv.date || '')}${inv.time ? ', ' + esc(inv.time) : ''}</div>
+    ${inv.customerName ? `<div class="sm b" style="margin-top:1mm">${esc(inv.customerName)}</div>` : ''}
+    ${inv.customerPhone ? `<div class="sm">${esc(inv.customerPhone)}</div>` : ''}
+    <div class="sm" style="margin-top:1mm"><span class="b">Bill No:</span> ${esc(inv.invoiceNumber)}</div>
+    <div class="sm"><span class="b">Payment Mode:</span> ${esc(inv.paymentMode || 'Cash')}</div>
     <hr/>
-    <table><tbody>${rows}</tbody></table>
+    <table>
+      <thead><tr><td>Item</td><td class="g">Qty</td><td class="a">Amt</td></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
     <hr/>
     <table class="tot"><tbody>
-      <tr><td>Items / Qty</td><td class="tl">${items.length} / ${qty}</td></tr>
       <tr><td>Sub Total</td><td class="tl">${money(subtotal)}</td></tr>
-      ${discount > 0 ? `<tr><td>Discount</td><td class="tl">-${money(discount)}</td></tr>` : ''}
-      ${tax > 0 ? `<tr><td>GST</td><td class="tl">${money(tax)}</td></tr>` : ''}
+      ${discount > 0 ? `<tr><td>(-) Discount</td><td class="tl">${money(discount)}</td></tr>` : ''}
+      ${taxRows}
       ${roundOff ? `<tr><td>Round Off</td><td class="tl">${money(roundOff)}</td></tr>` : ''}
     </tbody></table>
     <hr/>
-    <table class="grand"><tbody><tr><td>TOTAL</td><td class="tl">Rs ${money(grand)}</td></tr></tbody></table>
-    <table class="tot"><tbody>
-      <tr><td>Paid (${splits || '-'})</td><td class="tl">${money(grand - balance)}</td></tr>
-      ${balance > 0 ? `<tr><td class="b">Balance Due</td><td class="tl b">${money(balance)}</td></tr>` : ''}
+    <table><tbody>
+      <tr class="grand"><td>TOTAL</td><td class="tl">Rs ${money(grand)}</td></tr>
     </tbody></table>
     <hr/>
+    <table class="tot"><tbody>
+      ${payRows}
+      <tr><td>Cash tendered:</td><td class="tl">Rs ${money(tendered)}</td></tr>
+      ${balance > 0 ? `<tr><td class="b">Balance Due:</td><td class="tl b">Rs ${money(balance)}</td></tr>` : ''}
+    </tbody></table>
+    <hr/>
+    <div class="c xs b">E & O E</div>
     <div class="c foot">Thank you! Visit again.</div>
-    ${company.ratingLink ? `<div class="c xs">Rate us: ${esc(company.ratingLink)}</div>` : ''}
     ${company.upiId ? `<div class="c xs">UPI: ${esc(company.upiId)}</div>` : ''}
   </div></body></html>`;
 };
