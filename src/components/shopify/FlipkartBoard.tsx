@@ -87,6 +87,43 @@ const waLink = (phone: string | undefined, text: string): string | null => {
 const orderNoOf = (inv: Invoice) => inv.externalOrderId || inv.invoiceNumber;
 const balanceOf = (inv: Invoice) => Math.max(0, Number(inv.balanceDue) || 0);
 
+const photoSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'photo_sent');
+const trackingSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'tracking_sent');
+
+/** Detailed processing steps (client's workflow doc, Change 03). Each maps to an
+ *  actionable point in the ERP pipeline so staff see exactly what's pending. */
+type StepKey =
+  | 'step_tray' | 'step_photo' | 'step_photo_send' | 'step_confirm' | 'step_bill'
+  | 'step_pack' | 'step_courier_book' | 'step_courier_handover' | 'step_tracking_id' | 'step_tracking_send';
+const STEPS: { key: StepKey; label: string; match: (inv: Invoice) => boolean }[] = [
+  { key: 'step_tray', label: 'Collect in Tray', match: (i) => i.onlineStatus === 'Picking' },
+  { key: 'step_photo', label: 'Product Photo Pending', match: (i) => i.onlineStatus === 'Tray Photo' && !i.trayPhotoUrl },
+  { key: 'step_photo_send', label: 'WhatsApp Photo Pending', match: (i) => !!i.trayPhotoUrl && !photoSent(i) && (i.onlineStatus === 'Tray Photo' || i.onlineStatus === 'Confirmed') },
+  { key: 'step_confirm', label: 'Customer Confirmation Pending', match: (i) => i.onlineStatus === 'Confirmed' },
+  { key: 'step_bill', label: 'Final Bill Pending', match: (i) => i.onlineStatus === 'Billed' },
+  { key: 'step_pack', label: 'Packing & Label Pending', match: (i) => i.onlineStatus === 'Packed' },
+  { key: 'step_courier_book', label: 'Courier Booking Pending', match: (i) => i.onlineStatus === 'Shipped' && !i.courierName },
+  { key: 'step_courier_handover', label: 'Courier Handover Pending', match: (i) => i.onlineStatus === 'Shipped' && !!i.courierName && i.courierStatus !== 'Handed' && i.courierStatus !== 'Tracking Received' },
+  { key: 'step_tracking_id', label: 'Tracking ID Pending', match: (i) => milestoneIndex(i.onlineStatus as OnlineOrderStatus) >= 3 && !i.trackingNumber },
+  { key: 'step_tracking_send', label: 'Tracking Send Pending', match: (i) => !!i.trackingNumber && !trackingSent(i) && milestoneIndex(i.onlineStatus as OnlineOrderStatus) >= 3 },
+];
+
+// Daily 6 PM cut-off (Change 01/02): orders received up to the last 6 PM are
+// "due" and sit in To Accept; orders received after it are upcoming (All Orders).
+const CUTOFF_HOUR = 18;
+const lastCutoffTime = (): number => {
+  const now = new Date();
+  const c = new Date(now.getFullYear(), now.getMonth(), now.getDate(), CUTOFF_HOUR, 0, 0, 0);
+  if (now.getTime() < c.getTime()) c.setDate(c.getDate() - 1);
+  return c.getTime();
+};
+const dueByCutoff = (dateStr?: string, cutoff?: number): boolean => {
+  if (!dateStr) return true;
+  const t = new Date(dateStr).getTime();
+  if (Number.isNaN(t)) return true;
+  return t <= (cutoff ?? lastCutoffTime());
+};
+
 /** Whether an un-imported Shopify order can be fulfilled from current ERP stock. */
 const stockStatusOf = (o: ShopifyOrder): { label: string; tone: 'ok' | 'short' | 'check' } => {
   const lines = o.lines || [];
@@ -116,49 +153,76 @@ interface BoardProps {
 }
 
 export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onRefresh, onOpenShopifyOrder }) => {
-  const { invoices, currentBranch, isAllBranches } = useErp();
-  const [bucket, setBucket] = useState<Bucket>('to_accept');
+  const { invoices } = useErp();
+  const [view, setView] = useState<'all_orders' | Bucket | StepKey>('to_accept');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
 
-  // Paid Shopify orders not yet pulled into the ERP — these are the real
-  // "To Accept" queue: accepting one imports it, then it flows through the board.
+  const cutoff = lastCutoffTime();
+
+  // Paid Shopify orders not yet pulled into the ERP. Those received by the last
+  // 6 PM cut-off are due (To Accept); later ones are upcoming (All Orders).
   const pending = useMemo(
     () => shopifyOrders.filter((o) => !o.alreadyImported && o.financialStatus === 'paid'),
     [shopifyOrders],
   );
+  const pendingDue = useMemo(() => pending.filter((o) => dueByCutoff(o.date || o.createdAt, cutoff)), [pending, cutoff]);
+  const pendingUpcoming = useMemo(() => pending.filter((o) => !dueByCutoff(o.date || o.createdAt, cutoff)), [pending, cutoff]);
 
+  // All online orders already in the ERP — NOT filtered by the selected branch
+  // (online orders belong to the store, not one counter), so they never vanish.
   const online = useMemo(
     () =>
       invoices
         .filter((i) => i.sourceChannel === 'shopify' && !i.isVoided)
-        .filter((i) => isAllBranches || i.branchId === currentBranch)
         .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
-    [invoices, currentBranch, isAllBranches],
+    [invoices],
   );
 
-  const counts = useMemo(() => {
-    const c: Record<Bucket, number> = { to_accept: 0, to_pack: 0, to_dispatch: 0, in_transit: 0, completed: 0, cancelled: 0 };
-    for (const o of online) c[bucketOf(o)] += 1;
-    c.to_accept += pending.length; // un-imported paid Shopify orders also wait to be accepted
-    return c;
-  }, [online, pending]);
+  // Is an imported order sitting in the To-Accept batch (New + due by cut-off)?
+  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept' && dueByCutoff(inv.createdAt, cutoff);
 
-  const pendingFiltered = useMemo(() => {
+  const matchesView = (inv: Invoice, v: typeof view): boolean => {
+    if (v === 'all_orders') return !inToAccept(inv);
+    if (v === 'to_accept') return inToAccept(inv);
+    if (v === 'to_pack' || v === 'to_dispatch' || v === 'in_transit' || v === 'completed' || v === 'cancelled') return bucketOf(inv) === v;
+    const step = STEPS.find((s) => s.key === v);
+    return step ? step.match(inv) : false;
+  };
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all_orders: 0, to_accept: 0, to_pack: 0, to_dispatch: 0, in_transit: 0, completed: 0, cancelled: 0 };
+    for (const s of STEPS) c[s.key] = 0;
+    for (const o of online) {
+      c.to_accept += inToAccept(o) ? 1 : 0;
+      c.all_orders += inToAccept(o) ? 0 : 1;
+      const b = bucketOf(o);
+      if (b !== 'to_accept') c[b] += 1;
+      for (const s of STEPS) if (s.match(o)) c[s.key] += 1;
+    }
+    // Un-imported Shopify orders join the queue too.
+    c.to_accept += pendingDue.length;
+    c.all_orders += pendingUpcoming.length;
+    return c;
+  }, [online, pendingDue, pendingUpcoming, cutoff]);
+
+  // Un-imported Shopify orders shown for the current view (To Accept / All Orders).
+  const pendingForView = useMemo(() => {
+    const base = view === 'to_accept' ? pendingDue : view === 'all_orders' ? pendingUpcoming : [];
     const q = search.trim().toLowerCase();
-    if (!q) return pending;
-    return pending.filter((o) =>
+    if (!q) return base;
+    return base.filter((o) =>
       o.orderName.toLowerCase().includes(q) ||
       (o.customerName || '').toLowerCase().includes(q) ||
       (o.customerPhone || '').includes(q),
     );
-  }, [pending, search]);
+  }, [view, pendingDue, pendingUpcoming, search]);
 
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
     return online.filter((o) => {
-      if (bucketOf(o) !== bucket) return false;
+      if (!matchesView(o, view)) return false;
       if (!q) return true;
       const itemHit = Array.isArray(o.items) && o.items.some((li: any) => (li.itemName || '').toLowerCase().includes(q));
       return (
@@ -168,30 +232,27 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         itemHit
       );
     });
-  }, [online, bucket, search]);
+  }, [online, view, search, cutoff]);
 
   const selected = selectedId ? online.find((o) => o.id === selectedId) : null;
   if (selected) return <FlipkartOrderPanel inv={selected} onBack={() => setSelectedId(null)} />;
 
-  const branchName = isAllBranches ? 'All branches' : (BRANCHES.find((b) => b.id === currentBranch)?.name || 'Warehouse');
-
-  const tiles: { key: Bucket; icon: React.ReactNode }[] = [
-    { key: 'to_accept', icon: <Clock className="h-4 w-4" /> },
-    { key: 'to_pack', icon: <Package className="h-4 w-4" /> },
-    { key: 'to_dispatch', icon: <Boxes className="h-4 w-4" /> },
-    { key: 'in_transit', icon: <Truck className="h-4 w-4" /> },
-    { key: 'completed', icon: <CheckCircle2 className="h-4 w-4" /> },
-    { key: 'cancelled', icon: <XCircle className="h-4 w-4" /> },
+  const PRIMARY: { key: 'all_orders' | Bucket; label: string; icon: React.ReactNode }[] = [
+    { key: 'all_orders', label: 'All Orders', icon: <ListChecks className="h-4 w-4" /> },
+    { key: 'to_accept', label: BUCKET_LABEL.to_accept, icon: <Clock className="h-4 w-4" /> },
+    { key: 'to_pack', label: BUCKET_LABEL.to_pack, icon: <Package className="h-4 w-4" /> },
+    { key: 'to_dispatch', label: BUCKET_LABEL.to_dispatch, icon: <Boxes className="h-4 w-4" /> },
+    { key: 'in_transit', label: BUCKET_LABEL.in_transit, icon: <Truck className="h-4 w-4" /> },
+    { key: 'completed', label: BUCKET_LABEL.completed, icon: <CheckCircle2 className="h-4 w-4" /> },
+    { key: 'cancelled', label: BUCKET_LABEL.cancelled, icon: <XCircle className="h-4 w-4" /> },
   ];
 
   return (
     <div className="space-y-3">
-      {/* Warehouse + heading row (Flipkart "Forward Orders") */}
+      {/* Heading row */}
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="text-sm font-extrabold text-slate-800">Forward Orders</h3>
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600">
-          <MapPin className="h-3.5 w-3.5 text-slate-400" /> {branchName}
-        </span>
+        <span className="text-[11px] text-slate-400">· To Accept fills at the daily 6 PM cut-off</span>
         <div className="ml-auto flex items-center gap-2">
           {onRefresh && (
             <button onClick={onRefresh} disabled={syncing} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50 disabled:opacity-50">
@@ -206,23 +267,44 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         </div>
       </div>
 
-      {/* Stage tiles */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
-        {tiles.map((t) => (
+      {/* Primary stage tiles (All Orders + Flipkart buckets) */}
+      <div className="grid grid-cols-3 lg:grid-cols-7 gap-2">
+        {PRIMARY.map((t) => (
           <button
             key={t.key}
-            onClick={() => setBucket(t.key)}
+            onClick={() => setView(t.key)}
             className={cn(
               'text-left px-3 py-2.5 rounded-xl border transition-colors',
-              bucket === t.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+              view === t.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
             )}
           >
             <div className="text-2xl font-extrabold font-mono leading-none">{counts[t.key]}</div>
-            <div className={cn('text-[10px] font-bold uppercase tracking-wide mt-1.5 inline-flex items-center gap-1', bucket === t.key ? 'text-slate-200' : 'text-slate-500')}>
-              {t.icon} {BUCKET_LABEL[t.key]}
+            <div className={cn('text-[10px] font-bold uppercase tracking-wide mt-1.5 inline-flex items-center gap-1', view === t.key ? 'text-slate-200' : 'text-slate-500')}>
+              {t.icon} {t.label}
             </div>
           </button>
         ))}
+      </div>
+
+      {/* Detailed processing-step tiles (Change 03) */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Processing steps — what's pending now</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {STEPS.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setView(s.key)}
+              className={cn(
+                'text-left px-2.5 py-2 rounded-lg border transition-colors',
+                view === s.key ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+                counts[s.key] > 0 && view !== s.key && 'border-blue-200 bg-blue-50/40',
+              )}
+            >
+              <div className="text-base font-extrabold font-mono leading-none">{counts[s.key]}</div>
+              <div className={cn('text-[9px] font-bold uppercase tracking-wide mt-1 leading-tight', view === s.key ? 'text-blue-50' : 'text-slate-500')}>{s.label}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search */}
@@ -236,12 +318,12 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         />
       </div>
 
-      {/* New Shopify orders waiting to be accepted (imported). Only in To Accept. */}
-      {bucket === 'to_accept' && pendingFiltered.length > 0 && (
+      {/* Un-imported Shopify orders for this view (To Accept = due, All Orders = upcoming). */}
+      {pendingForView.length > 0 && (
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl overflow-hidden">
           <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 bg-amber-100/70 border-b border-amber-200">
             <span className="text-[11px] font-extrabold uppercase tracking-wide text-amber-800 inline-flex items-center gap-1.5">
-              <DownloadCloud className="h-3.5 w-3.5" /> New from Shopify — accept to start
+              <DownloadCloud className="h-3.5 w-3.5" /> {view === 'all_orders' ? 'Upcoming Shopify orders (before 6 PM cut-off)' : 'New from Shopify — accept to start'}
             </span>
             {onImportAll && (
               <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
@@ -250,7 +332,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
             )}
           </div>
           <div className="divide-y divide-amber-100">
-            {pendingFiltered.map((o) => {
+            {pendingForView.map((o) => {
               const st = stockStatusOf(o);
               const open = expandedPending === o.externalOrderId;
               return (
@@ -314,10 +396,10 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
       )}
 
       {/* Order list (orders already in the ERP) */}
-      {list.length === 0 && !(bucket === 'to_accept' && pendingFiltered.length > 0) ? (
+      {list.length === 0 && pendingForView.length === 0 ? (
         <div className="py-12 text-center bg-white border border-slate-200 rounded-xl">
           <Package className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-          <p className="text-sm font-bold text-slate-700">No orders in “{BUCKET_LABEL[bucket]}”</p>
+          <p className="text-sm font-bold text-slate-700">No orders here</p>
           <p className="text-xs text-slate-400 mt-0.5">Paid Shopify orders you import show up here, stage by stage.</p>
         </div>
       ) : list.length === 0 ? null : (
@@ -371,9 +453,12 @@ const FlipkartOrderPanel: React.FC<{ inv: Invoice; onBack: () => void }> = ({ in
   const {
     updateOnlineOrderStatus, updateOnlineOrderContact, saveOrderPacking,
     saveOrderTracking, reviseOnlineOrder, addOrderCommunication, getBranchStock,
+    recordPayment,
   } = useErp();
 
   const [busy, setBusy] = useState(false);
+  const [payMode, setPayMode] = useState('Cash');
+  const [payingExtra, setPayingExtra] = useState(false);
   const bucket = bucketOf(inv);
   const mi = milestoneIndex(inv.onlineStatus as OnlineOrderStatus);
   const isCancelled = bucket === 'cancelled';
@@ -735,14 +820,52 @@ ${esc(inv.stateOfSupply || '')}</div>
         {/* ── Right: products to pick (live stock) + payment ── */}
         <div className="space-y-3">
           <Card title="Payment" icon={<IndianRupee className="h-3.5 w-3.5" />}>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Order total</span><span className="font-mono font-bold">{formatCurrency(inv.grandTotal || 0)}</span></div>
-              {inv.extraShippingAmount ? <div className="flex justify-between"><span className="text-slate-500">Extra shipping</span><span className="font-mono">{formatCurrency(inv.extraShippingAmount)}</span></div> : null}
-              <div className="flex justify-between pt-1 border-t border-slate-100">
-                <span className="text-slate-500">Status</span>
-                {bal > 0 ? <span className="font-bold text-amber-600">COD · {formatCurrency(bal)} due</span> : <span className="font-bold text-emerald-600">Paid online</span>}
-              </div>
-            </div>
+            {(() => {
+              const grand = Number(inv.grandTotal) || 0;
+              const extraShip = Number(inv.extraShippingAmount) || 0;
+              const origPaid = inv.originalGrandTotal != null ? inv.originalGrandTotal : Math.max(0, grand - bal);
+              const extraToCollect = bal + extraShip;
+              const currentTotal = grand + extraShip;
+              const markExtraPaid = async () => {
+                if (bal <= 0) return;
+                setPayingExtra(true);
+                try {
+                  await recordPayment({
+                    type: 'in', partyType: 'customer', partyId: inv.customerId,
+                    partyName: inv.customerName || 'Online customer', branchId: inv.branchId,
+                    amount: bal, paymentMode: payMode, reference: orderNo,
+                    notes: `Extra payment on online order ${orderNo}`,
+                    allocations: [{ refId: inv.id, amount: bal }],
+                  });
+                } finally { setPayingExtra(false); }
+              };
+              return (
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Already paid online</span><span className="font-mono font-bold text-emerald-700">{formatCurrency(origPaid)}</span></div>
+                  {extraShip > 0 && <div className="flex justify-between"><span className="text-slate-500">Extra shipping</span><span className="font-mono">{formatCurrency(extraShip)}</span></div>}
+                  <div className="flex justify-between pt-1 border-t border-slate-100"><span className="text-slate-500">Updated order total</span><span className="font-mono font-bold">{formatCurrency(currentTotal)}</span></div>
+                  {extraToCollect > 0 ? (
+                    <>
+                      <div className="flex justify-between"><span className="text-amber-700 font-bold">Extra to collect</span><span className="font-mono font-bold text-amber-700">{formatCurrency(extraToCollect)}</span></div>
+                      {bal > 0 && (
+                        <div className="flex items-center gap-1.5 pt-1.5">
+                          <select value={payMode} onChange={(e) => setPayMode(e.target.value)} className="flex-1 px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold">
+                            <option value="Cash">Cash</option>
+                            <option value="GPay">GPay / UPI</option>
+                            <option value="HDFC">Card / HDFC</option>
+                          </select>
+                          <button onClick={markExtraPaid} disabled={payingExtra} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+                            {payingExtra ? 'Saving…' : 'Mark extra paid'}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex justify-between pt-1"><span className="text-slate-500">Status</span><span className="font-bold text-emerald-600">Fully paid</span></div>
+                  )}
+                </div>
+              );
+            })()}
           </Card>
 
           <Card title="Products to pick" icon={<Boxes className="h-3.5 w-3.5" />}>
