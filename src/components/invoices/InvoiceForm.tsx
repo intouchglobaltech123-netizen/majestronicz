@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraScanModal } from '../common/CameraScanModal';
+import { printThermalReceipt, isThermalAutoPrintOn } from '../../lib/thermalReceipt';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { PhoneInput } from '../common/PhoneInput';
@@ -101,6 +102,7 @@ export const InvoiceForm: React.FC<Props> = ({
     isAllBranches,
     getNextInvoiceNumber,
     saveInvoice,
+    companyProfile,
     getNextEstimateNumber,
     saveEstimate,
     markEnquiryConverted,
@@ -1915,6 +1917,8 @@ export const InvoiceForm: React.FC<Props> = ({
       if (fromEnquiryPrefill && !initialInvoice && saved.sourceEnquiryId) {
         await markEnquiryConverted(saved.sourceEnquiryId, 'invoice', saved.id, saved.invoiceNumber);
       }
+      // Auto-print the 80mm thermal bill (department-store style) on save.
+      if (isThermalAutoPrintOn()) printThermalReceipt(saved, companyProfile);
       onSaved(saved);
     }
     } finally {

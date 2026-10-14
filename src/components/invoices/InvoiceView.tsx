@@ -36,8 +36,10 @@ import {
   PlayCircle,
   Clock,
   X,
+  ReceiptText,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { printThermalReceipt } from '../../lib/thermalReceipt';
 
 // One open billing draft in the multi-tab bar (Vyapar-style). Each tab keeps its
 // own live InvoiceForm mounted so switching never loses in-progress work.
@@ -78,6 +80,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     currentUser,
     activeSubTab,
     payments,
+    companyProfile,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -1260,6 +1263,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors"
                               >
                                 <Printer className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Thermal (80mm) reprint */}
+                              <button
+                                type="button"
+                                onClick={() => printThermalReceipt(inv, companyProfile)}
+                                title="Reprint thermal bill (80mm)"
+                                className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors"
+                              >
+                                <ReceiptText className="h-3.5 w-3.5" />
                               </button>
 
                               {/* Process Return Action — not on a voided or fully returned bill (SAL3-2) */}
