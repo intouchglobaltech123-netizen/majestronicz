@@ -50,8 +50,10 @@ import {
   Split,
   AlertTriangle,
   CheckCircle2,
+  ScanLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CameraScanModal } from '../common/CameraScanModal';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { PhoneInput } from '../common/PhoneInput';
@@ -857,6 +859,9 @@ export const InvoiceForm: React.FC<Props> = ({
   // Bulk add by SKU (#4c) — paste the customer's list (SKU or "SKU qty").
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState('');
+  // Phone-camera barcode scanning → add straight to the bill (same path as the
+  // USB scanner wedge). Opens the rear camera; each read calls handleScanSubmit.
+  const [scanOpen, setScanOpen] = useState(false);
 
   const addNewRow = (selectedItem?: Item) => {
     const newId = `li-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -2696,6 +2701,15 @@ export const InvoiceForm: React.FC<Props> = ({
               <Plus className="h-3.5 w-3.5" />
               <span>Bulk add (SKU)</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              title="Scan a product barcode with the phone/laptop camera to add it to the bill"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-indigo-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors"
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+              <span>Scan with camera</span>
+            </button>
             {documentType === 'Quotation' && outOfCatalogLines.length > 0 && (
               <button
                 type="button"
@@ -2713,6 +2727,14 @@ export const InvoiceForm: React.FC<Props> = ({
           </span>
         </div>
       </div>
+
+      {/* Phone/laptop camera barcode scan → straight onto the bill */}
+      <CameraScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={(code) => handleScanSubmit(code)}
+        title={documentType === 'Quotation' ? 'Scan item for quotation' : 'Scan item for bill'}
+      />
 
       {/* Bulk add by SKU (#4c) */}
       {bulkOpen && (
