@@ -84,8 +84,22 @@ const waLink = (phone: string | undefined, text: string): string | null => {
   return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
 };
 
-const orderNoOf = (inv: Invoice) => inv.externalOrderId || inv.invoiceNumber;
+/** The order received time that drives the cut-off (Shopify time, else import). */
+const orderTimeOf = (inv: Invoice) => inv.externalCreatedAt || inv.createdAt;
+/** Shopify order name "#6807" when known, else the ERP bill number (never the
+ *  long numeric Shopify id). */
+const orderNoOf = (inv: Invoice) => inv.externalOrderName || inv.invoiceNumber;
 const balanceOf = (inv: Invoice) => Math.max(0, Number(inv.balanceDue) || 0);
+
+/** "14-10-2026, 3:45 PM" from an ISO/date string. */
+const fmtDateTime = (iso?: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const date = d.toLocaleDateString('en-GB').replace(/\//g, '-'); // DD-MM-YYYY
+  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
+};
 
 const photoSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'photo_sent');
 const trackingSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'tracking_sent');
@@ -158,8 +172,24 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
+  // Re-evaluate the 6 PM cut-off automatically while the board stays open, so
+  // orders move to To Accept at 6 PM without a manual refresh.
+  const [, setTick] = useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const cutoff = lastCutoffTime();
+
+  // Shopify order name ("#6807") for already-imported orders that predate the
+  // stored name — looked up from the live store list by Shopify order id.
+  const nameByExtId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of shopifyOrders) if (o.externalOrderId && o.orderName) m.set(o.externalOrderId, o.orderName);
+    return m;
+  }, [shopifyOrders]);
+  const displayNo = (inv: Invoice) => inv.externalOrderName || (inv.externalOrderId ? nameByExtId.get(inv.externalOrderId) : undefined) || inv.invoiceNumber;
 
   // Paid Shopify orders not yet pulled into the ERP. Those received by the last
   // 6 PM cut-off are due (To Accept); later ones are upcoming (All Orders).
@@ -167,8 +197,8 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     () => shopifyOrders.filter((o) => !o.alreadyImported && o.financialStatus === 'paid'),
     [shopifyOrders],
   );
-  const pendingDue = useMemo(() => pending.filter((o) => dueByCutoff(o.date || o.createdAt, cutoff)), [pending, cutoff]);
-  const pendingUpcoming = useMemo(() => pending.filter((o) => !dueByCutoff(o.date || o.createdAt, cutoff)), [pending, cutoff]);
+  const pendingDue = useMemo(() => pending.filter((o) => dueByCutoff(o.createdAt || o.date, cutoff)), [pending, cutoff]);
+  const pendingUpcoming = useMemo(() => pending.filter((o) => !dueByCutoff(o.createdAt || o.date, cutoff)), [pending, cutoff]);
 
   // All online orders already in the ERP — NOT filtered by the selected branch
   // (online orders belong to the store, not one counter), so they never vanish.
@@ -181,7 +211,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   );
 
   // Is an imported order sitting in the To-Accept batch (New + due by cut-off)?
-  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept' && dueByCutoff(inv.createdAt, cutoff);
+  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept' && dueByCutoff(orderTimeOf(inv), cutoff);
 
   const matchesView = (inv: Invoice, v: typeof view): boolean => {
     if (v === 'all_orders') return !inToAccept(inv);
@@ -346,7 +376,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                           <Boxes className="h-3 w-3" />{st.label}
                         </span>
                       </div>
-                      <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN')} · tap to check stock</div>
+                      <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {fmtDateTime(o.createdAt || o.date)} · tap to check stock</div>
                     </button>
                     <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
                     <button onClick={onImportAll} disabled={importing} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
@@ -415,11 +445,11 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{orderNoOf(inv)}</span>
+                    <span className="font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{displayNo(inv)}</span>
                     <span className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{inv.customerName || 'Online customer'}</span>
                     {inv.customerPhone && <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">· {inv.customerPhone}</span>}
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{itemCount} item{itemCount === 1 ? '' : 's'} · {new Date(inv.createdAt).toLocaleDateString('en-IN')}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{itemCount} item{itemCount === 1 ? '' : 's'} · {fmtDateTime(orderTimeOf(inv))}</div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold font-mono text-slate-900">{formatCurrency(inv.grandTotal || 0)}</div>

@@ -211,6 +211,8 @@ model Invoice {
   sourceEnquiryNumber       String?
   sourceChannel             String?  // e.g. 'shopify' for imported online orders
   externalOrderId           String?  // Shopify order id (dedupe key)
+  externalOrderName         String?  // Shopify order name shown to staff, e.g. "#6807"
+  externalCreatedAt         String?  // Shopify order received timestamp (ISO) — drives the 6 PM cut-off
   onlineStatus              String?  // fulfillment pipeline: New|Picking|Tray Photo|Confirmed|Billed|Packed|Shipped|In Transit|Delivered|Completed|Cancelled
   onlineStatusUpdatedAt     String?
   // Counter-sale dispatch details entered at billing and printed on the GST bill

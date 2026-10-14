@@ -494,6 +494,8 @@ export interface Invoice {
   sourceEnquiryNumber?: string;
   sourceChannel?: string; // 'shopify' for imported online orders
   externalOrderId?: string; // Shopify order id (dedupe)
+  externalOrderName?: string; // Shopify order name, e.g. "#6807"
+  externalCreatedAt?: string; // Shopify order received timestamp (ISO) — drives the 6 PM cut-off
   onlineStatus?: OnlineOrderStatus; // fulfillment pipeline for online orders
   onlineStatusUpdatedAt?: string;
   // Counter-sale dispatch details, printed on the GST bill (#5)

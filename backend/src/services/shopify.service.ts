@@ -486,6 +486,8 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         grandTotal, amountInWords: '',
         paymentMode: 'Online', paymentSplits: [{ mode: 'Online', amount: grandTotal }],
         sourceChannel: 'shopify', externalOrderId,
+        externalOrderName: o.name || (o.order_number ? `#${o.order_number}` : null),
+        externalCreatedAt: o.created_at ? String(o.created_at) : null,
         onlineStatus: initialFulfillment.status,
         onlineStatusUpdatedAt: ts,
         trackingNumber: initialFulfillment.trackingNumber || null,
