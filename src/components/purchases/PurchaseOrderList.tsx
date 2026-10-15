@@ -13,6 +13,7 @@ import {
   Calendar,
   Paperclip,
   Eye,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   PurchaseOrder,
@@ -46,6 +47,9 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<PurchaseOrderStatus | 'ALL' | 'DUE'>('ALL');
   const [branchFilter, setBranchFilter] = useState<BranchScope>(currentBranch);
+  // Default to newest-first (LIFO) so the latest POs are always on top instead
+  // of the old "random" order the purchase team reported.
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'amount'>('recent');
   // PUR-9: follow the top-bar branch whenever it changes (the local filter only
   // narrows further while the top bar is on "All Branches").
   useEffect(() => {
@@ -98,6 +102,19 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
     return true;
   });
 
+  // Sort the filtered list. Newest-first (LIFO) is the default; createdAt is a
+  // full ISO timestamp so it's a true last-in-first-out order, with po.date as a
+  // fallback for any older record that predates createdAt.
+  const sortKey = (po: PurchaseOrder): number => {
+    const t = new Date(po.createdAt || '').getTime();
+    return Number.isNaN(t) ? new Date(po.date || '').getTime() || 0 : t;
+  };
+  const sortedPos = [...filteredPos].sort((a, b) => {
+    if (sortBy === 'amount') return purchaseOrderTotalValue(b) - purchaseOrderTotalValue(a);
+    if (sortBy === 'oldest') return sortKey(a) - sortKey(b);
+    return sortKey(b) - sortKey(a); // 'recent' = newest first (LIFO)
+  });
+
   return (
     <div className="space-y-4">
       {/* Control Bar */}
@@ -116,6 +133,21 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
 
         {/* Filters & Actions */}
         <div className="flex items-center gap-2">
+          {/* Sort order — newest-first (LIFO) by default */}
+          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
+            <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+            <select
+              aria-label="Sort purchase orders"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'recent' | 'oldest' | 'amount')}
+              className="px-3 py-2 text-xs font-semibold rounded-none border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-red-600 cursor-pointer"
+            >
+              <option value="recent">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="amount">Amount (high → low)</option>
+            </select>
+          </div>
+
           {/* Branch Filter */}
           {isAllBranches && (
             <select
@@ -214,7 +246,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onCreateNe
                   </td>
                 </tr>
               ) : (
-                filteredPos.map((po) => {
+                sortedPos.map((po) => {
                   const overdue = isPoOverdue(po);
                   const branchObj = BRANCHES.find((b) => b.id === po.branchId);
                   const billCount = po.attachments?.length || 0;
