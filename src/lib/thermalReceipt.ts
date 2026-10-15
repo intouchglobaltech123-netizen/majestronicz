@@ -30,8 +30,10 @@ export const setThermalWidth = (mm: ThermalWidth): void => {
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
 const money = (n: number): string => (Number(n) || 0).toFixed(2);
 
-/** Build the receipt HTML for one sale bill, sized to the chosen paper width. */
-export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): string => {
+/** Build the receipt HTML for one sale bill, sized to the chosen paper width.
+ *  `logoDataUrl`, when given, prints the Majestronicz logo at the very top in
+ *  place of the shop-name text (the rest of the format is unchanged). */
+export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth(), logoDataUrl?: string): string => {
   // Narrow (58mm) paper gets smaller fonts and tighter columns than 80mm.
   const narrow = widthMm === 58;
   const pad = narrow ? '2mm 2.5mm 4mm' : '3mm 3.5mm 5mm';
@@ -116,7 +118,9 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     .foot { font-size: ${narrow ? 8 : 9}px; margin-top: 2mm; }
   </style></head>
   <body><div class="r">
-    <div class="c hd">${esc(company.name || 'RETAIL INVOICE')}</div>
+    ${logoDataUrl
+      ? `<div class="c" style="margin-bottom:1.5mm"><img src="${logoDataUrl}" alt="MAJESTRONICZ" style="width:${narrow ? 44 : 58}mm;max-width:100%;height:auto;object-fit:contain;filter:grayscale(1) contrast(1.35);"/></div>`
+      : `<div class="c hd">${esc(company.name || 'RETAIL INVOICE')}</div>`}
     <div class="c sm">${esc(company.address || '')}</div>
     <div class="c sm">${company.phone ? 'PHONE : ' + esc(company.phone) : ''}</div>
     <div class="c sm">${company.gstin ? 'GSTIN : ' + esc(company.gstin) : ''}</div>
@@ -156,10 +160,49 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
   </div></body></html>`;
 };
 
-/** Print the bill on the thermal printer via a hidden iframe. */
-export const printThermalReceipt = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): void => {
+// The Majestronicz logo, loaded once and cached as a data URL so it is embedded
+// directly in the receipt HTML — guaranteeing it is present when the printer
+// fires (a plain <img src="/assets/…"> can race the print dialog and come out
+// blank). Returns '' if it can't be loaded, so the receipt falls back to text.
+const LOGO_URL = '/assets/majestronicz-logo.png';
+let logoCache: string | null = null;
+const loadLogoDataUrl = async (): Promise<string> => {
+  if (logoCache !== null) return logoCache;
   try {
-    const html = buildThermalReceiptHtml(inv, company, widthMm);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const res = await fetch(origin + LOGO_URL);
+    if (!res.ok) throw new Error('logo fetch failed');
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ''));
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+    logoCache = dataUrl;
+  } catch {
+    logoCache = ''; // don't retry every print; fall back to text name
+  }
+  return logoCache;
+};
+
+/** Wait until every image in the iframe has finished loading (or a 1.5s cap). */
+const waitForImages = (win: Window | null): Promise<void> =>
+  new Promise((resolve) => {
+    const imgs = win ? Array.from(win.document.images) : [];
+    const pending = imgs.filter((i) => !i.complete);
+    if (!pending.length) { resolve(); return; }
+    let left = pending.length;
+    const done = () => { if (--left <= 0) resolve(); };
+    pending.forEach((i) => { i.addEventListener('load', done); i.addEventListener('error', done); });
+    setTimeout(resolve, 1500); // never hang the print if an image stalls
+  });
+
+/** Print the bill on the thermal printer via a hidden iframe. */
+export const printThermalReceipt = async (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): Promise<void> => {
+  try {
+    const logo = await loadLogoDataUrl();
+    const html = buildThermalReceiptHtml(inv, company, widthMm, logo || undefined);
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });
@@ -167,12 +210,10 @@ export const printThermalReceipt = (inv: Invoice, company: CompanyProfile, width
     const doc = iframe.contentWindow?.document;
     if (!doc) { iframe.remove(); return; }
     doc.open(); doc.write(html); doc.close();
-    const fire = () => {
-      try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
-      setTimeout(() => iframe.remove(), 2000);
-    };
-    // Give the layout a moment to settle before printing.
-    setTimeout(fire, 350);
+    // Wait for the logo image to decode, then print, so it never comes out blank.
+    await waitForImages(iframe.contentWindow);
+    try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
+    setTimeout(() => iframe.remove(), 2000);
   } catch {
     /* printing must never break the save flow */
   }
