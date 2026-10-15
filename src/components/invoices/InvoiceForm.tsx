@@ -251,6 +251,28 @@ export const InvoiceForm: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerPhone, customers]);
 
+  // Customer suggestions as the mobile number is typed: show every saved
+  // customer whose number STARTS WITH the digits entered (e.g. "9942" → all
+  // 9942… customers) so staff pick the old customer and auto-fill number, name
+  // and address instead of needing the full 10 digits.
+  const [phoneFocused, setPhoneFocused] = useState(false);
+  const phoneSuggestions = useMemo(() => {
+    if (customerId) return []; // a customer is already locked in
+    const clean = customerPhone.replace(/\D/g, '');
+    if (clean.length < 3) return [];
+    return customers
+      .filter((c) => (c.phone || '').replace(/\D/g, '').startsWith(clean))
+      .slice(0, 8);
+  }, [customers, customerPhone, customerId]);
+  const pickCustomer = (c: { id: string; phone: string; name: string; address: string; notes?: string }) => {
+    setCustomerId(c.id);
+    setCustomerPhone((c.phone || '').replace(/\D/g, ''));
+    setCustomerName(cleanCustomerName(c.name, c.notes));
+    setCustomerAddress(c.address || '');
+    setShowNewCustomerPrompt(false);
+    setPhoneFocused(false);
+  };
+
   // Save the typed mobile + name/address as a new customer master record.
   const handleQuickAddCustomer = async () => {
     if (!customerName.trim()) { toast.error('Enter a name for the new customer'); return; }
@@ -1467,6 +1489,24 @@ export const InvoiceForm: React.FC<Props> = ({
     return Math.max(0, totals.grandTotal - pAmt);
   }, [isPartialPayment, partialAmount, totals.grandTotal]);
 
+  // The amount the customer is taking ON CREDIT on this bill (the COD-Credit /
+  // unpaid portion) — mirrors invoiceBalanceDue in handleSave so the summary can
+  // show the credit amount instead of hiding it inside the payment card (bug #4).
+  const creditOnBill = useMemo(() => {
+    const splits = paymentSplits.length > 1
+      ? paymentSplits
+      : [{ mode: paymentSplits[0]?.mode || 'Cash', amount: totals.grandTotal }];
+    const cod = splits.find((s) => s.mode === 'COD-Credit');
+    if (splits.length > 1) return cod && cod.amount > 0 ? Math.round(cod.amount * 100) / 100 : 0;
+    if (splits[0].mode === 'COD-Credit') {
+      return isPartialPayment
+        ? Math.max(0, Math.round((totals.grandTotal - (Number(partialAmount) || 0)) * 100) / 100)
+        : totals.grandTotal;
+    }
+    return 0;
+  }, [paymentSplits, totals.grandTotal, isPartialPayment, partialAmount]);
+  const paidNow = Math.max(0, Math.round((totals.grandTotal - creditOnBill) * 100) / 100);
+
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
     const preset = INVOICE_TERMS_PRESETS.find((p) => p.id === presetId);
@@ -2310,13 +2350,35 @@ export const InvoiceForm: React.FC<Props> = ({
       <div className="bg-white border border-slate-200 rounded-none p-3 shadow-none space-y-2.5">
         {/* Mobile-first customer line: type the mobile → name + address show small */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="w-52 shrink-0">
+          <div className="w-56 shrink-0 relative">
             <PhoneInput
               placeholder="Customer mobile no."
               value={customerPhone}
               onChange={setCustomerPhone}
-              size="sm"
+              size="md"
+              inputClassName="text-base font-bold tracking-wide"
+              onFocus={() => setPhoneFocused(true)}
+              onBlur={() => setTimeout(() => setPhoneFocused(false), 150)}
             />
+            {/* Old-customer suggestions by number prefix (#6) */}
+            {phoneFocused && !selectedCustomerObj && phoneSuggestions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                {phoneSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-slate-900 text-sm truncate">{cleanCustomerName(c.name, c.notes) || 'Customer'}</span>
+                      <span className="font-mono text-xs text-slate-600 shrink-0">{c.phone}</span>
+                    </div>
+                    {c.address && <div className="text-[11px] text-slate-400 truncate">{c.address}</div>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* Name — auto-filled & locked when the number matches a saved customer */}
           <input
@@ -2326,7 +2388,7 @@ export const InvoiceForm: React.FC<Props> = ({
             readOnly={!!selectedCustomerObj}
             placeholder="Name (optional)"
             className={cn(
-              'w-48 px-2.5 py-1.5 rounded-lg border text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none',
+              'w-56 px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
               selectedCustomerObj
                 ? 'bg-slate-100 border-slate-200 cursor-default'
                 : 'bg-slate-50 border-slate-200 focus:border-blue-600'
@@ -3428,6 +3490,22 @@ export const InvoiceForm: React.FC<Props> = ({
               {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
             </p>
           </div>
+
+          {/* On-credit breakdown (bug #4): when the customer takes this bill on
+              credit (COD-Credit / partial), show how much is paid now and how
+              much stays on credit, right in the summary. */}
+          {documentType !== 'Quotation' && creditOnBill > 0.009 && (
+            <div className="rounded-none border border-amber-300 bg-amber-50 text-xs divide-y divide-amber-200">
+              <div className="flex justify-between items-center px-3 py-2">
+                <span className="font-bold text-slate-700">Paid now</span>
+                <span className="font-mono font-bold text-slate-800">{formatCurrency(paidNow)}</span>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2">
+                <span className="font-bold text-amber-800">On Credit (Balance Due)</span>
+                <span className="font-mono font-extrabold text-amber-700 text-sm">{formatCurrency(creditOnBill)}</span>
+              </div>
+            </div>
+          )}
 
           {/* Customer store credit (#5): shows the credit this customer can spend,
               so the biller can collect it against this bill. */}

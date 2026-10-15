@@ -33,6 +33,8 @@ export interface PhoneInputProps {
   size?: 'sm' | 'md';
   /** Blur handler. */
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  /** Focus handler. */
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
   /** Whether to hide the 10-digit counter badge on the right. */
   hideCounter?: boolean;
 }
@@ -60,6 +62,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   inputClassName,
   size = 'md',
   onBlur,
+  onFocus,
   hideCounter = false,
 }) => {
   const digits = cleanPhoneDigits(value);
@@ -125,6 +128,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           value={digits}
           onChange={handleChange}
           onBlur={onBlur}
+          onFocus={onFocus}
           className={cn(
             'flex-1 min-w-0 bg-transparent text-slate-900 font-mono font-semibold focus:outline-none placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal placeholder:tracking-normal',
             isSm ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-xs sm:text-sm tracking-wider',
