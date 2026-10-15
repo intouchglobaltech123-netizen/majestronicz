@@ -221,6 +221,8 @@ interface ErpContextType {
   deleteInvoice: (invoiceId: string) => void;
   voidInvoice: (invoiceId: string, reason: string) => void;
   importShopifyOrder: (externalOrderId: string) => Promise<{ ok: boolean; orderNo?: string }>;
+  resetOnlineProcessing: () => Promise<boolean>;
+  restoreOnlineProcessing: () => Promise<boolean>;
   updateOnlineOrderStatus: (
     invoiceId: string,
     status: OnlineOrderStatus,
@@ -2881,12 +2883,38 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       await apiGet<any>('/api/bootstrap').then(hydrateState);
       const name = res?.orderName || 'Order';
-      if (res?.imported) toast.success(`${name} accepted`, { description: 'Moved to To Pack — ready to pick & pack.' });
+      if (res?.imported) toast.success(`${name} imported`, { description: 'Now in To Accept — open it and accept to start processing.' });
       else toast.info(`${name} was already imported`);
       return { ok: true, orderNo: res?.orderName };
     } catch (e: any) {
       toast.error('Could not accept the order', { description: e?.message ?? 'Backend error' });
       return { ok: false };
+    }
+  };
+
+  // Reset every imported online order's ERP processing workflow back to the
+  // start ("New" → To Accept) for fresh testing. Backs up first on the server;
+  // never touches Shopify, customers, items or payments (Change 05 #5).
+  const resetOnlineProcessing = async (): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ reset: number; backedUp: number }>('/api/shopify/reset-processing', {});
+      await apiGet<any>('/api/bootstrap').then(hydrateState);
+      toast.success(`${res.reset} order(s) reset to the start`, { description: 'Backed up first — now process each order step by step.' });
+      return true;
+    } catch (e: any) {
+      toast.error('Could not reset processing', { description: e?.message ?? 'Backend error' });
+      return false;
+    }
+  };
+  const restoreOnlineProcessing = async (): Promise<boolean> => {
+    try {
+      const res = await apiPost<{ restored: number }>('/api/shopify/restore-processing', {});
+      await apiGet<any>('/api/bootstrap').then(hydrateState);
+      toast.success(`Restored ${res.restored} order(s) from the last backup`);
+      return true;
+    } catch (e: any) {
+      toast.error('Could not restore processing', { description: e?.message ?? 'Backend error' });
+      return false;
     }
   };
 
@@ -4377,6 +4405,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoices,
         saveInvoice,
         importShopifyOrder,
+        resetOnlineProcessing,
+        restoreOnlineProcessing,
         updateOnlineOrderStatus,
         saveOrderTracking,
         setCourierStatus,

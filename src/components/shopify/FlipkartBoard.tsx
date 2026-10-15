@@ -14,7 +14,7 @@ import {
   Package, Truck, CheckCircle2, Search, ArrowLeft, ArrowRight, User,
   Phone, MapPin, Pencil, Save, Printer, Copy, Camera, Send, Scale,
   Boxes, IndianRupee, Clock, XCircle, MessageCircle, Bell, ListChecks,
-  RefreshCw, DownloadCloud,
+  RefreshCw, DownloadCloud, RotateCcw, Undo2,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -169,8 +169,20 @@ interface BoardProps {
 }
 
 export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onAcceptOne, onRefresh, onOpenShopifyOrder }) => {
-  const { invoices } = useErp();
-  const [view, setView] = useState<'all_orders' | Bucket | StepKey>('to_accept');
+  const { invoices, currentUser, resetOnlineProcessing, restoreOnlineProcessing } = useErp();
+  const canReset = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  const [resetting, setResetting] = useState(false);
+  const doReset = async () => {
+    if (!window.confirm('Reset ALL online orders back to the start (To Accept) for testing?\n\nThis only resets the ERP processing steps — Shopify orders, customers, items and payments are NOT touched, and the current state is backed up so it can be restored.')) return;
+    setResetting(true);
+    try { if (await resetOnlineProcessing()) setView('to_accept'); } finally { setResetting(false); }
+  };
+  const doRestore = async () => {
+    if (!window.confirm('Restore all online orders to the processing state saved by the last reset?')) return;
+    setResetting(true);
+    try { await restoreOnlineProcessing(); } finally { setResetting(false); }
+  };
+  const [view, setView] = useState<'all_orders' | Bucket | StepKey>('all_orders');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
@@ -186,14 +198,15 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   // Which single order is being accepted (so only that row shows a spinner).
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
-  // Accept just the clicked order; on success, jump the board to "To Pack" so
-  // staff immediately see where the accepted order went (it never just vanishes).
+  // Import just the clicked order; on success, jump the board to "To Accept" so
+  // staff see it (imported orders start at New → To Accept, then are processed
+  // step by step). It never just vanishes.
   const acceptOne = async (externalOrderId: string) => {
     if (!onAcceptOne) { onImportAll?.(); return; }
     setAcceptingId(externalOrderId);
     try {
       const ok = await onAcceptOne(externalOrderId);
-      if (ok) { setExpandedPending(null); setView('to_pack'); }
+      if (ok) { setExpandedPending(null); setView('to_accept'); }
     } finally {
       setAcceptingId(null);
     }
@@ -301,6 +314,16 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         <h3 className="text-sm font-extrabold text-slate-800">Forward Orders</h3>
         <span className="text-[11px] text-slate-400">· To Accept fills at the daily 6 PM cut-off</span>
         <div className="ml-auto flex items-center gap-2">
+          {canReset && (
+            <>
+              <button onClick={doReset} disabled={resetting} title="Reset all online orders to the start for testing (backed up first)" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-700 text-[11px] font-bold hover:bg-amber-50 disabled:opacity-50">
+                <RotateCcw className={cn('h-3.5 w-3.5', resetting && 'animate-spin')} /> Reset for testing
+              </button>
+              <button onClick={doRestore} disabled={resetting} title="Restore the processing state from the last reset backup" className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-500 text-[11px] font-bold hover:bg-slate-50 disabled:opacity-50">
+                <Undo2 className="h-3.5 w-3.5" /> Restore
+              </button>
+            </>
+          )}
           {onRefresh && (
             <button onClick={onRefresh} disabled={syncing} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50 disabled:opacity-50">
               <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} /> Refresh from Shopify

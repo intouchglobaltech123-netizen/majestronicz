@@ -37,6 +37,8 @@ import {
   previewOrders,
   importOrders,
   importOrderById,
+  resetOnlineProcessing,
+  restoreOnlineProcessing,
   listSyncLogs,
   createDemoOnlineOrders,
   previewProducts,
@@ -917,6 +919,18 @@ router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(as
 }));
 router.get('/shopify/sync-logs', requireCapability('sales:write'), asyncHandler(async (req, res) => {
   res.json(await listSyncLogs(Number(req.query?.limit) || 50));
+}));
+// Reset / restore the ERP processing workflow of online orders for fresh testing
+// (CEO only; backs up first, never touches Shopify, customers, items or payments).
+router.post('/shopify/reset-processing', requireManagerOrCEO, asyncHandler(async (req, res) => {
+  const result = await resetOnlineProcessing(actorOf(req));
+  broadcastChange('shopify-reset-processing');
+  res.json(result);
+}));
+router.post('/shopify/restore-processing', requireManagerOrCEO, asyncHandler(async (req, res) => {
+  const result = await restoreOnlineProcessing(actorOf(req));
+  broadcastChange('shopify-restore-processing');
+  res.json(result);
 }));
 // Load demo online orders to exercise the fulfillment flow without a live store
 // (CEO/Manager; refused on production unless ALLOW_DEMO_ORDERS=true).

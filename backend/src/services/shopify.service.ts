@@ -4,7 +4,7 @@ import { prisma } from '../db.js';
 import { nextInvoiceNumber } from '../lib/sequences.js';
 import { nowIso, rid } from '../lib/stockLedger.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { getConfig } from './system.service.js';
+import { getConfig, setConfig } from './system.service.js';
 
 /**
  * Shopify WRITE guard. Writing anything to the store is OFF by default (secure);
@@ -413,23 +413,6 @@ async function buildSkuMap(): Promise<Map<string, any>> {
  * Map a raw Shopify order's real fulfillment/shipment state into our pipeline, so
  * imported orders land at their true stage (not all "New") with any tracking info.
  */
-function mapShopifyFulfillment(o: any): { status: string; trackingNumber?: string; courierName?: string } {
-  const fulfillments: any[] = o.fulfillments || [];
-  const f = fulfillments[0];
-  const trackingNumber = f?.tracking_number || f?.tracking_numbers?.[0] || undefined;
-  const courierName = f?.tracking_company || undefined;
-  const shipment = String(f?.shipment_status || '').toLowerCase();
-  const fs = String(o.fulfillment_status || '').toLowerCase();
-
-  let status = 'Confirmed'; // paid orders are at least confirmed
-  if (shipment === 'delivered') status = 'Delivered';
-  else if (shipment === 'out_for_delivery') status = 'Out for Delivery';
-  else if (shipment === 'in_transit' || shipment === 'attempted_delivery' || shipment === 'confirmed' || shipment === 'ready_for_pickup') status = 'Shipped';
-  else if (fs === 'fulfilled') status = 'Shipped';
-  else if (fs === 'partial') status = 'Packed';
-  return { status, trackingNumber, courierName };
-}
-
 export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<'imported' | 'skipped'> {
   const map = bySku || (await buildSkuMap());
   const externalOrderId = String(o.id);
@@ -465,7 +448,6 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
     const grandTotal = Number(o.total_price) || r2(subtotal + shipping);
     const invoiceNumber = await nextInvoiceNumber(tx, branchId, date);
     const ts = nowIso();
-    const initialFulfillment = mapShopifyFulfillment(o);
 
     await tx.invoice.create({
       data: {
@@ -488,11 +470,17 @@ export async function importOneOrder(o: any, bySku?: Map<string, any>): Promise<
         sourceChannel: 'shopify', externalOrderId,
         externalOrderName: o.name || (o.order_number ? `#${o.order_number}` : null),
         externalCreatedAt: o.created_at ? String(o.created_at) : null,
-        onlineStatus: initialFulfillment.status,
+        // Every imported order STARTS at the beginning of the ERP workflow
+        // ("New" → To Accept). The ERP processing flow is driven manually by
+        // staff, NOT derived from Shopify's fulfillment/shipping status — so the
+        // processing-step boxes only fill as staff actually complete each step
+        // (Change 05 #1/#2/#3). Tracking & courier are entered by staff, never
+        // copied from Shopify on import.
+        onlineStatus: 'New',
         onlineStatusUpdatedAt: ts,
-        trackingNumber: initialFulfillment.trackingNumber || null,
-        courierName: initialFulfillment.courierName || null,
-        onlineStatusHistory: [{ status: initialFulfillment.status, at: ts, by: 'shopify-sync', note: 'Imported from Shopify' }],
+        trackingNumber: null,
+        courierName: null,
+        onlineStatusHistory: [{ status: 'New', at: ts, by: 'shopify-sync', note: 'Imported from Shopify — awaiting acceptance' }],
         createdById: 'shopify-sync', createdAt: ts, updatedAt: ts,
       },
     });
@@ -581,6 +569,77 @@ export async function importOrderById(externalOrderId: string, by?: string): Pro
   const invoice = await prisma.invoice.findFirst({ where: { sourceChannel: 'shopify', externalOrderId: id } });
   await logSync({ by, kind: 'manual', ok: true, imported, skipped, failed: 0, message: `${orderName} · ${imported ? 'imported' : 'already imported'}` });
   return { configured: true, imported, skipped, invoice, orderName };
+}
+
+/**
+ * Reset the ERP processing workflow of imported Shopify orders back to the start
+ * ("New" → To Accept) for fresh end-to-end testing (Change 05 #5). It touches
+ * ONLY the ERP workflow fields — Shopify orders, customer details, items and
+ * payments are left untouched, and nothing is written to Shopify. The previous
+ * processing state of every affected order is backed up first (config key
+ * 'shopifyResetBackup') so it can be restored with restoreOnlineProcessing().
+ */
+export async function resetOnlineProcessing(by?: string): Promise<{ reset: number; backedUp: number; at: string }> {
+  const orders = await prisma.invoice.findMany({
+    where: { sourceChannel: 'shopify', isVoided: false },
+    select: {
+      id: true, onlineStatus: true, onlineStatusUpdatedAt: true, trackingNumber: true,
+      courierName: true, trackingUrl: true, courierStatus: true, courierStatusUpdatedAt: true,
+      trayPhotoUrl: true, parcelPhotoUrl: true, onlineStatusHistory: true,
+    },
+  });
+  const at = nowIso();
+  // Back up the current processing state BEFORE changing anything.
+  await setConfig('shopifyResetBackup', { at, by: by || 'system', orders });
+
+  let reset = 0;
+  for (const o of orders) {
+    const history = Array.isArray(o.onlineStatusHistory) ? (o.onlineStatusHistory as any[]) : [];
+    history.push({ status: 'New', at, by: by || 'system', note: 'Processing reset to start for testing' });
+    await prisma.invoice.update({
+      where: { id: o.id },
+      data: {
+        onlineStatus: 'New', onlineStatusUpdatedAt: at,
+        trackingNumber: null, courierName: null, trackingUrl: null,
+        courierStatus: null, courierStatusUpdatedAt: null,
+        trayPhotoUrl: null, parcelPhotoUrl: null,
+        onlineStatusHistory: history,
+      },
+    });
+    reset++;
+  }
+  await logSync({ by, kind: 'manual', ok: true, imported: 0, skipped: 0, failed: 0, message: `Processing reset for ${reset} online order(s); backup saved` });
+  return { reset, backedUp: orders.length, at };
+}
+
+/** Restore the ERP processing state saved by the last resetOnlineProcessing(). */
+export async function restoreOnlineProcessing(by?: string): Promise<{ restored: number }> {
+  const backup: any = await getConfig('shopifyResetBackup');
+  const orders: any[] = Array.isArray(backup?.orders) ? backup.orders : [];
+  if (!orders.length) throw new AppError('NO_BACKUP', 'There is no processing backup to restore from.', 400);
+  let restored = 0;
+  for (const o of orders) {
+    try {
+      await prisma.invoice.update({
+        where: { id: o.id },
+        data: {
+          onlineStatus: o.onlineStatus ?? 'New',
+          onlineStatusUpdatedAt: o.onlineStatusUpdatedAt ?? nowIso(),
+          trackingNumber: o.trackingNumber ?? null,
+          courierName: o.courierName ?? null,
+          trackingUrl: o.trackingUrl ?? null,
+          courierStatus: o.courierStatus ?? null,
+          courierStatusUpdatedAt: o.courierStatusUpdatedAt ?? null,
+          trayPhotoUrl: o.trayPhotoUrl ?? null,
+          parcelPhotoUrl: o.parcelPhotoUrl ?? null,
+          onlineStatusHistory: Array.isArray(o.onlineStatusHistory) ? o.onlineStatusHistory : [],
+        },
+      });
+      restored++;
+    } catch { /* order may have been removed; skip */ }
+  }
+  await logSync({ by, kind: 'manual', ok: true, imported: 0, skipped: 0, failed: 0, message: `Processing restored for ${restored} online order(s) from backup` });
+  return { restored };
 }
 
 // ---- Product catalog sync ----
