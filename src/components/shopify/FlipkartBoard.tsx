@@ -162,11 +162,13 @@ interface BoardProps {
   importing?: boolean;
   syncing?: boolean;
   onImportAll?: () => void;
+  /** Accept just ONE order by its Shopify order id; resolves true on success. */
+  onAcceptOne?: (externalOrderId: string) => Promise<boolean>;
   onRefresh?: () => void;
   onOpenShopifyOrder?: (o: ShopifyOrder) => void;
 }
 
-export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onRefresh, onOpenShopifyOrder }) => {
+export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onAcceptOne, onRefresh, onOpenShopifyOrder }) => {
   const { invoices } = useErp();
   const [view, setView] = useState<'all_orders' | Bucket | StepKey>('to_accept');
   const [search, setSearch] = useState('');
@@ -181,6 +183,21 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   }, []);
 
   const cutoff = lastCutoffTime();
+  // Which single order is being accepted (so only that row shows a spinner).
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  // Accept just the clicked order; on success, jump the board to "To Pack" so
+  // staff immediately see where the accepted order went (it never just vanishes).
+  const acceptOne = async (externalOrderId: string) => {
+    if (!onAcceptOne) { onImportAll?.(); return; }
+    setAcceptingId(externalOrderId);
+    try {
+      const ok = await onAcceptOne(externalOrderId);
+      if (ok) { setExpandedPending(null); setView('to_pack'); }
+    } finally {
+      setAcceptingId(null);
+    }
+  };
 
   // Shopify order name ("#6807") for already-imported orders that predate the
   // stored name — looked up from the live store list by Shopify order id.
@@ -379,8 +396,8 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                       <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {fmtDateTime(o.createdAt || o.date)} · tap to check stock</div>
                     </button>
                     <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
-                    <button onClick={onImportAll} disabled={importing} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
-                      Accept <ArrowRight className="h-3 w-3" />
+                    <button onClick={() => acceptOne(o.externalOrderId)} disabled={importing || acceptingId === o.externalOrderId} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
+                      {acceptingId === o.externalOrderId ? 'Accepting…' : <>Accept <ArrowRight className="h-3 w-3" /></>}
                     </button>
                   </div>
                   {open && (
@@ -407,8 +424,8 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                         })}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
-                          <DownloadCloud className="h-3.5 w-3.5" /> Accept &amp; import
+                        <button onClick={() => acceptOne(o.externalOrderId)} disabled={importing || acceptingId === o.externalOrderId} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+                          <DownloadCloud className="h-3.5 w-3.5" /> {acceptingId === o.externalOrderId ? 'Accepting…' : 'Accept this order'}
                         </button>
                         {onOpenShopifyOrder && (
                           <button onClick={() => onOpenShopifyOrder(o)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50">

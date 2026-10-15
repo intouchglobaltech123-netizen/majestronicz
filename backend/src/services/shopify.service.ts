@@ -545,6 +545,44 @@ export async function importOrders(limit = 50, by?: string): Promise<{ configure
   return { configured: true, imported, skipped, results };
 }
 
+/**
+ * Accept (import) ONE Shopify order by its order id. Used by the "Accept" button
+ * on a single board row — importing just the clicked order, not every new order.
+ * Returns the linked ERP invoice (whether just created or already present) so the
+ * caller can show it immediately without waiting for a full refresh.
+ */
+export async function importOrderById(externalOrderId: string, by?: string): Promise<{
+  configured: boolean; imported: number; skipped: number; invoice?: any; orderName?: string;
+}> {
+  const cfg = getShopifyConfig();
+  if (!cfg) {
+    await logSync({ by, kind: 'manual', ok: false, imported: 0, skipped: 0, failed: 0, message: 'Shopify is not configured (no store/API key).' });
+    return { configured: false, imported: 0, skipped: 0 };
+  }
+  const id = String(externalOrderId).trim();
+  if (!id) return { configured: true, imported: 0, skipped: 0 };
+
+  const data = await shopifyFetch<{ order: any }>(`orders/${encodeURIComponent(id)}.json`);
+  const o = data.order;
+  if (!o) {
+    await logSync({ by, kind: 'manual', ok: false, imported: 0, skipped: 0, failed: 1, message: `Order ${id} not found in Shopify.` });
+    throw new AppError('NOT_FOUND', 'That order was not found in Shopify (it may have been deleted).', 404);
+  }
+  const orderName = o.name || `#${o.order_number || id}`;
+  let imported = 0;
+  let skipped = 0;
+  try {
+    const r = await importOneOrder(o);
+    if (r === 'imported') imported++; else skipped++;
+  } catch (e: any) {
+    await logSync({ by, kind: 'manual', ok: false, imported: 0, skipped: 0, failed: 1, message: `${orderName}: ${e?.message?.slice(0, 80) || 'failed'}` });
+    throw e;
+  }
+  const invoice = await prisma.invoice.findFirst({ where: { sourceChannel: 'shopify', externalOrderId: id } });
+  await logSync({ by, kind: 'manual', ok: true, imported, skipped, failed: 0, message: `${orderName} · ${imported ? 'imported' : 'already imported'}` });
+  return { configured: true, imported, skipped, invoice, orderName };
+}
+
 // ---- Product catalog sync ----
 export interface ShopifyProductPreview {
   sku: string;

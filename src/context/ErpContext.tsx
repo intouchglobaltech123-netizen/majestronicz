@@ -220,6 +220,7 @@ interface ErpContextType {
   saveInvoice: (invoice: Invoice) => Promise<Invoice | undefined>;
   deleteInvoice: (invoiceId: string) => void;
   voidInvoice: (invoiceId: string, reason: string) => void;
+  importShopifyOrder: (externalOrderId: string) => Promise<{ ok: boolean; orderNo?: string }>;
   updateOnlineOrderStatus: (
     invoiceId: string,
     status: OnlineOrderStatus,
@@ -2869,6 +2870,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Advance an online (Shopify) order through its fulfillment pipeline. The
   // backend records the status trail and pushes a Shopify fulfillment on "Shipped".
+  // Accept (import) a single Shopify order by its order id. Refreshes ERP data
+  // right away (awaited) so the accepted order lands in "To Pack" the same
+  // instant it leaves "To Accept" — no gap where it looks like it vanished.
+  const importShopifyOrder = async (externalOrderId: string): Promise<{ ok: boolean; orderNo?: string }> => {
+    try {
+      const res = await apiPost<{ imported: number; skipped: number; orderName?: string }>(
+        '/api/shopify/import',
+        { externalOrderId }
+      );
+      await apiGet<any>('/api/bootstrap').then(hydrateState);
+      const name = res?.orderName || 'Order';
+      if (res?.imported) toast.success(`${name} accepted`, { description: 'Moved to To Pack — ready to pick & pack.' });
+      else toast.info(`${name} was already imported`);
+      return { ok: true, orderNo: res?.orderName };
+    } catch (e: any) {
+      toast.error('Could not accept the order', { description: e?.message ?? 'Backend error' });
+      return { ok: false };
+    }
+  };
+
   const updateOnlineOrderStatus = async (
     invoiceId: string,
     status: OnlineOrderStatus,
@@ -4355,6 +4376,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getNextChallanNumber,
         invoices,
         saveInvoice,
+        importShopifyOrder,
         updateOnlineOrderStatus,
         saveOrderTracking,
         setCourierStatus,

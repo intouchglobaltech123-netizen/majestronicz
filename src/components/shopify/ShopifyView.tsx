@@ -34,7 +34,7 @@ import { CourierMasterTab } from './CourierMasterTab';
 export type ShopifyTab = 'orders' | 'fulfillment' | 'inventory' | 'products' | 'customers' | 'couriers' | 'settings';
 
 export const ShopifyView: React.FC = () => {
-  const { invoices, activeSubTab, navigateToTab, setCurrentView } = useErp();
+  const { invoices, activeSubTab, navigateToTab, setCurrentView, importShopifyOrder } = useErp();
   const [syncLogs, setSyncLogs] = useState<any[]>([]);
   const [showSyncLogs, setShowSyncLogs] = useState(false);
   const loadSyncLogs = useCallback(async () => {
@@ -109,6 +109,20 @@ export const ShopifyView: React.FC = () => {
       loadSyncLogs();
     } catch (e: any) {
       toast.error('Order import failed', { description: e?.message });
+    } finally {
+      setImportingOrders(false);
+    }
+  };
+
+  // Accept ONE order (the row "Accept" button): import just that order, then
+  // refresh the Shopify list so it leaves "To Accept". The ERP invoice is pulled
+  // in by importShopifyOrder itself, so the order appears in "To Pack" at once.
+  const handleAcceptOne = async (externalOrderId: string): Promise<boolean> => {
+    setImportingOrders(true);
+    try {
+      const res = await importShopifyOrder(externalOrderId);
+      if (res.ok) { await loadOrders(); loadSyncLogs(); }
+      return res.ok;
     } finally {
       setImportingOrders(false);
     }
@@ -307,6 +321,7 @@ export const ShopifyView: React.FC = () => {
               importing={importingOrders}
               syncing={syncingOrders}
               onImportAll={handleImportOrders}
+              onAcceptOne={handleAcceptOne}
               onRefresh={loadOrders}
               onOpenShopifyOrder={setSelectedOrder}
             />

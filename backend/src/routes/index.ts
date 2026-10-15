@@ -36,6 +36,7 @@ import {
   getShopInfo,
   previewOrders,
   importOrders,
+  importOrderById,
   listSyncLogs,
   createDemoOnlineOrders,
   previewProducts,
@@ -905,7 +906,12 @@ router.delete('/couriers/:id', requireCapability('sales:write'), asyncHandler(as
   res.json(result);
 }));
 router.post('/shopify/import', requireCapability('sales:write'), asyncHandler(async (req, res) => {
-  const result = await importOrders(Number(req.body?.limit) || 50, actorOf(req));
+  // Accept ONE order when an externalOrderId is given (the row "Accept" button),
+  // otherwise import all new paid orders ("Accept all").
+  const oneId = req.body?.externalOrderId ? String(req.body.externalOrderId) : '';
+  const result = oneId
+    ? await importOrderById(oneId, actorOf(req))
+    : await importOrders(Number(req.body?.limit) || 50, actorOf(req));
   broadcastChange('shopify-import');
   res.json(result);
 }));
