@@ -1530,6 +1530,13 @@ export const InvoiceForm: React.FC<Props> = ({
   useEffect(() => {
     if (customerOutstanding <= 0.009 && settlePrevDues) setSettlePrevDues(false);
   }, [customerOutstanding, settlePrevDues]);
+  // What the customer actually hands over at the counter: this bill + (when the
+  // toggle is on) their previous dues. The invoice's own Grand Total stays the
+  // bill amount — the dues are collected as a separate receipt on save.
+  const collectNowTotal = useMemo(
+    () => Math.round((totals.grandTotal + (settlePrevDues ? customerOutstanding : 0)) * 100) / 100,
+    [totals.grandTotal, settlePrevDues, customerOutstanding]
+  );
 
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
@@ -3583,14 +3590,25 @@ export const InvoiceForm: React.FC<Props> = ({
                   />
                 </button>
               </label>
-              {settlePrevDues && (
-                <div className="flex justify-between items-center px-3 py-2 bg-rose-100/70">
-                  <span className="font-extrabold text-rose-900">Total to collect now (incl. dues)</span>
-                  <span className="font-mono font-extrabold text-rose-800 text-sm">
-                    {formatCurrency(Math.round((totals.grandTotal + customerOutstanding) * 100) / 100)}
-                  </span>
-                </div>
-              )}
+            </div>
+          )}
+
+          {/* Prominent "collect now" figure when dues are being added — the bill's
+              Grand Total above stays the tax-invoice amount; this is the amount
+              the customer actually pays at the counter (bill + previous dues). */}
+          {documentType !== 'Quotation' && settlePrevDues && customerOutstanding > 0.009 && (
+            <div className="p-4 rounded-none bg-rose-700 text-white border border-rose-800 space-y-1">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs uppercase font-bold tracking-wider text-rose-100">
+                  Total to Collect Now
+                </span>
+                <span className="text-xl sm:text-2xl font-bold font-mono">
+                  {formatCurrency(collectNowTotal)}
+                </span>
+              </div>
+              <p className="text-[11px] text-rose-100">
+                This bill {formatCurrency(totals.grandTotal)} + previous dues {formatCurrency(customerOutstanding)}
+              </p>
             </div>
           )}
 
@@ -3759,10 +3777,17 @@ export const InvoiceForm: React.FC<Props> = ({
             {lineItems.filter((i) => i.itemName.trim()).length} item{lineItems.filter((i) => i.itemName.trim()).length === 1 ? '' : 's'}
           </span>
           <span className="text-slate-300 shrink-0">·</span>
-          <span className="text-[11px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Total Payable</span>
-          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 truncate">
-            {formatCurrency(totals.grandTotal)}
+          <span className="text-[11px] uppercase font-bold tracking-wider text-slate-400 shrink-0">
+            {documentType !== 'Quotation' && settlePrevDues && customerOutstanding > 0.009 ? 'To Collect' : 'Total Payable'}
           </span>
+          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 truncate">
+            {formatCurrency(documentType !== 'Quotation' && settlePrevDues ? collectNowTotal : totals.grandTotal)}
+          </span>
+          {documentType !== 'Quotation' && settlePrevDues && customerOutstanding > 0.009 && (
+            <span className="text-[11px] text-slate-400 font-semibold shrink-0">
+              (bill {formatCurrency(totals.grandTotal)} + dues {formatCurrency(customerOutstanding)})
+            </span>
+          )}
         </div>
         <button
           type="button"
