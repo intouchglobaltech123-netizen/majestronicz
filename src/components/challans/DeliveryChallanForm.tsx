@@ -809,11 +809,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
             </button>
             <button
               type="button"
-              onClick={handleSave}
-              className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer"
+              disabled={transferring}
+              onClick={challanMode === 'branch' && !initialChallan ? handleSaveTransfer : handleSave}
+              className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              <span>Save Delivery Challan</span>
+              <span>{challanMode === 'branch' && !initialChallan ? (transferring ? 'Transferring…' : 'Dispatch Branch Transfer') : 'Save Delivery Challan'}</span>
             </button>
           </div>
         </div>
