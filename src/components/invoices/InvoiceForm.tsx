@@ -26,6 +26,7 @@ import {
   GST_STATE_CODES,
   isInterStateSupply,
   supplyFromGstin,
+  getCustomerOutstandingSummary,
 } from '../../types';
 import {
   calculateLineTax,
@@ -122,6 +123,7 @@ export const InvoiceForm: React.FC<Props> = ({
     payments,
     invoices,
     getCustomerOutstandingBalance,
+    recordPayment,
   } = useErp();
   // A bill that is really saved (not a parked draft or a restored tab copy):
   // only then do "already paid" and the ended-month date limit apply.
@@ -1519,6 +1521,16 @@ export const InvoiceForm: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomerObj, invoices, initialInvoice]);
 
+  // Toggle: collect the customer's previous dues together with THIS bill.
+  // When on, the summary shows a combined "to collect now" and, once the bill
+  // is saved, the old unpaid bills are settled (a receipt is recorded against
+  // them) so the customer's running balance doesn't double-count (Oct-16 note).
+  const [settlePrevDues, setSettlePrevDues] = useState(false);
+  // Never leave it on for a customer who owes nothing (e.g. after switching).
+  useEffect(() => {
+    if (customerOutstanding <= 0.009 && settlePrevDues) setSettlePrevDues(false);
+  }, [customerOutstanding, settlePrevDues]);
+
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
     const preset = INVOICE_TERMS_PRESETS.find((p) => p.id === presetId);
@@ -1964,6 +1976,42 @@ export const InvoiceForm: React.FC<Props> = ({
       // object, or the user prints a "DRAFT"/wrong number for a sale that was
       // never recorded (SAL2-5).
       if (!saved) return;
+      // "Collect previous dues with this bill": settle the customer's older
+      // unpaid bills now, so the running balance isn't counted twice. We record
+      // a real receipt (oldest bills first), exactly like the Record Payment
+      // screen — never a taxable line, which would corrupt GST and the ledger.
+      if (settlePrevDues && saved.customerId && selectedCustomerObj) {
+        const unpaid = getCustomerOutstandingSummary(selectedCustomerObj, invoices)
+          .unpaidInvoices
+          .filter((u) => u.invoice.id !== saved.id) // never the bill just made
+          .sort((a, b) => (a.invoice.date || '').localeCompare(b.invoice.date || '')); // oldest first
+        let left = customerOutstanding;
+        const allocations = [] as { refId: string; refNumber?: string; amount: number }[];
+        for (const u of unpaid) {
+          if (left <= 0.009) break;
+          const take = Math.min(left, u.balanceDue);
+          if (take > 0.009) {
+            allocations.push({ refId: u.invoice.id, refNumber: u.invoice.invoiceNumber, amount: Math.round(take * 100) / 100 });
+            left = Math.round((left - take) * 100) / 100;
+          }
+        }
+        const settledAmount = Math.round(allocations.reduce((t, a) => t + a.amount, 0) * 100) / 100;
+        if (settledAmount > 0.009) {
+          const duesMode = ['Cash', 'HDFC', 'GPay'].includes(saved.paymentMode || '') ? (saved.paymentMode as string) : 'Cash';
+          await recordPayment({
+            type: 'in',
+            partyType: 'customer',
+            partyId: saved.customerId,
+            partyName: saved.customerName || 'Customer',
+            branchId: saved.branchId,
+            date: saved.date,
+            amount: settledAmount,
+            paymentMode: duesMode,
+            notes: `Previous dues collected with ${saved.invoiceNumber}`,
+            allocations,
+          });
+        }
+      }
       // The enquiry / pending order is closed only now that a real bill exists —
       // "+ Bill" without saving no longer fulfils the order (CRM-2).
       if (fromEnquiryPrefill && !initialInvoice && saved.sourceEnquiryId) {
@@ -3506,9 +3554,43 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* Customer's remaining balance from earlier bills (Oct-16 note):
               shows what this customer already owes, same as Customers Directory. */}
           {documentType !== 'Quotation' && customerOutstanding > 0.009 && (
-            <div className="flex justify-between items-center px-3 py-2 rounded-none bg-rose-50 border border-rose-300 text-xs">
-              <span className="font-bold text-rose-800">Previous Balance Due (earlier bills)</span>
-              <span className="font-mono font-extrabold text-rose-700 text-sm">{formatCurrency(customerOutstanding)}</span>
+            <div className="rounded-none bg-rose-50 border border-rose-300 text-xs divide-y divide-rose-200">
+              <div className="flex justify-between items-center px-3 py-2">
+                <span className="font-bold text-rose-800">Previous Balance Due (earlier bills)</span>
+                <span className="font-mono font-extrabold text-rose-700 text-sm">{formatCurrency(customerOutstanding)}</span>
+              </div>
+              {/* Toggle: add these old dues to what the customer pays on THIS bill.
+                  On save the old bills are settled so the dues aren't counted twice. */}
+              <label className="flex items-center justify-between gap-2 px-3 py-2 cursor-pointer select-none">
+                <span className="font-semibold text-rose-900">
+                  Collect these dues with this bill
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settlePrevDues}
+                  onClick={() => setSettlePrevDues((v) => !v)}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+                    settlePrevDues ? 'bg-rose-600' : 'bg-slate-300'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      settlePrevDues ? 'translate-x-4' : 'translate-x-0.5'
+                    )}
+                  />
+                </button>
+              </label>
+              {settlePrevDues && (
+                <div className="flex justify-between items-center px-3 py-2 bg-rose-100/70">
+                  <span className="font-extrabold text-rose-900">Total to collect now (incl. dues)</span>
+                  <span className="font-mono font-extrabold text-rose-800 text-sm">
+                    {formatCurrency(Math.round((totals.grandTotal + customerOutstanding) * 100) / 100)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
