@@ -121,6 +121,7 @@ export const InvoiceForm: React.FC<Props> = ({
     pendingOrders,
     payments,
     invoices,
+    getCustomerOutstandingBalance,
   } = useErp();
   // A bill that is really saved (not a parked draft or a restored tab copy):
   // only then do "already paid" and the ended-month date limit apply.
@@ -259,7 +260,7 @@ export const InvoiceForm: React.FC<Props> = ({
   const phoneSuggestions = useMemo(() => {
     if (customerId) return []; // a customer is already locked in
     const clean = customerPhone.replace(/\D/g, '');
-    if (clean.length < 3) return [];
+    if (clean.length < 2) return []; // from just "99" — no need to type the full number
     return customers
       .filter((c) => (c.phone || '').replace(/\D/g, '').startsWith(clean))
       .slice(0, 8);
@@ -1506,6 +1507,17 @@ export const InvoiceForm: React.FC<Props> = ({
     return 0;
   }, [paymentSplits, totals.grandTotal, isPartialPayment, partialAmount]);
   const paidNow = Math.max(0, Math.round((totals.grandTotal - creditOnBill) * 100) / 100);
+
+  // The customer's remaining balance from EARLIER bills (their running dues —
+  // same figure as the Customers Directory "Balance Due"), shown in the summary
+  // so the biller sees what this customer already owes (Oct-16 note).
+  const customerOutstanding = useMemo(() => {
+    if (!selectedCustomerObj) return 0;
+    let bal = getCustomerOutstandingBalance(selectedCustomerObj);
+    if (initialInvoice) bal -= Math.max(0, Number(initialInvoice.balanceDue) || 0); // exclude the bill being edited
+    return Math.max(0, Math.round(bal * 100) / 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomerObj, invoices, initialInvoice]);
 
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
@@ -3490,6 +3502,15 @@ export const InvoiceForm: React.FC<Props> = ({
               {withGst ? 'All GST taxes included' : 'Net document total (non-tax)'}
             </p>
           </div>
+
+          {/* Customer's remaining balance from earlier bills (Oct-16 note):
+              shows what this customer already owes, same as Customers Directory. */}
+          {documentType !== 'Quotation' && customerOutstanding > 0.009 && (
+            <div className="flex justify-between items-center px-3 py-2 rounded-none bg-rose-50 border border-rose-300 text-xs">
+              <span className="font-bold text-rose-800">Previous Balance Due (earlier bills)</span>
+              <span className="font-mono font-extrabold text-rose-700 text-sm">{formatCurrency(customerOutstanding)}</span>
+            </div>
+          )}
 
           {/* On-credit breakdown (bug #4): when the customer takes this bill on
               credit (COD-Credit / partial), show how much is paid now and how
