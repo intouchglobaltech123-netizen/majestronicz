@@ -6,7 +6,10 @@ import {
   DeliveryChallan,
   DeliveryChallanLineItem,
   DEFAULT_CHALLAN_TERMS,
+  BRANCHES,
+  BranchId,
 } from '../../types';
+import { cn } from '../../lib/utils';
 import {
   Plus,
   Trash2,
@@ -25,7 +28,7 @@ import { PhoneInput } from '../common/PhoneInput';
 
 interface Props {
   initialChallan?: DeliveryChallan | null;
-  onSaved?: (challan: DeliveryChallan) => void;
+  onSaved?: (challan?: DeliveryChallan) => void;
   onPreviewPdf?: (challan: DeliveryChallan) => void;
 }
 
@@ -41,7 +44,19 @@ export const DeliveryChallanForm: React.FC<Props> = ({
     branchStocks,
     currentBranch,
     currentUser,
+    transferStockBatch,
   } = useErp();
+
+  // A branch-to-branch challan is a REAL stock transfer (validated: blocks
+  // same-branch, blocks sending more than the source has, moves stock, and only
+  // the destination branch can receive). An external challan stays a free-text
+  // dispatch note. Editing an existing challan always uses the note form.
+  const concreteBranch: BranchId | '' =
+    currentBranch !== 'all' ? (currentBranch as BranchId) : ((currentUser?.assignedBranchId as BranchId) || '');
+  const [challanMode, setChallanMode] = useState<'branch' | 'external'>(initialChallan ? 'external' : 'branch');
+  const [fromBranch, setFromBranch] = useState<BranchId | ''>(concreteBranch);
+  const [toBranch, setToBranch] = useState<BranchId | ''>('');
+  const [transferring, setTransferring] = useState(false);
 
   // Form State
   const [challanNumber, setChallanNumber] = useState<string>('');
@@ -230,6 +245,39 @@ export const DeliveryChallanForm: React.FC<Props> = ({
     };
   };
 
+  // Branch transfer → run the validated transfer engine (same-branch guard,
+  // hard stock check, stock movement, auto-generated DC-TRF challan).
+  const handleSaveTransfer = async () => {
+    if (!fromBranch) { toast.error('Select the source branch'); return; }
+    if (!toBranch) { toast.error('Select the destination branch'); return; }
+    if (fromBranch === toBranch) { toast.error('Source and destination cannot be the same branch'); return; }
+    const validItems = lineItems.filter((i) => i.itemId && (Number(i.quantity) || 0) > 0);
+    const nonCatalog = lineItems.filter((i) => i.itemName.trim() && !i.itemId);
+    if (validItems.length === 0) { toast.error('Add at least one catalogue item with a quantity to transfer'); return; }
+    if (nonCatalog.length) {
+      toast.error('Branch transfers can only move catalogue items', {
+        description: `Match or remove: ${nonCatalog.map((i) => i.itemName).join(', ')}`,
+      });
+      return;
+    }
+    setTransferring(true);
+    try {
+      // transferStockBatch validates stock per line and throws (with its own
+      // toast) on same-branch or shortage, so no over-stock transfer can go out.
+      // transferStockBatch shows its own success toast ("Stock dispatched —
+      // awaiting receipt") and creates the DC-TRF challan on the server.
+      transferStockBatch(
+        validItems.map((i) => ({ itemId: i.itemId as string, quantity: Number(i.quantity) })),
+        fromBranch, toBranch, undefined, true,
+      );
+      onSaved?.();
+    } catch {
+      /* transferStockBatch already showed the specific error */
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const handleSave = async () => {
     const challan = assembleChallanObject();
     if (!challan) return;
@@ -321,11 +369,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
 
           <button
             type="button"
-            onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer"
+            disabled={transferring}
+            onClick={challanMode === 'branch' && !initialChallan ? handleSaveTransfer : handleSave}
+            className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-none border border-red-700 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            <span>Save Delivery Challan</span>
+            <span>{challanMode === 'branch' && !initialChallan ? (transferring ? 'Transferring…' : 'Dispatch Branch Transfer') : 'Save Delivery Challan'}</span>
           </button>
         </div>
       </div>
@@ -336,99 +385,107 @@ export const DeliveryChallanForm: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           {/* Delivery Challan For (Span 7) */}
           <div className="md:col-span-7 bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Delivery Challan For (Recipient Details)
+                {challanMode === 'branch' && !initialChallan ? 'Branch-to-Branch Stock Transfer' : 'Delivery Challan For (Recipient Details)'}
               </span>
-              <span className="text-[11px] text-slate-400">
-                Branch transfer OR customer delivery
-              </span>
-            </div>
-
-            {/* Quick-fill pills for branches */}
-            <div className="flex items-center gap-1.5 flex-wrap pb-1">
-              <span className="text-[11px] text-slate-500 font-medium">Quick Branch:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setRecipientName('MAJESTRONICZ BRANCH-1 CBE');
-                  setLocation('100 Feet Road, Gandhipuram, Coimbatore');
-                  setContactNo('9842211002');
-                }}
-                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
-              >
-                + Coimbatore Branch
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRecipientName('MAJESTRONICZ BRANCH-2 CHN');
-                  setLocation('Mount Road, Anna Salai, Chennai');
-                  setContactNo('9842211003');
-                }}
-                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
-              >
-                + Chennai Branch
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRecipientName('MAJESTRONICZ ERODE HQ');
-                  setLocation('10, Nachiappa 2nd St, Kottai, Erode');
-                  setContactNo('6379560289');
-                }}
-                className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
-              >
-                + Erode HQ
-              </button>
-            </div>
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Recipient Name <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. MAJESTRONICZ BRANCH-1 CBE or Customer / Client Name"
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
-                  />
+              {!initialChallan && (
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setChallanMode('branch')}
+                    className={cn('px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors', challanMode === 'branch' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+                  >Branch transfer</button>
+                  <button
+                    type="button"
+                    onClick={() => setChallanMode('external')}
+                    className={cn('px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors', challanMode === 'external' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
+                  >External / Customer</button>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {challanMode === 'branch' && !initialChallan ? (
+              <div className="space-y-2.5">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Moves stock between branches. Same-branch is blocked, you can’t send more than the source branch has in stock, and only the destination branch can receive it (which adds the stock there).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">From branch (source)</label>
+                    <select
+                      value={fromBranch}
+                      onChange={(e) => setFromBranch(e.target.value as BranchId)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-600"
+                    >
+                      <option value="">Select source…</option>
+                      {BRANCHES.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">To branch (destination)</label>
+                    <select
+                      value={toBranch}
+                      onChange={(e) => setToBranch(e.target.value as BranchId)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-600"
+                    >
+                      <option value="">Select destination…</option>
+                      {BRANCHES.filter((b) => b.id !== fromBranch).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {fromBranch && toBranch && fromBranch === toBranch && (
+                  <p className="text-[11px] font-bold text-rose-600">Source and destination cannot be the same branch.</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
                 <div>
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                    Location / Destination Line
+                    Recipient Name <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <MapPin className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <User className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Destination address, city, site..."
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
+                      required
+                      placeholder="Customer / Client name"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <PhoneInput
-                    label="Contact No."
-                    placeholder="98421 00000"
-                    value={contactNo}
-                    onChange={setContactNo}
-                    size="sm"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                      Location / Destination Line
+                    </label>
+                    <div className="relative">
+                      <MapPin className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Destination address, city, site..."
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <PhoneInput
+                      label="Contact No."
+                      placeholder="98421 00000"
+                      value={contactNo}
+                      onChange={setContactNo}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Challan Details (Span 5) */}

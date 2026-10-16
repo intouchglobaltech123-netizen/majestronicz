@@ -29,8 +29,21 @@ interface DeliveryChallanViewProps {
 }
 
 export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initialTab = 'new' }) => {
-  const { challans, deleteChallan, markChallanReceived, activeSubTab, currentUser, canWriteStock } = useErp();
+  const { challans, deleteChallan, markChallanReceived, activeSubTab, currentUser, canWriteStock, stockTransfers, currentBranch, isAllBranches } = useErp();
   const isManagerOrCeo = currentUser?.role === 'CEO' || currentUser?.role === 'Manager';
+  // Destination branch of a transfer challan (from its linked StockTransfer).
+  const transferDestOf = (c: DeliveryChallan): string | undefined =>
+    isTransferChallan(c) ? stockTransfers.find((t) => t.challanNumber === c.challanNumber)?.toBranch : undefined;
+  // Who may click "Receive": a plain delivery note — anyone; a branch transfer —
+  // only stock-writers AT the destination branch (so an Erode→Coimbatore transfer
+  // no longer shows Receive in Chennai). CEO on "All Branches" can receive any.
+  const canReceiveChallan = (c: DeliveryChallan): boolean => {
+    if (challanStatusOf(c) !== 'pending') return false;
+    if (!isTransferChallan(c)) return true;
+    if (!canWriteStock) return false;
+    const dest = transferDestOf(c);
+    return isAllBranches || !dest || currentBranch === dest;
+  };
   // INV-13: a received challan is final; a transfer challan mirrors its transfer,
   // so only a Manager/CEO may touch it (and never once received).
   const canEdit = (c: DeliveryChallan) => challanStatusOf(c) !== 'received' && (!isTransferChallan(c) || isManagerOrCeo);
@@ -344,7 +357,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({ initia
 
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            {challanStatusOf(ch) === 'pending' && (!isTransferChallan(ch) || canWriteStock) && (
+                            {canReceiveChallan(ch) && (
                               <button
                                 onClick={() => confirmReceived(ch)}
                                 className="px-2 py-1 rounded-none bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
