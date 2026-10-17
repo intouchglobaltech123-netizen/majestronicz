@@ -78,6 +78,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     quoteToPrefill,
     setQuoteToPrefill,
     voidInvoice,
+    deleteInvoice,
     currentUser,
     activeSubTab,
     payments,
@@ -728,6 +729,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 onPreviewPdf={(inv) => setPreviewInvoice(inv)}
                 onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
                 onCancel={() => closeBillTab(tab.id, tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
+                canVoidBill={canVoid}
+                onVoidBill={(inv) => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); }}
+                onDeleteBill={(inv) => {
+                  if (window.confirm(`Delete bill ${inv.invoiceNumber}? This permanently removes it and restores its stock. This cannot be undone.`)) {
+                    deleteInvoice(inv.id);
+                    closeBillTab(tab.id, 'ledger');
+                  }
+                }}
               />
             </div>
           ))}
@@ -1276,16 +1285,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                           {/* Action Buttons */}
                           <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* PDF Preview */}
-                              <button
-                                type="button"
-                                onClick={() => setPreviewInvoice(inv)}
-                                title="Print / PDF Preview"
-                                className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors"
-                              >
-                                <Printer className="h-3.5 w-3.5" />
-                              </button>
-
+                              {/* #4: Edit, Reprint-PDF and Void moved INTO the bill
+                                  (double-click a row to open it). The one-tap thermal
+                                  reprint stays for quick counter re-printing. */}
                               {/* Thermal (80mm) reprint */}
                               <button
                                 type="button"
@@ -1308,26 +1310,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                 </button>
                               )}
 
-                              {/* Edit Action — a bill with returns is locked until they are reversed (SAL3-2) */}
-                              {/* FIN-A-3: a bill of an ended month is locked like void/delete (same rule as the server). */}
-                              {!isVoided && !hasReturns && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleEdit(inv)}
-                                  disabled={monthEnded(inv)}
-                                  data-testid="edit-sale"
-                                  title={monthEnded(inv) ? "This bill's month has ended — it can't be edited. Use a return / credit note instead" : 'Edit Sale'}
-                                  className={cn(
-                                    'p-1.5 rounded-lg border transition-colors',
-                                    monthEnded(inv)
-                                      ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
-                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                                  )}
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-
                               {/* Duplicate Action */}
                               <button
                                 type="button"
@@ -1343,27 +1325,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               >
                                 <Copy className="h-3.5 w-3.5" />
                               </button>
-
-                              {/* Void Action — Manager/CEO only (SEC-6; the server refuses Billing) */}
-                              {canVoid && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setVoidModalInvoice(inv);
-                                  setVoidReason('Customer cancellation / Order return');
-                                }}
-                                disabled={isVoided || monthEnded(inv)}
-                                title={isVoided ? 'Already voided' : monthEnded(inv) ? "This bill's month has ended — use a return / credit note instead" : 'Void Sale & Restore Stock'}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  isVoided || monthEnded(inv)
-                                    ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
-                                    : 'bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border-slate-200'
-                                )}
-                              >
-                                <Ban className="h-3.5 w-3.5" />
-                              </button>
-                              )}
                             </div>
                           </td>
                         </tr>
