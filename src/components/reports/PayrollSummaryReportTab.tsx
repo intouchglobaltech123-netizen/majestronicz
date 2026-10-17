@@ -59,6 +59,7 @@ export const PayrollSummaryReportTab: React.FC<Props> = ({ branchScope }) => {
       month: selectedMonth,
       standardHours: payrollSettings.standardHoursPerMonth || 208,
       branchScope,
+      casualLeaveQuota: payrollSettings.monthlyCasualLeaves ?? 1,
     });
   }, [employees, attendanceRecords, invoices, payrollRecords, selectedMonth, payrollSettings, branchScope]);
 

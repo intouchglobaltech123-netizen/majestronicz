@@ -735,7 +735,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>({ standardHoursPerMonth: 208 });
+  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>({ standardHoursPerMonth: 208, monthlyCasualLeaves: 1 });
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>({ purchaseThreshold: 10, discountType: 'percentage', discountValue: 0, isActive: false, updatedAt: '', updatedBy: '' });
@@ -4236,7 +4236,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updatePayrollSettings = (settings: PayrollSettings) => {
     setPayrollSettings(settings);
     toast.success('Payroll settings updated', {
-      description: `Standard working hours set to ${settings.standardHoursPerMonth} hrs/month`,
+      description: `Paid casual leave: ${settings.monthlyCasualLeaves ?? 1} day(s)/month · Sundays & holidays free`,
     });
   };
 

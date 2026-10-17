@@ -350,7 +350,7 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
   paymentMode = mode;
   if (record) {
     if (record.month !== undefined) assertPayrollMonth(record.month);
-    for (const k of ['monthlySalary', 'computedPay', 'finalPayable', 'totalHoursWorked', 'totalDaysPresent', 'hourlyRate', 'standardHoursPerMonth']) {
+    for (const k of ['monthlySalary', 'computedPay', 'finalPayable', 'totalHoursWorked', 'totalDaysPresent', 'hourlyRate', 'standardHoursPerMonth', 'daysInMonth', 'perDaySalary', 'lopDays', 'lopDeduction', 'paidLeaveDays']) {
       if (record[k] !== undefined && record[k] !== null) assertPayrollAmount(record[k], k);
     }
     if (record.manualAdjustment !== undefined && record.manualAdjustment !== null) assertPayrollAmount(record.manualAdjustment, 'manualAdjustment', { min: -10_000_000 });
@@ -394,6 +394,11 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
             totalDaysPresent: Number(record.totalDaysPresent) || 0,
             totalHoursWorked: Number(record.totalHoursWorked) || 0,
             computedPay: Number(record.computedPay) || 0,
+            daysInMonth: record.daysInMonth != null ? Number(record.daysInMonth) : null,
+            perDaySalary: record.perDaySalary != null ? Number(record.perDaySalary) : null,
+            lopDays: record.lopDays != null ? Number(record.lopDays) : null,
+            lopDeduction: record.lopDeduction != null ? Number(record.lopDeduction) : null,
+            paidLeaveDays: record.paidLeaveDays != null ? Number(record.paidLeaveDays) : null,
             manualAdjustment: Number(record.manualAdjustment) || 0,
             adjustmentReason: record.adjustmentReason ?? existing.adjustmentReason ?? null,
             finalPayable: Number(record.finalPayable) || 0,
@@ -423,6 +428,11 @@ export function markPayrollPaid(payrollId: string, paymentMode: string, paymentR
           totalDaysPresent: Number(record.totalDaysPresent) || 0,
           totalHoursWorked: Number(record.totalHoursWorked) || 0,
           computedPay: Number(record.computedPay) || 0,
+          daysInMonth: record.daysInMonth != null ? Number(record.daysInMonth) : null,
+          perDaySalary: record.perDaySalary != null ? Number(record.perDaySalary) : null,
+          lopDays: record.lopDays != null ? Number(record.lopDays) : null,
+          lopDeduction: record.lopDeduction != null ? Number(record.lopDeduction) : null,
+          paidLeaveDays: record.paidLeaveDays != null ? Number(record.paidLeaveDays) : null,
           manualAdjustment: Number(record.manualAdjustment) || 0,
           adjustmentReason: record.adjustmentReason ?? null,
           finalPayable: Number(record.finalPayable) || 0,

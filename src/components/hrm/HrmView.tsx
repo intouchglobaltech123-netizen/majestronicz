@@ -72,6 +72,7 @@ export const HrmView: React.FC = () => {
     month: currentMonthStr,
     standardHours,
     branchScope: currentBranch,
+    casualLeaveQuota: payrollSettings.monthlyCasualLeaves ?? 1,
   });
   const monthPayrollExpense = monthPayrollRows.reduce((sum, r) => sum + r.finalPayable, 0);
   // Labour hours from the same rows the Payroll screen shows, so both cards agree

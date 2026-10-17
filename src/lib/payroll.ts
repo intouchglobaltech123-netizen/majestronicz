@@ -1,4 +1,4 @@
-import { Employee, AttendanceRecord, Invoice, PayrollRecord, attendanceDayWeight } from '../types';
+import { Employee, AttendanceRecord, Invoice, PayrollRecord, attendanceDayWeight, daysInMonthOf } from '../types';
 
 /**
  * Single source of truth for monthly payroll rows — live from attendance +
@@ -16,8 +16,12 @@ export function computePayrollRows(params: {
   month: string; // YYYY-MM
   standardHours: number;
   branchScope: string; // branch id or 'all'
+  /** Paid casual/sick-leave days allowed per month before LOP. Default 1. */
+  casualLeaveQuota?: number;
 }): PayrollRecord[] {
   const { employees, attendanceRecords, invoices, payrollRecords, month, standardHours, branchScope } = params;
+  const quota = Math.max(0, Number(params.casualLeaveQuota ?? 1));
+  const daysInMonth = daysInMonthOf(month);
 
   const targetEmployees = employees.filter((emp) => {
     if (branchScope && branchScope !== 'all' && emp.branchId !== branchScope) return false;
@@ -35,10 +39,26 @@ export function computePayrollRows(params: {
 
     // Salary is stripped from the data non-CEO roles receive (SEC2-2), so
     // emp.monthlySalary is undefined for them — guard the division so the row
-    // shows ₹0 rather than ₹NaN (HRM3-3). Also guard a zero standard-hours config.
+    // shows ₹0 rather than ₹NaN (HRM3-3).
     const salary = Number(emp.monthlySalary) || 0;
     const liveHourlyRate = standardHours > 0 ? parseFloat((salary / standardHours).toFixed(2)) : 0;
-    const liveComputedPay = Math.round(liveHourlyRate * liveHoursWorked);
+
+    // DAY-BASED Loss-of-Pay (client rule, Oct 2026): pay the FULL monthly salary
+    // and deduct only for unpaid days — never hour-based. A day's worth of salary
+    // is monthlySalary ÷ the real calendar days in that month (so 30- and 31-day
+    // months, and 4- or 5-Sunday months, are handled automatically). Sundays
+    // (Week Off) and Holidays are always free; Casual + Sick leave are free up to
+    // the monthly quota, and anything beyond — plus Absent days and half of each
+    // Half-Day — is Loss of Pay.
+    const perDaySalary = daysInMonth > 0 ? salary / daysInMonth : 0;
+    const absentDays = empAtt.filter((a) => a.status === 'Absent').length;
+    const halfDays = empAtt.filter((a) => a.status === 'Half-Day').length;
+    const leaveDays = empAtt.filter((a) => a.status === 'Casual Leave' || a.status === 'Sick Leave').length;
+    const paidLeaveDays = Math.min(leaveDays, quota);
+    const excessLeave = Math.max(0, leaveDays - quota);
+    const liveLopDays = Math.round((absentDays + 0.5 * halfDays + excessLeave) * 100) / 100;
+    const liveLopDeduction = Math.round(liveLopDays * perDaySalary);
+    const liveComputedPay = Math.max(0, Math.round(salary - liveLopDeduction));
 
     const existingRec = payrollRecords.find((p) => p.employeeId === emp.id && p.month === month);
 
@@ -72,6 +92,20 @@ export function computePayrollRows(params: {
       ? (existingRec!.incentiveEarned ??
           Math.max(0, existingRec!.finalPayable - existingRec!.computedPay - (existingRec!.manualAdjustment || 0)))
       : liveIncentive;
+    // Day-based breakdown: use the stored values on a locked row; fall back to
+    // deriving them so a row paid by an older (hour-based) build still shows a
+    // sensible LOP breakdown instead of blanks.
+    const lopDeduction = locked
+      ? (existingRec!.lopDeduction ?? Math.max(0, Math.round((existingRec!.monthlySalary || 0) - existingRec!.computedPay)))
+      : liveLopDeduction;
+    const outDaysInMonth = locked ? (existingRec!.daysInMonth ?? daysInMonth) : daysInMonth;
+    const outPerDaySalary = locked
+      ? (existingRec!.perDaySalary ?? (outDaysInMonth > 0 ? (existingRec!.monthlySalary || 0) / outDaysInMonth : 0))
+      : perDaySalary;
+    const outLopDays = locked
+      ? (existingRec!.lopDays ?? (outPerDaySalary > 0 ? Math.round((lopDeduction / outPerDaySalary) * 100) / 100 : 0))
+      : liveLopDays;
+    const outPaidLeaveDays = locked ? (existingRec!.paidLeaveDays ?? 0) : paidLeaveDays;
 
     return {
       id: existingRec?.id || `calc-${emp.id}-${month}`,
@@ -86,6 +120,11 @@ export function computePayrollRows(params: {
       totalDaysPresent,
       totalHoursWorked,
       computedPay,
+      daysInMonth: outDaysInMonth,
+      perDaySalary: Math.round(outPerDaySalary * 100) / 100,
+      lopDays: outLopDays,
+      lopDeduction,
+      paidLeaveDays: outPaidLeaveDays,
       incentiveEarned,
       manualAdjustment,
       adjustmentReason,

@@ -115,16 +115,20 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
             <div className="border-l border-slate-300 pl-4 space-y-1">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Attendance Metrics</p>
               <div className="flex justify-between">
-                <span className="text-slate-600">Standard Monthly Hours:</span>
-                <span className="font-mono font-bold text-slate-900">{payrollRecord.standardHoursPerMonth} hrs</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Recorded Hours Worked:</span>
-                <span className="font-mono font-bold text-slate-900">{payrollRecord.totalHoursWorked.toFixed(1)} hrs</span>
+                <span className="text-slate-600">Days in Month:</span>
+                <span className="font-mono font-bold text-slate-900">{payrollRecord.daysInMonth ?? '—'} days</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Days Present:</span>
-                <span className="font-mono font-bold text-emerald-700">{payrollRecord.totalDaysPresent} shifts</span>
+                <span className="font-mono font-bold text-emerald-700">{payrollRecord.totalDaysPresent} days</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600">Paid Leave Used:</span>
+                <span className="font-mono font-bold text-slate-900">{payrollRecord.paidLeaveDays ?? 0} day(s)</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600">Loss-of-Pay Days:</span>
+                <span className="font-mono font-bold text-rose-700">{payrollRecord.lopDays ?? 0} day(s)</span>
               </div>
             </div>
           </div>
@@ -147,20 +151,34 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                 </td>
               </tr>
               <tr>
-                <td className="py-2.5 px-3 text-slate-700">Effective Hourly Rate</td>
+                <td className="py-2.5 px-3 text-slate-700">Per-Day Salary</td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-500">
-                  {formatCurrency(payrollRecord.monthlySalary)} ÷ {payrollRecord.standardHoursPerMonth}h
+                  {formatCurrency(payrollRecord.monthlySalary)} ÷ {payrollRecord.daysInMonth ?? '—'} days
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                  {formatCurrency(payrollRecord.hourlyRate)}/hr
+                  {formatCurrency(payrollRecord.perDaySalary ?? 0)}/day
                 </td>
               </tr>
+              {(payrollRecord.lopDeduction ?? 0) > 0 && (
+                <tr className="bg-rose-50/40">
+                  <td className="py-2.5 px-3">
+                    <span className="font-semibold text-slate-900">Loss of Pay (LOP)</span>
+                    <p className="text-[11px] text-slate-500 italic mt-0.5">Absent / excess leave (Sundays & holidays excluded)</p>
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-800">
+                    {payrollRecord.lopDays ?? 0} day(s) × {formatCurrency(payrollRecord.perDaySalary ?? 0)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">
+                    − {formatCurrency(payrollRecord.lopDeduction ?? 0)}
+                  </td>
+                </tr>
+              )}
               <tr className="bg-slate-50">
                 <td className="py-2.5 px-3 font-bold text-slate-900">
-                  Computed Pay (Actual Recorded Attendance)
+                  Earned Pay (Salary − Loss of Pay)
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-800">
-                  {payrollRecord.totalHoursWorked.toFixed(1)}h × {formatCurrency(payrollRecord.hourlyRate)}
+                  {formatCurrency(payrollRecord.monthlySalary)} − {formatCurrency(payrollRecord.lopDeduction ?? 0)}
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                   {formatCurrency(payrollRecord.computedPay)}

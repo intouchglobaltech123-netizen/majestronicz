@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Employee, PayrollRecord, BRANCHES, BranchScope } from '../../types';
-import { formatCurrency, getTodayDateString } from '../../lib/utils';
+import { formatCurrency, getTodayDateString, cn } from '../../lib/utils';
 import { PayslipModal } from './PayslipModal';
 import { PayrollSettingsModal } from './PayrollSettingsModal';
 import { computePayrollRows } from '../../lib/payroll';
@@ -73,6 +73,7 @@ export const PayrollSummaryView: React.FC = () => {
     month: selectedMonth,
     standardHours,
     branchScope: payrollScope,
+    casualLeaveQuota: payrollSettings.monthlyCasualLeaves ?? 1,
   });
 
   // KPI calculations
@@ -226,9 +227,9 @@ export const PayrollSummaryView: React.FC = () => {
                 <th className="py-3 px-4">Staff Member</th>
                 <th className="py-3 px-3">Branch</th>
                 <th className="py-3 px-3 text-right">Fixed Salary</th>
-                <th className="py-3 px-3 text-center">Days / Hours</th>
-                <th className="py-3 px-3 text-right">Hourly Rate</th>
-                <th className="py-3 px-3 text-right">Computed Pay</th>
+                <th className="py-3 px-3 text-center">Present / LOP</th>
+                <th className="py-3 px-3 text-right">Per-Day</th>
+                <th className="py-3 px-3 text-right">Earned Pay</th>
                 <th className="py-3 px-3 text-right">Incentive</th>
                 <th className="py-3 px-3 text-right">Adjustment</th>
                 <th className="py-3 px-4 text-right">Final Payable</th>
@@ -273,24 +274,28 @@ export const PayrollSummaryView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Days & Hours */}
+                      {/* Days present & LOP */}
                       <td className="py-3.5 px-3 text-center">
-                        <div className="font-bold text-slate-900 font-mono">
-                          {row.totalHoursWorked.toFixed(1)} hrs
+                        <div className="font-bold text-emerald-700 font-mono">
+                          {row.totalDaysPresent} present
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          {row.totalDaysPresent} days present
+                        <div className={cn('text-[11px] font-mono', (row.lopDays || 0) > 0 ? 'text-rose-600 font-bold' : 'text-slate-400')}>
+                          {(row.lopDays || 0) > 0 ? `${row.lopDays} LOP day(s)` : 'no LOP'}
                         </div>
                       </td>
 
-                      {/* Hourly Rate */}
+                      {/* Per-day salary */}
                       <td className="py-3.5 px-3 text-right font-mono text-xs text-slate-600">
-                        ₹{row.hourlyRate.toFixed(2)}/h
+                        {formatCurrency(row.perDaySalary ?? 0)}/day
+                        <div className="text-[10px] text-slate-400">÷ {row.daysInMonth ?? '—'} days</div>
                       </td>
 
-                      {/* Computed Pay */}
+                      {/* Earned Pay (salary − LOP) */}
                       <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(row.computedPay)}
+                        {(row.lopDeduction || 0) > 0 && (
+                          <div className="text-[10px] text-rose-500 font-normal">− {formatCurrency(row.lopDeduction || 0)} LOP</div>
+                        )}
                       </td>
 
                       {/* Salesperson incentive */}

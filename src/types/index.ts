@@ -1299,8 +1299,18 @@ export interface AttendanceRecord {
  * Configurable Payroll Settings
  */
 export interface PayrollSettings {
-  standardHoursPerMonth: number; // Default: 208 hours (26 days * 8 hours)
+  standardHoursPerMonth: number; // Default: 208 hours (26 days * 8 hours) — legacy/informational
+  /** Paid leave days allowed per month before Loss-of-Pay starts. Casual + Sick
+   *  leave draw from this; Week Off (Sunday) & Holiday are always free. Default 1. */
+  monthlyCasualLeaves?: number;
 }
+
+/** Calendar days in a "YYYY-MM" month (28–31). Drives the day-based payroll. */
+export const daysInMonthOf = (month: string): number => {
+  const [y, m] = String(month || '').split('-').map(Number);
+  if (!y || !m || m < 1 || m > 12) return 30;
+  return new Date(y, m, 0).getDate();
+};
 
 /**
  * Monthly Computed Payroll Record
@@ -1314,10 +1324,17 @@ export interface PayrollRecord {
   month: string; // YYYY-MM e.g. "2026-09"
   monthlySalary: number;
   standardHoursPerMonth: number;
-  hourlyRate: number; // monthlySalary / standardHoursPerMonth
+  hourlyRate: number; // legacy: monthlySalary / standardHoursPerMonth
   totalDaysPresent: number;
   totalHoursWorked: number;
-  computedPay: number; // hourlyRate * totalHoursWorked
+  computedPay: number; // DAY-BASED earned pay = monthlySalary − lopDeduction
+  // Day-based Loss-of-Pay breakdown (Oct 2026). Optional for rows saved by
+  // older builds; the live calc always fills them.
+  daysInMonth?: number; // calendar days in the month (28–31)
+  perDaySalary?: number; // monthlySalary / daysInMonth
+  lopDays?: number; // unpaid days = absent + 0.5×half-day + leave beyond quota
+  lopDeduction?: number; // lopDays × perDaySalary, deducted from salary
+  paidLeaveDays?: number; // casual/sick leave days paid within the monthly quota
   incentiveEarned?: number; // salesperson incentives credited this month
   manualAdjustment: number; // Bonus (+) or Deduction (-)
   adjustmentReason?: string;

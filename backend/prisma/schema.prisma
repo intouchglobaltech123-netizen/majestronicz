@@ -492,6 +492,11 @@ model PayrollRecord {
   totalDaysPresent     Float
   totalHoursWorked     Float
   computedPay          Float
+  daysInMonth          Float?
+  perDaySalary         Float?
+  lopDays              Float?
+  lopDeduction         Float?
+  paidLeaveDays        Float?
   manualAdjustment     Float
   adjustmentReason     String?
   finalPayable         Float

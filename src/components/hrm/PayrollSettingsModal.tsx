@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Clock, Check, HelpCircle } from 'lucide-react';
+import { X, Settings, Clock, Check, HelpCircle, CalendarDays } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 
 interface PayrollSettingsModalProps {
@@ -13,10 +13,12 @@ export const PayrollSettingsModal: React.FC<PayrollSettingsModalProps> = ({
 }) => {
   const { payrollSettings, updatePayrollSettings } = useErp();
   const [standardHours, setStandardHours] = useState<number>(208);
+  const [casualLeaves, setCasualLeaves] = useState<number>(1);
 
   useEffect(() => {
     if (isOpen) {
       setStandardHours(payrollSettings.standardHoursPerMonth || 208);
+      setCasualLeaves(payrollSettings.monthlyCasualLeaves ?? 1);
     }
   }, [isOpen, payrollSettings]);
 
@@ -24,8 +26,8 @@ export const PayrollSettingsModal: React.FC<PayrollSettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (standardHours <= 0) return;
-    updatePayrollSettings({ standardHoursPerMonth: standardHours });
+    if (standardHours <= 0 || casualLeaves < 0) return;
+    updatePayrollSettings({ standardHoursPerMonth: standardHours, monthlyCasualLeaves: casualLeaves });
     onClose();
   };
 
@@ -40,7 +42,7 @@ export const PayrollSettingsModal: React.FC<PayrollSettingsModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Payroll Calculation Settings</h3>
-              <p className="text-xs text-slate-500">Configurable monthly standard working hours</p>
+              <p className="text-xs text-slate-500">Day-based Loss-of-Pay &amp; paid-leave rules</p>
             </div>
           </div>
           <button
@@ -55,7 +57,41 @@ export const PayrollSettingsModal: React.FC<PayrollSettingsModalProps> = ({
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Standard Working Hours / Month
+              Paid Casual Leave / Month
+            </label>
+            <div className="relative">
+              <CalendarDays className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={1}
+                value={casualLeaves}
+                onChange={(e) => setCasualLeaves(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                className="w-full pl-10 pr-4 py-2 text-sm font-mono font-bold rounded-none border border-slate-300 bg-white focus:outline-hidden focus:border-red-600"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Paid leave days allowed before Loss-of-Pay starts. Casual + Sick leave share this. Sundays (Week Off) &amp; Holidays are always free.
+            </p>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-none text-xs space-y-1.5 text-slate-800">
+            <p className="font-bold flex items-center gap-1.5 text-slate-900">
+              <HelpCircle className="h-4 w-4 text-red-700" />
+              <span>How Loss-of-Pay is Calculated (day-based):</span>
+            </p>
+            <div className="text-[11px] leading-relaxed text-slate-700 space-y-1 font-mono">
+              <p>• Per-Day = Monthly Salary ÷ actual days in that month (30/31)</p>
+              <p>• LOP days = Absent + ½×Half-Day + leave beyond the quota</p>
+              <p>• Earned Pay = Monthly Salary − (LOP days × Per-Day)</p>
+              <p className="text-slate-400">e.g. ₹10,000 ÷ 30 = ₹333/day; 2 LOP days → −₹666</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Standard Working Hours / Month <span className="font-normal normal-case text-slate-400">(reference only)</span>
             </label>
             <div className="relative">
               <Clock className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -69,19 +105,8 @@ export const PayrollSettingsModal: React.FC<PayrollSettingsModalProps> = ({
               />
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Standard guideline: 26 working days × 8 hours = <strong>208 hours/month</strong>
+              No longer used for pay (pay is day-based). Kept for reference reports.
             </p>
-          </div>
-
-          <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-none text-xs space-y-1.5 text-slate-800">
-            <p className="font-bold flex items-center gap-1.5 text-slate-900">
-              <HelpCircle className="h-4 w-4 text-red-700" />
-              <span>How Hourly Pay is Derived:</span>
-            </p>
-            <div className="text-[11px] leading-relaxed text-slate-700 space-y-1 font-mono">
-              <p>• Hourly Rate = Employee Monthly Salary ÷ Standard Hours/Month</p>
-              <p>• Computed Pay = Hourly Rate × Actual Recorded Hours</p>
-            </div>
           </div>
 
           {/* Actions */}
