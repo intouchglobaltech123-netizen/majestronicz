@@ -14,7 +14,7 @@ import {
   Package, Truck, CheckCircle2, Search, ArrowLeft, ArrowRight, User,
   Phone, MapPin, Pencil, Save, Printer, Copy, Camera, Send, Scale,
   Boxes, IndianRupee, Clock, XCircle, MessageCircle, Bell, ListChecks,
-  RefreshCw, DownloadCloud, RotateCcw, Undo2, Zap,
+  RefreshCw, DownloadCloud, RotateCcw, Undo2, Zap, AlertTriangle,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -28,53 +28,77 @@ import {
 
 const SHOP_NAME = 'MAJESTRONICZ';
 
-/** The simple Flipkart milestones the big Next / Back buttons step through. */
-const MILESTONES: OnlineOrderStatus[] = ['New', 'Picking', 'Packed', 'Shipped', 'Delivered', 'Completed'];
+// The order-processing flow (Change 08). Six steps, each marked completed
+// manually by staff; the stored onlineStatus is the order's current step.
+// Stage → stored status:  To Accept=New, Photo Sent=Tray Photo, Packing=Packed,
+// Courier Handover=Shipped, Tracking ID Sent=In Transit, Completed=Completed.
+const MILESTONES: OnlineOrderStatus[] = ['New', 'Tray Photo', 'Packed', 'Shipped', 'In Transit', 'Completed'];
+/** The step labels shown to staff (index-aligned with MILESTONES). */
+const STEP_LABELS = ['To Accept', 'Photo Sent', 'Packing', 'Courier Handover', 'Tracking ID Sent', 'Completed'];
 const FORWARD_LABEL: Record<string, string> = {
-  New: 'Accept order',
-  Picking: 'Mark packed',
-  Packed: 'Mark dispatched',
-  Shipped: 'Mark delivered',
-  Delivered: 'Mark completed',
+  New: 'Mark photo sent',
+  'Tray Photo': 'Mark packed',
+  Packed: 'Mark handed to courier',
+  Shipped: 'Mark tracking sent',
+  'In Transit': 'Mark completed',
 };
 
-/** Flipkart-style buckets (the top tiles). */
-type Bucket = 'to_accept' | 'to_pack' | 'to_dispatch' | 'in_transit' | 'completed' | 'cancelled';
+/** Board buckets = the six processing steps (the top status tiles). */
+type Bucket = 'to_accept' | 'photo_sent' | 'packing' | 'courier_handover' | 'tracking_sent' | 'completed' | 'cancelled';
 const BUCKET_LABEL: Record<Bucket, string> = {
   to_accept: 'To Accept',
-  to_pack: 'To Pack',
-  to_dispatch: 'To Dispatch',
-  in_transit: 'In Transit',
+  photo_sent: 'Photo Sent',
+  packing: 'Packing',
+  courier_handover: 'Courier Handover',
+  tracking_sent: 'Tracking ID Sent',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
 const BUCKET_STYLE: Record<Bucket, string> = {
   to_accept: 'bg-amber-50 text-amber-700 border-amber-200',
-  to_pack: 'bg-sky-50 text-sky-700 border-sky-200',
-  to_dispatch: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  in_transit: 'bg-violet-50 text-violet-700 border-violet-200',
+  photo_sent: 'bg-sky-50 text-sky-700 border-sky-200',
+  packing: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  courier_handover: 'bg-violet-50 text-violet-700 border-violet-200',
+  tracking_sent: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
-/** Map any stored ERP status (incl. legacy) to a simple milestone index. */
+/** Map any stored ERP status (incl. legacy) to a step index 0..5. */
 const milestoneIndex = (s?: OnlineOrderStatus): number => {
   switch (s) {
     case 'New': case undefined: return 0;
-    case 'Picking': case 'Tray Photo': case 'Confirmed': case 'Billed': return 1;
-    case 'Packed': return 2;
-    case 'Shipped': case 'In Transit': case 'Out for Delivery': return 3;
-    case 'Delivered': return 4;
-    case 'Completed': return 5;
+    case 'Picking': case 'Tray Photo': case 'Confirmed': return 1;
+    case 'Billed': case 'Packed': return 2;
+    case 'Shipped': return 3;
+    case 'In Transit': case 'Out for Delivery': return 4;
+    case 'Delivered': case 'Completed': return 5;
     default: return 0;
   }
 };
+const BUCKET_BY_INDEX: Bucket[] = ['to_accept', 'photo_sent', 'packing', 'courier_handover', 'tracking_sent', 'completed'];
 const bucketOf = (inv: Invoice): Bucket => {
   const s = (inv.onlineStatus as OnlineOrderStatus) || 'New';
   if (s === 'Cancelled') return 'cancelled';
-  const i = milestoneIndex(s);
-  return (['to_accept', 'to_pack', 'to_dispatch', 'in_transit', 'completed', 'completed'] as Bucket[])[i];
+  return BUCKET_BY_INDEX[milestoneIndex(s)];
 };
+
+// ── Change 06: 24-hour packing alert ──────────────────────────────────────
+/** Hours elapsed since an ISO timestamp (0 if unknown). */
+const hoursSince = (iso?: string): number => {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, (Date.now() - t) / 3_600_000);
+};
+/** An order is "unpacked" until it reaches the Packing step (index 2). */
+const isUnpacked = (inv: Invoice) =>
+  (inv.onlineStatus as OnlineOrderStatus) !== 'Cancelled' && milestoneIndex(inv.onlineStatus as OnlineOrderStatus) < 2;
+/** Packing is overdue when an unpacked order has waited > 24h from order time. */
+const packingOverdue = (inv: Invoice) => isUnpacked(inv) && hoursSince(inv.externalCreatedAt || inv.createdAt) > 24;
+const hoursPending = (inv: Invoice) => Math.floor(hoursSince(inv.externalCreatedAt || inv.createdAt));
+/** Auto-complete window: an order in "Tracking ID Sent" closes after 7 days. */
+const AUTO_COMPLETE_DAYS = 7;
 
 /** wa.me deep link with a prefilled message (India numbers default to +91). */
 const waLink = (phone: string | undefined, text: string): string | null => {
@@ -100,27 +124,6 @@ const fmtDateTime = (iso?: string): string => {
   const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   return `${date}, ${time}`;
 };
-
-const photoSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'photo_sent');
-const trackingSent = (inv: Invoice) => (inv.communicationLog || []).some((c: any) => c?.type === 'tracking_sent');
-
-/** Detailed processing steps (client's workflow doc, Change 03). Each maps to an
- *  actionable point in the ERP pipeline so staff see exactly what's pending. */
-type StepKey =
-  | 'step_tray' | 'step_photo' | 'step_photo_send' | 'step_confirm' | 'step_bill'
-  | 'step_pack' | 'step_courier_book' | 'step_courier_handover' | 'step_tracking_id' | 'step_tracking_send';
-const STEPS: { key: StepKey; label: string; match: (inv: Invoice) => boolean }[] = [
-  { key: 'step_tray', label: 'Collect in Tray', match: (i) => i.onlineStatus === 'Picking' },
-  { key: 'step_photo', label: 'Product Photo Pending', match: (i) => i.onlineStatus === 'Tray Photo' && !i.trayPhotoUrl },
-  { key: 'step_photo_send', label: 'WhatsApp Photo Pending', match: (i) => !!i.trayPhotoUrl && !photoSent(i) && (i.onlineStatus === 'Tray Photo' || i.onlineStatus === 'Confirmed') },
-  { key: 'step_confirm', label: 'Customer Confirmation Pending', match: (i) => i.onlineStatus === 'Confirmed' },
-  { key: 'step_bill', label: 'Final Bill Pending', match: (i) => i.onlineStatus === 'Billed' },
-  { key: 'step_pack', label: 'Packing & Label Pending', match: (i) => i.onlineStatus === 'Packed' },
-  { key: 'step_courier_book', label: 'Courier Booking Pending', match: (i) => i.onlineStatus === 'Shipped' && !i.courierName },
-  { key: 'step_courier_handover', label: 'Courier Handover Pending', match: (i) => i.onlineStatus === 'Shipped' && !!i.courierName && i.courierStatus !== 'Handed' && i.courierStatus !== 'Tracking Received' },
-  { key: 'step_tracking_id', label: 'Tracking ID Pending', match: (i) => milestoneIndex(i.onlineStatus as OnlineOrderStatus) >= 3 && !i.trackingNumber },
-  { key: 'step_tracking_send', label: 'Tracking Send Pending', match: (i) => !!i.trackingNumber && !trackingSent(i) && milestoneIndex(i.onlineStatus as OnlineOrderStatus) >= 3 },
-];
 
 /** Whether an un-imported Shopify order can be fulfilled from current ERP stock. */
 const stockStatusOf = (o: ShopifyOrder): { label: string; tone: 'ok' | 'short' | 'check' } => {
@@ -152,8 +155,8 @@ interface BoardProps {
   onOpenShopifyOrder?: (o: ShopifyOrder) => void;
 }
 
-export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onAcceptOne, onRefresh, onOpenShopifyOrder }) => {
-  const { invoices, currentUser, resetOnlineProcessing, restoreOnlineProcessing } = useErp();
+export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onRefresh, onOpenShopifyOrder }) => {
+  const { invoices, currentUser, resetOnlineProcessing, restoreOnlineProcessing, updateOnlineOrderStatus } = useErp();
   // Reset-for-testing wipes every online order's processing back to the start —
   // a testing-only tool, so it's CEO-only and never sits on a branch manager's
   // live board (H6).
@@ -169,21 +172,21 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     setResetting(true);
     try { await restoreOnlineProcessing(); } finally { setResetting(false); }
   };
-  const [view, setView] = useState<'all_orders' | Bucket | StepKey>('all_orders');
+  const [view, setView] = useState<'all_orders' | Bucket | 'packing_overdue'>('all_orders');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
-  // The detailed processing-step tiles are hidden by default to keep the board
-  // clean; a "Show steps" button reveals them (and they auto-show when a step is
-  // the active view).
-  const [showSteps, setShowSteps] = useState(false);
-  // Which single order is being accepted (so only that row shows a spinner).
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  // Re-render every minute so "pending hours" and the 24h / 7-day thresholds
+  // stay live while the board is open.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Auto-accept: new paid Shopify orders are pulled into the ERP automatically
-  // so they land in "To Accept" without anyone clicking Accept. Staff then do
-  // the stock check, tray, edits and billing on the order itself. Persisted
-  // per-browser; default ON (client request, Oct 2026).
+  // so they land in "To Accept" — there is no manual Accept step (Change 07).
+  // Persisted per-browser; default ON.
   const [autoAccept, setAutoAccept] = useState<boolean>(() => {
     try { return localStorage.getItem('shopifyAutoAccept') !== 'off'; } catch { return true; }
   });
@@ -192,20 +195,6 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     try { localStorage.setItem('shopifyAutoAccept', next ? 'on' : 'off'); } catch { /* ignore */ }
     return next;
   });
-
-  // Import just the clicked order; on success, jump the board to "To Accept" so
-  // staff see it (imported orders start at New → To Accept, then are processed
-  // step by step). It never just vanishes.
-  const acceptOne = async (externalOrderId: string) => {
-    if (!onAcceptOne) { onImportAll?.(); return; }
-    setAcceptingId(externalOrderId);
-    try {
-      const ok = await onAcceptOne(externalOrderId);
-      if (ok) { setExpandedPending(null); setView('to_accept'); }
-    } finally {
-      setAcceptingId(null);
-    }
-  };
 
   // Shopify order name ("#6807") for already-imported orders that predate the
   // stored name — looked up from the live store list by Shopify order id.
@@ -247,25 +236,17 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     [invoices],
   );
 
-  // To Accept = every new order (ERP stage "New"), shown immediately — no 6 PM
-  // batching, so a fresh order appears here the moment it arrives.
-  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept';
-
   const matchesView = (inv: Invoice, v: typeof view): boolean => {
     if (v === 'all_orders') return true; // All Orders shows the complete list
-    if (v === 'to_accept') return inToAccept(inv);
-    if (v === 'to_pack' || v === 'to_dispatch' || v === 'in_transit' || v === 'completed' || v === 'cancelled') return bucketOf(inv) === v;
-    const step = STEPS.find((s) => s.key === v);
-    return step ? step.match(inv) : false;
+    if (v === 'packing_overdue') return packingOverdue(inv);
+    return bucketOf(inv) === v;
   };
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all_orders: 0, to_accept: 0, to_pack: 0, to_dispatch: 0, in_transit: 0, completed: 0, cancelled: 0 };
-    for (const s of STEPS) c[s.key] = 0;
+    const c: Record<string, number> = { all_orders: 0, to_accept: 0, photo_sent: 0, packing: 0, courier_handover: 0, tracking_sent: 0, completed: 0, cancelled: 0, packing_overdue: 0 };
     for (const o of online) {
-      const b = bucketOf(o);
-      c[b] += 1;
-      for (const s of STEPS) if (s.match(o)) c[s.key] += 1;
+      c[bucketOf(o)] += 1;
+      if (packingOverdue(o)) c.packing_overdue += 1;
     }
     // Un-imported Shopify orders are new → they belong in To Accept (and the
     // all-orders total), until auto-accept pulls them in.
@@ -273,6 +254,23 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     c.all_orders = online.length + pending.length;
     return c;
   }, [online, pending]);
+
+  // Change 08: auto-close an order 7 days after its tracking ID was sent (it sits
+  // in "Tracking ID Sent" / In Transit until then). Runs while the board is open;
+  // guarded so each order is only pushed to Completed once.
+  const autoCompletedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!updateOnlineOrderStatus) return;
+    for (const o of online) {
+      if (bucketOf(o) !== 'tracking_sent') continue;
+      if (autoCompletedRef.current.has(o.id)) continue;
+      if (hoursSince(o.updatedAt) > AUTO_COMPLETE_DAYS * 24) {
+        autoCompletedRef.current.add(o.id);
+        void updateOnlineOrderStatus(o.id, 'Completed', { note: `Auto-completed ${AUTO_COMPLETE_DAYS} days after tracking sent` });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
 
   // Un-imported Shopify orders shown for the current view (To Accept / All Orders).
   const pendingForView = useMemo(() => {
@@ -307,9 +305,10 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   const PRIMARY: { key: 'all_orders' | Bucket; label: string; icon: React.ReactNode }[] = [
     { key: 'all_orders', label: 'All Orders', icon: <ListChecks className="h-4 w-4" /> },
     { key: 'to_accept', label: BUCKET_LABEL.to_accept, icon: <Clock className="h-4 w-4" /> },
-    { key: 'to_pack', label: BUCKET_LABEL.to_pack, icon: <Package className="h-4 w-4" /> },
-    { key: 'to_dispatch', label: BUCKET_LABEL.to_dispatch, icon: <Boxes className="h-4 w-4" /> },
-    { key: 'in_transit', label: BUCKET_LABEL.in_transit, icon: <Truck className="h-4 w-4" /> },
+    { key: 'photo_sent', label: BUCKET_LABEL.photo_sent, icon: <Camera className="h-4 w-4" /> },
+    { key: 'packing', label: BUCKET_LABEL.packing, icon: <Package className="h-4 w-4" /> },
+    { key: 'courier_handover', label: BUCKET_LABEL.courier_handover, icon: <Truck className="h-4 w-4" /> },
+    { key: 'tracking_sent', label: BUCKET_LABEL.tracking_sent, icon: <Send className="h-4 w-4" /> },
     { key: 'completed', label: BUCKET_LABEL.completed, icon: <CheckCircle2 className="h-4 w-4" /> },
     { key: 'cancelled', label: BUCKET_LABEL.cancelled, icon: <XCircle className="h-4 w-4" /> },
   ];
@@ -354,8 +353,8 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         </div>
       </div>
 
-      {/* Primary stage tiles (All Orders + Flipkart buckets) */}
-      <div className="grid grid-cols-3 lg:grid-cols-7 gap-2">
+      {/* Primary stage tiles (All Orders + the 6 processing steps + Cancelled) */}
+      <div className="grid grid-cols-3 lg:grid-cols-8 gap-2">
         {PRIMARY.map((t) => (
           <button
             key={t.key}
@@ -373,41 +372,20 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         ))}
       </div>
 
-      {/* Detailed processing-step tiles (Change 03) — hidden by default to keep
-          the board clean; shown on demand or when a step is the active view. */}
-      {(() => {
-        const isStepView = STEPS.some((s) => s.key === view);
-        const open = showSteps || isStepView;
-        return (
-          <div>
-            <button
-              onClick={() => setShowSteps((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 mb-1.5"
-            >
-              <ListChecks className="h-3.5 w-3.5" />
-              {open ? 'Hide processing steps' : 'Show processing steps'}
-            </button>
-            {open && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {STEPS.map((s) => (
-                  <button
-                    key={s.key}
-                    onClick={() => setView(s.key)}
-                    className={cn(
-                      'text-left px-2.5 py-2 rounded-lg border transition-colors',
-                      view === s.key ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
-                      counts[s.key] > 0 && view !== s.key && 'border-blue-200 bg-blue-50/40',
-                    )}
-                  >
-                    <div className="text-base font-extrabold font-mono leading-none">{counts[s.key]}</div>
-                    <div className={cn('text-[9px] font-bold uppercase tracking-wide mt-1 leading-tight', view === s.key ? 'text-blue-50' : 'text-slate-500')}>{s.label}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {/* Packing Overdue counter (Change 06): orders unpacked for over 24 hours. */}
+      {counts.packing_overdue > 0 && (
+        <button
+          onClick={() => setView('packing_overdue')}
+          className={cn(
+            'w-full text-left px-3 py-2.5 rounded-xl border transition-colors inline-flex items-center gap-2',
+            view === 'packing_overdue' ? 'bg-rose-600 text-white border-rose-700' : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100',
+          )}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-lg font-extrabold font-mono">{counts.packing_overdue}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide">Packing Overdue · unpacked over 24 hours</span>
+        </button>
+      )}
 
       {/* Search */}
       <div className="relative w-full lg:max-w-sm">
@@ -425,13 +403,8 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl overflow-hidden">
           <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 bg-amber-100/70 border-b border-amber-200">
             <span className="text-[11px] font-extrabold uppercase tracking-wide text-amber-800 inline-flex items-center gap-1.5">
-              <DownloadCloud className="h-3.5 w-3.5" /> {autoAccept ? 'New from Shopify — importing automatically…' : 'New from Shopify — accept to start'}
+              <DownloadCloud className={cn('h-3.5 w-3.5', importing && 'animate-pulse')} /> New from Shopify — importing automatically…
             </span>
-            {onImportAll && (
-              <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
-                <DownloadCloud className="h-3.5 w-3.5" /> Accept all
-              </button>
-            )}
           </div>
           <div className="divide-y divide-amber-100">
             {pendingForView.map((o) => {
@@ -451,9 +424,11 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                       <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {fmtDateTime(o.createdAt || o.date)} · tap for stock, double-tap to open</div>
                     </button>
                     <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
-                    <button onClick={() => acceptOne(o.externalOrderId)} disabled={importing || acceptingId === o.externalOrderId} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
-                      {acceptingId === o.externalOrderId ? 'Accepting…' : <>Accept <ArrowRight className="h-3 w-3" /></>}
-                    </button>
+                    {onOpenShopifyOrder && (
+                      <button onClick={() => onOpenShopifyOrder(o)} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-[11px] font-bold hover:bg-slate-50">
+                        Open <ArrowRight className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   {open && (
                     <div className="px-3 sm:px-4 pb-3 -mt-1">
@@ -478,16 +453,13 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                           );
                         })}
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <button onClick={() => acceptOne(o.externalOrderId)} disabled={importing || acceptingId === o.externalOrderId} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
-                          <DownloadCloud className="h-3.5 w-3.5" /> {acceptingId === o.externalOrderId ? 'Accepting…' : 'Accept this order'}
-                        </button>
-                        {onOpenShopifyOrder && (
+                      {onOpenShopifyOrder && (
+                        <div className="flex items-center gap-2 mt-2">
                           <button onClick={() => onOpenShopifyOrder(o)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50">
                             View full order
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -509,17 +481,23 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
           {list.map((inv) => {
             const bal = balanceOf(inv);
             const itemCount = Array.isArray(inv.items) ? inv.items.reduce((n: number, l: any) => n + (Number(l.quantity) || 0), 0) : 0;
+            const overdue = packingOverdue(inv); // Change 06
             return (
               <button
                 key={inv.id}
                 onClick={() => setSelectedId(inv.id)}
-                className="w-full text-left flex items-center gap-3 px-3 sm:px-4 py-3 hover:bg-slate-50 transition-colors"
+                className={cn('w-full text-left flex items-center gap-3 px-3 sm:px-4 py-3 transition-colors', overdue ? 'bg-rose-50 hover:bg-rose-100' : 'hover:bg-slate-50')}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{displayNo(inv)}</span>
                     <span className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{inv.customerName || 'Online customer'}</span>
                     {inv.customerPhone && <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">· {inv.customerPhone}</span>}
+                    {overdue && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-rose-100 text-rose-700 border-rose-300 inline-flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Packing Pending – Over 24 Hours · Pending for {hoursPending(inv)} Hours
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-400 mt-0.5">{itemCount} item{itemCount === 1 ? '' : 's'} · {fmtDateTime(orderTimeOf(inv))}</div>
                 </div>
@@ -671,6 +649,38 @@ const FlipkartOrderPanel: React.FC<{ inv: Invoice; onBack: () => void }> = ({ in
     a.href = photo; a.download = `${orderNo}-photo.jpg`; a.click();
   };
 
+  // Change 09: actually ATTACH the photo when sending on WhatsApp. On phones the
+  // Web Share API opens WhatsApp with the image + message attached; on desktop
+  // (no file sharing) it falls back to opening the chat with the text and saving
+  // the image so staff can attach it (true auto-attach needs the paid WA API).
+  const [sharingPhoto, setSharingPhoto] = useState(false);
+  const sharePhotoOnWhatsApp = async () => {
+    if (!photo) { toast.error('Add a product/parcel photo first.'); return; }
+    setSharingPhoto(true);
+    try {
+      const blob = await (await fetch(photo)).blob();
+      const file = new File([blob], `${orderNo}-photo.jpg`, { type: blob.type || 'image/jpeg' });
+      const nav = navigator as any;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], text: photoMsg, title: `Order ${orderNo}` });
+        addOrderCommunication(inv.id, 'photo_sent');
+        return;
+      }
+      // Desktop fallback: save the image + open the chat with the message ready.
+      saveImage();
+      try { await navigator.clipboard.writeText(photoMsg); } catch { /* ignore */ }
+      if (photoWa) window.open(photoWa, '_blank');
+      addOrderCommunication(inv.id, 'photo_sent');
+      toast.info('Photo saved & message copied — attach the saved photo in the WhatsApp chat.', {
+        description: 'On a phone it attaches automatically; desktop WhatsApp can’t auto-attach an image.',
+      });
+    } catch {
+      toast.error('Could not share the photo. Save it and attach it in the chat.');
+    } finally {
+      setSharingPhoto(false);
+    }
+  };
+
   // ── Print box / address label ──
   const printLabel = () => {
     const branch = BRANCHES.find((b) => b.id === inv.branchId);
@@ -741,8 +751,8 @@ ${esc(inv.stateOfSupply || '')}</div>
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl p-3 overflow-x-auto">
-          <div className="flex items-center min-w-[520px]">
-            {['To Accept', 'To Pack', 'Dispatch', 'Transit', 'Delivered', 'Done'].map((label, i, arr) => {
+          <div className="flex items-center min-w-[560px]">
+            {STEP_LABELS.map((label, i, arr) => {
               const done = i < mi;
               const current = i === mi;
               return (
@@ -772,11 +782,19 @@ ${esc(inv.stateOfSupply || '')}</div>
         </div>
       )}
 
+      {/* Change 06: packing-overdue banner on the order details page. */}
+      {packingOverdue(inv) && (
+        <div className="bg-rose-50 border border-rose-300 rounded-xl p-3 text-sm font-bold text-rose-700 inline-flex items-center gap-2 w-full">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Packing Pending – Over 24 Hours · Pending for {hoursPending(inv)} Hours. Pack this order as soon as possible.
+        </div>
+      )}
+
       {/* Big stage actions */}
       <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2 flex-wrap">
         {backTo && (
           <button disabled={busy} onClick={() => advance(backTo)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 disabled:opacity-50">
-            <ArrowLeft className="h-4 w-4" /> Back to {backTo}
+            <ArrowLeft className="h-4 w-4" /> Back to {STEP_LABELS[mi - 1]}
           </button>
         )}
         {forwardTo ? (
@@ -904,15 +922,15 @@ ${esc(inv.stateOfSupply || '')}</div>
                   {photo && <button onClick={saveImage} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50"><Copy className="h-3.5 w-3.5" /> Save image</button>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <a
-                    href={photoWa || undefined} target="_blank" rel="noreferrer"
-                    onClick={() => { if (photoWa) addOrderCommunication(inv.id, 'photo_sent'); }}
+                  <button
+                    onClick={sharePhotoOnWhatsApp}
+                    disabled={!photo || sharingPhoto}
                     className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border',
-                      photoWa ? 'bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/40 hover:bg-[#25D366]/20' : 'bg-slate-50 text-slate-400 border-slate-200 pointer-events-none')}
-                  ><MessageCircle className="h-3.5 w-3.5" /> Send on WhatsApp</a>
+                      photo ? 'bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/40 hover:bg-[#25D366]/20' : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed')}
+                  ><MessageCircle className="h-3.5 w-3.5" /> {sharingPhoto ? 'Sharing…' : 'Send photo on WhatsApp'}</button>
                   <button onClick={() => copyText(photoMsg)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50"><Copy className="h-3.5 w-3.5" /> Copy message</button>
                 </div>
-                <p className="text-[10px] text-slate-400">WhatsApp opens with the message ready. Save the image and attach it in the chat (auto-attach needs the paid WhatsApp Business API — a future add-on).</p>
+                <p className="text-[10px] text-slate-400">On a phone this attaches the photo to WhatsApp directly. On desktop the photo is saved and the chat opens with the message — attach the saved photo (true auto-send needs the paid WhatsApp Business API).</p>
               </div>
             </div>
           </Card>
