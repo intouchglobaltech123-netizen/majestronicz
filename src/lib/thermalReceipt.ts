@@ -19,6 +19,16 @@ export const setThermalAutoPrint = (on: boolean): void => {
   try { localStorage.setItem(LS_KEY, on ? 'on' : 'off'); } catch { /* ignore */ }
 };
 
+const LS_HIDE_PAY = 'hidePaymentOnBill';
+/** Hide the payment-details box (modes / cash tendered / balance / bank & UPI)
+ *  on the printed bill — both thermal and A4. Default OFF (payment shown). */
+export const isHidePaymentOnBillOn = (): boolean => {
+  try { return localStorage.getItem(LS_HIDE_PAY) === 'on'; } catch { return false; }
+};
+export const setHidePaymentOnBill = (on: boolean): void => {
+  try { localStorage.setItem(LS_HIDE_PAY, on ? 'on' : 'off'); } catch { /* ignore */ }
+};
+
 export type ThermalWidth = 58 | 80;
 /** Paper width in mm (per billing device). Default 80mm (department store). */
 export const getThermalWidth = (): ThermalWidth => {
@@ -49,8 +59,10 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     || (Number(inv.subtotal) || 0);
   const discount = items.reduce((s, li: any) => s + (Number(li.discountAmount) || 0), 0);
   const roundOff = Number(inv.roundOff) || 0;
+  const shipping = Number(inv.shippingCharges) || 0;
   const grand = Number(inv.grandTotal) || 0;
   const balance = Math.max(0, Number(inv.balanceDue) || 0);
+  const hidePayment = isHidePaymentOnBillOn();
 
   // Item rows: Item | Qty | Amt (line total), like the reference bill.
   const rows = items.map((li: any) => {
@@ -131,7 +143,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     ${inv.customerName ? `<div class="sm b" style="margin-top:1mm">${esc(inv.customerName)}</div>` : ''}
     ${inv.customerPhone ? `<div class="sm">${esc(inv.customerPhone)}</div>` : ''}
     <div class="sm" style="margin-top:1mm"><span class="b">Bill No:</span> ${esc(inv.invoiceNumber)}</div>
-    <div class="sm"><span class="b">Payment Mode:</span> ${esc(inv.paymentMode || 'Cash')}</div>
+    ${hidePayment ? '' : `<div class="sm"><span class="b">Payment Mode:</span> ${esc(inv.paymentMode || 'Cash')}</div>`}
     <hr/>
     <table>
       <thead><tr><td>Item</td><td class="g">Qty</td><td class="a">Amt</td></tr></thead>
@@ -142,6 +154,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
       <tr><td>Sub Total</td><td class="tl">${money(subtotal)}</td></tr>
       ${discount > 0 ? `<tr><td>(-) Discount</td><td class="tl">${money(discount)}</td></tr>` : ''}
       ${taxRows}
+      ${shipping > 0 ? `<tr><td>Shipping Charges</td><td class="tl">${money(shipping)}</td></tr>` : ''}
       ${roundOff ? `<tr><td>Round Off</td><td class="tl">${money(roundOff)}</td></tr>` : ''}
     </tbody></table>
     <hr/>
@@ -149,15 +162,15 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
       <tr class="grand"><td>TOTAL</td><td class="tl">Rs ${money(grand)}</td></tr>
     </tbody></table>
     <hr/>
-    <table class="tot"><tbody>
+    ${hidePayment ? '' : `<table class="tot"><tbody>
       ${payRows}
       <tr><td>Cash tendered:</td><td class="tl">Rs ${money(tendered)}</td></tr>
       ${balance > 0 ? `<tr><td class="b">Balance Due:</td><td class="tl b">Rs ${money(balance)}</td></tr>` : ''}
     </tbody></table>
-    <hr/>
+    <hr/>`}
     <div class="c xs b">E & O E</div>
     <div class="c foot">Thank you! Visit again.</div>
-    ${company.upiId ? `<div class="c xs">UPI: ${esc(company.upiId)}</div>` : ''}
+    ${!hidePayment && company.upiId ? `<div class="c xs">UPI: ${esc(company.upiId)}</div>` : ''}
     ${websiteQrDataUrl
       ? `<div class="c" style="margin-top:2mm"><img src="${websiteQrDataUrl}" alt="website" style="width:${narrow ? 18 : 22}mm;height:${narrow ? 18 : 22}mm;"/><div class="c xs">Scan to visit our website</div></div>`
       : ''}

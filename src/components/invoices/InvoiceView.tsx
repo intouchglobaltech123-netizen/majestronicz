@@ -485,6 +485,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     openBillTab({ documentType: 'Invoice', editingInvoice: invoice, label: invoice.invoiceNumber });
   };
 
+  // Double-clicking a bill row opens it in the editable billing screen (#4).
+  // A bill that can't be edited (voided / has returns / past month) opens its
+  // PDF instead, so the row is never a dead end.
+  const openBillRow = (invoice: Invoice) => {
+    const editable = !invoice.isVoided
+      && !((invoice.returns || []).some((r) => (r.returnedQuantity || 0) > 0))
+      && !monthEnded(invoice);
+    if (editable) handleEdit(invoice);
+    else { setPreviewInvoice(invoice); toast.info("This bill can't be edited (voided / returned / past month) — opening the PDF."); }
+  };
+
   const handleEditEstimate = (estimate: Estimate) => {
     // Only an Open quote can be edited (the server refuses the others too).
     if (lifecycleOf(estimate) !== 'Open') {
@@ -1110,14 +1121,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                       return (
                         <tr
                           key={inv.id}
-                          onClick={() => setPreviewInvoice(inv)}
+                          onDoubleClick={() => openBillRow(inv)}
                           className={cn(
                             'transition-colors cursor-pointer group',
                             isVoided
                               ? 'bg-rose-50/20 hover:bg-rose-50/40 text-slate-500'
                               : 'hover:bg-slate-50/80'
                           )}
-                          title="Click to view full sale detail & PDF preview"
+                          title="Double-click to open this bill in the billing screen"
                         >
                           {/* Sale No */}
                           <td className="py-3.5 px-4 font-mono">

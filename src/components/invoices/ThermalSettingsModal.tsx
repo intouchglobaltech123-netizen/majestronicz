@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils';
 import {
   ThermalWidth, getThermalWidth, setThermalWidth,
   isThermalAutoPrintOn, setThermalAutoPrint, printThermalReceipt,
+  isHidePaymentOnBillOn, setHidePaymentOnBill,
 } from '../../lib/thermalReceipt';
 import { Invoice, CompanyProfile } from '../../types';
 
@@ -19,10 +20,11 @@ interface Props {
 export const ThermalSettingsModal: React.FC<Props> = ({ open, onClose, company, sampleInvoice }) => {
   const [width, setWidth] = useState<ThermalWidth>(getThermalWidth());
   const [auto, setAuto] = useState<boolean>(isThermalAutoPrintOn());
+  const [hidePay, setHidePay] = useState<boolean>(isHidePaymentOnBillOn());
 
   if (!open) return null;
 
-  const save = () => { setThermalWidth(width); setThermalAutoPrint(auto); onClose(); };
+  const save = () => { setThermalWidth(width); setThermalAutoPrint(auto); setHidePaymentOnBill(hidePay); onClose(); };
 
   const testPrint = () => {
     setThermalWidth(width); // apply the chosen width for the test
@@ -74,6 +76,17 @@ export const ThermalSettingsModal: React.FC<Props> = ({ open, onClose, company, 
               className={cn('w-11 h-6 rounded-full transition-colors relative shrink-0', auto ? 'bg-emerald-500' : 'bg-slate-300')}
             >
               <span className={cn('absolute top-0.5 h-5 w-5 bg-white rounded-full transition-all', auto ? 'left-[22px]' : 'left-0.5')} />
+            </button>
+          </label>
+
+          {/* Hide payment details on the bill (#3) — affects thermal + A4 print */}
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-xs font-bold text-slate-700">Hide payment details on the bill</span>
+            <button
+              onClick={() => setHidePay((h) => !h)}
+              className={cn('w-11 h-6 rounded-full transition-colors relative shrink-0', hidePay ? 'bg-emerald-500' : 'bg-slate-300')}
+            >
+              <span className={cn('absolute top-0.5 h-5 w-5 bg-white rounded-full transition-all', hidePay ? 'left-[22px]' : 'left-0.5')} />
             </button>
           </label>
 

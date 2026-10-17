@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES, isInterStateSupply, customerWebsite } from '../../types';
+import { isHidePaymentOnBillOn } from '../../lib/thermalReceipt';
 import { cn } from '../../lib/utils';
 import { supplyTaxRows, hsnRateSummary, quantityByUnit, termsLines } from '../../lib/printTax';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -31,6 +32,8 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
   const { customers, companyProfile } = useErp();
   // #6 — fall back to the built-in profile for any field not set in Settings.
   const company = { ...COMPANY_PROFILE, ...(companyProfile || {}) };
+  // #3: option to hide the payment-details box (bank/UPI + partial note) on the bill.
+  const hidePayment = isHidePaymentOnBillOn();
 
   // M9: print the GSTIN that was frozen on the bill when it was saved. Only fall
   // back to the live customer master (by id, never by phone) for legacy bills
@@ -560,17 +563,17 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             const upiLink = company.upiId
               ? `upi://pay?pa=${encodeURIComponent(company.upiId)}&pn=${encodeURIComponent(company.name)}&cu=INR`
               : '';
-            const hasBank = company.bankName || company.bankAccountNumber || company.bankIfsc || company.upiId;
+            const hasBank = !hidePayment && (company.bankName || company.bankAccountNumber || company.bankIfsc || company.upiId);
             const qrs = [
-              { label: 'Scan to Pay (UPI)', value: upiLink },
+              hidePayment ? null : { label: 'Scan to Pay (UPI)', value: upiLink },
               { label: 'Our Website', value: customerWebsite(company.website) },
               { label: 'Rate us on Google', value: company.ratingLink },
-            ].filter((q) => q.value && String(q.value).trim());
+            ].filter((q): q is { label: string; value: string } => !!q && !!q.value && !!String(q.value).trim());
             if (!hasBank && !qrs.length) return null;
             return (
               <div className="border border-black border-t-0 grid grid-cols-[1fr_auto]">
-                {/* Bank / payment details */}
-                <div className="p-2 border-r border-black">
+                {/* Bank / payment details — hidden when "hide payment details" is on */}
+                {!hidePayment && <div className="p-2 border-r border-black">
                   <span className="text-[9px] text-black/60 block underline mb-0.5">Bank &amp; Payment Details</span>
                   {hasBank ? (
                     <div className="text-[10px] leading-snug space-y-0.5">
@@ -583,7 +586,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   ) : (
                     <p className="text-[9px] text-black/40">Set bank details in Settings → Company &amp; Invoice.</p>
                   )}
-                </div>
+                </div>}
                 {/* QR codes */}
                 {qrs.length > 0 && (
                   <div className="p-2 flex items-start gap-3">
@@ -603,7 +606,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
           <p className="text-center text-[10px] text-black/60 mt-2">This is a Computer Generated Invoice</p>
 
           {/* Voided / partial-payment note (kept for internal clarity) */}
-          {invoice.isPartialPayment && (
+          {!hidePayment && invoice.isPartialPayment && (
             <p className="text-center text-[10px] font-bold text-rose-700 mt-1">
               Partial Paid: {'₹'}{n2(invoice.partialAmount || 0)} &nbsp;|&nbsp; Balance Due: {'₹'}{n2(invoice.balanceDue || 0)}
             </p>
