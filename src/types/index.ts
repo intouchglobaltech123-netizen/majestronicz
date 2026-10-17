@@ -159,6 +159,18 @@ export function deriveMarginPercent(
   return Math.round((netSale / purchasePrice - 1) * 10000) / 100; // 2-dp percent
 }
 
+/** The public Majestronicz website. The "Our Website" QR on bills must open this,
+ *  not the ERP app URL. */
+export const MAJESTRONICZ_SITE = 'https://majestronicz.in/';
+/** The customer-facing website for the bill QR: the configured site, unless it's
+ *  blank or the ERP app (…vercel.app) URL — scanning that would open the app, so
+ *  we fall back to the public site. */
+export const customerWebsite = (website?: string | null): string => {
+  const w = String(website || '').trim();
+  if (!w || /vercel\.app/i.test(w)) return MAJESTRONICZ_SITE;
+  return w;
+};
+
 /** One supplier for a catalog item, with that supplier's own product code. */
 export interface ItemVendor {
   vendorId: string;
@@ -679,7 +691,7 @@ export const COMPANY_PROFILE: CompanyProfile = {
   // Replace with your Google review short-link (g.page/r/…/review) when available.
   ratingLink: 'https://www.google.com/search?q=Majestronicz+Erode',
   // Website shown as a QR on the bill (#5). Change in Settings → Company & Invoice.
-  website: 'https://majestronicz.vercel.app/',
+  website: 'https://majestronicz.in/',
   // Bank details printed on the GST bill (#6) — editable in Settings → Company & Invoice.
   bankName: 'HDFC Bank',
   bankAccountName: 'MAJESTRONICZ',

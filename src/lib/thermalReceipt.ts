@@ -1,4 +1,5 @@
-import { Invoice, CompanyProfile } from '../types';
+import QRCode from 'qrcode';
+import { Invoice, CompanyProfile, customerWebsite } from '../types';
 
 /**
  * Thermal (80mm) receipt printing for sale bills — the small department-store
@@ -33,7 +34,7 @@ const money = (n: number): string => (Number(n) || 0).toFixed(2);
 /** Build the receipt HTML for one sale bill, sized to the chosen paper width.
  *  `logoDataUrl`, when given, prints the Majestronicz logo at the very top in
  *  place of the shop-name text (the rest of the format is unchanged). */
-export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth(), logoDataUrl?: string): string => {
+export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth(), logoDataUrl?: string, websiteQrDataUrl?: string): string => {
   // Narrow (58mm) paper gets smaller fonts and tighter columns than 80mm.
   const narrow = widthMm === 58;
   const pad = narrow ? '2mm 2.5mm 4mm' : '3mm 3.5mm 5mm';
@@ -157,6 +158,9 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     <div class="c xs b">E & O E</div>
     <div class="c foot">Thank you! Visit again.</div>
     ${company.upiId ? `<div class="c xs">UPI: ${esc(company.upiId)}</div>` : ''}
+    ${websiteQrDataUrl
+      ? `<div class="c" style="margin-top:2mm"><img src="${websiteQrDataUrl}" alt="website" style="width:${narrow ? 18 : 22}mm;height:${narrow ? 18 : 22}mm;"/><div class="c xs">Scan to visit our website</div></div>`
+      : ''}
   </div></body></html>`;
 };
 
@@ -202,7 +206,12 @@ const waitForImages = (win: Window | null): Promise<void> =>
 export const printThermalReceipt = async (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): Promise<void> => {
   try {
     const logo = await loadLogoDataUrl();
-    const html = buildThermalReceiptHtml(inv, company, widthMm, logo || undefined);
+    // A QR that opens the public website (majestronicz.in), never the ERP app URL.
+    let websiteQr: string | undefined;
+    try {
+      websiteQr = await QRCode.toDataURL(customerWebsite(company.website), { margin: 1, width: 160 });
+    } catch { websiteQr = undefined; }
+    const html = buildThermalReceiptHtml(inv, company, widthMm, logo || undefined, websiteQr);
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });

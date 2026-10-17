@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
-import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES, isInterStateSupply } from '../../types';
+import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES, isInterStateSupply, customerWebsite } from '../../types';
 import { cn } from '../../lib/utils';
 import { supplyTaxRows, hsnRateSummary, quantityByUnit, termsLines } from '../../lib/printTax';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -563,7 +563,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             const hasBank = company.bankName || company.bankAccountNumber || company.bankIfsc || company.upiId;
             const qrs = [
               { label: 'Scan to Pay (UPI)', value: upiLink },
-              { label: 'Our Website', value: company.website },
+              { label: 'Our Website', value: customerWebsite(company.website) },
               { label: 'Rate us on Google', value: company.ratingLink },
             ].filter((q) => q.value && String(q.value).trim());
             if (!hasBank && !qrs.length) return null;
