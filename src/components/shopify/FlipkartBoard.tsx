@@ -170,6 +170,10 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
+  // The detailed processing-step tiles are hidden by default to keep the board
+  // clean; a "Show steps" button reveals them (and they auto-show when a step is
+  // the active view).
+  const [showSteps, setShowSteps] = useState(false);
   // Which single order is being accepted (so only that row shows a spinner).
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
@@ -366,26 +370,41 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         ))}
       </div>
 
-      {/* Detailed processing-step tiles (Change 03) */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Processing steps — what's pending now</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-          {STEPS.map((s) => (
+      {/* Detailed processing-step tiles (Change 03) — hidden by default to keep
+          the board clean; shown on demand or when a step is the active view. */}
+      {(() => {
+        const isStepView = STEPS.some((s) => s.key === view);
+        const open = showSteps || isStepView;
+        return (
+          <div>
             <button
-              key={s.key}
-              onClick={() => setView(s.key)}
-              className={cn(
-                'text-left px-2.5 py-2 rounded-lg border transition-colors',
-                view === s.key ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
-                counts[s.key] > 0 && view !== s.key && 'border-blue-200 bg-blue-50/40',
-              )}
+              onClick={() => setShowSteps((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 mb-1.5"
             >
-              <div className="text-base font-extrabold font-mono leading-none">{counts[s.key]}</div>
-              <div className={cn('text-[9px] font-bold uppercase tracking-wide mt-1 leading-tight', view === s.key ? 'text-blue-50' : 'text-slate-500')}>{s.label}</div>
+              <ListChecks className="h-3.5 w-3.5" />
+              {open ? 'Hide processing steps' : 'Show processing steps'}
             </button>
-          ))}
-        </div>
-      </div>
+            {open && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {STEPS.map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setView(s.key)}
+                    className={cn(
+                      'text-left px-2.5 py-2 rounded-lg border transition-colors',
+                      view === s.key ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+                      counts[s.key] > 0 && view !== s.key && 'border-blue-200 bg-blue-50/40',
+                    )}
+                  >
+                    <div className="text-base font-extrabold font-mono leading-none">{counts[s.key]}</div>
+                    <div className={cn('text-[9px] font-bold uppercase tracking-wide mt-1 leading-tight', view === s.key ? 'text-blue-50' : 'text-slate-500')}>{s.label}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Search */}
       <div className="relative w-full lg:max-w-sm">
@@ -710,6 +729,45 @@ ${esc(inv.stateOfSupply || '')}</div>
           : <span className="text-[11px] font-bold px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">Paid</span>}
         <span className="text-[11px] text-slate-400 ml-auto">{new Date(inv.createdAt).toLocaleString('en-IN')}</span>
       </div>
+
+      {/* Stage tracker — a clear left-to-right progress bar so staff see at a
+          glance which stage the order is in and what's next. */}
+      {isCancelled ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center text-sm font-bold text-rose-700 inline-flex items-center justify-center gap-1.5 w-full">
+          <XCircle className="h-4 w-4" /> This order was cancelled
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-3 overflow-x-auto">
+          <div className="flex items-center min-w-[520px]">
+            {['To Accept', 'To Pack', 'Dispatch', 'Transit', 'Delivered', 'Done'].map((label, i, arr) => {
+              const done = i < mi;
+              const current = i === mi;
+              return (
+                <React.Fragment key={label}>
+                  <div className="flex flex-col items-center shrink-0 w-16">
+                    <div className={cn(
+                      'h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-extrabold border-2',
+                      current ? 'bg-slate-900 text-white border-slate-900'
+                        : done ? 'bg-emerald-500 text-white border-emerald-500'
+                        : 'bg-white text-slate-400 border-slate-300',
+                    )}>
+                      {done ? '✓' : i + 1}
+                    </div>
+                    <span className={cn(
+                      'text-[9px] font-bold mt-1 uppercase tracking-wide text-center leading-tight',
+                      current ? 'text-slate-900' : done ? 'text-emerald-600' : 'text-slate-400',
+                    )}>{label}</span>
+                    {current && <span className="text-[8px] font-bold text-slate-500 mt-0.5">▲ now</span>}
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={cn('h-0.5 flex-1 -mt-4', i < mi ? 'bg-emerald-500' : 'bg-slate-200')} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Big stage actions */}
       <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-2 flex-wrap">
