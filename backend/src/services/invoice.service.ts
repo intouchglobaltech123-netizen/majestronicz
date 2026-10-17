@@ -448,6 +448,19 @@ export function createSale(inv: any, reqUser?: any) {
       // sequence (SAL2-6).
       inv.branchId = existing.branchId;
       inv.invoiceNumber = existing.invoiceNumber;
+      // H2: a finalized GST bill's buyer and place of supply are part of the tax
+      // record filed with the GST return — billing staff must not rewrite the
+      // customer or the GST state on an edit. Freeze them to the stored values
+      // (items, quantities and payment stay editable). buyerGstin is already
+      // frozen further below.
+      if (existing.withGst) {
+        inv.customerId = existing.customerId ?? undefined;
+        inv.customerName = existing.customerName;
+        inv.customerPhone = existing.customerPhone ?? undefined;
+        inv.customerAddress = existing.customerAddress ?? undefined;
+        inv.stateOfSupply = existing.stateOfSupply;
+        inv.withGst = existing.withGst;
+      }
       // Moving a bill off a date whose drawer is already closed would change that
       // reconciled day's totals after the fact (the new date's closed-day check
       // above already blocks moving it ONTO a closed day) — CASH-2.

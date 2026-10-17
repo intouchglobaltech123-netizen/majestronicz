@@ -8,6 +8,7 @@ import {
   BRANCHES,
   MARGIN_CATEGORIES,
   computeMarginSalePrice,
+  deriveMarginPercent,
   BranchScope,
 } from '../../types';
 import { ItemVendorsEditor, normalizeItemVendors } from './ItemVendorsEditor';
@@ -143,7 +144,7 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
   // overwrote a manually-set sale price (INV2-6).
   const applyMarginPrice = (nextPurchase: number, nextMargin: 'A' | 'B' | 'C' | 'D' | '', nextCustom?: string) => {
     const custom = nextMargin === 'D' ? Number(nextCustom ?? customMarginPercent) : null;
-    const sp = computeMarginSalePrice(nextPurchase || 0, nextMargin, custom);
+    const sp = computeMarginSalePrice(nextPurchase || 0, nextMargin, custom, salePriceTaxMode, gstTaxSlab);
     if (sp != null) setSalePrice(sp);
   };
 
@@ -570,9 +571,18 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                       min="0"
                       step="any"
                       value={salePrice}
-                      onChange={(e) =>
-                        setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                      }
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? '' : Number(e.target.value);
+                        setSalePrice(v);
+                        // Typing a sale price fixes the margin as a Custom % over
+                        // the purchase price, so a later cost change grows the sale
+                        // price from that same % (client request, Oct 2026).
+                        const pp = Number(purchasePrice) || 0;
+                        if (v !== '' && v > 0 && pp > 0) {
+                          const pct = deriveMarginPercent(Number(v), pp, salePriceTaxMode, gstTaxSlab);
+                          if (pct != null) { setMarginCategory('D'); setCustomMarginPercent(String(pct)); }
+                        }
+                      }}
                       className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:border-red-600"
                     />
                   </div>

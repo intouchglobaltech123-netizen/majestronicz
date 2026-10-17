@@ -154,7 +154,10 @@ interface BoardProps {
 
 export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], importing, syncing, onImportAll, onAcceptOne, onRefresh, onOpenShopifyOrder }) => {
   const { invoices, currentUser, resetOnlineProcessing, restoreOnlineProcessing } = useErp();
-  const canReset = currentUser.role === 'CEO' || currentUser.role === 'Manager';
+  // Reset-for-testing wipes every online order's processing back to the start —
+  // a testing-only tool, so it's CEO-only and never sits on a branch manager's
+  // live board (H6).
+  const canReset = currentUser.role === 'CEO';
   const [resetting, setResetting] = useState(false);
   const doReset = async () => {
     if (!window.confirm('Reset ALL online orders back to the start (To Accept) for testing?\n\nThis only resets the ERP processing steps — Shopify orders, customers, items and payments are NOT touched, and the current state is backed up so it can be restored.')) return;

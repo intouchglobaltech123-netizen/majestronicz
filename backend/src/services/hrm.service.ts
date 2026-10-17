@@ -130,13 +130,26 @@ export function clockIn(employeeId: string, photoDataUrl: string, location: any,
       throw new AppError('ALREADY_IN', `${emp.name} has already checked in today at ${existing.checkInTime}`, 409);
     }
 
-    await tx.attendanceRecord.create({
-      data: {
-        id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
-        checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location), status: 'Present',
-        createdAt: now.toISOString(), updatedAt: now.toISOString(),
-      },
-    });
+    if (existing) {
+      // A row already exists for today — the manager's register pre-marked the
+      // day (status set, but no check-in). Clock IN on that same row instead of
+      // creating a second record, which doubled the day in payroll (H1).
+      await tx.attendanceRecord.update({
+        where: { id: existing.id },
+        data: {
+          checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location),
+          status: 'Present', updatedAt: now.toISOString(),
+        },
+      });
+    } else {
+      await tx.attendanceRecord.create({
+        data: {
+          id: rid('att'), employeeId: emp.id, employeeName: emp.name, branchId: emp.branchId || 'erode-hq', date: today,
+          checkInTime: timeStr, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location), status: 'Present',
+          createdAt: now.toISOString(), updatedAt: now.toISOString(),
+        },
+      });
+    }
     return snap(tx);
   });
 }
@@ -153,11 +166,12 @@ export function clockOut(employeeId: string, photoDataUrl: string, location: any
     const today = ist.date;
     const timeStr = customTime || ist.time;
 
-    // Close the most recent OPEN shift (a check-in with no check-out yet), even
-    // if it was opened the previous day — otherwise an overnight shift can never
-    // be clocked out because no record exists for "today".
+    // Close the most recent OPEN shift (a real check-in with no check-out yet),
+    // even if it was opened the previous day. A register-only row (status marked
+    // by a manager, checkInTime null) is NOT an open shift — requiring a
+    // check-in stops clock-out from "closing" a register mark with null hours (H1).
     const existing = await tx.attendanceRecord.findFirst({
-      where: { employeeId, checkOutTime: null },
+      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
       orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
     });
     if (!existing) throw new AppError('NO_CHECKIN', `No open check-in found for ${emp.name}.`, 409);
@@ -235,8 +249,11 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
     // An open shift (check-in without a check-out) is clocked out first — it may
     // have been opened yesterday for an overnight shift, so we don't restrict to
     // today's record.
+    // An open shift is a REAL check-in with no check-out — never a register-only
+    // mark (checkInTime null), which would otherwise be "clocked out" with null
+    // hours and break self clock-in (H1).
     const openShift = await tx.attendanceRecord.findFirst({
-      where: { employeeId, checkOutTime: null },
+      where: { employeeId, checkInTime: { not: null }, checkOutTime: null },
       orderBy: [{ date: 'desc' }, { checkInTime: 'desc' }],
     });
     if (openShift) {
@@ -248,10 +265,22 @@ export function selfClock(employeeId: string, photoDataUrl: string, location: an
       return { action: 'out', record };
     }
 
-    // No open shift: if today's shift is already complete there's nothing to do.
+    // No open shift. If today's shift is already complete there's nothing to do.
     const todayRecord = await tx.attendanceRecord.findFirst({ where: { employeeId, date: today } });
     if (todayRecord?.checkOutTime) {
       return { action: 'done', record: todayRecord };
+    }
+    if (todayRecord) {
+      // The register pre-marked today (no check-in yet) — clock IN on that same
+      // row instead of creating a second record, which doubled the day (H1).
+      const record = await tx.attendanceRecord.update({
+        where: { id: todayRecord.id },
+        data: {
+          checkInTime: ist.time, checkInPhoto: photoDataUrl || null, checkInLocation: cleanLocation(location),
+          status: 'Present', updatedAt: now.toISOString(),
+        },
+      });
+      return { action: 'in', record };
     }
     const record = await tx.attendanceRecord.create({
       data: {

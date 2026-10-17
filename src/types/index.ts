@@ -124,11 +124,39 @@ export function marginMultiplier(code?: MarginCategoryCode | string, customMargi
   return m && m.margin != null ? 1 + m.margin / 100 : null;
 }
 
-/** Sale price implied by a purchase price + margin band (null when band is D with no custom %, or none). */
-export function computeMarginSalePrice(purchasePrice: number, code?: MarginCategoryCode | string, customMarginPercent?: number | null): number | null {
+/** Sale price implied by a purchase price + margin band (null when band is D with no custom %, or none).
+ *  The margin is taken on the NET (ex-GST) cost. For a tax-inclusive item
+ *  (salePriceTaxMode === 'with') the returned sale price is grossed up by the GST
+ *  slab so the net revenue still equals cost×margin — otherwise a tax-inclusive
+ *  item whose margin% is below its GST% gets priced BELOW cost (H5). */
+export function computeMarginSalePrice(
+  purchasePrice: number,
+  code?: MarginCategoryCode | string,
+  customMarginPercent?: number | null,
+  salePriceTaxMode?: 'with' | 'without' | string,
+  gstTaxSlab?: number | null,
+): number | null {
   const mult = marginMultiplier(code, customMarginPercent);
   if (mult == null || !(purchasePrice > 0)) return null;
-  return Math.round(purchasePrice * mult * 100) / 100;
+  const net = purchasePrice * mult;
+  const gst = Number(gstTaxSlab) || 0;
+  const priced = salePriceTaxMode === 'with' ? net * (1 + gst / 100) : net;
+  return Math.round(priced * 100) / 100;
+}
+
+/** The custom margin % implied by a sale price over a purchase price. For a
+ *  tax-inclusive sale price, the GST is stripped first so the % is the real
+ *  markup on the net cost. Returns null when purchase price isn't positive. */
+export function deriveMarginPercent(
+  salePrice: number,
+  purchasePrice: number,
+  salePriceTaxMode?: 'with' | 'without' | string,
+  gstTaxSlab?: number | null,
+): number | null {
+  if (!(purchasePrice > 0) || !(salePrice > 0)) return null;
+  const gst = Number(gstTaxSlab) || 0;
+  const netSale = salePriceTaxMode === 'with' ? salePrice / (1 + gst / 100) : salePrice;
+  return Math.round((netSale / purchasePrice - 1) * 10000) / 100; // 2-dp percent
 }
 
 /** One supplier for a catalog item, with that supplier's own product code. */

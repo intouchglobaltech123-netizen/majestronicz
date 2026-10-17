@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
-import { Item, ItemVendor, SalePriceTaxMode, DiscountType, MARGIN_CATEGORIES, computeMarginSalePrice } from '../../types';
+import { Item, ItemVendor, SalePriceTaxMode, DiscountType, MARGIN_CATEGORIES, computeMarginSalePrice, deriveMarginPercent } from '../../types';
 import { ItemVendorsEditor, normalizeItemVendors } from './ItemVendorsEditor';
 import {
   X,
@@ -134,9 +134,10 @@ export const AddItemModal: React.FC<Props> = ({
   // Band D (custom) uses the % the user fixed below; none leaves it for manual entry.
   useEffect(() => {
     const custom = marginCategory === 'D' ? Number(customMarginPercent) : null;
-    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory, custom);
+    const sp = computeMarginSalePrice(Number(purchasePrice) || 0, marginCategory, custom, salePriceTaxMode, gstTaxSlab);
     if (sp != null) setSalePrice(sp);
-  }, [purchasePrice, marginCategory, customMarginPercent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchasePrice, marginCategory, customMarginPercent, salePriceTaxMode, gstTaxSlab]);
 
   if (!isOpen) return null;
 
@@ -598,9 +599,18 @@ export const AddItemModal: React.FC<Props> = ({
                       min="0"
                       step="any"
                       value={salePrice}
-                      onChange={(e) =>
-                        setSalePrice(e.target.value === '' ? '' : Number(e.target.value))
-                      }
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? '' : Number(e.target.value);
+                        setSalePrice(v);
+                        // Typing a sale price fixes a Custom margin % over the
+                        // purchase price, so a later cost change grows the sale
+                        // price from that same % (client request, Oct 2026).
+                        const pp = Number(purchasePrice) || 0;
+                        if (v !== '' && v > 0 && pp > 0) {
+                          const pct = deriveMarginPercent(Number(v), pp, salePriceTaxMode, gstTaxSlab);
+                          if (pct != null) { setMarginCategory('D'); setCustomMarginPercent(String(pct)); }
+                        }
+                      }}
                       className="w-full px-3 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 font-mono"
                     />
                   </div>

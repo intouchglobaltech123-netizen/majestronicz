@@ -29,9 +29,23 @@ export function computePayrollRows(params: {
   });
 
   return targetEmployees.map((emp) => {
-    const empAtt = attendanceRecords.filter(
+    const empAttRaw = attendanceRecords.filter(
       (a) => a.employeeId === emp.id && a.date.startsWith(month)
     );
+    // Defence against duplicate rows for the same calendar day (an older build
+    // could create a register mark AND a clock-in row for one date, which
+    // doubled payroll days — H1). Keep ONE record per date: prefer the one that
+    // carries a real check-in / worked hours, else the latest-updated.
+    const byDate = new Map<string, typeof empAttRaw[number]>();
+    for (const a of empAttRaw) {
+      const cur = byDate.get(a.date);
+      if (!cur) { byDate.set(a.date, a); continue; }
+      const aWorked = !!a.checkInTime || (a.hoursWorked || 0) > 0;
+      const curWorked = !!cur.checkInTime || (cur.hoursWorked || 0) > 0;
+      if (aWorked && !curWorked) byDate.set(a.date, a);
+      else if (aWorked === curWorked && (a.updatedAt || '') > (cur.updatedAt || '')) byDate.set(a.date, a);
+    }
+    const empAtt = Array.from(byDate.values());
     // Count only days actually worked (Present = 1, Half-Day = 0.5); Absent /
     // Leave / Holiday / Week-Off register rows do not count as days present.
     const liveDaysPresent = empAtt.reduce((sum, a) => sum + attendanceDayWeight(a.status), 0);

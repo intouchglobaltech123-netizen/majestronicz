@@ -613,7 +613,17 @@ export function receivePurchaseOrderStock(
       const mult = item.marginCategory === 'D'
         ? (item.customMarginPercent != null && item.customMarginPercent >= 0 ? 1 + item.customMarginPercent / 100 : undefined)
         : (item.marginCategory ? marginMult[item.marginCategory] : undefined);
-      if (mult) data.salePrice = Math.round(rec.purchasePrice * mult * 100) / 100;
+      if (mult) {
+        // The margin is taken on the NET (ex-GST) cost. For a tax-inclusive item
+        // (salePriceTaxMode === 'with') the stored salePrice already contains GST,
+        // so gross the margined price back up by the GST slab — otherwise the net
+        // revenue (salePrice ÷ (1+gst)) falls BELOW cost whenever margin% < GST%
+        // and the item would be repriced below cost on restock (H5).
+        const gst = Number(item.gstTaxSlab) || 0;
+        const net = rec.purchasePrice * mult;
+        const priced = item.salePriceTaxMode === 'with' ? net * (1 + gst / 100) : net;
+        data.salePrice = Math.round(priced * 100) / 100;
+      }
       await tx.item.update({ where: { id: rec.itemId }, data });
     }
 

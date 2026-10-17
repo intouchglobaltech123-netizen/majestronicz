@@ -3975,7 +3975,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((it) => {
         const rec = validReceipts.find((r) => r.itemId === it.id && (r.purchasePrice || 0) > 0 && r.quantityReceived > 0);
         if (!rec) return it;
-        const sp = computeMarginSalePrice(rec.purchasePrice as number, it.marginCategory, it.customMarginPercent);
+        const sp = computeMarginSalePrice(rec.purchasePrice as number, it.marginCategory, it.customMarginPercent, it.salePriceTaxMode, it.gstTaxSlab);
         return { ...it, purchasePrice: rec.purchasePrice as number, ...(sp != null ? { salePrice: sp } : {}), updatedAt: new Date().toISOString() };
       })
     );

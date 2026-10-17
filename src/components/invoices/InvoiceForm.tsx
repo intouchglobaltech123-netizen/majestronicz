@@ -1538,6 +1538,10 @@ export const InvoiceForm: React.FC<Props> = ({
     [totals.grandTotal, settlePrevDues, customerOutstanding]
   );
 
+  // H2: a finalized GST bill's buyer and place of supply are part of the filed
+  // tax record — lock them on edit (the backend also refuses to change them).
+  const lockBuyer = isSavedBill && withGst && documentType === 'Invoice';
+
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
     const preset = INVOICE_TERMS_PRESETS.find((p) => p.id === presetId);
@@ -1944,6 +1948,18 @@ export const InvoiceForm: React.FC<Props> = ({
     if (overallDiscountType === '%' && overallDiscountValue > 100) {
       toast.error('Overall discount cannot exceed 100%');
       return;
+    }
+    // Owner rule (Oct 2026): a sales bill must carry the customer's name AND a
+    // valid 10-digit mobile — no anonymous walk-in bills. (Quotations are exempt.)
+    if (documentType === 'Invoice') {
+      if (!customerName.trim()) {
+        toast.error('Customer name is required', { description: 'Enter the customer name before saving the bill.' });
+        return;
+      }
+      if ((customerPhone || '').replace(/\D/g, '').length !== 10) {
+        toast.error('Customer mobile number is required', { description: 'Enter a valid 10-digit mobile number before saving the bill.' });
+        return;
+      }
     }
 
     savingRef.current = true;
@@ -2423,6 +2439,7 @@ export const InvoiceForm: React.FC<Props> = ({
               value={customerPhone}
               onChange={setCustomerPhone}
               size="md"
+              disabled={lockBuyer}
               inputClassName="text-base font-bold tracking-wide"
               onFocus={() => setPhoneFocused(true)}
               onBlur={() => setTimeout(() => setPhoneFocused(false), 150)}
@@ -2452,7 +2469,7 @@ export const InvoiceForm: React.FC<Props> = ({
             type="text"
             value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            readOnly={!!selectedCustomerObj}
+            readOnly={!!selectedCustomerObj || lockBuyer}
             placeholder="Name (optional)"
             className={cn(
               'w-56 px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
@@ -2471,7 +2488,7 @@ export const InvoiceForm: React.FC<Props> = ({
               className="w-64 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700 cursor-default focus:outline-none"
             />
           )}
-          {selectedCustomerObj && (
+          {selectedCustomerObj && !lockBuyer && (
             <button
               type="button"
               onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setShowNewCustomerPrompt(false); }}
@@ -2489,8 +2506,9 @@ export const InvoiceForm: React.FC<Props> = ({
               data-testid="place-of-supply"
               value={stateOfSupply}
               onChange={(e) => setStateOfSupply(e.target.value)}
+              disabled={lockBuyer}
               className={cn(
-                'px-2 py-1 rounded-lg border text-xs font-semibold focus:outline-none focus:border-blue-600',
+                'px-2 py-1 rounded-lg border text-xs font-semibold focus:outline-none focus:border-blue-600 disabled:opacity-60 disabled:cursor-not-allowed',
                 isInterState ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-800'
               )}
             >
@@ -2865,7 +2883,7 @@ export const InvoiceForm: React.FC<Props> = ({
       <CameraScanModal
         open={scanOpen}
         onClose={() => setScanOpen(false)}
-        onScan={(code) => handleScanSubmit(code)}
+        onScan={(code) => scanHandlerRef.current(code)}
         title={documentType === 'Quotation' ? 'Scan item for quotation' : 'Scan item for bill'}
       />
 
@@ -2981,12 +2999,28 @@ export const InvoiceForm: React.FC<Props> = ({
                       />
                     </div>
                     <div className="w-36 text-right px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
-                      <span className="text-[11px] text-slate-400 font-semibold block uppercase">Amount</span>
+                      <span className="text-[11px] text-slate-400 font-semibold block uppercase">Amount (this bill)</span>
                       <span className="font-mono font-bold text-slate-800 text-xs">
                         {formatCurrency(totals.grandTotal)}
                       </span>
                     </div>
                   </div>
+
+                  {/* When collecting previous dues, the bill's own cash is still
+                      its grand total; the dues are settled as a separate receipt
+                      on save. Show the combined cash so the counter total is clear. */}
+                  {settlePrevDues && customerOutstanding > 0.009 && (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs">
+                      <span className="font-bold text-rose-800">+ Previous dues (settled on save)</span>
+                      <span className="font-mono font-bold text-rose-700">{formatCurrency(customerOutstanding)}</span>
+                    </div>
+                  )}
+                  {settlePrevDues && customerOutstanding > 0.009 && (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-rose-100/70 border border-rose-300 text-xs">
+                      <span className="font-extrabold text-rose-900">Total cash to collect</span>
+                      <span className="font-mono font-extrabold text-rose-800">{formatCurrency(collectNowTotal)}</span>
+                    </div>
+                  )}
 
                   {/* Partial Payment Toggle for COD-Credit */}
                   {paymentSplits[0]?.mode === 'COD-Credit' && (
@@ -3217,9 +3251,17 @@ export const InvoiceForm: React.FC<Props> = ({
                   />
                 </div>
               </div>
+              {settlePrevDues && customerOutstanding > 0.009 && (
+                <p className="mt-1.5 text-[11px] text-rose-700 font-semibold text-right">
+                  Collecting {formatCurrency(collectNowTotal)} (bill {formatCurrency(totals.grandTotal)} + previous dues {formatCurrency(customerOutstanding)})
+                </p>
+              )}
               {cashTendered !== '' && Number(cashTendered) > 0 && (
                 (() => {
-                  const change = Math.round((Number(cashTendered) - totals.grandTotal) * 100) / 100;
+                  // Change is against what the customer actually pays at the counter —
+                  // the bill plus previous dues when that toggle is on (H3), not just
+                  // the bill total (which returned ₹dues too much change).
+                  const change = Math.round((Number(cashTendered) - collectNowTotal) * 100) / 100;
                   if (change > 0.009) {
                     return (
                       <div className="mt-2.5 flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-sm">
