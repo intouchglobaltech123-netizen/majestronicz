@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import {
   Invoice,
@@ -14,7 +14,7 @@ import {
   Package, Truck, CheckCircle2, Search, ArrowLeft, ArrowRight, User,
   Phone, MapPin, Pencil, Save, Printer, Copy, Camera, Send, Scale,
   Boxes, IndianRupee, Clock, XCircle, MessageCircle, Bell, ListChecks,
-  RefreshCw, DownloadCloud, RotateCcw, Undo2,
+  RefreshCw, DownloadCloud, RotateCcw, Undo2, Zap,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -122,22 +122,6 @@ const STEPS: { key: StepKey; label: string; match: (inv: Invoice) => boolean }[]
   { key: 'step_tracking_send', label: 'Tracking Send Pending', match: (i) => !!i.trackingNumber && !trackingSent(i) && milestoneIndex(i.onlineStatus as OnlineOrderStatus) >= 3 },
 ];
 
-// Daily 6 PM cut-off (Change 01/02): orders received up to the last 6 PM are
-// "due" and sit in To Accept; orders received after it are upcoming (All Orders).
-const CUTOFF_HOUR = 18;
-const lastCutoffTime = (): number => {
-  const now = new Date();
-  const c = new Date(now.getFullYear(), now.getMonth(), now.getDate(), CUTOFF_HOUR, 0, 0, 0);
-  if (now.getTime() < c.getTime()) c.setDate(c.getDate() - 1);
-  return c.getTime();
-};
-const dueByCutoff = (dateStr?: string, cutoff?: number): boolean => {
-  if (!dateStr) return true;
-  const t = new Date(dateStr).getTime();
-  if (Number.isNaN(t)) return true;
-  return t <= (cutoff ?? lastCutoffTime());
-};
-
 /** Whether an un-imported Shopify order can be fulfilled from current ERP stock. */
 const stockStatusOf = (o: ShopifyOrder): { label: string; tone: 'ok' | 'short' | 'check' } => {
   const lines = o.lines || [];
@@ -186,17 +170,21 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPending, setExpandedPending] = useState<string | null>(null);
-  // Re-evaluate the 6 PM cut-off automatically while the board stays open, so
-  // orders move to To Accept at 6 PM without a manual refresh.
-  const [, setTick] = useState(0);
-  React.useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const cutoff = lastCutoffTime();
   // Which single order is being accepted (so only that row shows a spinner).
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  // Auto-accept: new paid Shopify orders are pulled into the ERP automatically
+  // so they land in "To Accept" without anyone clicking Accept. Staff then do
+  // the stock check, tray, edits and billing on the order itself. Persisted
+  // per-browser; default ON (client request, Oct 2026).
+  const [autoAccept, setAutoAccept] = useState<boolean>(() => {
+    try { return localStorage.getItem('shopifyAutoAccept') !== 'off'; } catch { return true; }
+  });
+  const toggleAutoAccept = () => setAutoAccept((v) => {
+    const next = !v;
+    try { localStorage.setItem('shopifyAutoAccept', next ? 'on' : 'off'); } catch { /* ignore */ }
+    return next;
+  });
 
   // Import just the clicked order; on success, jump the board to "To Accept" so
   // staff see it (imported orders start at New → To Accept, then are processed
@@ -221,14 +209,26 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
   }, [shopifyOrders]);
   const displayNo = (inv: Invoice) => inv.externalOrderName || (inv.externalOrderId ? nameByExtId.get(inv.externalOrderId) : undefined) || inv.invoiceNumber;
 
-  // Paid Shopify orders not yet pulled into the ERP. Those received by the last
-  // 6 PM cut-off are due (To Accept); later ones are upcoming (All Orders).
+  // Paid Shopify orders not yet pulled into the ERP. With auto-accept on they
+  // are imported automatically; until then they show at the top of To Accept.
   const pending = useMemo(
     () => shopifyOrders.filter((o) => !o.alreadyImported && o.financialStatus === 'paid'),
     [shopifyOrders],
   );
-  const pendingDue = useMemo(() => pending.filter((o) => dueByCutoff(o.createdAt || o.date, cutoff)), [pending, cutoff]);
-  const pendingUpcoming = useMemo(() => pending.filter((o) => !dueByCutoff(o.createdAt || o.date, cutoff)), [pending, cutoff]);
+
+  // Auto-accept new paid orders as soon as they appear (once per distinct set,
+  // so a failed import isn't retried in a loop). Imported orders land at "New"
+  // in To Accept, ready to process.
+  const autoAcceptedSig = useRef<string>('');
+  useEffect(() => {
+    if (!autoAccept || !onImportAll || importing) return;
+    const sig = pending.map((o) => o.externalOrderId).sort().join(',');
+    if (!sig) { autoAcceptedSig.current = ''; return; }
+    if (sig === autoAcceptedSig.current) return;
+    autoAcceptedSig.current = sig;
+    onImportAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAccept, pending, importing]);
 
   // All online orders already in the ERP — NOT filtered by the selected branch
   // (online orders belong to the store, not one counter), so they never vanish.
@@ -240,11 +240,12 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     [invoices],
   );
 
-  // Is an imported order sitting in the To-Accept batch (New + due by cut-off)?
-  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept' && dueByCutoff(orderTimeOf(inv), cutoff);
+  // To Accept = every new order (ERP stage "New"), shown immediately — no 6 PM
+  // batching, so a fresh order appears here the moment it arrives.
+  const inToAccept = (inv: Invoice) => bucketOf(inv) === 'to_accept';
 
   const matchesView = (inv: Invoice, v: typeof view): boolean => {
-    if (v === 'all_orders') return !inToAccept(inv);
+    if (v === 'all_orders') return true; // All Orders shows the complete list
     if (v === 'to_accept') return inToAccept(inv);
     if (v === 'to_pack' || v === 'to_dispatch' || v === 'in_transit' || v === 'completed' || v === 'cancelled') return bucketOf(inv) === v;
     const step = STEPS.find((s) => s.key === v);
@@ -255,21 +256,20 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     const c: Record<string, number> = { all_orders: 0, to_accept: 0, to_pack: 0, to_dispatch: 0, in_transit: 0, completed: 0, cancelled: 0 };
     for (const s of STEPS) c[s.key] = 0;
     for (const o of online) {
-      c.to_accept += inToAccept(o) ? 1 : 0;
-      c.all_orders += inToAccept(o) ? 0 : 1;
       const b = bucketOf(o);
-      if (b !== 'to_accept') c[b] += 1;
+      c[b] += 1;
       for (const s of STEPS) if (s.match(o)) c[s.key] += 1;
     }
-    // Un-imported Shopify orders join the queue too.
-    c.to_accept += pendingDue.length;
-    c.all_orders += pendingUpcoming.length;
+    // Un-imported Shopify orders are new → they belong in To Accept (and the
+    // all-orders total), until auto-accept pulls them in.
+    c.to_accept += pending.length;
+    c.all_orders = online.length + pending.length;
     return c;
-  }, [online, pendingDue, pendingUpcoming, cutoff]);
+  }, [online, pending]);
 
   // Un-imported Shopify orders shown for the current view (To Accept / All Orders).
   const pendingForView = useMemo(() => {
-    const base = view === 'to_accept' ? pendingDue : view === 'all_orders' ? pendingUpcoming : [];
+    const base = view === 'to_accept' || view === 'all_orders' ? pending : [];
     const q = search.trim().toLowerCase();
     if (!q) return base;
     return base.filter((o) =>
@@ -277,7 +277,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
       (o.customerName || '').toLowerCase().includes(q) ||
       (o.customerPhone || '').includes(q),
     );
-  }, [view, pendingDue, pendingUpcoming, search]);
+  }, [view, pending, search]);
 
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -292,7 +292,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         itemHit
       );
     });
-  }, [online, view, search, cutoff]);
+  }, [online, view, search]);
 
   const selected = selectedId ? online.find((o) => o.id === selectedId) : null;
   if (selected) return <FlipkartOrderPanel inv={selected} onBack={() => setSelectedId(null)} />;
@@ -312,8 +312,18 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
       {/* Heading row */}
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="text-sm font-extrabold text-slate-800">Forward Orders</h3>
-        <span className="text-[11px] text-slate-400">· To Accept fills at the daily 6 PM cut-off</span>
+        <span className="text-[11px] text-slate-400">· New orders arrive straight into To Accept</span>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={toggleAutoAccept}
+            title={autoAccept ? 'Auto-accept is ON — new paid orders are pulled in automatically. Click to turn off.' : 'Auto-accept is OFF — click to pull new paid orders in automatically.'}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors',
+              autoAccept ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50',
+            )}
+          >
+            <Zap className={cn('h-3.5 w-3.5', autoAccept && 'fill-current')} /> Auto-accept {autoAccept ? 'ON' : 'OFF'}
+          </button>
           {canReset && (
             <>
               <button onClick={doReset} disabled={resetting} title="Reset all online orders to the start for testing (backed up first)" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-700 text-[11px] font-bold hover:bg-amber-50 disabled:opacity-50">
@@ -393,7 +403,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl overflow-hidden">
           <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 bg-amber-100/70 border-b border-amber-200">
             <span className="text-[11px] font-extrabold uppercase tracking-wide text-amber-800 inline-flex items-center gap-1.5">
-              <DownloadCloud className="h-3.5 w-3.5" /> {view === 'all_orders' ? 'Upcoming Shopify orders (before 6 PM cut-off)' : 'New from Shopify — accept to start'}
+              <DownloadCloud className="h-3.5 w-3.5" /> {autoAccept ? 'New from Shopify — importing automatically…' : 'New from Shopify — accept to start'}
             </span>
             {onImportAll && (
               <button onClick={onImportAll} disabled={importing} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-50">
@@ -406,7 +416,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
               const st = stockStatusOf(o);
               const open = expandedPending === o.externalOrderId;
               return (
-                <div key={o.externalOrderId}>
+                <div key={o.externalOrderId} onDoubleClick={() => onOpenShopifyOrder?.(o)}>
                   <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5">
                     <button onClick={() => setExpandedPending(open ? null : o.externalOrderId)} className="flex-1 min-w-0 text-left">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -416,7 +426,7 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
                           <Boxes className="h-3 w-3" />{st.label}
                         </span>
                       </div>
-                      <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {fmtDateTime(o.createdAt || o.date)} · tap to check stock</div>
+                      <div className="text-[11px] text-amber-700/80 mt-0.5">{o.lines?.length || 0} line{(o.lines?.length || 0) === 1 ? '' : 's'} · {fmtDateTime(o.createdAt || o.date)} · tap for stock, double-tap to open</div>
                     </button>
                     <div className="text-sm font-bold font-mono text-slate-900 shrink-0">{formatCurrency(o.total || 0)}</div>
                     <button onClick={() => acceptOne(o.externalOrderId)} disabled={importing || acceptingId === o.externalOrderId} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50">
