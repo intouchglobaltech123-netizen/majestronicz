@@ -149,6 +149,7 @@ interface StorageState {
   categoryPrefixMap?: Record<string, string>;
   subcategoryPrefixMap?: Record<string, string>;
   unitsList?: { label: string; value: string }[];
+  saleModesList?: string[];
   gstSlabsList?: { label: string; rate: number }[];
   paymentTermsOptions?: { label: string; value: string; days: number }[];
   currentBranch: BranchScope;
@@ -366,6 +367,9 @@ interface ErpContextType {
   // Universal Dropdown Lists & + Add New
   unitsList: { label: string; value: string }[];
   addUnit: (unit: string) => void;
+  /** Custom sale payment modes (beyond Cash/GPay/HDFC/COD-Credit). */
+  saleModesList: string[];
+  addSaleMode: (mode: string) => void;
   gstSlabsList: { label: string; rate: number }[];
   addGstSlab: (rate: number, label?: string) => void;
   paymentTermsOptions: { label: string; value: string; days: number }[];
@@ -792,6 +796,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [subcategoryPrefixMap, setSubcategoryPrefixMap] = useState<Record<string, string>>({});
   const [unitsList, setUnitsList] = useState<{ label: string; value: string }[]>([]);
   const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>([]);
+  // Custom sale payment modes the shop added (beyond Cash/GPay/HDFC/COD-Credit).
+  const [saleModesList, setSaleModesList] = useState<string[]>([]);
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
@@ -893,6 +899,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.categoryPrefixMap) setCategoryPrefixMap(data.categoryPrefixMap);
     if (data.subcategoryPrefixMap) setSubcategoryPrefixMap(data.subcategoryPrefixMap);
     if (Array.isArray(data.unitsList)) setUnitsList(data.unitsList);
+    if (Array.isArray(data.saleModesList)) setSaleModesList(data.saleModesList.map((m: any) => String(m)).filter(Boolean));
     if (Array.isArray(data.gstSlabsList)) setGstSlabsList(data.gstSlabsList);
     if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
     if (data.loyaltySettings) setLoyaltySettings(data.loyaltySettings);
@@ -1064,6 +1071,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useDbSync('/api/config/categoryPrefixMap', categoryPrefixMap, canSyncConfig);
   useDbSync('/api/config/subcategoryPrefixMap', subcategoryPrefixMap, canSyncConfig);
   useDbSync('/api/config/unitsList', unitsList, canSyncConfig);
+  useDbSync('/api/config/saleModesList', saleModesList, canSyncConfig);
   useDbSync('/api/config/gstSlabsList', gstSlabsList, canSyncConfig);
   useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, canSyncConfig);
   useDbSync('/api/config/loyaltySettings', loyaltySettings, canSyncConfig);
@@ -1557,6 +1565,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newUnit = { value: trimmed, label: trimmed };
     setUnitsList((prev) => [...prev, newUnit]);
     toast.success(`Unit "${trimmed}" added`);
+  };
+
+  const addSaleMode = (modeStr: string) => {
+    const trimmed = (modeStr || '').trim();
+    if (!trimmed) return;
+    // Never shadow a built-in or the special credit/store-credit names.
+    const reserved = ['cash', 'gpay', 'hdfc', 'cod-credit', 'credit', 'store credit'];
+    if (reserved.includes(trimmed.toLowerCase())) {
+      toast.error(`"${trimmed}" is a built-in payment type — pick a different name.`);
+      return;
+    }
+    if (saleModesList.some((m) => m.toLowerCase() === trimmed.toLowerCase())) {
+      toast.info(`Payment type "${trimmed}" already exists`);
+      return;
+    }
+    setSaleModesList((prev) => [...prev, trimmed]);
+    toast.success(`Payment type "${trimmed}" added`);
   };
 
   const addGstSlab = (rate: number, label?: string) => {
@@ -4549,6 +4574,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         generateItemCode,
         unitsList,
         addUnit,
+        saleModesList,
+        addSaleMode,
         gstSlabsList,
         addGstSlab,
         paymentTermsOptions,

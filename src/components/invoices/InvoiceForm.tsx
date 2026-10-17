@@ -60,7 +60,7 @@ import { printThermalReceipt, isThermalAutoPrintOn } from '../../lib/thermalRece
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { PhoneInput } from '../common/PhoneInput';
-import { SALE_SPLIT_MODES, SALE_SPLIT_OPTIONS } from '../../lib/paymentModes';
+import { SALE_MODES, PAYMENT_MODE_LABEL } from '../../lib/paymentModes';
 
 interface Props {
   onSaved: (invoice: Invoice) => void;
@@ -133,7 +133,22 @@ export const InvoiceForm: React.FC<Props> = ({
     invoices,
     getCustomerOutstandingBalance,
     recordPayment,
+    saleModesList,
+    addSaleMode,
   } = useErp();
+
+  // Payment-mode dropdown options: built-ins + the shop's custom modes, with
+  // COD-Credit (owed) kept last. Custom modes flow through the same cash-register
+  // grouping, so they never break reconciliation (#1).
+  const saleSplitOptions = useMemo(() => {
+    const base = SALE_MODES.map((m) => ({ value: m as string, label: PAYMENT_MODE_LABEL[m] || m }));
+    const custom = (saleModesList || []).map((m) => ({ value: m, label: m }));
+    return [...base, ...custom, { value: 'COD-Credit', label: PAYMENT_MODE_LABEL['COD-Credit'] || 'COD-Credit (owed)' }];
+  }, [saleModesList]);
+  const addPaymentType = () => {
+    const name = window.prompt('New payment type name (e.g. Paytm, Card, PhonePe):');
+    if (name && name.trim()) addSaleMode(name.trim());
+  };
   // A bill that is really saved (not a parked draft or a restored tab copy):
   // only then do "already paid" and the ended-month date limit apply.
   const isSavedBill = !!initialInvoice && invoices.some((i) => i.id === initialInvoice.id);
@@ -1687,7 +1702,7 @@ export const InvoiceForm: React.FC<Props> = ({
     setPaymentSplits((prev) => {
       const usedModes = new Set(prev.map((s) => s.mode));
       // The shared list (src/lib/paymentModes.ts): Cash, GPay, HDFC, then credit.
-      const allModes = SALE_SPLIT_MODES as readonly PaymentMode[];
+      const allModes = saleSplitOptions.map((o) => o.value) as PaymentMode[];
       const nextMode = allModes.find((m) => !usedModes.has(m)) || 'GPay';
 
       // Allocate remainder to the new split if available
@@ -3024,12 +3039,20 @@ export const InvoiceForm: React.FC<Props> = ({
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <UniversalDropdown
-                        options={SALE_SPLIT_OPTIONS}
+                        options={saleSplitOptions}
                         value={paymentSplits[0]?.mode || 'Cash'}
                         onChange={(val) =>
                           setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }])
                         }
                       />
+                      <button
+                        type="button"
+                        onClick={addPaymentType}
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800"
+                        title="Add a custom payment type (e.g. Paytm, Card)"
+                      >
+                        <Plus className="h-3 w-3" /> Add payment type
+                      </button>
                     </div>
                     <div className="w-36 text-right px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="text-[11px] text-slate-400 font-semibold block uppercase">Amount (this bill)</span>
@@ -3133,7 +3156,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         {/* Payment Mode Selector */}
                         <div className="w-44 sm:w-56 shrink-0">
                           <UniversalDropdown
-                            options={SALE_SPLIT_OPTIONS}
+                            options={saleSplitOptions}
                             value={split.mode}
                             onChange={(val) => handleUpdateSplitMode(index, val as PaymentMode)}
                           />

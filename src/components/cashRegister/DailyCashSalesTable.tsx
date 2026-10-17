@@ -1,5 +1,5 @@
 import React from 'react';
-import { Invoice, Payment, PaymentMode, getInvoicePaymentSplits } from '../../types';
+import { Invoice, Payment, getInvoicePaymentSplits } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { modeGroup } from '../../lib/paymentModes';
 import { Receipt, AlertCircle, FileText, Split } from 'lucide-react';
@@ -24,6 +24,13 @@ const columnOf = (mode: string): keyof Cols | null => {
   if (g === 'Bank / Card' || g === 'Other') return 'hdfc';
   return null; // store credit: no money moved today
 };
+/** The register column a BILL payment split lands in. Same grouping as receipts,
+ *  so a custom payment mode (e.g. "Paytm", "Card") is counted consistently and
+ *  never silently dropped — plus COD-Credit to the Credit column. */
+const saleCol = (mode: string): keyof Cols | null => {
+  if (mode === 'COD-Credit') return 'credit';
+  return columnOf(mode);
+};
 
 /**
  * The day's money from customers, row by row, exactly as the drawer counts it
@@ -38,10 +45,8 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, payments, date,
   for (const inv of invoices) {
     for (const s of getInvoicePaymentSplits(inv)) {
       const amt = Number(s.amount) || 0;
-      if (s.mode === 'HDFC') billTotals.hdfc += amt;
-      else if (s.mode === 'Cash') billTotals.cash += amt;
-      else if (s.mode === 'GPay') billTotals.gpay += amt;
-      else if (s.mode === 'COD-Credit') billTotals.credit += amt;
+      const col = saleCol(s.mode);
+      if (col) billTotals[col] += amt;
     }
   }
   const ledgerRows = (payments || [])
@@ -120,10 +125,12 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, payments, date,
               {invoices.map((inv) => {
                 const splits = getInvoicePaymentSplits(inv);
                 const returned = inv.totalReturnedAmount || 0;
-                const modeAmount = (mode: PaymentMode) =>
-                  // Sum ALL splits of this mode — a bill can carry two splits of the
-                  // same mode (CASH-3). Never netted by later returns (E2E7-7).
-                  splits.filter((item) => item.mode === mode).reduce((sum, item) => sum + item.amount, 0);
+                // Sum ALL splits that land in a register column — grouped the same
+                // way as the totals, so custom modes show in the right cell and the
+                // rows reconcile to the column totals (CASH-3; never netted by a
+                // later return, E2E7-7).
+                const colAmount = (col: keyof Cols) =>
+                  splits.filter((item) => saleCol(item.mode) === col).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
                 return (
                   <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
@@ -158,10 +165,10 @@ export const DailyCashSalesTable: React.FC<Props> = ({ invoices, payments, date,
                       </div>
                       <div className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">{inv.customerName}</div>
                     </td>
-                    <td className="py-3 px-3 text-right font-mono">{cell(modeAmount('HDFC'))}</td>
-                    <td className="py-3 px-3 text-right font-mono bg-emerald-50/30 border-x border-emerald-100/50">{cell(modeAmount('Cash'), 'text-emerald-800')}</td>
-                    <td className="py-3 px-3 text-right font-mono">{cell(modeAmount('GPay'), 'text-slate-800')}</td>
-                    <td className="py-3 px-3 text-right font-mono">{cell(modeAmount('COD-Credit'), 'text-amber-900')}</td>
+                    <td className="py-3 px-3 text-right font-mono">{cell(colAmount('hdfc'))}</td>
+                    <td className="py-3 px-3 text-right font-mono bg-emerald-50/30 border-x border-emerald-100/50">{cell(colAmount('cash'), 'text-emerald-800')}</td>
+                    <td className="py-3 px-3 text-right font-mono">{cell(colAmount('gpay'), 'text-slate-800')}</td>
+                    <td className="py-3 px-3 text-right font-mono">{cell(colAmount('credit'), 'text-amber-900')}</td>
                   </tr>
                 );
               })}

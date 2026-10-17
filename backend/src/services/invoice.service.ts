@@ -571,6 +571,10 @@ export function createSale(inv: any, reqUser?: any) {
     // credit is applied with a receipt after billing. An edit may keep a mode the
     // stored bill already had (older data).
     const allowedModes = new Set<string>(['Cash', 'GPay', 'HDFC', 'COD-Credit']);
+    // Plus any custom sale modes the shop configured (appConfig 'saleModesList'),
+    // mirroring how custom units are allowed in item.service.
+    const customModes = ((await tx.appConfig.findUnique({ where: { key: 'saleModesList' } }))?.value as any[]) || [];
+    for (const m of customModes) { const s = String(m ?? '').trim(); if (s) allowedModes.add(s); }
     if (existing) for (const sp of billingSplitsOf(existing)) if (sp?.mode) allowedModes.add(String(sp.mode));
     const sentModes = [
       ...(Array.isArray(inv.paymentSplits) ? inv.paymentSplits.filter((sp: any) => sp && (Number(sp.amount) || 0) > 0).map((sp: any) => sp.mode) : []),

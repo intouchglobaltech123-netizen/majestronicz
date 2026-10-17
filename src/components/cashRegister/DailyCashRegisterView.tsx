@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { BranchId, BRANCHES, isExpenseDueInMonth, isExpenseApprovedForMonth, getInvoicePaymentSplits, expenseIsEffective, dueDayInMonth } from '../../types';
-import { collectionsByMode } from '../../lib/paymentModes';
+import { collectionsByMode, modeGroup } from '../../lib/paymentModes';
 import { getTodayDateString, getYesterdayDateString, cn, formatCurrency, formatDate } from '../../lib/utils';
 import { DailyCashSummaryCards } from './DailyCashSummaryCards';
 import { DailyCashSalesTable } from './DailyCashSalesTable';
@@ -155,10 +155,16 @@ export const DailyCashRegisterView: React.FC = () => {
         // match the un-netted day closing (SAL4-12).
         splits.forEach((split) => {
           const amt = Math.round(split.amount * 100) / 100;
-          if (split.mode === 'HDFC') acc.hdfc += amt;
-          else if (split.mode === 'Cash') acc.cash += amt;
-          else if (split.mode === 'GPay') acc.gpay += amt;
-          else if (split.mode === 'COD-Credit') acc.codCredit += amt;
+          // Bucket every split by its mode GROUP (so a custom mode lands in a
+          // column instead of inflating totalRevenue without a bucket — then
+          // hdfc+cash+gpay+codCredit always equals totalRevenue).
+          if (split.mode === 'COD-Credit') acc.codCredit += amt;
+          else {
+            const g = modeGroup(split.mode);
+            if (g === 'Cash') acc.cash += amt;
+            else if (g === 'GPay / UPI') acc.gpay += amt;
+            else acc.hdfc += amt; // Bank / Card / Other / Store Credit
+          }
           acc.totalRevenue += amt;
         });
 

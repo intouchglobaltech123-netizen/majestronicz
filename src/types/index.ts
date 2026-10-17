@@ -239,7 +239,10 @@ export interface BranchStock {
 }
 
 export type TransactionType = 'Credit' | 'Cash';
-export type PaymentMode = 'HDFC' | 'Cash' | 'GPay' | 'COD-Credit';
+// The built-in modes, plus any custom sale mode the shop adds (config
+// 'saleModesList'). The `string & {}` keeps literal autocomplete while allowing
+// a configured custom mode to typecheck.
+export type PaymentMode = 'HDFC' | 'Cash' | 'GPay' | 'COD-Credit' | (string & {});
 
 export interface PaymentSplit {
   mode: PaymentMode;
