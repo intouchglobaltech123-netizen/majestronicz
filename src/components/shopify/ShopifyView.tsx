@@ -23,7 +23,6 @@ import { formatCurrency, cleanPhoneDigits, cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ShopifyOrder, ShopifyShopStatus } from '../../types/shopify';
 import { ShopifyOrderDetailModal } from './ShopifyOrderDetailModal';
-import { OnlineOrderPipeline } from './OnlineOrderPipeline';
 import { FlipkartBoard } from './FlipkartBoard';
 import { ShopifyInventorySyncTab } from './ShopifyInventorySyncTab';
 import { ShopifyProductsTab } from './ShopifyProductsTab';
@@ -299,8 +298,8 @@ export const ShopifyView: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900">Orders</h3>
               <p className="text-[11px] text-slate-500">
                 {fulfillmentView === 'simple'
-                  ? 'New Shopify orders and fulfilment in one place — accept, pack, dispatch, deliver.'
-                  : 'Full store-orders table, metrics, sync logs and the detailed pipeline.'}
+                  ? 'New Shopify orders and fulfilment in one place — the full order workflow.'
+                  : 'Raw Shopify store-orders table, metrics and import/sync logs.'}
               </p>
             </div>
             <div className="ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
@@ -311,7 +310,7 @@ export const ShopifyView: React.FC = () => {
               <button
                 onClick={() => setFulfillmentView('advanced')}
                 className={cn('px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors', fulfillmentView === 'advanced' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800')}
-              >Advanced</button>
+              >Store &amp; logs</button>
             </div>
           </div>
 
@@ -695,7 +694,6 @@ export const ShopifyView: React.FC = () => {
               </table>
             </div>
           </div>
-          <OnlineOrderPipeline />
           </div>
           )}
         </div>
