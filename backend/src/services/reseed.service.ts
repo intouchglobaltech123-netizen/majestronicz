@@ -161,7 +161,7 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
     itemName: it.itemName,
     itemHSN: it.itemHSN || '',
     category: it.category,
-    subcategory: null,
+    subcategory: it.subcategory || null,
     itemCode: it.itemCode,
     unit: it.unit,
     salePrice: it.salePrice,
@@ -199,12 +199,21 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
   // Categories come from the imported catalog; the rest are the usual config
   // singletons so dropdowns, settings and rights exist on a clean system.
   const categories = [...new Set(items.map((i) => i.category))].sort();
+  // Preserve the client's Category → Subcategory taxonomy from the import.
+  const subcategoriesByCategory: Record<string, string[]> = {};
+  for (const i of items) {
+    const sub = (i.subcategory || '').toString().trim();
+    if (!sub) continue;
+    (subcategoriesByCategory[i.category] ||= []);
+    if (!subcategoriesByCategory[i.category].includes(sub)) subcategoriesByCategory[i.category].push(sub);
+  }
+  for (const c of Object.keys(subcategoriesByCategory)) subcategoriesByCategory[c].sort();
   const usesSqft = items.some((i) => i.unit === 'SQFT');
   const unitsList = usesSqft ? [...STANDARD_UNITS, { value: 'SQFT', label: 'SQFT (Square Feet)' }] : STANDARD_UNITS;
   await prisma.appConfig.createMany({
     data: [
       { key: 'categories', value: categories as any },
-      { key: 'subcategoriesByCategory', value: {} as any },
+      { key: 'subcategoriesByCategory', value: subcategoriesByCategory as any },
       { key: 'categoryPrefixMap', value: {} },
       { key: 'subcategoryPrefixMap', value: {} },
       { key: 'unitsList', value: unitsList as any },
