@@ -299,8 +299,26 @@ export const FlipkartBoard: React.FC<BoardProps> = ({ shopifyOrders = [], import
     });
   }, [online, view, search]);
 
+  // Website product photos for the open order, keyed by item name / SKU, taken
+  // from the live Shopify order lines (falls back to the catalogue image).
+  const selectedImages = useMemo(() => {
+    const inv = selectedId ? online.find((o) => o.id === selectedId) : null;
+    if (!inv) return undefined;
+    const so = shopifyOrders.find((o) => o.externalOrderId === inv.externalOrderId);
+    if (!so) return undefined;
+    const m = new Map<string, string>();
+    for (const l of so.lines || []) {
+      if (!l.imageUrl) continue;
+      for (const k of [l.itemName, l.title, l.sku]) {
+        const key = (k || '').trim().toLowerCase();
+        if (key && !m.has(key)) m.set(key, l.imageUrl);
+      }
+    }
+    return m.size ? m : undefined;
+  }, [selectedId, online, shopifyOrders]);
+
   const selected = selectedId ? online.find((o) => o.id === selectedId) : null;
-  if (selected) return <FlipkartOrderPanel inv={selected} onBack={() => setSelectedId(null)} />;
+  if (selected) return <FlipkartOrderPanel inv={selected} lineImages={selectedImages} onBack={() => setSelectedId(null)} />;
 
   const PRIMARY: { key: 'all_orders' | Bucket; label: string; icon: React.ReactNode }[] = [
     { key: 'all_orders', label: 'All Orders', icon: <ListChecks className="h-4 w-4" /> },
@@ -529,12 +547,29 @@ const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.Re
   </div>
 );
 
-const FlipkartOrderPanel: React.FC<{ inv: Invoice; onBack: () => void }> = ({ inv, onBack }) => {
+const FlipkartOrderPanel: React.FC<{ inv: Invoice; onBack: () => void; lineImages?: Map<string, string> }> = ({ inv, onBack, lineImages }) => {
   const {
     updateOnlineOrderStatus, updateOnlineOrderContact, saveOrderPacking,
     saveOrderTracking, reviseOnlineOrder, addOrderCommunication, getBranchStock,
-    recordPayment,
+    recordPayment, items,
   } = useErp();
+
+  // The website product photo for a line — Shopify image first (by item name /
+  // code), else the catalogue item's image. '' when none is known.
+  const imgFor = (li: { itemName?: string; itemId?: string; itemCode?: string }): string => {
+    const byName = lineImages?.get((li.itemName || '').trim().toLowerCase());
+    const byCode = lineImages?.get((li.itemCode || '').trim().toLowerCase());
+    if (byName || byCode) return (byName || byCode) as string;
+    const it = li.itemId ? items.find((i) => i.id === li.itemId) : undefined;
+    return it?.imageUrl || '';
+  };
+  /** A small product thumbnail (or a placeholder box) for the item lists. */
+  const Thumb: React.FC<{ li: any }> = ({ li }) => {
+    const src = imgFor(li);
+    return src
+      ? <img src={src} alt="" loading="lazy" className="h-9 w-9 rounded-md object-cover border border-slate-200 bg-slate-50 shrink-0" />
+      : <div className="h-9 w-9 rounded-md border border-slate-200 bg-slate-100 text-slate-400 flex items-center justify-center shrink-0"><Package className="h-4 w-4" /></div>;
+  };
 
   const [busy, setBusy] = useState(false);
   const [payMode, setPayMode] = useState('Cash');
@@ -860,8 +895,11 @@ ${esc(inv.stateOfSupply || '')}</div>
             {!editItems ? (
               <div className="space-y-1">
                 {(inv.items || []).map((li: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700 truncate pr-2">{li.itemName}</span>
+                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Thumb li={li} />
+                      <span className="text-slate-700 truncate">{li.itemName}</span>
+                    </div>
                     <span className="text-slate-500 font-mono shrink-0">{li.quantity} × {formatCurrency(li.unitPrice || 0)}</span>
                   </div>
                 ))}
@@ -877,6 +915,7 @@ ${esc(inv.stateOfSupply || '')}</div>
                 <p className="text-[11px] text-slate-400">Customer asked to add / remove / change quantity. The original order is kept; any extra is shown to collect.</p>
                 {revLines.map((l, i) => (
                   <div key={i} className="flex items-center gap-1.5">
+                    <Thumb li={l} />
                     <span className="flex-1 text-xs truncate">{l.itemName}</span>
                     <input type="number" min={0} value={l.quantity} onChange={(e) => setRevLines((ls) => ls.map((x, k) => (k === i ? { ...x, quantity: Number(e.target.value) } : x)))} className="w-16 px-2 py-1 rounded-md border border-slate-200 text-xs font-mono" />
                     <span className="text-[11px] text-slate-500 font-mono w-20 text-right">× {formatCurrency(l.unitPrice)}</span>
@@ -1034,9 +1073,12 @@ ${esc(inv.stateOfSupply || '')}</div>
                 const low = lowStock(li.itemId, Number(li.quantity) || 0);
                 return (
                   <div key={i} className="flex items-start justify-between gap-2 text-sm">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-800 truncate">{li.itemName}</div>
-                      {li.itemCode && <div className="text-[10px] text-slate-400 font-mono">{li.itemCode}</div>}
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Thumb li={li} />
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-800 truncate">{li.itemName}</div>
+                        {li.itemCode && <div className="text-[10px] text-slate-400 font-mono">{li.itemCode}</div>}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-mono font-bold text-slate-900">×{li.quantity}</div>
