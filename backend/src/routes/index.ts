@@ -20,7 +20,7 @@ import enquiryRoutes from './enquiry.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
 import { sseHandler, broadcastChange, closeUserStreams } from '../lib/events.js';
-import { reseedDatabase, resetToCatalog } from '../services/reseed.service.js';
+import { reseedDatabase, resetToCatalog, importCatalogAdditive } from '../services/reseed.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
@@ -758,6 +758,19 @@ router.post('/admin/reset-to-catalog', requireCapability('admin'), asyncHandler(
     throw new AppError('CONFIRM_REQUIRED', 'This erases all data except logins. Send { "confirm": "RESET" } to proceed.', 400);
   }
   const result = await resetToCatalog();
+  res.json({ ...result, bootstrap: await system.getBootstrap((req as any).user) });
+}));
+
+// ---- Admin: ADDITIVE catalog import (CEO only) — load the product list WITHOUT
+// wiping anything. Creates new SKUs (with opening stock), updates existing SKUs
+// in place, leaves all other data intact. Safe to re-run; no destructive guard
+// needed because it never deletes, but still CEO-gated and confirm-protected so
+// a stray call can't bulk-rewrite the catalog. ----
+router.post('/admin/import-catalog', requireCapability('admin'), asyncHandler(async (req, res) => {
+  if (String(req.body?.confirm || '') !== 'IMPORT') {
+    throw new AppError('CONFIRM_REQUIRED', 'This adds/updates the product catalog. Send { "confirm": "IMPORT" } to proceed.', 400);
+  }
+  const result = await importCatalogAdditive();
   res.json({ ...result, bootstrap: await system.getBootstrap((req as any).user) });
 }));
 

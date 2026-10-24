@@ -233,6 +233,107 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
 }
 
 /**
+ * ADDITIVE catalog import — does NOT wipe anything. For each product in
+ * IMPORTED_CATALOG: if an item with that SKU (itemCode) already exists, update
+ * its catalog fields in place (name, category, prices, GST, HSN, unit) but LEAVE
+ * its stock untouched; otherwise create a brand-new item with its opening stock
+ * at the default branch (plus an opening-stock ledger row so movement history
+ * reconciles). Categories/subcategories from the sheet are MERGED into the config
+ * (never removed). Logins, sales, purchases and every other record are preserved.
+ *
+ * Use this when the client wants the product list loaded WITHOUT losing the
+ * existing data. Safe to re-run (idempotent on the catalog fields). Returns how
+ * many rows were created vs updated.
+ */
+export async function importCatalogAdditive(): Promise<{ created: number; updated: number; branchId: string; total: number }> {
+  const branchId = process.env.CATALOG_BRANCH || 'erode-hq';
+  const now = new Date().toISOString();
+  const idFor = (code: string) => `item-${code.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`;
+
+  const existing = await prisma.item.findMany({ select: { itemCode: true } });
+  const existingCodes = new Set(existing.map((i) => i.itemCode));
+
+  const toCreate: any[] = [];
+  const updates: { itemCode: string; data: any }[] = [];
+  for (const it of IMPORTED_CATALOG) {
+    // Fields we (re)write from the sheet. Stock is handled separately and only
+    // for brand-new items, so a re-run never clobbers live quantities.
+    const fields = {
+      itemName: it.itemName,
+      itemHSN: it.itemHSN || '',
+      category: it.category,
+      subcategory: it.subcategory || null,
+      unit: it.unit,
+      salePrice: it.salePrice,
+      salePriceTaxMode: it.salePriceTaxMode,
+      wholesalePrice: it.wholesalePrice,
+      minWholesaleQty: it.minWholesaleQty,
+      purchasePrice: it.purchasePrice,
+      gstTaxSlab: it.gstTaxSlab,
+      reorderThreshold: it.minStockAlert,
+      updatedAt: now,
+    };
+    if (existingCodes.has(it.itemCode)) {
+      updates.push({ itemCode: it.itemCode, data: fields });
+    } else {
+      toCreate.push({ id: idFor(it.itemCode), itemCode: it.itemCode, isArchived: false, createdAt: now, ...fields });
+    }
+  }
+
+  if (toCreate.length) await prisma.item.createMany({ data: toCreate as any, skipDuplicates: true });
+  // Per-row updates (each has different field values); itemCode is unique.
+  for (const u of updates) {
+    await prisma.item.update({ where: { itemCode: u.itemCode }, data: u.data });
+  }
+
+  // Opening stock + ledger ONLY for the newly created items.
+  const newStocks = toCreate.map((it) => {
+    const src = IMPORTED_CATALOG.find((c) => c.itemCode === it.itemCode)!;
+    return {
+      itemId: it.id,
+      branchId,
+      quantity: src.openingStock,
+      location: src.location || null,
+      minStockAlert: src.minStockAlert,
+      updatedAt: now,
+    };
+  });
+  if (newStocks.length) {
+    await prisma.branchStock.createMany({ data: newStocks as any, skipDuplicates: true });
+    const openingLogs = buildOpeningStockRows(newStocks as any[], [], toCreate as any[], {
+      idFor: (b, i) => `adj-open-${b}-${i}`,
+      timestampFor: () => now,
+      notes: 'Opening balance at catalog import',
+      adjustedBy: 'System (Catalog Import)',
+    });
+    if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any, skipDuplicates: true });
+  }
+
+  // MERGE categories + subcategories into the existing config (never remove).
+  const catRow = await prisma.appConfig.findUnique({ where: { key: 'categories' } });
+  const subRow = await prisma.appConfig.findUnique({ where: { key: 'subcategoriesByCategory' } });
+  const categories = new Set<string>(Array.isArray(catRow?.value) ? (catRow!.value as any[]).map(String) : []);
+  const subs: Record<string, string[]> = (subRow?.value && typeof subRow.value === 'object' && !Array.isArray(subRow.value))
+    ? JSON.parse(JSON.stringify(subRow.value)) : {};
+  for (const it of IMPORTED_CATALOG) {
+    categories.add(it.category);
+    const sub = (it.subcategory || '').toString().trim();
+    if (!sub) continue;
+    (subs[it.category] ||= []);
+    if (!subs[it.category].includes(sub)) subs[it.category].push(sub);
+  }
+  for (const c of Object.keys(subs)) subs[c].sort();
+  await prisma.appConfig.upsert({
+    where: { key: 'categories' }, create: { key: 'categories', value: [...categories].sort() as any }, update: { value: [...categories].sort() as any },
+  });
+  await prisma.appConfig.upsert({
+    where: { key: 'subcategoriesByCategory' }, create: { key: 'subcategoriesByCategory', value: subs as any }, update: { value: subs as any },
+  });
+
+  return { created: toCreate.length, updated: updates.length, branchId, total: IMPORTED_CATALOG.length };
+}
+
+/**
  * First-boot seeding for a fresh deploy: if the database is completely empty
  * (no items and no config), load the starter dataset so dropdowns, settings and
  * the access matrix exist and the app is usable immediately. Idempotent — does
