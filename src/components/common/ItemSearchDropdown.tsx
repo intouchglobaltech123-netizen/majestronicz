@@ -7,6 +7,32 @@ import { cn, formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ItemImage } from './ItemImage';
 
+/** Bounded Levenshtein edit distance — returns max+1 as soon as it exceeds max,
+ *  so a misspelt query ("capaciter") still matches the real word ("capacitor"). */
+function boundedEditDistance(a: string, b: string, max: number): number {
+  const al = a.length, bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  if (!al) return bl;
+  if (!bl) return al;
+  let prev = Array.from({ length: bl + 1 }, (_, j) => j);
+  for (let i = 1; i <= al; i++) {
+    const cur = [i];
+    let rowBest = i;
+    const ac = a.charCodeAt(i - 1);
+    for (let j = 1; j <= bl; j++) {
+      const cost = ac === b.charCodeAt(j - 1) ? 0 : 1;
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      cur[j] = v;
+      if (v < rowBest) rowBest = v;
+    }
+    if (rowBest > max) return max + 1; // whole remaining rows can only grow
+    prev = cur;
+  }
+  return prev[bl];
+}
+
+const tokenize = (s: string) => (s || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+
 export interface ItemSearchDropdownProps {
   value: string;
   onChange: (value: string) => void;
@@ -48,7 +74,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   required = false,
   lockOutOfStock = false,
 }) => {
-  const { items: masterItems, branchStocks, combos, getComboAvailability, currentBranch, getReorderThreshold } = useErp();
+  const { items: masterItems, branchStocks, combos, getComboAvailability, currentBranch, getReorderThreshold, invoices } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,21 +150,64 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     return stock?.quantity ?? 0;
   };
 
-  // Filter matching products
+  // How often each item has been billed — so the products a counter sells all
+  // day float to the top of the picker (and show first when the box is empty).
+  const freqMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const inv of invoices || []) {
+      for (const li of (inv.items as any[]) || []) {
+        if (li?.itemId) m.set(li.itemId, (m.get(li.itemId) || 0) + (Number(li.quantity) || 1));
+      }
+    }
+    return m;
+  }, [invoices]);
+
+  // Filter + RANK products. Beyond exact substring matches, a misspelt or
+  // partial query still finds the right product (fuzzy, typo-tolerant), and
+  // frequently-sold items are boosted so the billing person finds them fastest.
   const filteredProducts = useMemo(() => {
-    return masterItems.filter((item: Item) => {
-      if (!value || !value.trim()) return true;
-      const q = value.toLowerCase().trim();
-      return (
-        (item.itemName && item.itemName.toLowerCase().includes(q)) ||
-        (item.itemCode && item.itemCode.toLowerCase().includes(q)) ||
-        (item.itemHSN && String(item.itemHSN).includes(q)) ||
-        (item.category && item.category.toLowerCase().includes(q)) ||
-        // INV4-17: a supplier's own code for the item.
-        [item.vendorCode, ...(item.vendors || []).map((v) => v.vendorCode)].some((c) => !!c && String(c).toLowerCase().includes(q))
-      );
-    }).slice(0, 12);
-  }, [masterItems, value]);
+    const q = (value || '').toLowerCase().trim();
+    const freqBoost = (id: string) => Math.min(180, (freqMap.get(id) || 0) * 12);
+
+    // Empty box → show the most-billed items first (quick picks for billing).
+    if (!q) {
+      return [...masterItems]
+        .sort((a, b) => (freqMap.get(b.id) || 0) - (freqMap.get(a.id) || 0) || a.itemName.localeCompare(b.itemName))
+        .slice(0, 12);
+    }
+
+    const qTokens = tokenize(q);
+    const scored: { item: Item; score: number }[] = [];
+    for (const item of masterItems) {
+      const name = (item.itemName || '').toLowerCase();
+      const code = (item.itemCode || '').toLowerCase();
+      const words = tokenize(item.itemName || '');
+      let score = -1;
+      if (code === q) score = 1000;                                   // exact code
+      else if (name === q) score = 950;                               // exact name
+      else if (name.startsWith(q)) score = 850;                       // name prefix
+      else if (words.some((w) => w.startsWith(q))) score = 760;       // any word prefix
+      else if (name.includes(q)) score = 680;                         // name contains
+      else if (code.includes(q)) score = 600;                         // code contains
+      else if (item.itemHSN && String(item.itemHSN).toLowerCase().includes(q)) score = 460;
+      else if (item.category && item.category.toLowerCase().includes(q)) score = 360;
+      else if ([item.vendorCode, ...(item.vendors || []).map((v) => v.vendorCode)].some((c) => !!c && String(c).toLowerCase().includes(q))) score = 340; // INV4-17 supplier code
+      else {
+        // Fuzzy fallback: every typed word must land on some item word, allowing
+        // 1–2 character mistakes (missing/extra/wrong/transposed letters).
+        const allHit = qTokens.length > 0 && qTokens.every((qt) => {
+          if (qt.length < 3) return words.some((w) => w.startsWith(qt));
+          const maxD = qt.length <= 5 ? 1 : 2;
+          return words.some((w) => w.includes(qt) || boundedEditDistance(w, qt, maxD) <= maxD);
+        });
+        if (allHit) score = 220;
+      }
+      if (score < 0) continue;
+      scored.push({ item, score: score + freqBoost(item.id) });
+    }
+    scored.sort((a, b) => b.score - a.score || a.item.itemName.localeCompare(b.item.itemName));
+    return scored.slice(0, 12).map((s) => s.item);
+  }, [masterItems, value, freqMap]);
 
   // Filter matching combos
   const filteredCombos = useMemo(() => {
