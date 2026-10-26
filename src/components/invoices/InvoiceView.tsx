@@ -424,10 +424,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   }, [branchScopedEstimates, estimateSearchQuery, quoteStatusFilter, convertedEstimateMap]);
 
   // Once a resumed draft is finalized (committed), remove it from the draft store.
-  const handleSaved = (tab: BillTab, savedInvoice: Invoice) => {
-    if (tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, tab.resumedDraftId));
-    setPreviewInvoice(savedInvoice);
-    closeBillTab(tab.id, 'ledger');
+  const handleSaved = (_tab: BillTab, _savedInvoice: Invoice) => {
+    // Billing person's ask: after saving a bill, go STRAIGHT to the next bill —
+    // no preview window to close each time. The 80mm thermal still auto-prints
+    // when that device setting is on; any bill can be reprinted/previewed from
+    // the list (thermal reprint button, or double-click to open).
+    if (_tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, _tab.resumedDraftId));
+    closeBillTab(_tab.id, 'ledger');
   };
 
   const handleSavedEstimate = (tab: BillTab, savedEstimate: Estimate) => {
