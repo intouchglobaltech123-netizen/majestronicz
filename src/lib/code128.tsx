@@ -29,6 +29,11 @@ export interface BarcodeResult {
 
 /**
  * Encodes an alphanumeric string into Code 128 (Subset B) vector bars.
+ *
+ * quietZone is the light margin on each side, in modules. The Code 128 spec
+ * requires at least 10× the narrow-bar width; a too-small quiet zone is a common
+ * reason a scanner refuses to read an otherwise-valid barcode, so the default is
+ * 10 (it used to be rendered with 6, which some scanners rejected).
  */
 export function encodeCode128B(text: string, quietZone: number = 10): BarcodeResult {
   const safeText = text.trim() || 'SAMPLE';
@@ -99,23 +104,34 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
   showText = false,
   className = '',
 }) => {
-  const barcode = useMemo(() => encodeCode128B(value, 6), [value]);
+  // 10-module quiet zone each side (scanners need it). The viewBox height is a
+  // fixed 100 units and the bars fill it, so the barcode keeps a proper, constant
+  // HEIGHT no matter how many characters it has — a long code used to collapse to
+  // a few pixels tall (via the old width/height-coupled aspect ratio) and became
+  // too short to scan. The SVG is vector, so print rasterises it at the printer's
+  // DPI and the bars stay crisp even when the on-screen box looks small.
+  const barcode = useMemo(() => encodeCode128B(value, 10), [value]);
 
   return (
-    <div className={`flex flex-col items-center select-none ${className}`}>
+    <div className={`flex flex-col items-stretch select-none ${className}`}>
       <svg
-        viewBox={`0 0 ${barcode.totalWidth} ${height}`}
-        className="w-full h-auto max-h-full overflow-visible"
+        viewBox={`0 0 ${barcode.totalWidth} 100`}
+        width="100%"
+        height={height}
         preserveAspectRatio="none"
+        shapeRendering="crispEdges"
+        style={{ display: 'block', height }}
         xmlns="http://www.w3.org/2000/svg"
       >
+        {/* White backing so the quiet zone is truly light even on a tinted cell. */}
+        <rect x={0} y={0} width={barcode.totalWidth} height={100} fill="#ffffff" />
         {barcode.bars.map((bar, index) => (
           <rect
             key={index}
             x={bar.x}
             y={0}
             width={bar.width}
-            height={height}
+            height={100}
             fill={barColor}
             shapeRendering="crispEdges"
           />

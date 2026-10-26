@@ -102,6 +102,11 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   const printPageHeightMm = isSingleLabel ? preset.heightMm - 0.3 : 296.5;
   const printPageWidthMm = isSingleLabel ? preset.widthMm - 0.3 : 209.5;
 
+  // Bar height scaled to the label so the barcode is tall enough to scan on every
+  // sheet size (a too-short barcode is a common scan failure). ~1.6 px/mm of label
+  // height gives the bars ~40% of the sticker, leaving room for text.
+  const printBarcodeHeight = Math.max(26, Math.round(preset.heightMm * 1.6));
+
   return createPortal(
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
       <div id="barcode-print-modal" className="bg-white border border-slate-300 rounded-none w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] print:max-h-none print:border-none print:shadow-none print:w-full print:rounded-none">
@@ -234,10 +239,10 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                     <div className="w-full flex flex-col items-center my-0.5 px-0.5">
                       <Code128Barcode
                         value={label.itemCode}
-                        height={24}
+                        height={30}
                         barColor="#000000"
                         showText={false}
-                        className="w-full max-w-[130px]"
+                        className="w-full"
                       />
                       <span className="font-mono text-[7.5px] font-extrabold text-slate-900 tracking-wider">
                         {label.itemCode}
@@ -369,14 +374,15 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                         {label.header || 'MAJESTRONICZ'}
                       </div>
 
-                      {/* Barcode Graphic */}
+                      {/* Barcode Graphic — fills the sticker width (bigger X-dim =
+                          more scannable) and uses the label-scaled bar height. */}
                       <div className="w-full flex flex-col items-center my-0.5">
                         <Code128Barcode
                           value={label.itemCode}
-                          height={22}
+                          height={printBarcodeHeight}
                           barColor="#000000"
                           showText={false}
-                          className="w-full max-w-[120px]"
+                          className="w-full"
                         />
                         <span className="font-mono text-[7px] font-bold text-black tracking-widest">
                           {label.itemCode}
