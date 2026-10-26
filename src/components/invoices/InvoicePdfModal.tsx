@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useErp } from '../../context/ErpContext';
 import { Invoice, COMPANY_PROFILE, GstBreakdownRow, getInvoicePaymentSplits, gstStateInfo, BRANCHES, isInterStateSupply, customerWebsite } from '../../types';
-import { isHidePaymentOnBillOn } from '../../lib/thermalReceipt';
+import { isHidePaymentOnBillOn, printThermalReceipt } from '../../lib/thermalReceipt';
 import { cn } from '../../lib/utils';
 import { supplyTaxRows, hsnRateSummary, quantityByUnit, termsLines } from '../../lib/printTax';
 import { numberToWordsIndian } from '../../lib/numberToWords';
@@ -650,14 +650,26 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               <span>WhatsApp</span>
             </button>
 
-            {/* 3. Print */}
+            {/* 3a. Thermal 80mm receipt (POS counter printer) */}
+            <button
+              type="button"
+              onClick={() => { printThermalReceipt(invoice, company); toast.success('Sent to the thermal printer'); }}
+              title="Print the 80mm thermal receipt (counter printer)"
+              className="h-10 px-4 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-800 border border-indigo-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Printer className="h-4 w-4 text-indigo-600" />
+              <span>Thermal 80mm</span>
+            </button>
+
+            {/* 3b. Print A4 */}
             <button
               type="button"
               onClick={handlePrint}
+              title="Print the full A4 tax invoice"
               className="h-10 px-4 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-300 rounded-none transition-colors shadow-none flex items-center justify-center gap-2 cursor-pointer"
             >
               <Printer className="h-4 w-4 text-slate-600" />
-              <span>Print</span>
+              <span>Print A4</span>
             </button>
 
             {/* 4. Save as PDF (Primary) */}
