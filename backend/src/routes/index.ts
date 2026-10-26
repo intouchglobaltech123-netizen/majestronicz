@@ -566,7 +566,7 @@ const WRITABLE_CONFIG_KEYS = new Set([
   'categories', 'categoryPrefixMap', 'subcategoriesByCategory', 'subcategoryPrefixMap',
   'unitsList', 'gstSlabsList', 'paymentTermsOptions', 'inventorySettings',
   'loyaltySettings', 'payrollSettings', 'companyProfile', 'shopifySettings',
-  'saleModesList', 'openingGpayByBranch',
+  'saleModesList', 'expenseCategoriesList', 'openingGpayByBranch',
 ]);
 
 router.put('/config/:key', requireCapability('config:write'), asyncHandler(async (req, res) => {

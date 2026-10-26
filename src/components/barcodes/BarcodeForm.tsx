@@ -98,15 +98,14 @@ export const BarcodeForm: React.FC<Props> = ({
     setItemName(item.itemName);
     setItemCode(item.itemCode);
 
-    const activeBranchId = isAllBranches ? 'erode-hq' : (currentBranch !== 'all' ? currentBranch : 'erode-hq');
-    const stockRow = branchStocks.find((s) => s.itemId === item.id && s.branchId === activeBranchId);
-
-    // Smart pre-fill for sticker lines
+    // Sticker shows only Brand + barcode + SKU + product name + price (client
+    // request 2026-10-26: no HSN, no warranty, no PKD/location lines). The name
+    // line is pre-filled but fully editable (manual entry).
     setHeader('MAJESTRONICZ');
-    setLine1(formatMrp(item));
-    setLine2(`HSN: ${item.itemHSN} • ${item.category}`);
-    setLine3(`Warranty: 1 Year Comprehensive`);
-    setLine4(stockRow?.location ? `Rack: ${stockRow.location}` : `Loc: ${isAllBranches ? 'All Branches' : currentBranchData?.shortCode || 'ERD'}`);
+    setLine1(item.itemName);
+    setLine2(formatMrp(item));
+    setLine3('');
+    setLine4('');
   };
 
   // Reset/Clear form
@@ -130,12 +129,10 @@ export const BarcodeForm: React.FC<Props> = ({
       return;
     }
     setHeader('MAJESTRONICZ');
-    setLine1(formatMrp(selectedItem));
-    setLine2(`HSN: ${selectedItem.itemHSN} • ${selectedItem.category}`);
-    setLine3(`Model: ${selectedItem.itemCode}`);
-    // PLT10-2: the packed month is this month, not a fixed "09/2026".
-    const pkd = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7).split('-').reverse().join('/');
-    setLine4(`PKD: ${pkd} • ${isAllBranches ? 'HQ' : currentBranchData?.shortCode || 'ERD'}`);
+    setLine1(selectedItem.itemName);
+    setLine2(formatMrp(selectedItem));
+    setLine3('');
+    setLine4('');
     toast.success('Autofilled standard retail label text');
   };
 
@@ -194,7 +191,7 @@ export const BarcodeForm: React.FC<Props> = ({
               type="button"
               onClick={handleAutoFill}
               className="text-[11px] text-red-700 hover:text-red-800 bg-red-50 hover:bg-red-100 font-bold px-2 py-1 rounded-none border border-red-200 flex items-center gap-1 transition-colors"
-              title="Reset lines to standard MRP / HSN tags"
+              title="Reset lines to brand, product name & MRP"
             >
               <Tag className="h-3 w-3" />
               <span>Standard Tags</span>
@@ -353,7 +350,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="text"
                 value={line1}
                 onChange={(e) => setLine1(e.target.value)}
-                placeholder="Line 1: e.g. MRP: ₹1,200.00"
+                placeholder="Line 1: e.g. Product name"
                 className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
@@ -362,7 +359,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="text"
                 value={line2}
                 onChange={(e) => setLine2(e.target.value)}
-                placeholder="Line 2: e.g. Incl. of all taxes"
+                placeholder="Line 2: e.g. MRP: ₹1,200.00"
                 className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
@@ -371,7 +368,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="text"
                 value={line3}
                 onChange={(e) => setLine3(e.target.value)}
-                placeholder="Line 3: e.g. Warranty: 1 Year"
+                placeholder="Line 3 (optional)"
                 className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>
@@ -380,7 +377,7 @@ export const BarcodeForm: React.FC<Props> = ({
                 type="text"
                 value={line4}
                 onChange={(e) => setLine4(e.target.value)}
-                placeholder="Line 4: e.g. PKD: MM/YYYY"
+                placeholder="Line 4 (optional)"
                 className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
               />
             </div>

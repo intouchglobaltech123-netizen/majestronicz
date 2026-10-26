@@ -71,6 +71,7 @@ import {
   ComboItem,
   ComboComponent,
   RecurringExpenseTemplate,
+  EXPENSE_CATEGORIES,
   Customer,
   LoyaltySettings,
   CompanyProfile,
@@ -150,6 +151,7 @@ interface StorageState {
   subcategoryPrefixMap?: Record<string, string>;
   unitsList?: { label: string; value: string }[];
   saleModesList?: string[];
+  expenseCategoriesList?: string[];
   openingGpayByBranch?: Record<string, { amount: number; date: string }>;
   gstSlabsList?: { label: string; rate: number }[];
   paymentTermsOptions?: { label: string; value: string; days: number }[];
@@ -371,6 +373,9 @@ interface ErpContextType {
   /** Custom sale payment modes (beyond Cash/GPay/HDFC/COD-Credit). */
   saleModesList: string[];
   addSaleMode: (mode: string) => void;
+  /** Custom daily-expense categories the shop added (beyond the built-in list). */
+  expenseCategoriesList: string[];
+  addExpenseCategory: (category: string) => void;
   /** Opening GPay/UPI balance per branch (go-live starting balance). The live
    *  GPay balance = this + all GPay money in − out, on/after its date. */
   openingGpayByBranch: Record<string, { amount: number; date: string }>;
@@ -802,6 +807,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>([]);
   // Custom sale payment modes the shop added (beyond Cash/GPay/HDFC/COD-Credit).
   const [saleModesList, setSaleModesList] = useState<string[]>([]);
+  // Custom daily-expense categories the shop added (beyond the built-in list).
+  const [expenseCategoriesList, setExpenseCategoriesList] = useState<string[]>([]);
   const [openingGpayByBranch, setOpeningGpayByBranch] = useState<Record<string, { amount: number; date: string }>>({});
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
 
@@ -905,6 +912,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.subcategoryPrefixMap) setSubcategoryPrefixMap(data.subcategoryPrefixMap);
     if (Array.isArray(data.unitsList)) setUnitsList(data.unitsList);
     if (Array.isArray(data.saleModesList)) setSaleModesList(data.saleModesList.map((m: any) => String(m)).filter(Boolean));
+    if (Array.isArray(data.expenseCategoriesList)) setExpenseCategoriesList(data.expenseCategoriesList.map((m: any) => String(m)).filter(Boolean));
     if (data.openingGpayByBranch && typeof data.openingGpayByBranch === 'object') setOpeningGpayByBranch(data.openingGpayByBranch as any);
     if (Array.isArray(data.gstSlabsList)) setGstSlabsList(data.gstSlabsList);
     if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
@@ -1078,6 +1086,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useDbSync('/api/config/subcategoryPrefixMap', subcategoryPrefixMap, canSyncConfig);
   useDbSync('/api/config/unitsList', unitsList, canSyncConfig);
   useDbSync('/api/config/saleModesList', saleModesList, canSyncConfig);
+  useDbSync('/api/config/expenseCategoriesList', expenseCategoriesList, canSyncConfig);
   useDbSync('/api/config/gstSlabsList', gstSlabsList, canSyncConfig);
   useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, canSyncConfig);
   useDbSync('/api/config/loyaltySettings', loyaltySettings, canSyncConfig);
@@ -1588,6 +1597,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setSaleModesList((prev) => [...prev, trimmed]);
     toast.success(`Payment type "${trimmed}" added`);
+  };
+
+  const addExpenseCategory = (categoryStr: string) => {
+    const trimmed = (categoryStr || '').trim();
+    if (!trimmed) return;
+    // Don't duplicate a built-in or an already-saved custom category.
+    const builtIn = EXPENSE_CATEGORIES.map((c) => c.toLowerCase());
+    if (builtIn.includes(trimmed.toLowerCase())) return;
+    if (expenseCategoriesList.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return;
+    setExpenseCategoriesList((prev) => [...prev, trimmed]);
   };
 
   const addGstSlab = (rate: number, label?: string) => {
@@ -4582,6 +4601,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUnit,
         saleModesList,
         addSaleMode,
+        expenseCategoriesList,
+        addExpenseCategory,
         openingGpayByBranch,
         gstSlabsList,
         addGstSlab,

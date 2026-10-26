@@ -103,25 +103,21 @@ export const BarcodePreviewCard: React.FC<Props> = ({
             {line1 ? (
               <div className="w-full truncate font-bold text-slate-900">{line1}</div>
             ) : isDummy ? (
-              <div className="w-full truncate font-bold text-slate-900">MRP: ₹42,990.00 (Incl. Taxes)</div>
+              <div className="w-full truncate font-bold text-slate-900">SAMSUNG 55" ULTRA HD TV</div>
             ) : null}
 
             {line2 ? (
               <div className="w-full truncate text-slate-700 text-[9.5px]">{line2}</div>
             ) : isDummy ? (
-              <div className="w-full truncate text-slate-700 text-[9.5px]">HSN: 8528 • 55-inch Ultra HD</div>
+              <div className="w-full truncate text-slate-700 text-[9.5px]">MRP: ₹42,990.00</div>
             ) : null}
 
             {line3 ? (
               <div className="w-full truncate text-slate-600 text-[9px]">{line3}</div>
-            ) : isDummy ? (
-              <div className="w-full truncate text-slate-600 text-[9px]">1 Year Comprehensive Warranty</div>
             ) : null}
 
             {line4 ? (
               <div className="w-full truncate text-slate-500 text-[8.5px]">{line4}</div>
-            ) : isDummy ? (
-              <div className="w-full truncate text-slate-500 text-[8.5px]">PKD: {new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7).split('-').reverse().join('/')} • Erode Branch</div>
             ) : null}
           </div>
         </div>

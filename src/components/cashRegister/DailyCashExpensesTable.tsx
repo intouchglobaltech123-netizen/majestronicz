@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CashExpense, EXPENSE_CATEGORIES, expenseIsEffective } from '../../types';
+import { useErp } from '../../context/ErpContext';
 import { formatCurrency } from '../../lib/utils';
 import {
   Wallet,
@@ -41,6 +42,21 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   canApprove,
   onApprove,
 }) => {
+  const { expenseCategoriesList, addExpenseCategory } = useErp();
+
+  // Built-in categories + the shop's saved custom ones (deduped, case-insensitive).
+  const allCategories = useMemo(() => {
+    const seen = new Set(EXPENSE_CATEGORIES.map((c) => c.toLowerCase()));
+    const merged = [...EXPENSE_CATEGORIES];
+    (expenseCategoriesList || []).forEach((c) => {
+      if (c && !seen.has(c.toLowerCase())) {
+        seen.add(c.toLowerCase());
+        merged.push(c);
+      }
+    });
+    return merged;
+  }, [expenseCategoriesList]);
+
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState<string>('');
   const [cashAmount, setCashAmount] = useState<string>('');
@@ -99,6 +115,9 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
       );
       if (!ok) return;
     }
+
+    // Remember a newly-typed category so it shows in the dropdown next time.
+    if (category.trim()) addExpenseCategory(category.trim());
 
     onAddExpense({
       reason: reason.trim(),
@@ -218,15 +237,33 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
             <div className="flex flex-wrap items-end gap-2.5">
               <div className="flex-1 min-w-[180px]">
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Category</label>
-                <input
-                  list="expense-category-list"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  placeholder="Pick or type a category…"
-                  className="w-full text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
-                />
+                <div className="flex items-stretch gap-1.5">
+                  <input
+                    list="expense-category-list"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Pick or type a category…"
+                    className="flex-1 text-xs bg-white border border-slate-300 rounded-none px-3 py-2 focus:outline-none focus:border-red-600"
+                  />
+                  {/* Save a freshly-typed category to the list so it's reusable. */}
+                  {category.trim() &&
+                    !allCategories.some((c) => c.toLowerCase() === category.trim().toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addExpenseCategory(category.trim());
+                          toast.success(`Category "${category.trim()}" saved`);
+                        }}
+                        className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-none px-2 cursor-pointer"
+                        title="Save this category for next time"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add
+                      </button>
+                    )}
+                </div>
                 <datalist id="expense-category-list">
-                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}
+                  {allCategories.map((c) => <option key={c} value={c} />)}
                 </datalist>
               </div>
               <div className="min-w-[160px]">
