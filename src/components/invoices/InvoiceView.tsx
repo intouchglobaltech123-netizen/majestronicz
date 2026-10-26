@@ -294,6 +294,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     isAllBranches ? 'ALL' : (currentBranch as BranchId)
   );
 
+  // Sales channel scope: a branch's own counter bills are kept SEPARATE from
+  // online (Shopify) orders so their counts, sales and profit never mix. Default
+  // 'store' = this branch's own bills only; 'online' = Shopify only; 'all' = both.
+  const [channelScope, setChannelScope] = useState<'store' | 'online' | 'all'>('store');
+  const inChannel = (inv: Invoice) => {
+    const isOnline = inv.sourceChannel === 'shopify';
+    return channelScope === 'all' ? true : channelScope === 'online' ? isOnline : !isOnline;
+  };
+
   // Keep branchFilter in sync when user toggles branch in global top bar
   useEffect(() => {
     if (!isAllBranches) {
@@ -326,6 +335,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       if (!matchesBranch) return false;
 
+      // Channel filter — keep store (counter) bills separate from online orders.
+      if (!inChannel(inv)) return false;
+
       // Show ALL invoices (branch-filtered), newest first — staff need to see
       // previously generated bills here, not just today's. Deep history/date-range
       // reporting still lives in the Reports section.
@@ -349,9 +361,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       const d = (b.date || '').localeCompare(a.date || '');
       return d !== 0 ? d : (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch]);
+  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope]);
   // Back to the first page whenever the list itself changes shape.
-  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch]);
+  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch, channelScope]);
   const ledgerPages = Math.max(1, Math.ceil(filteredInvoices.length / LEDGER_PAGE));
   const safeLedgerPage = Math.min(ledgerPage, ledgerPages - 1);
   const pagedInvoices = useMemo(
@@ -551,7 +563,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const todayStats = useMemo(() => {
     const todayStr = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
     const inScope = (b: string) => isAllBranches || b === currentBranch;
-    const scoped = invoices.filter((i) => !i.isVoided && i.date === todayStr && inScope(i.branchId));
+    const scoped = invoices.filter((i) => !i.isVoided && i.date === todayStr && inScope(i.branchId) && inChannel(i));
     const modeOf = (m: string) => { const x = String(m || '').trim().toLowerCase(); return x === 'cash' ? 'cash' : x === 'gpay' || x === 'upi' ? 'gpay' : x === 'hdfc' || x === 'card' || x === 'bank transfer' || x === 'cheque' ? 'hdfc' : ''; };
     const by: Record<string, number> = { cash: 0, gpay: 0, hdfc: 0 };
     let credit = 0;
@@ -567,9 +579,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       if (!k) continue; // store credit moves no money
       by[k] += p.type === 'in' ? Number(p.amount) || 0 : -(Number(p.amount) || 0);
     }
-    const amount = periodSales(invoices.filter((i) => inScope(i.branchId)), (d) => d === todayStr).net;
+    const amount = periodSales(invoices.filter((i) => inScope(i.branchId) && inChannel(i)), (d) => d === todayStr).net;
     return { count: scoped.length, amount, cash: by.cash, gpay: by.gpay, hdfc: by.hdfc, credit };
-  }, [invoices, payments, isAllBranches, currentBranch]);
+  }, [invoices, payments, isAllBranches, currentBranch, channelScope]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
@@ -1018,6 +1030,35 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       ) : (
         /* DEFAULT VIEW: SALES LEDGER LIST */
         <div className="space-y-4">
+          {/* Channel scope — keep this branch's own counter bills separate from
+              online (Shopify) orders so counts, sales & profit never mix. */}
+          {activeTab === 'ledger' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Show</span>
+              {([
+                { key: 'store', label: 'Store bills' },
+                { key: 'online', label: 'Online (Shopify)' },
+                { key: 'all', label: 'All' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => setChannelScope(opt.key)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors',
+                    channelScope === opt.key
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
+                  )}
+                >{opt.label}</button>
+              ))}
+              <span className="text-[11px] text-slate-400">
+                {channelScope === 'store' ? 'Counter sales only — online orders are counted separately.'
+                  : channelScope === 'online' ? 'Online store orders only.'
+                  : 'Counter + online combined.'}
+              </span>
+            </div>
+          )}
+
           {/* Today's KPI tiles — same clean white-card style as the other sections */}
           {activeTab === 'ledger' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
