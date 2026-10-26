@@ -150,6 +150,7 @@ interface StorageState {
   subcategoryPrefixMap?: Record<string, string>;
   unitsList?: { label: string; value: string }[];
   saleModesList?: string[];
+  openingGpayByBranch?: Record<string, { amount: number; date: string }>;
   gstSlabsList?: { label: string; rate: number }[];
   paymentTermsOptions?: { label: string; value: string; days: number }[];
   currentBranch: BranchScope;
@@ -370,6 +371,9 @@ interface ErpContextType {
   /** Custom sale payment modes (beyond Cash/GPay/HDFC/COD-Credit). */
   saleModesList: string[];
   addSaleMode: (mode: string) => void;
+  /** Opening GPay/UPI balance per branch (go-live starting balance). The live
+   *  GPay balance = this + all GPay money in − out, on/after its date. */
+  openingGpayByBranch: Record<string, { amount: number; date: string }>;
   gstSlabsList: { label: string; rate: number }[];
   addGstSlab: (rate: number, label?: string) => void;
   paymentTermsOptions: { label: string; value: string; days: number }[];
@@ -798,6 +802,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gstSlabsList, setGstSlabsList] = useState<{ label: string; rate: number }[]>([]);
   // Custom sale payment modes the shop added (beyond Cash/GPay/HDFC/COD-Credit).
   const [saleModesList, setSaleModesList] = useState<string[]>([]);
+  const [openingGpayByBranch, setOpeningGpayByBranch] = useState<Record<string, { amount: number; date: string }>>({});
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
@@ -900,6 +905,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.subcategoryPrefixMap) setSubcategoryPrefixMap(data.subcategoryPrefixMap);
     if (Array.isArray(data.unitsList)) setUnitsList(data.unitsList);
     if (Array.isArray(data.saleModesList)) setSaleModesList(data.saleModesList.map((m: any) => String(m)).filter(Boolean));
+    if (data.openingGpayByBranch && typeof data.openingGpayByBranch === 'object') setOpeningGpayByBranch(data.openingGpayByBranch as any);
     if (Array.isArray(data.gstSlabsList)) setGstSlabsList(data.gstSlabsList);
     if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
     if (data.loyaltySettings) setLoyaltySettings(data.loyaltySettings);
@@ -4576,6 +4582,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUnit,
         saleModesList,
         addSaleMode,
+        openingGpayByBranch,
         gstSlabsList,
         addGstSlab,
         paymentTermsOptions,

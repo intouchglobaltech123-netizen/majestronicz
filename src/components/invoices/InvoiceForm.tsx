@@ -149,6 +149,13 @@ export const InvoiceForm: React.FC<Props> = ({
     const name = window.prompt('New payment type name (e.g. Paytm, Card, PhonePe):');
     if (name && name.trim()) addSaleMode(name.trim());
   };
+  // Same payment options, plus an "Add payment type" row INSIDE the dropdown so
+  // staff can add a new method without hunting for a separate button.
+  const ADD_PAY_SENTINEL = '__add_payment_type__';
+  const saleSplitOptionsWithAdd = useMemo(
+    () => [...saleSplitOptions, { value: ADD_PAY_SENTINEL, label: '➕ Add payment type…' }],
+    [saleSplitOptions],
+  );
   // A bill that is really saved (not a parked draft or a restored tab copy):
   // only then do "already paid" and the ended-month date limit apply.
   const isSavedBill = !!initialInvoice && invoices.some((i) => i.id === initialInvoice.id);
@@ -3039,11 +3046,12 @@ export const InvoiceForm: React.FC<Props> = ({
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <UniversalDropdown
-                        options={saleSplitOptions}
+                        options={saleSplitOptionsWithAdd}
                         value={paymentSplits[0]?.mode || 'Cash'}
-                        onChange={(val) =>
-                          setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }])
-                        }
+                        onChange={(val) => {
+                          if (val === ADD_PAY_SENTINEL) { addPaymentType(); return; }
+                          setPaymentSplits([{ mode: val as PaymentMode, amount: totals.grandTotal }]);
+                        }}
                       />
                       <button
                         type="button"
@@ -3156,9 +3164,12 @@ export const InvoiceForm: React.FC<Props> = ({
                         {/* Payment Mode Selector */}
                         <div className="w-44 sm:w-56 shrink-0">
                           <UniversalDropdown
-                            options={saleSplitOptions}
+                            options={saleSplitOptionsWithAdd}
                             value={split.mode}
-                            onChange={(val) => handleUpdateSplitMode(index, val as PaymentMode)}
+                            onChange={(val) => {
+                              if (val === ADD_PAY_SENTINEL) { addPaymentType(); return; }
+                              handleUpdateSplitMode(index, val as PaymentMode);
+                            }}
                           />
                         </div>
 

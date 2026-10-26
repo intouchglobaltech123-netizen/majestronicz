@@ -83,6 +83,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     activeSubTab,
     payments,
     companyProfile,
+    openingGpayByBranch,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -586,6 +587,34 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     return { count: scoped.length, amount, cash: by.cash, gpay: by.gpay, hdfc: by.hdfc, credit };
   }, [invoices, payments, isAllBranches, currentBranch, channelScope]);
 
+  // Running GPay/UPI balance: the go-live opening balance per branch (set by the
+  // owner) PLUS every GPay rupee in and minus every GPay rupee out on/after its
+  // start date — like a bank account that carries forward, unlike the per-day
+  // GPay tile. Shown only when an opening balance has been configured.
+  const gpayBalance = useMemo(() => {
+    const cfg = openingGpayByBranch || {};
+    const branchIds = isAllBranches ? Object.keys(cfg) : [String(currentBranch)];
+    const isGpay = (m: string) => { const x = String(m || '').trim().toLowerCase(); return x === 'gpay' || x === 'upi'; };
+    let configured = false;
+    let bal = 0;
+    for (const b of branchIds) {
+      const open = cfg[b];
+      if (!open) continue;
+      configured = true;
+      bal += Number(open.amount) || 0;
+      const since = String(open.date || '');
+      for (const inv of invoices) {
+        if (inv.isVoided || inv.branchId !== b || String(inv.date || '') < since) continue;
+        for (const s of getInvoicePaymentSplits(inv)) if (isGpay(s.mode)) bal += Number(s.amount) || 0;
+      }
+      for (const p of payments) {
+        if (p.branchId !== b || String(p.date || '') < since || !isGpay(p.paymentMode)) continue;
+        bal += p.type === 'in' ? (Number(p.amount) || 0) : -(Number(p.amount) || 0);
+      }
+    }
+    return { configured, amount: Math.round(bal * 100) / 100 };
+  }, [openingGpayByBranch, invoices, payments, isAllBranches, currentBranch]);
+
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full">
       {/* Top Banner & Module Header */}
@@ -1066,16 +1095,19 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           {activeTab === 'ledger' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
-                { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900' },
-                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900' },
-                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700' },
-                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700' },
-                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700' },
+                { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900', sub: 'Today' },
+                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900', sub: 'Today' },
+                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700', sub: 'Today · incl. receipts, less refunds' },
+                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700', sub: 'Today · incl. receipts, less refunds' },
+                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700', sub: 'Today · incl. receipts, less refunds' },
+                ...(gpayBalance.configured
+                  ? [{ label: 'GPay Balance', value: formatCurrency(gpayBalance.amount), tone: 'text-blue-800', sub: 'Running · opening + GPay in − out' }]
+                  : []),
               ].map((m) => (
                 <div key={m.label} className="p-3.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{m.label}</span>
                   <div className={`text-2xl font-bold font-mono mt-0.5 ${m.tone}`}>{m.value}</div>
-                  <span className="text-[11px] text-slate-400">{['Cash', 'GPay', 'HDFC'].includes(m.label) ? 'Today · incl. receipts, less refunds' : 'Today'}</span>
+                  <span className="text-[11px] text-slate-400">{m.sub}</span>
                 </div>
               ))}
             </div>
