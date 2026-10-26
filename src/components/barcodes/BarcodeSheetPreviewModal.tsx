@@ -103,9 +103,10 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   const printPageWidthMm = isSingleLabel ? preset.widthMm - 0.3 : 209.5;
 
   // Bar height scaled to the label so the barcode is tall enough to scan on every
-  // sheet size (a too-short barcode is a common scan failure). ~1.6 px/mm of label
-  // height gives the bars ~40% of the sticker, leaving room for text.
-  const printBarcodeHeight = Math.max(26, Math.round(preset.heightMm * 1.6));
+  // sheet size (a too-short barcode is a common scan failure), but short enough
+  // that header + barcode + name + MRP all fit inside the sticker without
+  // overflowing onto the next one. ~1.35 px/mm of label height.
+  const printBarcodeHeight = Math.max(24, Math.round(preset.heightMm * 1.35));
 
   return createPortal(
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
@@ -362,11 +363,15 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                   return (
                     <div
                       key={`print-label-${slotIdx}`}
-                      className="flex flex-col justify-between items-center text-center p-1 box-border overflow-hidden"
+                      className="flex flex-col justify-between items-center text-center box-border overflow-hidden"
                       style={{
                         border: settings.showBorders ? '0.5px solid #bbb' : 'none',
                         width: `${preset.widthMm}mm`,
                         height: `${preset.heightMm}mm`,
+                        // A safe inner margin so the content (barcode included) never
+                        // reaches the die-cut edge — a small print drift then lands in
+                        // the gap, not on the neighbouring sticker.
+                        padding: '0.8mm 2mm',
                       }}
                     >
                       {/* Header */}

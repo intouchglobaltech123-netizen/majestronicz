@@ -20,13 +20,15 @@ export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
     id: '38x21',
     name: '38 × 21 mm (65 Labels / A4 Sheet)',
     description: 'Standard retail sticker sheet (5 columns × 13 rows) — Default',
-    widthMm: 38,
+    // Exact Avery L7651 / standard 65-up pitch so each label lands on its die-cut:
+    // 4.75 + 5×38.1 + 4×2.5 = 204.75 mm wide; 10.7 + 13×21.2 = 286.3 mm tall.
+    widthMm: 38.1,
     heightMm: 21.2,
     columns: 5,
     rows: 13,
     labelsPerPage: 65,
     pageMarginTopMm: 10.7,
-    pageMarginLeftMm: 4.5,
+    pageMarginLeftMm: 4.75,
     gapXmm: 2.5,
     gapYmm: 0,
   },
