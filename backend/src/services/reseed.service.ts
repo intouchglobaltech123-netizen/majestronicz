@@ -136,7 +136,7 @@ export async function reseedDatabase() {
  * ALLOW_RESET_TO_CATALOG=true at the route. The opening-stock branch defaults to
  * 'erode-hq' and can be overridden with CATALOG_BRANCH.
  */
-export async function resetToCatalog(): Promise<{ items: number; branchId: string }> {
+export async function resetToCatalog(): Promise<{ items: number; vendors: number; branchId: string }> {
   const branchId = process.env.CATALOG_BRANCH || 'erode-hq';
   const now = new Date().toISOString();
 
@@ -156,25 +156,55 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
 
   // Build catalog rows. The item code is unique, so derive a stable id from it.
   const idFor = (code: string) => `item-${code.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`;
-  const items = IMPORTED_CATALOG.map((it) => ({
-    id: idFor(it.itemCode),
-    itemName: it.itemName,
-    itemHSN: it.itemHSN || '',
-    category: it.category,
-    subcategory: it.subcategory || null,
-    itemCode: it.itemCode,
-    unit: it.unit,
-    salePrice: it.salePrice,
-    salePriceTaxMode: it.salePriceTaxMode,
-    wholesalePrice: it.wholesalePrice,
-    minWholesaleQty: it.minWholesaleQty,
-    purchasePrice: it.purchasePrice,
-    gstTaxSlab: it.gstTaxSlab,
-    reorderThreshold: it.minStockAlert,
-    isArchived: false,
-    createdAt: now,
-    updatedAt: now,
+
+  // ── Vendor master from the sheet's Primary/Secondary Vendor names ──
+  // Distinct, non-blank names become Vendor records; each item is linked to its
+  // suppliers (primary first) with the supplier's own product code on the primary.
+  const vendorIdFor = (name: string) => `vnd-${name.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`.replace(/-+$/,'');
+  const vendorNames = new Set<string>();
+  for (const it of IMPORTED_CATALOG) {
+    const p = (it.primaryVendor || '').trim();
+    const s = (it.secondaryVendor || '').trim();
+    if (p) vendorNames.add(p);
+    if (s) vendorNames.add(s);
+  }
+  const vendorRows = [...vendorNames].sort().map((name) => ({
+    id: vendorIdFor(name), vendorName: name, contactNo: '', address: '', gstin: null as string | null,
+    createdAt: now, updatedAt: now,
   }));
+
+  const items = IMPORTED_CATALOG.map((it) => {
+    const p = (it.primaryVendor || '').trim();
+    const s = (it.secondaryVendor || '').trim();
+    const code = (it.vendorCode || '').trim();
+    // vendors[] — primary first (carries the supplier product code), then secondary.
+    const vendors: { vendorId: string; vendorName: string; vendorCode?: string }[] = [];
+    if (p) vendors.push({ vendorId: vendorIdFor(p), vendorName: p, ...(code ? { vendorCode: code } : {}) });
+    if (s) vendors.push({ vendorId: vendorIdFor(s), vendorName: s });
+    return {
+      id: idFor(it.itemCode),
+      itemName: it.itemName,
+      itemHSN: it.itemHSN || '',
+      category: it.category,
+      subcategory: it.subcategory || null,
+      itemCode: it.itemCode,
+      unit: it.unit,
+      salePrice: it.salePrice,
+      salePriceTaxMode: it.salePriceTaxMode,
+      wholesalePrice: it.wholesalePrice,
+      minWholesaleQty: it.minWholesaleQty,
+      purchasePrice: it.purchasePrice,
+      gstTaxSlab: it.gstTaxSlab,
+      reorderThreshold: it.minStockAlert,
+      // Primary supplier mirrors (used by existing PO screens) + full list.
+      vendorId: vendors[0]?.vendorId ?? null,
+      vendorCode: vendors[0]?.vendorCode ?? null,
+      vendors: vendors.length ? (vendors as any) : null,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
   const stocks = IMPORTED_CATALOG.map((it) => ({
     itemId: idFor(it.itemCode),
     branchId,
@@ -192,6 +222,7 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
     adjustedBy: 'System (Catalog Import)',
   });
 
+  if (vendorRows.length) await prisma.vendor.createMany({ data: vendorRows as any });
   await prisma.item.createMany({ data: items as any });
   await prisma.branchStock.createMany({ data: stocks as any });
   if (openingLogs.length) await prisma.stockAdjustmentLog.createMany({ data: openingLogs as any });
@@ -229,7 +260,7 @@ export async function resetToCatalog(): Promise<{ items: number; branchId: strin
   setLiveMatrix(buildDefaultMatrix());
   // Re-link attendance profiles to the surviving staff logins (HRM3-8).
   await provisionUserEmployees();
-  return { items: items.length, branchId };
+  return { items: items.length, vendors: vendorRows.length, branchId };
 }
 
 /**
