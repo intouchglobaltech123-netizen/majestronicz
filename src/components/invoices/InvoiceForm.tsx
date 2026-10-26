@@ -363,7 +363,10 @@ export const InvoiceForm: React.FC<Props> = ({
   const [salespersonId, setSalespersonId] = useState<string>(initialInvoice?.salespersonId || '');
 
   // GST Toggle
-  const [withGst, setWithGst] = useState(true);
+  // New bills start with GST OFF — the counter turns it ON only when the customer
+  // needs a GST invoice. Editing/duplicating a saved bill still keeps that bill's
+  // own GST setting (the effects below override this initial value).
+  const [withGst, setWithGst] = useState(false);
 
   // Bulk-tax shortcut removed from the sales page; keep neutral constants so the
   // per-line default tax logic below still reads cleanly (always uses item/GST default).
