@@ -140,6 +140,11 @@ export async function resetToCatalog(): Promise<{ items: number; vendors: number
   const branchId = process.env.CATALOG_BRANCH || 'erode-hq';
   const now = new Date().toISOString();
 
+  // Preserve the official GST invoice-series start across the reset (the config
+  // is wiped below with the rest of appConfig). Without this, a reset would send
+  // bill numbering back to the 7307 default instead of the shop's real series.
+  const seriesCfg = (await prisma.appConfig.findUnique({ where: { key: 'invoiceSeriesStart' } }))?.value as any;
+
   // Same wipe as the demo reset — note User is deliberately NOT in this list, so
   // every staff login survives. appConfig is cleared and rebuilt below.
   await prisma.$transaction([
@@ -257,6 +262,15 @@ export async function resetToCatalog(): Promise<{ items: number; vendors: number
       { key: 'migration:fix-existing-bills', value: { runs: [], seededAlreadyCorrect: true } as any },
     ],
   });
+  // Restore the official GST invoice-series start if one was configured, so bill
+  // numbering keeps continuing from the shop's real series after a reset.
+  if (seriesCfg && typeof seriesCfg.fy === 'string' && Number(seriesCfg.start) > 0) {
+    await prisma.appConfig.upsert({
+      where: { key: 'invoiceSeriesStart' },
+      create: { key: 'invoiceSeriesStart', value: seriesCfg as any },
+      update: { value: seriesCfg as any },
+    });
+  }
   setLiveMatrix(buildDefaultMatrix());
   // Re-link attendance profiles to the surviving staff logins (HRM3-8).
   await provisionUserEmployees();

@@ -1681,3 +1681,77 @@ export function reverseReturn(invoiceId: string, returnId: string, actor: string
     return { ...delta, reversed };
   });
 }
+
+/**
+ * Renumber specific bills to match the shop's official GST invoice series
+ * (e.g. the series continued from the old software at 10963 → the next real
+ * bills must read 10964, 10965, …). CEO-only, go-live admin tool.
+ *
+ * For each { from, to }: finds the bill by its current number, checks the target
+ * number isn't already used by a DIFFERENT bill, renames it, and fixes every
+ * linked receipt (the `reference` string and each allocation's `refNumber`), so
+ * payment records keep showing the correct bill number. Optionally sets the
+ * invoice series start so FUTURE bills continue from the right number. All or
+ * nothing (one transaction). The next bill number is derived from the max
+ * existing number, so after renaming the latest bill to 10966 the next is 10967.
+ */
+export async function renumberInvoices(
+  mappings: { from: string; to: string }[],
+  seriesStart?: { fy: string; start: number },
+): Promise<{ renamed: { from: string; to: string }[]; receiptsFixed: number; seriesStart?: { fy: string; start: number } }> {
+  if (!Array.isArray(mappings) || mappings.length === 0) {
+    throw new AppError('BAD_REQUEST', 'Provide at least one { from, to } bill-number mapping.', 400);
+  }
+  const tos = mappings.map((m) => String(m?.to || ''));
+  const froms = mappings.map((m) => String(m?.from || ''));
+  if (new Set(tos).size !== tos.length) throw new AppError('BAD_REQUEST', 'The new bill numbers must be distinct.', 400);
+  if (new Set(froms).size !== froms.length) throw new AppError('BAD_REQUEST', 'The old bill numbers must be distinct.', 400);
+  const fmt = /^MZ[A-Z]{3}\d{2}-\d{2}\/\d+$/;
+  for (const m of mappings) {
+    if (!fmt.test(String(m.from))) throw new AppError('BAD_REQUEST', `"${m.from}" is not a valid bill number.`, 400);
+    if (!fmt.test(String(m.to))) throw new AppError('BAD_REQUEST', `"${m.to}" is not a valid bill number.`, 400);
+  }
+
+  return prisma.$transaction(async (tx: any) => {
+    const now = new Date().toISOString();
+    const renamed: { from: string; to: string }[] = [];
+    let receiptsFixed = 0;
+
+    for (const m of mappings) {
+      const inv = await tx.invoice.findUnique({ where: { invoiceNumber: m.from } });
+      if (!inv) throw new AppError('NOT_FOUND', `Bill ${m.from} was not found.`, 404);
+      const clash = await tx.invoice.findUnique({ where: { invoiceNumber: m.to } });
+      if (clash && clash.id !== inv.id) {
+        throw new AppError('CONFLICT', `Bill number ${m.to} is already used by another bill (${clash.id}).`, 409);
+      }
+
+      await tx.invoice.update({ where: { id: inv.id }, data: { invoiceNumber: m.to, updatedAt: now } });
+
+      // Fix linked receipts: any payment that references this bill by id (in its
+      // allocations) or by its old number (in the reference text).
+      const pays: any[] = await tx.$queryRaw`
+        SELECT id, reference, allocations FROM "Payment"
+        WHERE allocations @> ${JSON.stringify([{ refId: inv.id }])}::jsonb OR reference = ${m.from}`;
+      for (const p of pays) {
+        const allocs = Array.isArray(p.allocations)
+          ? p.allocations.map((a: any) => (a && a.refId === inv.id ? { ...a, refNumber: m.to } : a))
+          : p.allocations;
+        const reference = p.reference === m.from ? m.to : p.reference;
+        await tx.payment.update({ where: { id: p.id }, data: { allocations: allocs as any, reference, updatedAt: now } });
+        receiptsFixed++;
+      }
+      renamed.push({ from: m.from, to: m.to });
+    }
+
+    if (seriesStart && typeof seriesStart.fy === 'string' && Number(seriesStart.start) > 0) {
+      const value = { fy: seriesStart.fy, start: Number(seriesStart.start) };
+      await tx.appConfig.upsert({
+        where: { key: 'invoiceSeriesStart' },
+        create: { key: 'invoiceSeriesStart', value: value as any },
+        update: { value: value as any },
+      });
+    }
+
+    return { renamed, receiptsFixed, seriesStart };
+  });
+}

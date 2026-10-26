@@ -21,6 +21,7 @@ import catalogRoutes from './catalog.routes.js';
 import * as system from '../services/system.service.js';
 import { sseHandler, broadcastChange, closeUserStreams } from '../lib/events.js';
 import { reseedDatabase, resetToCatalog, importCatalogAdditive } from '../services/reseed.service.js';
+import { renumberInvoices } from '../services/invoice.service.js';
 import { updateAccessMatrix } from '../services/access.service.js';
 import { ALL_VIEWS, ALL_CAPS, ALL_FLAGS, getLiveMatrix, roleFlags, roleCan } from '../lib/auth.js';
 import { askAi, getAiStatus } from '../services/ai.service.js';
@@ -771,6 +772,19 @@ router.post('/admin/import-catalog', requireCapability('admin'), asyncHandler(as
     throw new AppError('CONFIRM_REQUIRED', 'This adds/updates the product catalog. Send { "confirm": "IMPORT" } to proceed.', 400);
   }
   const result = await importCatalogAdditive();
+  res.json({ ...result, bootstrap: await system.getBootstrap((req as any).user) });
+}));
+
+// ---- Admin: renumber specific bills to the official GST invoice series (CEO
+// only). Renames each { from, to }, fixes linked receipts, and optionally sets
+// the series start so future bills continue correctly. A typed confirm is
+// required. Non-destructive to data (only invoice numbers + receipt refs), so
+// no env gate — but it IS reversible by running it again with swapped numbers. ----
+router.post('/admin/renumber-invoices', requireCapability('admin'), asyncHandler(async (req, res) => {
+  if (String(req.body?.confirm || '') !== 'RENUMBER') {
+    throw new AppError('CONFIRM_REQUIRED', 'This renames official bill numbers. Send { "confirm": "RENUMBER", "mappings": [...] } to proceed.', 400);
+  }
+  const result = await renumberInvoices(req.body?.mappings || [], req.body?.seriesStart);
   res.json({ ...result, bootstrap: await system.getBootstrap((req as any).user) });
 }));
 
