@@ -100,12 +100,15 @@ const hoursPending = (inv: Invoice) => Math.floor(hoursSince(inv.externalCreated
 /** Auto-complete window: an order in "Tracking ID Sent" closes after 7 days. */
 const AUTO_COMPLETE_DAYS = 7;
 
-/** wa.me deep link with a prefilled message (India numbers default to +91). */
+/** wa.me deep link with a prefilled message. Normalises the number to full
+ *  international form so the chat opens on the RIGHT contact: strips spaces/
+ *  symbols and leading zeros, and adds India's 91 to a bare 10-digit mobile.
+ *  Returns null when there is no usable number (the button is then disabled). */
 const waLink = (phone: string | undefined, text: string): string | null => {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  const intl = digits.length === 10 ? `91${digits}` : digits.replace(/^0+/, '');
-  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
+  let digits = (phone || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.length === 10) digits = `91${digits}`; // bare Indian mobile → +91
+  if (digits.length < 11) return null;              // not a full intl number
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 };
 
 /** The order received time that drives the cut-off (Shopify time, else import). */
@@ -716,6 +719,20 @@ const FlipkartOrderPanel: React.FC<{ inv: Invoice; onBack: () => void; lineImage
     }
   };
 
+  // The client's priority: ONE tap lands directly in the customer's OWN WhatsApp
+  // chat (their number), not the contact picker. wa.me can't carry an image, so
+  // we also save the photo for them to attach in the chat that opens — same
+  // behaviour as the Tracking / Reminder buttons, which already target the number.
+  const canShare = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
+  const sendPhotoToCustomer = () => {
+    if (!photo) { toast.error('Add a product/parcel photo first.'); return; }
+    if (!photoWa) { toast.error('Add the customer’s WhatsApp number first — tap “Edit / paste” above.'); return; }
+    saveImage();                       // photo downloaded, ready to attach
+    window.open(photoWa, '_blank');     // opens the customer's chat with the message
+    addOrderCommunication(inv.id, 'photo_sent');
+    toast.success('Opened the customer’s WhatsApp chat — attach the saved photo and press send.');
+  };
+
   // ── Print box / address label ──
   const printLabel = () => {
     const branch = BRANCHES.find((b) => b.id === inv.branchId);
@@ -962,14 +979,21 @@ ${esc(inv.stateOfSupply || '')}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={sharePhotoOnWhatsApp}
-                    disabled={!photo || sharingPhoto}
+                    onClick={sendPhotoToCustomer}
+                    disabled={!photo}
                     className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border',
                       photo ? 'bg-[#25D366]/10 text-[#128C7E] border-[#25D366]/40 hover:bg-[#25D366]/20' : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed')}
-                  ><MessageCircle className="h-3.5 w-3.5" /> {sharingPhoto ? 'Sharing…' : 'Send photo on WhatsApp'}</button>
+                  ><MessageCircle className="h-3.5 w-3.5" /> Send on WhatsApp</button>
+                  {canShare && (
+                    <button
+                      onClick={sharePhotoOnWhatsApp}
+                      disabled={!photo || sharingPhoto}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50 disabled:opacity-50"
+                    ><Camera className="h-3.5 w-3.5" /> {sharingPhoto ? 'Sharing…' : 'Attach in 1 tap'}</button>
+                  )}
                   <button onClick={() => copyText(photoMsg)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50"><Copy className="h-3.5 w-3.5" /> Copy message</button>
                 </div>
-                <p className="text-[10px] text-slate-400">On a phone this attaches the photo to WhatsApp directly. On desktop the photo is saved and the chat opens with the message — attach the saved photo (true auto-send needs the paid WhatsApp Business API).</p>
+                <p className="text-[10px] text-slate-400"><b>Send on WhatsApp</b> opens the customer’s own chat (their number) with the message ready — the photo is saved, so just attach it and press send. <b>Attach in 1 tap</b> (phones) attaches the photo automatically but asks you to pick the contact.</p>
               </div>
             </div>
           </Card>
