@@ -2120,6 +2120,36 @@ export const InvoiceForm: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineItems, customerName, customerPhone, customerAddress, customerId, date, paymentSplits, overallDiscountType, overallDiscountValue, shippingCharges, roundOffEnabled, withGst, documentType, salespersonId, terms]);
 
+  // AUTOSAVE SAFETY NET: the 700ms autosave above can miss the last changes when
+  // the page suddenly reloads (a deploy, a session timeout that bounces to the
+  // login page, closing the tab). So flush the working copy IMMEDIATELY on
+  // beforeunload / pagehide / tab-hide, and also on a steady 5s heartbeat — so an
+  // in-progress bill or quotation is restored after re-login instead of lost.
+  // Uses a ref (like the save shortcut) so the listeners bind once but always
+  // run against the latest form state.
+  const flushWorkingCopyRef = useRef<() => void>(() => {});
+  flushWorkingCopyRef.current = () => {
+    if (!workingCopyRef.current || isSavedBill) return;
+    try {
+      const doc = documentType === 'Quotation' ? assembleEstimateObject(true) : assembleInvoiceObject(true);
+      if (doc) workingCopyRef.current(doc);
+    } catch { /* never let autosave throw */ }
+  };
+  useEffect(() => {
+    const flush = () => flushWorkingCopyRef.current();
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    const heartbeat = window.setInterval(flush, 5000);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(heartbeat);
+    };
+  }, []);
+
   const handleSaveDraft = () => {
     if (!onSaveDraft) return;
     if (documentType === 'Quotation') {
