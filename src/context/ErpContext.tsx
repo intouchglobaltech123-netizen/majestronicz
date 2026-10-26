@@ -2342,6 +2342,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setEstimates(snap.estimates);
         saved = snap.estimates.find((e: Estimate) => e.id === newEstimate.id) || newEstimate;
       }
+      // The quote may have remembered a new customer (name + mobile) — refresh the
+      // master so the number suggests immediately on the next bill/quote (CRM).
+      if (snap && Array.isArray(snap.customers)) setCustomers(snap.customers);
     } catch (e: any) {
       // SAL8-4: a refused save returns nothing (as for invoices), so the form
       // stays open with the draft — no printable quote for a save that failed.

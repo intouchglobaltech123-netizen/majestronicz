@@ -255,6 +255,31 @@ export const InvoiceForm: React.FC<Props> = ({
   const [skipCustomerSave, setSkipCustomerSave] = useState(false);
   useEffect(() => { setSkipCustomerSave(false); }, [customerPhone]);
 
+  // Every mobile the shop has ever seen — the customer master PLUS numbers used
+  // on past bills and quotations — deduped by 10-digit number. This makes an
+  // old quote-only customer (e.g. JANA K 852…, never billed) suggest and
+  // auto-fill even though it isn't in the master yet (CRM 2026-10-26). Master
+  // rows win (they carry the real id + cleaned name); history fills the gaps.
+  const knownContacts = useMemo(() => {
+    const byPhone = new Map<string, { id?: string; phone: string; name: string; address: string }>();
+    const put = (phoneRaw: string | undefined, name: string | undefined, address: string | undefined, id?: string) => {
+      const clean = (phoneRaw || '').replace(/\D/g, '');
+      if (clean.length !== 10) return;
+      const nm = (name || '').trim();
+      if (!nm || nm.toLowerCase() === 'walk-in customer') return; // nothing worth suggesting
+      const existing = byPhone.get(clean);
+      // A master row (has id) always wins; otherwise keep the first history name.
+      if (!existing || (id && !existing.id)) {
+        byPhone.set(clean, { id, phone: clean, name: nm, address: address || '' });
+      }
+    };
+    // History first (lower priority), master last so it overrides.
+    invoices.forEach((i) => put(i.customerPhone, i.customerName, i.customerAddress));
+    estimates.forEach((e) => put(e.customerContact, e.customerName, e.customerAddress));
+    customers.forEach((c) => put(c.phone, cleanCustomerName(c.name, c.notes), c.address, c.id));
+    return Array.from(byPhone.values());
+  }, [customers, estimates, invoices]);
+
   // Phone-first entry: typing a full 10-digit mobile auto-fills the matching
   // customer's name + address; an unknown number offers a quick add.
   useEffect(() => {
@@ -273,32 +298,32 @@ export const InvoiceForm: React.FC<Props> = ({
     }
 
     if (clean.length !== 10) { setShowNewCustomerPrompt(false); return; }
-    const match = customers.find((c) => (c.phone || '').replace(/\D/g, '') === clean);
+    const match = knownContacts.find((c) => c.phone === clean);
     if (match) {
-      setCustomerId(match.id);
-      setCustomerName(cleanCustomerName(match.name, match.notes));
+      if (match.id) setCustomerId(match.id);
+      setCustomerName(match.name);
       setCustomerAddress(match.address || '');
       setShowNewCustomerPrompt(false);
     } else {
       setShowNewCustomerPrompt(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerPhone, customers]);
+  }, [customerPhone, knownContacts]);
 
-  // Customer suggestions as the mobile number is typed: show every saved
-  // customer whose number STARTS WITH the digits entered (e.g. "9942" → all
-  // 9942… customers) so staff pick the old customer and auto-fill number, name
+  // Customer suggestions as the mobile number is typed: show every known
+  // contact whose number STARTS WITH the digits entered (e.g. "9942" → all
+  // 9942… contacts) so staff pick the old customer and auto-fill number, name
   // and address instead of needing the full 10 digits.
   const [phoneFocused, setPhoneFocused] = useState(false);
   const phoneSuggestions = useMemo(() => {
     if (customerId) return []; // a customer is already locked in
     const clean = customerPhone.replace(/\D/g, '');
     if (clean.length < 2) return []; // from just "99" — no need to type the full number
-    return customers
-      .filter((c) => (c.phone || '').replace(/\D/g, '').startsWith(clean))
+    return knownContacts
+      .filter((c) => c.phone.startsWith(clean))
       .slice(0, 8);
-  }, [customers, customerPhone, customerId]);
-  const pickCustomer = (c: { id: string; phone: string; name: string; address: string; notes?: string }) => {
+  }, [knownContacts, customerPhone, customerId]);
+  const pickCustomer = (c: { id?: string; phone: string; name: string; address: string; notes?: string }) => {
     setCustomerId(c.id);
     setCustomerPhone((c.phone || '').replace(/\D/g, ''));
     setCustomerName(cleanCustomerName(c.name, c.notes));
@@ -2537,13 +2562,13 @@ export const InvoiceForm: React.FC<Props> = ({
               <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
                 {phoneSuggestions.map((c) => (
                   <button
-                    key={c.id}
+                    key={c.phone}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
                     className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 text-sm truncate">{cleanCustomerName(c.name, c.notes) || 'Customer'}</span>
+                      <span className="font-bold text-slate-900 text-sm truncate">{c.name || 'Customer'}</span>
                       <span className="font-mono text-xs text-slate-600 shrink-0">{c.phone}</span>
                     </div>
                     {c.address && <div className="text-[11px] text-slate-400 truncate">{c.address}</div>}

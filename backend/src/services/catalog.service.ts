@@ -1,7 +1,7 @@
 import { prisma } from '../db.js';
 import { withLiveBillCounts } from '../lib/liveCounts.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { nowIso, cleanPhone } from '../lib/stockLedger.js';
+import { nowIso, cleanPhone, rid } from '../lib/stockLedger.js';
 import { nextEstimateNumber, nextChallanNumber, nextComboCode } from '../lib/sequences.js';
 import { withRetry } from '../lib/retry.js';
 import { calculateLineTax, calculateInvoiceTotals } from '../lib/taxCalc.js';
@@ -77,6 +77,67 @@ const billingRights = (reqUser?: any) => {
   return { canEditPrice: flags.includes('bill.editPrice'), canDiscount: flags.includes('bill.giveDiscount') };
 };
 
+/**
+ * Remember a quotation's customer so the number + name suggest next time the
+ * cashier types that mobile (CRM: a quote-only customer never reached the master
+ * before, so JANA K 852… stayed invisible). Mirrors the invoice auto-create, but
+ * a quote is NOT a sale — no purchaseCount / totalSpent bump. Sets data.customerId
+ * to the linked/created master so the quote is tied to it. Needs a real name and a
+ * valid 10-digit mobile; a nameless walk-in with a number creates nothing.
+ */
+async function linkQuotationCustomer(tx: any, data: any): Promise<void> {
+  const phoneClean = cleanPhone(data.customerContact);
+  const name = String(data.customerName || '').trim();
+
+  // An explicit customerId already points at a master row — keep it, and backfill
+  // any blank name/phone/address so the record is usable for future suggestions.
+  if (data.customerId) {
+    const cur = await tx.customer.findUnique({ where: { id: String(data.customerId) } });
+    if (cur) {
+      const patch: any = {};
+      if (!cur.name?.trim() && name) patch.name = name;
+      if (!cleanPhone(cur.phone) && phoneClean) patch.phone = data.customerContact;
+      if (!cur.address?.trim() && data.customerAddress) patch.address = String(data.customerAddress).trim();
+      if (Object.keys(patch).length) {
+        patch.updatedAt = nowIso();
+        await tx.customer.update({ where: { id: cur.id }, data: patch });
+      }
+      return;
+    }
+    data.customerId = undefined; // stale id → fall through and re-link by phone
+  }
+
+  // No real name or no real mobile → nothing worth remembering (walk-in).
+  if (!name || name.toLowerCase() === 'walk-in customer') return;
+  if (!/^[6-9]\d{9}$/.test(phoneClean)) return;
+
+  const match = (await tx.customer.findMany()).find((c: any) => cleanPhone(c.phone) === phoneClean);
+  if (match) {
+    data.customerId = match.id;
+    if (!match.name?.trim()) {
+      await tx.customer.update({ where: { id: match.id }, data: { name, updatedAt: nowIso() } });
+    }
+    return;
+  }
+
+  const newId = rid('cust');
+  data.customerId = newId;
+  await tx.customer.create({
+    data: {
+      id: newId,
+      name,
+      phone: data.customerContact,
+      address: String(data.customerAddress || '').trim(),
+      firstPurchaseDate: data.date,
+      purchaseCount: 0,
+      totalSpent: 0,
+      notes: 'Auto-created from Quotation',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    },
+  });
+}
+
 /** Create/edit estimate — new records get a server-assigned collision-free number. */
 export function saveEstimate(data: any, reqUser?: any) {
   // SAL10-7: a quote needs lines, a real date and a real branch.
@@ -86,6 +147,8 @@ export function saveEstimate(data: any, reqUser?: any) {
   assertBusinessDate(data.date, 'A quotation');
   recomputeEstimateMoney(data); // server-authoritative totals
   return withRetry(() => prisma.$transaction(async (tx: any) => {
+    // Remember the customer (name + mobile) for future number suggestions.
+    await linkQuotationCustomer(tx, data);
     const existing = data.id ? await tx.estimate.findUnique({ where: { id: data.id } }) : null;
     if (existing) {
       // SEC5-2: authorize against the STORED quote's branch, and keep the branch
@@ -118,7 +181,12 @@ export function saveEstimate(data: any, reqUser?: any) {
       for (const k of ESTIMATE_LIFECYCLE_FIELDS) delete (clean as any)[k];
       await tx.estimate.create({ data: { ...clean, id, estimateNumber, status: 'Open', createdAt: data.createdAt || nowIso() } });
     }
-    return { estimates: await tx.estimate.findMany() };
+    // Return customers too so a just-remembered quote customer shows in the
+    // number-suggestion list immediately, without a reload.
+    return {
+      estimates: await tx.estimate.findMany(),
+      customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }),
+    };
   }));
 }
 
