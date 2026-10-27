@@ -233,7 +233,13 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
 
         {/* Printable Document Body */}
         <div id="printable-invoice-doc" ref={docRef} className="p-3 sm:p-8 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-6 print:overflow-visible">
-          <div className="doc-fit" style={fit.style}>
+          {/* On print, fill the A4 page: a flex column at least one page tall
+              (A4 297mm − 8mm margins × 2 ≈ 273mm safe) so a short bill stretches
+              to cover the whole sheet instead of sitting in the top ~60%. The
+              bordered box grows and a spacer (below) pushes the footer down. For
+              a long/multi-page bill the min-height is harmless — the spacer just
+              collapses and the content flows normally. */}
+          <div className="doc-fit print:flex print:flex-col print:min-h-[273mm]" style={fit.style}>
           {/* Voided Alert Banner */}
           {invoice.isVoided && (
             <div className="mb-4 p-3 rounded-none bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center justify-between font-bold print:border-2 print:border-rose-600">
@@ -257,8 +263,8 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
             <span className="text-[11px] font-semibold w-1/3 text-right">ORIGINAL FOR RECIPIENT</span>
           </div>
 
-          {/* Outer bordered document */}
-          <div className="border border-black text-black text-[11px] leading-tight">
+          {/* Outer bordered document — grows to fill the page height on print. */}
+          <div className="border border-black text-black text-[11px] leading-tight print:flex-1 print:flex print:flex-col">
             {/* Seller (left) + meta grid (right) */}
             <div className="grid grid-cols-2">
               {/* Seller / dispatching branch */}
@@ -536,6 +542,11 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <span className="font-semibold">{numberToWordsIndian(invoice.totalTax)}</span>
               </div>
             )}
+
+            {/* Print spacer: grows to push the declaration/signatory to the
+                bottom of the page so the bill fills the full A4 sheet. Collapses
+                to nothing when the bill is long enough to fill the page itself. */}
+            <div className="hidden print:block print:flex-1" aria-hidden="true" />
 
             {/* Declaration + signatory */}
             <div className="border-t border-black grid grid-cols-2">
