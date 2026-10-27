@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { HistoryLoadingHint } from '../common/HistoryLoadingHint';
 import { Invoice, Estimate, BranchId, BRANCHES, getInvoicePaymentSplits, isInvoiceFullyReturned, computeInvoiceFinance } from '../../types';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
 import { SALES_EXPORT_HEADERS, salesExportRows } from '../../lib/salesExport';
 import { SalesDraft, loadDrafts, upsertDraft, deleteDraft as removeDraft, newDraftId } from '../../lib/salesDrafts';
@@ -289,6 +289,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   }, [searchQuery]);
   const LEDGER_PAGE = 100;
   const [ledgerPage, setLedgerPage] = useState(0);
+  // Date filter for the sales ledger: defaults to TODAY only, so the list opens
+  // showing just today's bills. Pick any single date (From = To) or a range to
+  // see that day's / period's bills. Empty = unbounded on that side.
+  const [ledgerFrom, setLedgerFrom] = useState<string>(() => getTodayDateString());
+  const [ledgerTo, setLedgerTo] = useState<string>(() => getTodayDateString());
   // Date-range / mode / status filtering now lives in the Reports section.
   // The ledger keeps only a quick search; branch follows the global top-bar toggle.
   const [branchFilter, setBranchFilter] = useState<'ALL' | BranchId>(() =>
@@ -339,9 +344,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       // Channel filter — keep store (counter) bills separate from online orders.
       if (!inChannel(inv)) return false;
 
-      // Show ALL invoices (branch-filtered), newest first — staff need to see
-      // previously generated bills here, not just today's. Deep history/date-range
-      // reporting still lives in the Reports section.
+      // Date filter — show only bills within the chosen range (defaults to today).
+      const d = inv.date || '';
+      if (ledgerFrom && d < ledgerFrom) return false;
+      if (ledgerTo && d > ledgerTo) return false;
 
       // Search filter (Invoice No, Customer, Phone, Items)
       if (debouncedSearch.trim()) {
@@ -362,9 +368,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       const d = (b.date || '').localeCompare(a.date || '');
       return d !== 0 ? d : (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope]);
+  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope, ledgerFrom, ledgerTo]);
   // Back to the first page whenever the list itself changes shape.
-  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch, channelScope]);
+  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch, channelScope, ledgerFrom, ledgerTo]);
   const ledgerPages = Math.max(1, Math.ceil(filteredInvoices.length / LEDGER_PAGE));
   const safeLedgerPage = Math.min(ledgerPage, ledgerPages - 1);
   const pagedInvoices = useMemo(
@@ -1143,18 +1149,48 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               )}
             </div>
 
-            {/* Take the report out: pick a date range → PDF / Excel / CSV */}
+            {/* Date filter — the list shows only bills in this range (defaults to
+                today). Set From = To for a single day. "Today" resets to today. */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="date" value={ledgerFrom} max={ledgerTo || undefined} aria-label="From date"
+                onChange={(e) => setLedgerFrom(e.target.value)}
+                className="px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-blue-600"
+              />
+              <span className="text-slate-400">to</span>
+              <input
+                type="date" value={ledgerTo} min={ledgerFrom || undefined} aria-label="To date"
+                onChange={(e) => setLedgerTo(e.target.value)}
+                className="px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-blue-600"
+              />
+              <button
+                type="button"
+                onClick={() => { const t = getTodayDateString(); setLedgerFrom(t); setLedgerTo(t); }}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                title="Show today's bills"
+              >Today</button>
+              <button
+                type="button"
+                onClick={() => { setLedgerFrom(''); setLedgerTo(''); }}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                title="Show all dates"
+              >All</button>
+            </div>
+
+            {/* Export the bills currently shown (same date range) → PDF / Excel / CSV */}
             <ListExportBar
-              build={(from, to) => ({
+              withDateRange={false}
+              build={() => ({
                 // SAL6-9: status for every bill, all payment modes, returns, net,
                 // received, due and a totals row (voided bills listed, not totalled).
                 headers: SALES_EXPORT_HEADERS,
                 rows: salesExportRows(
                   invoices
-                    .filter((inv) => (isAllBranches || inv.branchId === currentBranch) && (!from || (inv.date || '') >= from) && (!to || (inv.date || '') <= to))
+                    .filter((inv) => (isAllBranches || inv.branchId === currentBranch) && (!ledgerFrom || (inv.date || '') >= ledgerFrom) && (!ledgerTo || (inv.date || '') <= ledgerTo))
                     .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1)),
                 ),
-                title: 'Sales Invoices', filename: `sales-invoices-${from || 'all'}_to_${to || 'all'}`,
+                title: 'Sales Invoices', filename: `sales-invoices-${ledgerFrom || 'all'}_to_${ledgerTo || 'all'}`,
               })}
             />
           </div>
