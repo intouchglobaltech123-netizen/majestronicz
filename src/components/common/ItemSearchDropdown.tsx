@@ -67,12 +67,13 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   disabled = false,
   className = '',
   inputClassName = '',
-  dropdownWidth = 'w-[520px] sm:w-[580px] max-w-[calc(100vw-2rem)]',
   showClearButton = true,
   onClear,
   autoFocus = false,
   required = false,
   lockOutOfStock = false,
+  // dropdownWidth is kept in the Props type for call-site compatibility but the
+  // menu now always matches the input's width (see updateMenuPos).
 }) => {
   const { items: masterItems, branchStocks, combos, getComboAvailability, currentBranch, getReorderThreshold, invoices } = useErp();
   const [isOpen, setIsOpen] = useState(false);
@@ -92,15 +93,18 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     const r = el.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const menuW = Math.min(menuRef.current?.offsetWidth || 520, vw - 16);
+    // The dropdown spans the FULL width of the search field (min 360px so the
+    // columns stay readable on a narrow field), so it lines up under the input
+    // instead of being a fixed, narrower box.
+    const menuW = Math.min(Math.max(r.width, 360), vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
     const MAX = 320;
     const below = vh - r.bottom - 12;
     const above = r.top - 12;
     if (below < 200 && above > below) {
-      setMenuPos({ bottom: vh - r.top + 6, left, width: r.width, maxHeight: Math.min(MAX, above) });
+      setMenuPos({ bottom: vh - r.top + 6, left, width: menuW, maxHeight: Math.min(MAX, above) });
     } else {
-      setMenuPos({ top: r.bottom + 6, left, width: r.width, maxHeight: Math.min(MAX, Math.max(160, below)) });
+      setMenuPos({ top: r.bottom + 6, left, width: menuW, maxHeight: Math.min(MAX, Math.max(160, below)) });
     }
   };
   // Re-place once the menu has rendered and its real width is known.
@@ -389,11 +393,8 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
       {isOpen && menuPos && createPortal(
         <div
           ref={menuRef}
-          className={cn(
-            'fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden flex flex-col',
-            dropdownWidth
-          )}
-          style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left, maxHeight: menuPos.maxHeight, maxWidth: 'calc(100vw - 16px)' }}
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+          style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left, width: menuPos.width, maxHeight: menuPos.maxHeight, maxWidth: 'calc(100vw - 16px)' }}
         >
           {/* Header Row */}
           <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-2 shrink-0">
@@ -476,8 +477,12 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                             />
                             <div className="min-w-0 flex-1">
                               <p
+                                title={item.itemName}
                                 className={cn(
-                                  'font-bold truncate',
+                                  // Show up to two lines so products that differ
+                                  // only at the END of the name (voltage, variant…)
+                                  // stay distinguishable; hover shows the full name.
+                                  'font-bold line-clamp-2 leading-tight break-words',
                                   isLocked ? 'text-rose-900' : 'text-slate-900'
                                 )}
                               >
@@ -624,8 +629,9 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span
+                                  title={combo.comboName}
                                   className={cn(
-                                    'font-bold truncate',
+                                    'font-bold line-clamp-2 leading-tight break-words',
                                     isLocked ? 'text-rose-900' : 'text-slate-900'
                                   )}
                                 >
