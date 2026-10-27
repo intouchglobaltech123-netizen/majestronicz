@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE, setAuthToken, getAuthToken, getTokenSession, setUnauthorizedHandler } from '../lib/api';
 import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString, formatCurrency, nameWithRole } from '../lib/utils';
@@ -981,6 +981,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Live cross-session sync: subscribe to the backend SSE stream. When ANY
   // role commits a change, silently refresh so it reflects here immediately.
   // Debounced so bursts collapse into one refresh (smooth, no flicker/splash).
+  //
+  // PERF: a refresh triggered by ANOTHER user's save is applied as a React
+  // transition (low priority) so it can never freeze the current user's typing
+  // or clicks. With 4-5 people billing at once, incoming live updates used to
+  // re-render the whole app synchronously and make the active screen stutter;
+  // startTransition lets React keep this user's input urgent and render the
+  // background sync when the main thread is free.
+  const [, startLiveTransition] = useTransition();
   useEffect(() => {
     // Only subscribe while a session is active. Tying this to isAuthenticated
     // means logout tears the stream down and login re-opens it fresh — so a
@@ -1015,14 +1023,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           needFull = false;
           Object.values(pending).forEach((x) => x.clear());
           const data = await apiGet<any>('/api/bootstrap');
-          if (!closed) hydrateState(data);
+          if (!closed) startLiveTransition(() => hydrateState(data));
         } else if (pendingCount()) {
           const q = (Object.keys(pending) as (keyof typeof pending)[])
             .filter((k) => pending[k].size)
             .map((k) => `${k}=${[...pending[k]].map(encodeURIComponent).join(',')}`).join('&');
           Object.values(pending).forEach((x) => x.clear());
           const d = await apiGet<any>(`/api/sync?${q}`);
-          if (!closed) applyDelta(d);
+          if (!closed) startLiveTransition(() => applyDelta(d));
         }
       } catch (e) {
         console.error('Live refresh failed:', e);
@@ -1055,7 +1063,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (const id of Array.isArray(ch[k]) ? ch[k] : []) pending[k].add(String(id));
       }
       // Removals need no fetch.
-      if (ch.removed?.invoices?.length || ch.removed?.payments?.length) applyDelta({ removed: ch.removed });
+      if (ch.removed?.invoices?.length || ch.removed?.payments?.length) startLiveTransition(() => applyDelta({ removed: ch.removed }));
       if (Array.isArray(ch.stock) && ch.stock.length) scheduleStats();
       schedule();
     };

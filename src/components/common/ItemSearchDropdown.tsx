@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Package, Layers } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
-import { Item, ComboItem, BranchId, BRANCHES } from '../../types';
+import { Item, ComboItem, BranchId, BranchStock, BRANCHES } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ItemImage } from './ItemImage';
@@ -138,15 +138,29 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getStockCount = (itemId: string): number => {
-    if (effectiveBranchId === 'all') {
-      return branchStocks
-        .filter((s) => s.itemId === itemId)
-        .reduce((sum, s) => sum + s.quantity, 0);
+  // Keep typing instant: the input shows `value` immediately, but the (heavier)
+  // filtering + list render run off a DEFERRED copy so a keystroke is never
+  // blocked — especially while live updates from other cashiers keep arriving.
+  const deferredValue = useDeferredValue(value);
+
+  // Index stock by item once per stock change, so each row's lookup is O(1)
+  // instead of scanning the whole branchStocks array per item on every render.
+  const stocksByItem = useMemo(() => {
+    const m = new Map<string, BranchStock[]>();
+    for (const s of branchStocks) {
+      const arr = m.get(s.itemId);
+      if (arr) arr.push(s); else m.set(s.itemId, [s]);
     }
-    const stock = branchStocks.find(
-      (s) => s.itemId === itemId && s.branchId === effectiveBranchId
-    );
+    return m;
+  }, [branchStocks]);
+
+  const getStockCount = (itemId: string): number => {
+    const rows = stocksByItem.get(itemId);
+    if (!rows) return 0;
+    if (effectiveBranchId === 'all') {
+      return rows.reduce((sum, s) => sum + s.quantity, 0);
+    }
+    const stock = rows.find((s) => s.branchId === effectiveBranchId);
     return stock?.quantity ?? 0;
   };
 
@@ -166,7 +180,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   // partial query still finds the right product (fuzzy, typo-tolerant), and
   // frequently-sold items are boosted so the billing person finds them fastest.
   const filteredProducts = useMemo(() => {
-    const q = (value || '').toLowerCase().trim();
+    const q = (deferredValue || '').toLowerCase().trim();
     const freqBoost = (id: string) => Math.min(180, (freqMap.get(id) || 0) * 12);
 
     // Empty box → show the most-billed items first (quick picks for billing).
@@ -207,21 +221,21 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     }
     scored.sort((a, b) => b.score - a.score || a.item.itemName.localeCompare(b.item.itemName));
     return scored.slice(0, 12).map((s) => s.item);
-  }, [masterItems, value, freqMap]);
+  }, [masterItems, deferredValue, freqMap]);
 
   // Filter matching combos
   const filteredCombos = useMemo(() => {
     if (!includeCombos) return [];
     return combos.filter((combo: ComboItem) => {
-      if (!value || !value.trim()) return true;
-      const q = value.toLowerCase().trim();
+      if (!deferredValue || !deferredValue.trim()) return true;
+      const q = deferredValue.toLowerCase().trim();
       return (
         combo.comboName.toLowerCase().includes(q) ||
         combo.comboCode.toLowerCase().includes(q) ||
         (combo.description && combo.description.toLowerCase().includes(q))
       );
     }).slice(0, 8);
-  }, [combos, value, includeCombos]);
+  }, [combos, deferredValue, includeCombos]);
 
   // Unified list of entries for keyboard navigation
   const allEntries = useMemo<SearchEntry[]>(() => {
@@ -419,7 +433,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
 
                       const branchStockRecord =
                         effectiveBranchId !== 'all'
-                          ? branchStocks.find((s) => s.itemId === item.id && s.branchId === effectiveBranchId)
+                          ? stocksByItem.get(item.id)?.find((s) => s.branchId === effectiveBranchId)
                           : undefined;
                       const rackLoc = branchStockRecord?.location?.trim();
 

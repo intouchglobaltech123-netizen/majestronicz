@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useDeferredValue } from 'react';
 import { ErpProvider, useErp } from './context/ErpContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
@@ -37,8 +37,13 @@ const SIDEBAR_COLLAPSED_KEY = 'majestronicz_sidebar_collapsed';
 
 const AppContent: React.FC = () => {
   const { currentView } = useErp();
+  // PERF: the sidebar/top-bar read `currentView` and highlight the clicked menu
+  // instantly, but the heavy screen bodies render from a DEFERRED copy. So a
+  // click never freezes on mounting the next screen — React keeps the UI
+  // responsive and swaps the body in when it is ready (desktop-app feel).
+  const viewForBody = useDeferredValue(currentView);
   // Sales & Quotations share one always-mounted billing view (keeps open tabs alive).
-  const isBilling = currentView === 'invoices' || currentView === 'estimates';
+  const isBilling = viewForBody === 'invoices' || viewForBody === 'estimates';
   // Mobile off-canvas nav drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -232,45 +237,45 @@ const AppContent: React.FC = () => {
               boundary resets when they navigate. The root boundary in main.tsx
               stays as the last resort. */}
           <div className={isBilling ? undefined : 'hidden'}>
-            <ErrorBoundary variant="screen" resetKey={currentView}>
-              <InvoiceView initialTab={currentView === 'estimates' ? 'estimates' : 'ledger'} />
+            <ErrorBoundary variant="screen" resetKey={viewForBody}>
+              <InvoiceView initialTab={viewForBody === 'estimates' ? 'estimates' : 'ledger'} />
             </ErrorBoundary>
           </div>
 
           {!isBilling && (
-            <ErrorBoundary variant="screen" resetKey={currentView}>
+            <ErrorBoundary variant="screen" resetKey={viewForBody}>
             <Suspense fallback={<div className="p-6 text-xs font-semibold text-slate-500" role="status">Loading…</div>}>
-            {currentView === 'dashboard' ? (
+            {viewForBody === 'dashboard' ? (
               <DashboardView />
-            ) : currentView === 'parties' ? (
+            ) : viewForBody === 'parties' ? (
               <PartiesView />
-            ) : currentView === 'inventory' ? (
+            ) : viewForBody === 'inventory' ? (
               <InventoryView />
-            ) : currentView === 'enquiries' ? (
+            ) : viewForBody === 'enquiries' ? (
               <EnquiryView />
-            ) : currentView === 'pending-orders' ? (
+            ) : viewForBody === 'pending-orders' ? (
               <PendingOrdersView />
-            ) : currentView === 'challans' ? (
+            ) : viewForBody === 'challans' ? (
               <DeliveryChallanView />
-            ) : currentView === 'barcodes' ? (
+            ) : viewForBody === 'barcodes' ? (
               <BarcodeView />
-            ) : currentView === 'cash-register' ? (
+            ) : viewForBody === 'cash-register' ? (
               <DailyCashRegisterView />
-            ) : currentView === 'purchases' ? (
+            ) : viewForBody === 'purchases' ? (
               <PurchaseManagementView />
-            ) : currentView === 'hrm' ? (
+            ) : viewForBody === 'hrm' ? (
               <HrmView />
-            ) : currentView === 'reports' ? (
+            ) : viewForBody === 'reports' ? (
               <ReportsView />
-            ) : currentView === 'shopify' ? (
+            ) : viewForBody === 'shopify' ? (
               <ShopifyView />
-            ) : currentView === 'flipkart' ? (
+            ) : viewForBody === 'flipkart' ? (
               <FlipkartView />
-            ) : currentView === 'ai-assistant' ? (
+            ) : viewForBody === 'ai-assistant' ? (
               <AiAssistantView />
-            ) : currentView === 'access' ? (
+            ) : viewForBody === 'access' ? (
               <AccessManagementView />
-            ) : currentView === 'settings' ? (
+            ) : viewForBody === 'settings' ? (
               <AppSettingsView />
             ) : (
               <ItemMasterView />
