@@ -26,7 +26,7 @@ export const BarcodeView: React.FC = () => {
   // Settings State
   const [settings, setSettings] = useState<BarcodeSettings>({
     printerType: 'regular',
-    labelPresetId: '38x21', // 65 labels per A4 sheet (5x13) - Default
+    labelPresetId: 'a4-48', // 48L: 48×24 mm, 48 labels per A4 sheet (4×12) - Default
     showBorders: false,
     fontSize: 'medium',
   });

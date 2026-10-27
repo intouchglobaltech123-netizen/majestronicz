@@ -231,9 +231,9 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                         : 'border border-slate-100'
                     }`}
                   >
-                    {/* Header */}
-                    <div className="w-full font-bold text-[8.5px] uppercase tracking-wider text-slate-900 truncate leading-tight">
-                      {label.header || 'MAJESTRONICZ'}
+                    {/* Header (brand name, always shown above the barcode) */}
+                    <div className="w-full font-extrabold text-[9px] uppercase tracking-wide text-slate-900 truncate leading-tight">
+                      {(label.header && label.header.trim()) || 'MAJESTRONICZ'}
                     </div>
 
                     {/* Barcode Graphic */}
@@ -374,9 +374,9 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                         padding: '0.8mm 2mm',
                       }}
                     >
-                      {/* Header */}
-                      <div className="w-full font-bold text-[8px] uppercase tracking-wider text-black truncate leading-tight">
-                        {label.header || 'MAJESTRONICZ'}
+                      {/* Header (brand name, always printed above the barcode) */}
+                      <div className="w-full font-extrabold text-[8.5px] uppercase tracking-wide text-black truncate leading-tight">
+                        {(label.header && label.header.trim()) || 'MAJESTRONICZ'}
                       </div>
 
                       {/* Barcode Graphic — fills the sticker width (bigger X-dim =
