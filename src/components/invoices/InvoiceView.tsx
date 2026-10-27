@@ -37,10 +37,115 @@ import {
   Clock,
   X,
   ReceiptText,
+  MoreVertical,
+  Share2,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createPortal } from 'react-dom';
 import { printThermalReceipt } from '../../lib/thermalReceipt';
 import { ThermalSettingsModal } from './ThermalSettingsModal';
+
+// Share a bill summary on WhatsApp (same text as the in-form Share button).
+const shareInvoiceOnWhatsApp = (inv: Invoice) => {
+  const splits = getInvoicePaymentSplits(inv);
+  const modeText = splits.length > 1
+    ? splits.map((s) => `${s.mode}: ₹${s.amount.toLocaleString('en-IN')}`).join(' + ')
+    : inv.paymentMode;
+  const text = `*SALES INVOICE — MAJESTRONICZ*\nInvoice: ${inv.invoiceNumber}\nDate: ${inv.date}\nCustomer: ${inv.customerName || '-'}\nGrand Total: ₹${(inv.grandTotal || 0).toLocaleString('en-IN')}\nPayment: ${modeText}\nThank you for doing business with Majestronicz!`;
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+};
+
+type RowMenuItem = {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+};
+
+// A compact 3-dot (kebab) actions menu for a list row. The menu opens in a fixed
+// portal so the table's horizontal scroll never clips it.
+const RowActionsMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+
+  const place = () => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const W = 210;
+    const left = Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8));
+    const spaceBelow = window.innerHeight - r.bottom;
+    const needed = Math.min(360, items.length * 38 + 12);
+    if (spaceBelow < needed && r.top > spaceBelow) {
+      setPos({ bottom: window.innerHeight - r.top + 4, left });
+    } else {
+      setPos({ top: r.bottom + 4, left });
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    const onMove = () => place();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!btnRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        title="More actions"
+        className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[9999] w-[210px] bg-white border border-slate-200 rounded-xl shadow-2xl py-1 overflow-hidden"
+          style={{ top: pos.top, bottom: pos.bottom, left: pos.left }}
+        >
+          {items.map((it) => (
+            <button
+              key={it.key}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); it.onClick(); }}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold transition-colors',
+                it.danger ? 'text-rose-700 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-50'
+              )}
+            >
+              <span className={cn('shrink-0', it.danger ? 'text-rose-500' : 'text-slate-400')}>{it.icon}</span>
+              <span>{it.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
 
 // One open billing draft in the multi-tab bar (Vyapar-style). Each tab keeps its
 // own live InvoiceForm mounted so switching never loses in-progress work.
@@ -779,6 +884,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 onPreviewPdf={(inv) => setPreviewInvoice(inv)}
                 onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
                 onCancel={() => closeBillTab(tab.id, tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
+                onBackToList={() => setActiveTab(tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
                 canVoidBill={canVoid}
                 onVoidBill={(inv) => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); }}
                 onDeleteBill={(inv) => {
@@ -1394,49 +1500,51 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                             )}
                           </td>
 
-                          {/* Action Buttons */}
+                          {/* Action Buttons — Print (A4) · Share · ⋮ (more).
+                              Everything else lives in the 3-dot menu (client 2026-10-27). */}
                           <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* #4: Edit, Reprint-PDF and Void moved INTO the bill
-                                  (double-click a row to open it). The one-tap thermal
-                                  reprint stays for quick counter re-printing. */}
-                              {/* Thermal (80mm) reprint */}
+                              {/* Print the A4 invoice (opens the A4 preview; print from there to an A4 printer) */}
                               <button
                                 type="button"
-                                onClick={() => printThermalReceipt(inv, companyProfile)}
-                                title="Reprint thermal bill (80mm)"
-                                className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors"
+                                onClick={() => setPreviewInvoice(inv)}
+                                title="Print A4 bill (A4 sheet / A4 printer)"
+                                className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
                               >
-                                <ReceiptText className="h-3.5 w-3.5" />
+                                <Printer className="h-3.5 w-3.5" />
                               </button>
 
-                              {/* Process Return Action — not on a voided or fully returned bill (SAL3-2) */}
-                              {!isVoided && !isInvoiceFullyReturned(inv) && (
-                                <button
-                                  type="button"
-                                  onClick={() => setReturnInvoice(inv)}
-                                  title="Process Line-Item Return"
-                                  className="p-1.5 rounded-lg border transition-colors bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
-                                >
-                                  <RotateCcw className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-
-                              {/* Duplicate Action */}
+                              {/* Share on WhatsApp */}
                               <button
                                 type="button"
-                                onClick={() => handleDuplicate(inv)}
-                                disabled={isVoided}
-                                title={isVoided ? 'Cannot duplicate voided sale' : 'Duplicate Sale (New invoice with same items)'}
-                                className={cn(
-                                  'p-1.5 rounded-lg border transition-colors',
-                                  isVoided
-                                    ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
-                                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
-                                )}
+                                onClick={() => shareInvoiceOnWhatsApp(inv)}
+                                title="Share bill on WhatsApp"
+                                className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
                               >
-                                <Copy className="h-3.5 w-3.5" />
+                                <Share2 className="h-3.5 w-3.5" />
                               </button>
+
+                              {/* Everything else */}
+                              <RowActionsMenu
+                                items={[
+                                  { key: 'view', label: 'View / Edit', icon: <Edit2 className="h-3.5 w-3.5" />, onClick: () => openBillRow(inv) },
+                                  { key: 'open-pdf', label: 'Open PDF / Preview', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
+                                  { key: 'print-a4', label: 'Print (A4)', icon: <Printer className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
+                                  { key: 'thermal', label: 'Thermal Reprint (80mm)', icon: <ReceiptText className="h-3.5 w-3.5" />, onClick: () => printThermalReceipt(inv, companyProfile) },
+                                  ...(!isVoided && !isInvoiceFullyReturned(inv)
+                                    ? [{ key: 'return', label: 'Convert To Return', icon: <RotateCcw className="h-3.5 w-3.5" />, onClick: () => setReturnInvoice(inv) }]
+                                    : []),
+                                  ...(!isVoided
+                                    ? [{ key: 'dup', label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: () => handleDuplicate(inv) }]
+                                    : []),
+                                  ...(canVoid && !isVoided
+                                    ? [{ key: 'void', label: 'Cancel Invoice (Void)', icon: <Ban className="h-3.5 w-3.5" />, danger: true, onClick: () => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); } }]
+                                    : []),
+                                  ...(canVoid
+                                    ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => { if (window.confirm(`Delete bill ${inv.invoiceNumber}? This permanently removes it and restores its stock. This cannot be undone.`)) deleteInvoice(inv.id); } }]
+                                    : []),
+                                ]}
+                              />
                             </div>
                           </td>
                         </tr>

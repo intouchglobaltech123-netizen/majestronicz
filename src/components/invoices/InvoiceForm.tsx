@@ -53,6 +53,7 @@ import {
   CheckCircle2,
   ScanLine,
   Ban,
+  ArrowLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraScanModal } from '../common/CameraScanModal';
@@ -74,6 +75,10 @@ interface Props {
   onSavedEstimate?: (estimate: Estimate) => void;
   onPreviewEstimatePdf?: (estimate: Estimate) => void;
   onCancel?: () => void;
+  /** Go back to the Sales Invoice history/dashboard WITHOUT closing this bill —
+   *  the in-progress tab stays open (reopen it from "Open Bills"). No saved bill
+   *  is touched. */
+  onBackToList?: () => void;
   /** Save the current document as a work-in-progress draft (not committed). */
   onSaveDraft?: (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => void;
   /** SAL4-13: the form's current contents (unvalidated), so the bill tabs can be
@@ -101,6 +106,7 @@ export const InvoiceForm: React.FC<Props> = ({
   onSavedEstimate,
   onPreviewEstimatePdf,
   onCancel,
+  onBackToList,
   onSaveDraft,
   onWorkingCopy,
   onVoidBill,
@@ -933,8 +939,9 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // The freshly-added blank row whose item search should auto-focus (POS-style).
   const [focusRowId, setFocusRowId] = useState<string | null>(null);
-  // Salesperson/incentive is hidden by default to keep the billing header minimal.
-  const [showSalesperson, setShowSalesperson] = useState(false);
+  // Salesperson selector is OPEN by default so the counter can pick who made the
+  // sale while billing, without first clicking "+ Add Salesperson" (client 2026-10-27).
+  const [showSalesperson, setShowSalesperson] = useState(true);
   // Dispatch / courier details (counter sale) — printed on the GST bill (#5).
   const [dispatchCourier, setDispatchCourier] = useState(initialInvoice?.dispatchCourier || '');
   const [dispatchDate, setDispatchDate] = useState(initialInvoice?.dispatchDate || '');
@@ -2454,6 +2461,17 @@ export const InvoiceForm: React.FC<Props> = ({
 
         {/* Right: Quick Actions */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start md:justify-end w-full md:w-auto">
+          {onBackToList && (
+            <button
+              type="button"
+              onClick={onBackToList}
+              title="Go to the Sales Invoice history (this bill stays open under Open Bills)"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-none transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 text-slate-500" />
+              <span>Invoices</span>
+            </button>
+          )}
           {onCancel && (
             <button
               type="button"
@@ -3870,13 +3888,15 @@ export const InvoiceForm: React.FC<Props> = ({
                 />
               </div>
               <span className="text-[10px] text-slate-400">Incentive % is set in Staff Directory</span>
-              <button
-                type="button"
-                onClick={() => { setShowSalesperson(false); setSalespersonId(''); }}
-                className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
-              >
-                Remove
-              </button>
+              {salespersonId && (
+                <button
+                  type="button"
+                  onClick={() => setSalespersonId('')}
+                  className="text-[11px] text-slate-400 hover:text-slate-600 ml-1 cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           )}
         </div>

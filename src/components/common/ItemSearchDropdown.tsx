@@ -98,13 +98,19 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     // instead of being a fixed, narrower box.
     const menuW = Math.min(Math.max(r.width, 360), vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
-    const MAX = 320;
-    const below = vh - r.bottom - 12;
-    const above = r.top - 12;
-    if (below < 200 && above > below) {
+    const MAX = 340;
+    const below = vh - r.bottom - 10;
+    const above = r.top - 10;
+    // ALWAYS drop the suggestions BELOW the field the user is typing in, so the
+    // list never covers the input and they can see what they type (billing
+    // staff's ask). The menu scrolls within whatever room is below. Only when
+    // there is almost no space below AND clearly more above (e.g. a row pinned
+    // to the very bottom of a short screen) does it flip up — and even then it
+    // sits entirely above the input's top, never over it.
+    if (below < 140 && above > below + 40) {
       setMenuPos({ bottom: vh - r.top + 6, left, width: menuW, maxHeight: Math.min(MAX, above) });
     } else {
-      setMenuPos({ top: r.bottom + 6, left, width: menuW, maxHeight: Math.min(MAX, Math.max(160, below)) });
+      setMenuPos({ top: r.bottom + 6, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, below)) });
     }
   };
   // Re-place once the menu has rendered and its real width is known.
