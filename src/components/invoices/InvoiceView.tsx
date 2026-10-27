@@ -10,6 +10,7 @@ import { calculateInvoiceTotals } from '../../lib/taxCalculations';
 import { periodSales } from '../../lib/reportMath';
 import { InvoiceForm } from './InvoiceForm';
 import { InvoicePdfModal } from './InvoicePdfModal';
+import { PaymentHistoryModal, InvoiceHistoryModal, ChallanPreviewModal, EInvoiceModal } from './InvoiceInfoModals';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
 import { SaleReturnModal } from './SaleReturnModal';
 import { ReturnsListView } from './ReturnsListView';
@@ -189,6 +190,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     payments,
     companyProfile,
     openingGpayByBranch,
+    employees,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -266,6 +268,12 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
   const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<Invoice | null>(null);
+  // Row 3-dot menu modals: Payment History, Bill History (audit), Delivery
+  // Challan preview, and Generate e-Invoice (NIC JSON).
+  const [paymentHistoryInvoice, setPaymentHistoryInvoice] = useState<Invoice | null>(null);
+  const [historyInvoice, setHistoryInvoice] = useState<Invoice | null>(null);
+  const [challanInvoice, setChallanInvoice] = useState<Invoice | null>(null);
+  const [eInvoiceInvoice, setEInvoiceInvoice] = useState<Invoice | null>(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [estimateSearchQuery, setEstimateSearchQuery] = useState('');
 
@@ -1528,15 +1536,19 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                               <RowActionsMenu
                                 items={[
                                   { key: 'view', label: 'View / Edit', icon: <Edit2 className="h-3.5 w-3.5" />, onClick: () => openBillRow(inv) },
-                                  { key: 'open-pdf', label: 'Open PDF / Preview', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
-                                  { key: 'print-a4', label: 'Print (A4)', icon: <Printer className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
-                                  { key: 'thermal', label: 'Thermal Reprint (80mm)', icon: <ReceiptText className="h-3.5 w-3.5" />, onClick: () => printThermalReceipt(inv, companyProfile) },
+                                  { key: 'einvoice', label: 'Generate e-Invoice', icon: <FileText className="h-3.5 w-3.5" />, onClick: () => setEInvoiceInvoice(inv) },
                                   ...(!isVoided && !isInvoiceFullyReturned(inv)
                                     ? [{ key: 'return', label: 'Convert To Return', icon: <RotateCcw className="h-3.5 w-3.5" />, onClick: () => setReturnInvoice(inv) }]
                                     : []),
+                                  { key: 'challan', label: 'Preview Delivery Challan', icon: <Printer className="h-3.5 w-3.5" />, onClick: () => setChallanInvoice(inv) },
+                                  { key: 'payhist', label: 'Payment History', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setPaymentHistoryInvoice(inv) },
                                   ...(!isVoided
                                     ? [{ key: 'dup', label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5" />, onClick: () => handleDuplicate(inv) }]
                                     : []),
+                                  { key: 'open-pdf', label: 'Open PDF / Preview', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
+                                  { key: 'print-a4', label: 'Print (A4)', icon: <Printer className="h-3.5 w-3.5" />, onClick: () => setPreviewInvoice(inv) },
+                                  { key: 'thermal', label: 'Thermal Reprint (80mm)', icon: <ReceiptText className="h-3.5 w-3.5" />, onClick: () => printThermalReceipt(inv, companyProfile) },
+                                  { key: 'history', label: 'View History', icon: <Clock className="h-3.5 w-3.5" />, onClick: () => setHistoryInvoice(inv) },
                                   ...(canVoid && !isVoided
                                     ? [{ key: 'void', label: 'Cancel Invoice (Void)', icon: <Ban className="h-3.5 w-3.5" />, danger: true, onClick: () => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); } }]
                                     : []),
@@ -1586,6 +1598,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         isOpen={!!previewEstimate}
         onClose={() => setPreviewEstimate(null)}
       />
+
+      {/* Row 3-dot menu modals */}
+      {paymentHistoryInvoice && (
+        <PaymentHistoryModal invoice={paymentHistoryInvoice} payments={payments} onClose={() => setPaymentHistoryInvoice(null)} />
+      )}
+      {historyInvoice && (
+        <InvoiceHistoryModal invoice={historyInvoice} employees={employees} onClose={() => setHistoryInvoice(null)} />
+      )}
+      {challanInvoice && (
+        <ChallanPreviewModal invoice={challanInvoice} company={companyProfile} onClose={() => setChallanInvoice(null)} />
+      )}
+      {eInvoiceInvoice && (
+        <EInvoiceModal invoice={eInvoiceInvoice} company={companyProfile} onClose={() => setEInvoiceInvoice(null)} />
+      )}
 
       {/* Thermal printer settings (paper width + auto-print + test) */}
       <ThermalSettingsModal
