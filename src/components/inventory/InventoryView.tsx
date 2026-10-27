@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { Item, BranchId, BRANCHES } from '../../types';
 import {
@@ -272,11 +272,16 @@ export const InventoryView: React.FC = () => {
   }, [items, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo]);
 
   // Filter items
+  // Typing stays instant: the input updates `searchQuery` immediately, but the
+  // heavy filter + table render run off a DEFERRED copy. With ~1500 items this
+  // stops every keystroke from blocking on a full re-filter + re-render (the
+  // search box used to lag badly and only accept part of what was typed).
+  const deferredSearch = useDeferredValue(searchQuery);
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       // 1. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (deferredSearch.trim()) {
+        const q = deferredSearch.toLowerCase();
         const matchName = item.itemName.toLowerCase().includes(q);
         const matchCode = item.itemCode.toLowerCase().includes(q);
         const matchHsn = item.itemHSN.toLowerCase().includes(q);
@@ -317,7 +322,14 @@ export const InventoryView: React.FC = () => {
 
       return true;
     });
-  }, [items, searchQuery, selectedCategory, statusFilter, movementFilter, speedFilter, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo, itemSales90d]);
+  }, [items, deferredSearch, selectedCategory, statusFilter, movementFilter, speedFilter, branchStocks, isAllBranches, currentBranch, inventorySettings, getItemLastSaleInfo, itemSales90d]);
+
+  // Cap how many rows render at once: with 1500 items a broad query (e.g. "c")
+  // matches hundreds, and rendering every heavy row on each keystroke is what
+  // made the search dead-slow. Show the first 200 and prompt to refine.
+  const ITEM_ROW_CAP = 200;
+  const visibleItems = useMemo(() => filteredItems.slice(0, ITEM_ROW_CAP), [filteredItems]);
+  const hiddenItemCount = filteredItems.length - visibleItems.length;
 
   // Filtered combos for Combos Inventory Tab
   const filteredCombos = useMemo(() => {
@@ -841,7 +853,7 @@ export const InventoryView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item) => {
+                visibleItems.map((item) => {
                   const stockData = getItemStockData(item);
                   const isLow = stockData.status === 'low-stock';
                   const isOut = stockData.status === 'out-of-stock';
@@ -1163,6 +1175,16 @@ export const InventoryView: React.FC = () => {
                     </tr>
                   );
                 })
+              )}
+              {hiddenItemCount > 0 && (
+                <tr>
+                  <td
+                    colSpan={isAllBranches ? 12 : 9}
+                    className="py-3 text-center text-[11px] font-semibold text-slate-500 bg-slate-50"
+                  >
+                    Showing first {visibleItems.length} of {filteredItems.length} items — type more in the search to narrow down.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
