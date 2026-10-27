@@ -48,10 +48,12 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
   // Narrow (58mm) paper gets smaller fonts and tighter columns than 80mm.
   const narrow = widthMm === 58;
   const pad = narrow ? '2mm 2.5mm 4mm' : '3mm 3.5mm 5mm';
-  const fHd = narrow ? 13 : 15;
-  const fItem = narrow ? 10 : 11;
-  const fTot = narrow ? 11 : 12;
-  const fGrand = narrow ? 13 : 15;
+  // Larger fonts than before: bigger glyphs have thicker strokes, so the thermal
+  // head burns them darker and they stay legible instead of fading.
+  const fHd = narrow ? 15 : 17;
+  const fItem = narrow ? 11 : 13;
+  const fTot = narrow ? 12 : 14;
+  const fGrand = narrow ? 15 : 17;
   const aW = narrow ? 16 : 20;
   const gW = narrow ? 9 : 12;
   const items = Array.isArray(inv.items) ? inv.items : [];
@@ -108,17 +110,19 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     @page { size: ${widthMm}mm auto; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
-    /* font-weight 700 across the whole slip: thin Courier strokes don't heat
-       enough dots on a thermal head and print ghostly/faint — bold makes every
-       line come out dark and legible. */
-    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; font-weight: 700; -webkit-font-smoothing: none; }
+    /* Maximum darkness on a thermal head: bold weight PLUS a text-stroke that
+       thickens every glyph outline (extra ink spread), so thin Courier strokes
+       no longer anti-alias to grey and fade — every line burns solid black.
+       The printer's own Density/Darkness setting is still the main lever if it
+       is set low. */
+    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; font-weight: 700; -webkit-font-smoothing: none; -webkit-text-stroke: 0.3px #000; }
     .r { padding: ${pad}; }
     .c { text-align: center; }
     .b { font-weight: 700; }
     .hd { font-size: ${fHd}px; font-weight: 800; letter-spacing: 0.5px; }
     .ttl { font-size: ${fItem + 1}px; font-weight: 800; }
-    .sm { font-size: ${narrow ? 9 : 10}px; line-height: 1.45; }
-    .xs { font-size: ${narrow ? 8 : 9}px; }
+    .sm { font-size: ${narrow ? 10 : 12}px; line-height: 1.45; }
+    .xs { font-size: ${narrow ? 9 : 11}px; }
     hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
     table { width: 100%; border-collapse: collapse; }
     td { font-size: ${fItem}px; vertical-align: top; padding: 0; }
@@ -135,7 +139,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
   </style></head>
   <body><div class="r">
     ${logoDataUrl
-      ? `<div class="c" style="margin-bottom:1.5mm"><img src="${logoDataUrl}" alt="MAJESTRONICZ" style="width:${narrow ? 44 : 58}mm;max-width:100%;height:auto;object-fit:contain;filter:grayscale(1) contrast(1.35);"/></div>`
+      ? `<div class="c" style="margin-bottom:1.5mm"><img src="${logoDataUrl}" alt="MAJESTRONICZ" style="width:${narrow ? 44 : 58}mm;max-width:100%;height:auto;object-fit:contain;filter:grayscale(1) brightness(0.9) contrast(2.8);"/></div>`
       : `<div class="c hd">${esc(company.name || 'RETAIL INVOICE')}</div>`}
     <div class="c sm">${esc(company.address || '')}</div>
     <div class="c sm">${company.phone ? 'PHONE : ' + esc(company.phone) : ''}</div>
