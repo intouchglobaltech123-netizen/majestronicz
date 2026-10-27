@@ -328,7 +328,7 @@ interface ErpContextType {
   // Daily Cash Register
   cashRegisters: DailyCashRegister[];
   getDailyCashRegister: (branchId: BranchId, date: string) => DailyCashRegister;
-  addCashExpense: (branchId: BranchId, date: string, expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
+  addCashExpense: (branchId: BranchId, date: string, expense: { reason: string; cashAmount: number; gpayAmount: number; hdfcAmount?: number; category?: string; billUrl?: string }) => void;
   deleteCashExpense: (branchId: BranchId, date: string, expenseId: string) => void;
   approveCashExpense: (branchId: BranchId, date: string, expenseId: string, decision: 'approved' | 'rejected') => void;
   overrideOpeningAmount: (branchId: BranchId, date: string, amount: number, reason: string) => void;
@@ -2519,7 +2519,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addCashExpense = (
     branchId: BranchId,
     date: string,
-    expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }
+    expense: { reason: string; cashAmount: number; gpayAmount: number; hdfcAmount?: number; category?: string; billUrl?: string }
   ) => {
     if (isDayClosed(branchId, date)) {
       toast.error('Cannot add expense: Cash register for this day is already closed.');
@@ -2528,7 +2528,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const category = expense.category?.trim() || undefined;
     void cashCall('/api/cash/expense', { branchId, date, expense: { ...expense, category } }, () =>
       toast.success('Expense recorded successfully', {
-        description: `${expense.reason} • Cash: ${formatCurrency(Number(expense.cashAmount) || 0)} / GPay: ${formatCurrency(Number(expense.gpayAmount) || 0)}`,
+        description: `${expense.reason} • Cash: ${formatCurrency(Number(expense.cashAmount) || 0)} / GPay: ${formatCurrency(Number(expense.gpayAmount) || 0)} / HDFC: ${formatCurrency(Number(expense.hdfcAmount) || 0)}`,
       }));
   };
 

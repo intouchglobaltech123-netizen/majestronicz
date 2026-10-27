@@ -18,7 +18,7 @@ interface Props {
   /** Cash currently in the drawer (opening + cash sales − cash expenses). Used to
    *  warn when a new cash expense would overdraw it (CASH-10). */
   drawerCash?: number;
-  onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number; category?: string; billUrl?: string }) => void;
+  onAddExpense: (expense: { reason: string; cashAmount: number; gpayAmount: number; hdfcAmount: number; category?: string; billUrl?: string }) => void;
   onDeleteExpense: (expenseId: string) => void;
   canApprove?: boolean;
   onApprove?: (expenseId: string, decision: 'approved' | 'rejected') => void;
@@ -61,6 +61,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   const [category, setCategory] = useState<string>('');
   const [cashAmount, setCashAmount] = useState<string>('');
   const [gpayAmount, setGpayAmount] = useState<string>('');
+  const [hdfcAmount, setHdfcAmount] = useState<string>('');
   const [billUrl, setBillUrl] = useState<string>('');
   const [billName, setBillName] = useState<string>('');
 
@@ -70,12 +71,13 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
   const effectiveExpenses = expenses.filter(expenseIsEffective);
   const totalCash = effectiveExpenses.reduce((sum, e) => sum + (e.cashAmount || 0), 0);
   const totalGpay = effectiveExpenses.reduce((sum, e) => sum + (e.gpayAmount || 0), 0);
-  const totalExpenses = totalCash + totalGpay;
+  const totalHdfc = effectiveExpenses.reduce((sum, e) => sum + (e.hdfcAmount || 0), 0);
+  const totalExpenses = totalCash + totalGpay + totalHdfc;
 
   // Report: total per category (effective entries only, same rule as above)
   const byCategory = effectiveExpenses.reduce<Record<string, number>>((acc, e) => {
     const key = e.category || 'Uncategorised';
-    acc[key] = (acc[key] || 0) + (e.cashAmount || 0) + (e.gpayAmount || 0);
+    acc[key] = (acc[key] || 0) + (e.cashAmount || 0) + (e.gpayAmount || 0) + (e.hdfcAmount || 0);
     return acc;
   }, {});
   const categorySummary = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
@@ -100,9 +102,10 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
 
     const c = parseFloat(cashAmount) || 0;
     const g = parseFloat(gpayAmount) || 0;
+    const h = parseFloat(hdfcAmount) || 0;
 
-    if (c <= 0 && g <= 0) {
-      toast.error('Please specify an expense amount in Cash or GPay');
+    if (c <= 0 && g <= 0 && h <= 0) {
+      toast.error('Please specify an expense amount in Cash, GPay or HDFC');
       return;
     }
 
@@ -125,6 +128,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
       billUrl: billUrl || undefined,
       cashAmount: c,
       gpayAmount: g,
+      hdfcAmount: h,
     });
 
     // Reset input fields
@@ -132,6 +136,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
     setCategory('');
     setCashAmount('');
     setGpayAmount('');
+    setHdfcAmount('');
     setBillUrl('');
     setBillName('');
   };
@@ -175,7 +180,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
           <form onSubmit={handleAdd} className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
               {/* Reason */}
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-5">
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
                   Expense Reason / Description <span className="text-red-600">*</span>
                 </label>
@@ -189,7 +194,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
               </div>
 
               {/* Cash Amount */}
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1 text-emerald-800">
                   <DollarSign className="h-3 w-3" />
                   <span>Cash (₹)</span>
@@ -216,6 +221,22 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                   step="any"
                   value={gpayAmount}
                   onChange={(e) => setGpayAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full text-xs font-mono font-bold bg-white border border-slate-300 rounded-none px-3 py-2 text-right focus:outline-none focus:border-red-600"
+                />
+              </div>
+
+              {/* HDFC (Bank) Amount — digital, like GPay; never touches the drawer */}
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 text-blue-800">
+                  HDFC (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={hdfcAmount}
+                  onChange={(e) => setHdfcAmount(e.target.value)}
                   placeholder="0.00"
                   className="w-full text-xs font-mono font-bold bg-white border border-slate-300 rounded-none px-3 py-2 text-right focus:outline-none focus:border-red-600"
                 />
@@ -332,6 +353,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                   Cash (Drawer)
                 </th>
                 <th className="py-3 px-3 text-right">GPay</th>
+                <th className="py-3 px-3 text-right text-blue-800">HDFC</th>
                 {!isClosed && <th className="py-3 px-3 text-center w-14 print:hidden">Action</th>}
               </tr>
             </thead>
@@ -375,6 +397,11 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                     {exp.gpayAmount > 0 ? formatCurrency(exp.gpayAmount) : <span className="text-slate-300">-</span>}
                   </td>
 
+                  {/* HDFC (bank) Amount */}
+                  <td className="py-3 px-3 text-right font-mono font-semibold text-blue-800">
+                    {(exp.hdfcAmount || 0) > 0 ? formatCurrency(exp.hdfcAmount || 0) : <span className="text-slate-300">-</span>}
+                  </td>
+
                   {/* Actions: approve/reject (pending) + delete */}
                   {!isClosed && (
                     <td className="py-3 px-3 text-center whitespace-nowrap print:hidden">
@@ -405,7 +432,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                         type="button"
                         onClick={() => {
                           // CASH-12: deleting an expense changes the drawer — ask first.
-                          const amt = (exp.cashAmount || 0) + (exp.gpayAmount || 0);
+                          const amt = (exp.cashAmount || 0) + (exp.gpayAmount || 0) + (exp.hdfcAmount || 0);
                           if (window.confirm(`Delete the expense "${exp.reason}" (${formatCurrency(amt)})? The drawer total will change.`)) {
                             onDeleteExpense(exp.id);
                           }
@@ -434,6 +461,10 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
                 {/* GPay Total */}
                 <td className="py-3 px-3 text-right font-mono text-slate-800">
                   {formatCurrency(totalGpay)}
+                </td>
+                {/* HDFC Total */}
+                <td className="py-3 px-3 text-right font-mono text-blue-800">
+                  {formatCurrency(totalHdfc)}
                 </td>
                 {!isClosed && <td className="py-3 px-3" />}
               </tr>

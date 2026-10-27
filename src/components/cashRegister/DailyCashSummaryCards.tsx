@@ -30,6 +30,7 @@ interface Props {
   defaultFloat?: number;
   cashExpenses: number;
   gpayExpenses: number;
+  hdfcExpenses?: number;
   closingBalance: number;
   totalDayRevenue: number;
   bankDigitalTotal: number;
@@ -54,6 +55,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   defaultFloat,
   cashExpenses,
   gpayExpenses,
+  hdfcExpenses = 0,
   closingBalance,
   bankDigitalTotal,
   creditTotal,
@@ -62,7 +64,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
   onOpenOverrideModal,
   branchName,
 }) => {
-  const totalExpenses = cashExpenses + gpayExpenses;
+  const totalExpenses = cashExpenses + gpayExpenses + hdfcExpenses;
   const vendorCash = (cashVendorPaid ?? Math.max(0, cashPaid - cashRefunds - cashSalaries));
   // Every line of the closing, in order; zero lines (other than the basics) are left out.
   const tally: { label: string; amount: number; sign: '+' | '-' }[] = [
@@ -258,7 +260,7 @@ export const DailyCashSummaryCards: React.FC<Props> = ({
               {formatCurrency(-totalExpenses)}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Drawer Cash: <strong>{formatCurrency(cashExpenses)}</strong> • GPay: {formatCurrency(gpayExpenses)}
+              Drawer Cash: <strong>{formatCurrency(cashExpenses)}</strong> • GPay: {formatCurrency(gpayExpenses)}{hdfcExpenses > 0 ? ` • HDFC: ${formatCurrency(hdfcExpenses)}` : ''}
             </p>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">

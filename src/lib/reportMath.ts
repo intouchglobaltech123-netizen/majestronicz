@@ -362,7 +362,7 @@ export function computeProfit(args: {
     if (!inRange(reg.date) || !inScope(reg.branchId)) continue;
     for (const e of reg.expenses || []) {
       if (!isOperatingExpense(e)) continue;
-      const amt = num(e.cashAmount) + num(e.gpayAmount);
+      const amt = num(e.cashAmount) + num(e.gpayAmount) + num(e.hdfcAmount);
       const s = of(reg.branchId);
       s.expenses += amt; s.expenseCount += 1;
       const cat = categoryOf(e);

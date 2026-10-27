@@ -124,6 +124,7 @@ export function buildPaymentsLog(args: {
       const direction: PayRow['direction'] = isDeposit ? 'TRANSFER' : 'OUT';
       if (e.cashAmount > 0) out.push({ date: reg.date, direction, type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'Cash', amount: e.cashAmount, ref: '', branchId: reg.branchId });
       if (e.gpayAmount > 0) out.push({ date: reg.date, direction, type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'GPay', amount: e.gpayAmount, ref: '', branchId: reg.branchId });
+      if ((e.hdfcAmount || 0) > 0) out.push({ date: reg.date, direction, type, party: `${e.category ? e.category + ' · ' : ''}${e.reason}`, mode: 'HDFC', amount: e.hdfcAmount, ref: '', branchId: reg.branchId });
     });
   });
 

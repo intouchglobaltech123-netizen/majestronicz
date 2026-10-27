@@ -7,6 +7,7 @@ export interface CashExpense {
   billUrl?: string; // Uploaded bill/receipt (data URL) — optional proof of expense
   cashAmount: number;
   gpayAmount: number;
+  hdfcAmount?: number; // paid from the HDFC bank a/c (digital, like GPay — never touches the drawer)
   // Approval workflow — used for categories like "Deposit to Bank". A pending entry
   // does NOT reduce the cash drawer until a Manager/CEO approves it.
   approvalStatus?: 'pending' | 'approved' | 'rejected';

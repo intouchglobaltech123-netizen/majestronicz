@@ -35,12 +35,12 @@ export const addExpense = async (req: Request, res: Response) => {
   assertCashTarget(branchId, date);
   assertBranchAllowed((req as any).user, branchId);
   // VAL-1: an upper bound on a single expense (₹1e15 used to be accepted).
-  if ((Number(expense?.cashAmount) || 0) > MAX_AMOUNT || (Number(expense?.gpayAmount) || 0) > MAX_AMOUNT) {
+  if ((Number(expense?.cashAmount) || 0) > MAX_AMOUNT || (Number(expense?.gpayAmount) || 0) > MAX_AMOUNT || (Number(expense?.hdfcAmount) || 0) > MAX_AMOUNT) {
     throw new AppError('BAD_AMOUNT', 'Expense amount is too large', 400);
   }
   const result = await cash.addExpense(branchId, date, expense, actorName(req));
   await audit(req, 'cash.expense.add', branchId, date,
-    `Expense ${expense?.category ? `${expense.category} · ` : ''}${String(expense?.reason || '').trim()} · cash ${rupees(expense?.cashAmount)} · GPay ${rupees(expense?.gpayAmount)}`);
+    `Expense ${expense?.category ? `${expense.category} · ` : ''}${String(expense?.reason || '').trim()} · cash ${rupees(expense?.cashAmount)} · GPay ${rupees(expense?.gpayAmount)} · HDFC ${rupees(expense?.hdfcAmount)}`);
   res.json(result);
 };
 export const deleteExpense = async (req: Request, res: Response) => {

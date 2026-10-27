@@ -38,7 +38,8 @@ export const ExpenseReportTab: React.FC<Props> = ({ startDate, endDate, branchSc
       (reg.expenses || []).forEach((e) => {
         if (!isOperatingExpense(e)) return;
         const cash = e.cashAmount || 0;
-        const gpay = e.gpayAmount || 0;
+        // The "GPay / Bank" column covers every digital payout — GPay and HDFC.
+        const gpay = (e.gpayAmount || 0) + (e.hdfcAmount || 0);
         out.push({
           date: reg.date, branchId: reg.branchId, category: categoryOf(e),
           reason: e.reason || '', cash, gpay, total: cash + gpay, by: e.createdBy || 'Staff',

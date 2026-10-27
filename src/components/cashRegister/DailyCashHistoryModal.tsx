@@ -130,7 +130,7 @@ export const DailyCashHistoryModal: React.FC<Props> = ({
                   // pending or rejected deposits never left the drawer (CASH4-6).
                   const effective = reg.expenses.filter((e) => expenseIsEffective(e));
                   const totalExpense = effective.reduce(
-                    (sum, e) => sum + (e.cashAmount || 0) + (e.gpayAmount || 0),
+                    (sum, e) => sum + (e.cashAmount || 0) + (e.gpayAmount || 0) + (e.hdfcAmount || 0),
                     0
                   );
 

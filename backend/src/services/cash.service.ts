@@ -157,8 +157,9 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
     // Amounts can't be negative, and at least one must be positive (CASH2-5/VAL-1).
     const cashAmt = Number(expense.cashAmount) || 0;
     const gpayAmt = Number(expense.gpayAmount) || 0;
-    if (cashAmt < 0 || gpayAmt < 0) throw new AppError('BAD_AMOUNT', 'Expense amount cannot be negative', 400);
-    if (cashAmt <= 0 && gpayAmt <= 0) throw new AppError('BAD_AMOUNT', 'Enter a Cash or GPay amount greater than zero', 400);
+    const hdfcAmt = Number(expense.hdfcAmount) || 0;
+    if (cashAmt < 0 || gpayAmt < 0 || hdfcAmt < 0) throw new AppError('BAD_AMOUNT', 'Expense amount cannot be negative', 400);
+    if (cashAmt <= 0 && gpayAmt <= 0 && hdfcAmt <= 0) throw new AppError('BAD_AMOUNT', 'Enter a Cash, GPay or HDFC amount greater than zero', 400);
     if (!((expense.reason || '').trim())) throw new AppError('REASON_REQUIRED', 'Expense reason is required', 400);
     const rawCategory = (expense.category || '').trim() || undefined;
     // A bank deposit is a cash transfer, not an expense, and needs approval. The
@@ -174,6 +175,7 @@ export function addExpense(branchId: string, date: string, expense: any, actor: 
       category,
       billUrl: expense.billUrl || undefined,
       cashAmount: Number(expense.cashAmount) || 0, gpayAmount: Number(expense.gpayAmount) || 0,
+      hdfcAmount: Number(expense.hdfcAmount) || 0,
       // Bank deposits require Manager/CEO approval before they reduce the drawer.
       approvalStatus: isBankDeposit ? 'pending' : undefined,
       createdBy: actor, createdAt: nowIso(),

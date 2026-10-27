@@ -189,16 +189,19 @@ export const DailyCashRegisterView: React.FC = () => {
         if (!expenseIsEffective(exp)) return acc;
         const cashPart = Math.round((exp.cashAmount || 0) * 100) / 100;
         const gpayPart = Math.round((exp.gpayAmount || 0) * 100) / 100;
+        const hdfcPart = Math.round((exp.hdfcAmount || 0) * 100) / 100;
         acc.cash += cashPart;
         acc.gpay += gpayPart;
-        acc.total += cashPart + gpayPart;
+        acc.hdfc += hdfcPart;
+        acc.total += cashPart + gpayPart + hdfcPart;
         return acc;
       },
-      { cash: 0, gpay: 0, total: 0 }
+      { cash: 0, gpay: 0, hdfc: 0, total: 0 }
     );
     return {
       cash: Math.round(raw.cash * 100) / 100,
       gpay: Math.round(raw.gpay * 100) / 100,
+      hdfc: Math.round(raw.hdfc * 100) / 100,
       total: Math.round(raw.total * 100) / 100,
     };
   }, [currentRegister.expenses]);
@@ -508,6 +511,7 @@ export const DailyCashRegisterView: React.FC = () => {
         defaultFloat={DEFAULT_OPENING(activeBranchId)}
         cashExpenses={expenseBreakdown.cash}
         gpayExpenses={expenseBreakdown.gpay}
+        hdfcExpenses={expenseBreakdown.hdfc}
         closingBalance={closingBalance}
         totalDayRevenue={salesBreakdown.totalRevenue}
         bankDigitalTotal={salesBreakdown.hdfc + salesBreakdown.gpay}
