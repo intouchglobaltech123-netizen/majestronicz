@@ -108,7 +108,10 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     @page { size: ${widthMm}mm auto; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
-    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; }
+    /* font-weight 700 across the whole slip: thin Courier strokes don't heat
+       enough dots on a thermal head and print ghostly/faint — bold makes every
+       line come out dark and legible. */
+    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; font-weight: 700; -webkit-font-smoothing: none; }
     .r { padding: ${pad}; }
     .c { text-align: center; }
     .b { font-weight: 700; }
@@ -121,7 +124,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     td { font-size: ${fItem}px; vertical-align: top; padding: 0; }
     thead td { font-weight: 700; border-bottom: 1px solid #000; padding-bottom: 1mm; }
     tbody tr td { padding-top: 1mm; }
-    .nm { font-weight: 400; }
+    .nm { font-weight: 700; }
     .g { text-align: center; width: ${gW}mm; }
     .a { text-align: right; width: ${aW}mm; white-space: nowrap; }
     .tot td { font-size: ${fTot}px; padding-top: 0.6mm; }
