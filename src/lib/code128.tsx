@@ -134,17 +134,22 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
         background: '#ffffff',
         lineColor: barColor,
       });
-      // Make the barcode responsive: a viewBox from JsBarcode's intrinsic size
-      // lets CSS width:100% fill the label while bars keep exact ratios.
-      const w = svg.getAttribute('width');
-      const h = svg.getAttribute('height');
-      if (w && h) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      // JsBarcode keeps its own viewBox but ALSO stamps fixed px width/height and
+      // OVERWRITES the element's style ("transform: translate(0,0)"). That wiped
+      // our height, so the barcode rendered at full intrinsic size and pushed the
+      // label's text (header / SKU / name / price) out of the clipped cell. Drop
+      // the fixed size and re-apply the responsive style JsBarcode clobbered, so
+      // the barcode fills the label WIDTH at the intended HEIGHT and the text
+      // stays visible.
       svg.removeAttribute('width');
       svg.removeAttribute('height');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      const hPx = typeof height === 'number' ? `${height}px` : String(height);
+      svg.style.cssText = `display:block;width:100%;height:${hPx};`;
     } catch {
       /* an unencodable value just leaves the barcode blank */
     }
-  }, [safeValue, barColor]);
+  }, [safeValue, barColor, height]);
 
   return (
     <div className={`flex flex-col items-stretch select-none ${className}`}>
