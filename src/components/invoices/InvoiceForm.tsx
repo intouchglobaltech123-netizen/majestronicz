@@ -353,7 +353,38 @@ export const InvoiceForm: React.FC<Props> = ({
     setCustomerAddress(c.address || '');
     setShowNewCustomerPrompt(false);
     setPhoneFocused(false);
+    setNameFocused(false);
   };
+
+  // Name-first entry: suggest existing customers as the NAME is typed — the same
+  // way the mobile field suggests by number prefix. A phone is NOT required here,
+  // so a name-only customer (billed without a number) still shows up.
+  const [nameFocused, setNameFocused] = useState(false);
+  const nameContacts = useMemo(() => {
+    const byKey = new Map<string, { id?: string; phone: string; name: string; address: string; notes?: string }>();
+    const put = (phoneRaw?: string, name?: string, address?: string, id?: string, notes?: string) => {
+      const nm = (name || '').trim();
+      if (!nm || nm.toLowerCase() === 'walk-in customer') return;
+      const clean = (phoneRaw || '').replace(/\D/g, '');
+      const phone = clean.length === 10 ? clean : '';
+      const key = id || (phone ? `p:${phone}` : `n:${nm.toLowerCase()}`);
+      const existing = byKey.get(key);
+      if (!existing || (id && !existing.id)) byKey.set(key, { id, phone, name: nm, address: address || '', notes });
+    };
+    invoices.forEach((i) => put(i.customerPhone, i.customerName, i.customerAddress));
+    estimates.forEach((e) => put(e.customerContact, e.customerName, e.customerAddress));
+    customers.forEach((c) => put(c.phone, cleanCustomerName(c.name, c.notes), c.address, c.id, c.notes));
+    return Array.from(byKey.values());
+  }, [customers, estimates, invoices]);
+  const nameSuggestions = useMemo(() => {
+    if (customerId) return [];
+    const q = customerName.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return nameContacts
+      .filter((c) => c.name.toLowerCase().includes(q))
+      .sort((a, b) => (a.name.toLowerCase().startsWith(q) ? 0 : 1) - (b.name.toLowerCase().startsWith(q) ? 0 : 1))
+      .slice(0, 8);
+  }, [nameContacts, customerName, customerId]);
 
   // Save the typed mobile + name/address as a new customer master record.
   const handleQuickAddCustomer = async () => {
@@ -2040,12 +2071,16 @@ export const InvoiceForm: React.FC<Props> = ({
     // Owner rule (Oct 2026): a sales bill must carry the customer's name AND a
     // valid 10-digit mobile — no anonymous walk-in bills. (Quotations are exempt.)
     if (documentType === 'Invoice') {
+      // Owner rule (updated): a sales bill needs a customer NAME. The mobile is
+      // OPTIONAL — some customers don't give one, so a name-only bill is allowed.
+      // But if a number IS typed, it must be a valid 10-digit mobile (no half numbers).
       if (!customerName.trim()) {
         toast.error('Customer name is required', { description: 'Enter the customer name before saving the bill.' });
         return;
       }
-      if ((customerPhone || '').replace(/\D/g, '').length !== 10) {
-        toast.error('Customer mobile number is required', { description: 'Enter a valid 10-digit mobile number before saving the bill.' });
+      const digits = (customerPhone || '').replace(/\D/g, '');
+      if (digits.length > 0 && digits.length !== 10) {
+        toast.error('Enter a full 10-digit mobile number, or leave it blank', { description: 'A half-typed number is not allowed — clear it to bill with the name only.' });
         return;
       }
     }
@@ -2660,20 +2695,45 @@ export const InvoiceForm: React.FC<Props> = ({
               </div>
             )}
           </div>
-          {/* Name — auto-filled & locked when the number matches a saved customer */}
-          <input
-            type="text"
-            value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            readOnly={!!selectedCustomerObj || lockBuyer}
-            placeholder="Name (optional)"
-            className={cn(
-              'w-56 px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
-              selectedCustomerObj
-                ? 'bg-slate-100 border-slate-200 cursor-default'
-                : 'bg-slate-50 border-slate-200 focus:border-blue-600'
+          {/* Name — type to search existing customers by name (suggestions), or
+              auto-filled & locked when the number matches a saved customer. The
+              mobile is optional, so a bill can be saved with just the name. */}
+          <div className="w-56 shrink-0 relative">
+            <input
+              type="text"
+              value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              readOnly={!!selectedCustomerObj || lockBuyer}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setTimeout(() => setNameFocused(false), 150)}
+              placeholder={documentType === 'Quotation' ? 'Name (optional)' : 'Customer name *'}
+              className={cn(
+                'w-full px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
+                selectedCustomerObj
+                  ? 'bg-slate-100 border-slate-200 cursor-default'
+                  : 'bg-slate-50 border-slate-200 focus:border-blue-600'
+              )}
+            />
+            {/* Old-customer suggestions by NAME (mirrors the number-prefix search) */}
+            {nameFocused && !selectedCustomerObj && nameSuggestions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                {nameSuggestions.map((c, i) => (
+                  <button
+                    key={(c.id || c.phone || c.name) + i}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-slate-900 text-sm truncate">{c.name || 'Customer'}</span>
+                      {c.phone && <span className="font-mono text-xs text-slate-600 shrink-0">{c.phone}</span>}
+                    </div>
+                    {c.address && <div className="text-[11px] text-slate-400 truncate">{c.address}</div>}
+                  </button>
+                ))}
+              </div>
             )}
-          />
+          </div>
           {/* Address — auto-filled & locked when a saved customer is matched */}
           {selectedCustomerObj && (
             <input
