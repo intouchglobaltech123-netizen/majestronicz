@@ -855,12 +855,26 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-600 border-t border-slate-200 pt-3">
-                  <span>Taxable value{chargesTaxable > 0 ? ' (incl. charges)' : ''}:</span>
+                {/* Explicit breakdown so it's clear the packing/courier are
+                    ADDED to the product value BEFORE GST (not taxed separately). */}
+                {chargesTaxable > 0 && (
+                  <div className="border-t border-slate-200 pt-3 space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Product value:</span>
+                      <span className="font-mono">{formatCurrency(lineTaxable)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span>+ Packing / courier charges:</span>
+                      <span className="font-mono">{formatCurrency(chargesTaxable)}</span>
+                    </div>
+                  </div>
+                )}
+                <div className={`flex items-center justify-between text-xs text-slate-600 ${chargesTaxable > 0 ? 'pt-1' : 'border-t border-slate-200 pt-3'}`}>
+                  <span>Taxable value{chargesTaxable > 0 ? ' (product + charges)' : ''}:</span>
                   <span className="font-mono font-bold text-slate-900">{formatCurrency(totalAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span>GST:</span>
+                  <span>GST{chargesTaxable > 0 ? ' (on product + charges)' : ''}:</span>
                   <span className="font-mono font-bold text-slate-900" data-testid="po-form-gst">{formatCurrency(totalTax)}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3">
