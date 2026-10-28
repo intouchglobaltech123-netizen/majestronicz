@@ -89,7 +89,6 @@ interface Props {
   isActive?: boolean;
   /** Edit-mode only (#4): void / delete THIS saved bill from inside the screen. */
   onVoidBill?: (invoice: Invoice) => void;
-  onDeleteBill?: (invoice: Invoice) => void;
   /** Whether the current user may void/delete a bill (Manager/CEO). */
   canVoidBill?: boolean;
 }
@@ -111,7 +110,6 @@ export const InvoiceForm: React.FC<Props> = ({
   onSaveDraft,
   onWorkingCopy,
   onVoidBill,
-  onDeleteBill,
   canVoidBill,
 }) => {
   const {
@@ -2618,17 +2616,8 @@ export const InvoiceForm: React.FC<Props> = ({
               <span>Void</span>
             </button>
           )}
-          {isSavedBill && documentType === 'Invoice' && initialInvoice && canVoidBill && onDeleteBill && (
-            <button
-              type="button"
-              onClick={() => onDeleteBill(initialInvoice)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-none transition-colors cursor-pointer"
-              title="Delete this bill permanently (restores its stock)"
-            >
-              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-              <span>Delete</span>
-            </button>
-          )}
+          {/* Permanent Delete removed per owner request — use Void to cancel a
+              bill (reversible, keeps the record). */}
 
           {onSaveDraft && (
             <button

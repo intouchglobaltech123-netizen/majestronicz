@@ -170,6 +170,13 @@ interface Props {
 
 type QuoteLifecycle = 'Open' | 'Converted' | 'Cancelled';
 
+/** Numeric sequence of a bill number (the trailing digits, e.g. MZERD26-27/11299 → 11299),
+ *  used to order the ledger by the true bill sequence instead of save time. */
+const invSeq = (n?: string): number => {
+  const m = /(\d+)\s*$/.exec(String(n || ''));
+  return m ? parseInt(m[1], 10) : -1;
+};
+
 export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   const {
     invoices,
@@ -184,7 +191,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     quoteToPrefill,
     setQuoteToPrefill,
     voidInvoice,
-    deleteInvoice,
     currentUser,
     activeSubTab,
     payments,
@@ -483,8 +489,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
       return true;
     }).sort((a, b) => {
+      // Order by DATE (newest first), then strictly by invoice NUMBER (highest
+      // first) so the ledger never shuffles within a day — the number is the true
+      // sequence; a bill's createdAt can differ from its number (the server
+      // assigns the number at save, so saves/retries don't always match creation
+      // order). createdAt is only a final tie-break if two share a number.
       const d = (b.date || '').localeCompare(a.date || '');
-      return d !== 0 ? d : (b.createdAt || '').localeCompare(a.createdAt || '');
+      if (d !== 0) return d;
+      const s = invSeq(b.invoiceNumber) - invSeq(a.invoiceNumber);
+      if (s !== 0) return s;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
   }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope, ledgerFrom, ledgerTo]);
   // Back to the first page whenever the list itself changes shape.
@@ -947,12 +961,6 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 onBackToList={() => setActiveTab(tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
                 canVoidBill={canVoid}
                 onVoidBill={(inv) => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); }}
-                onDeleteBill={(inv) => {
-                  if (window.confirm(`Delete bill ${inv.invoiceNumber}? This permanently removes it and restores its stock. This cannot be undone.`)) {
-                    deleteInvoice(inv.id);
-                    closeBillTab(tab.id, 'ledger');
-                  }
-                }}
               />
             </div>
           ))}
@@ -1623,9 +1631,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                                   ...(canVoid && !isVoided
                                     ? [{ key: 'void', label: 'Cancel Invoice (Void)', icon: <Ban className="h-3.5 w-3.5" />, danger: true, onClick: () => { setVoidModalInvoice(inv); setVoidReason('Customer cancellation / Order return'); } }]
                                     : []),
-                                  ...(canVoid
-                                    ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => { if (window.confirm(`Delete bill ${inv.invoiceNumber}? This permanently removes it and restores its stock. This cannot be undone.`)) deleteInvoice(inv.id); } }]
-                                    : []),
+                                  // Permanent Delete removed per owner request — a bill is cancelled
+                                  // via Void (reversible, keeps the record), never hard-deleted.
                                 ]}
                               />
                             </div>
