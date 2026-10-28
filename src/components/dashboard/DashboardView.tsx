@@ -79,9 +79,18 @@ export const DashboardView: React.FC = () => {
   const lastMonth = getTodayDateString(lastMonthDate).slice(0, 7);
 
   const inScope = (branchId: string) => isAllBranches || branchId === currentBranch;
+  // AUDIT SEPARATION (owner, Oct 2026): the Dashboard shows COUNTER sales only —
+  // Shopify / online orders are kept out of every sales KPI here and are tracked
+  // separately in the Orders board. Otherwise an online order dated today made
+  // "Today's Sales" non-zero even when no counter bill was made.
   const scopedSales = useMemo(
-    () => invoices.filter((i) => !i.isVoided && inScope(i.branchId)),
+    () => invoices.filter((i) => !i.isVoided && inScope(i.branchId) && !String(i.sourceChannel || '').startsWith('shopify')),
     [invoices, isAllBranches, currentBranch]
+  );
+  // Counter sales across ALL branches (online excluded) for the per-branch table.
+  const counterInvoices = useMemo(
+    () => invoices.filter((i) => !i.isVoided && !String(i.sourceChannel || '').startsWith('shopify')),
+    [invoices]
   );
 
   // ---- Money & business KPIs ----
@@ -261,7 +270,7 @@ export const DashboardView: React.FC = () => {
 
       {/* ---- Money KPI row ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <KpiCard label="Today's Sales" value={formatCurrency(money.salesToday)} sub={`${money.countToday} bill${money.countToday === 1 ? '' : 's'}`}
+        <KpiCard label="Today's Sales (Counter)" value={formatCurrency(money.salesToday)} sub={`${money.countToday} counter bill${money.countToday === 1 ? '' : 's'} · online orders separate`}
           icon={IndianRupee} tone="red" delta={salesTodayDelta} deltaLabel="vs yesterday" onClick={() => setCurrentView('invoices')} />
         <KpiCard label="This Month" value={formatCurrency(money.salesMonth)} sub="net of returns"
           icon={TrendingUp} tone="slate" delta={salesMonthDelta} deltaLabel="vs last month" onClick={() => setCurrentView('invoices')} />
@@ -528,7 +537,7 @@ export const DashboardView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {BRANCHES.map((b) => {
-                  const bSales = periodSales(invoices, (d) => (d || '').startsWith(thisMonth), (x) => x === b.id).net; // RPT10-1
+                  const bSales = periodSales(counterInvoices, (d) => (d || '').startsWith(thisMonth), (x) => x === b.id).net; // RPT10-1 (counter only)
                   const bRecv = invoices.filter((i) => !i.isVoided && i.branchId === b.id).reduce((t, i) => t + invoiceDue(i), 0);
                   const bStock = items.reduce((t, item) => t + (branchStocks.find((s) => s.itemId === item.id && s.branchId === b.id)?.quantity ?? 0) * (item.purchasePrice || 0), 0);
                   return (
