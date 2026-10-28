@@ -81,7 +81,6 @@ interface Props {
    *  is touched. */
   onBackToList?: () => void;
   /** Save the current document as a work-in-progress draft (not committed). */
-  onSaveDraft?: (doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => void;
   /** SAL4-13: the form's current contents (unvalidated), so the bill tabs can be
    *  restored WITH their lines after a page reload. */
   onWorkingCopy?: (doc: Invoice | Estimate) => void;
@@ -107,7 +106,6 @@ export const InvoiceForm: React.FC<Props> = ({
   onPreviewEstimatePdf,
   onCancel,
   onBackToList,
-  onSaveDraft,
   onWorkingCopy,
   onVoidBill,
   canVoidBill,
@@ -2243,25 +2241,6 @@ export const InvoiceForm: React.FC<Props> = ({
     };
   }, []);
 
-  const handleSaveDraft = () => {
-    if (!onSaveDraft) return;
-    if (documentType === 'Quotation') {
-      const est = assembleEstimateObject();
-      if (!est) return;
-      onSaveDraft(est, 'Quotation');
-      toast.success('Quotation saved to drafts', {
-        description: 'Find it under "Saved Quotes" to resume or finalize later.',
-      });
-    } else {
-      const inv = assembleInvoiceObject();
-      if (!inv) return;
-      onSaveDraft(inv, 'Invoice');
-      toast.success('Sale saved to drafts', {
-        description: 'Find it under "Saved Sales" to resume or finalize later.',
-      });
-    }
-  };
-
   const handlePreview = () => {
     if (documentType === 'Quotation') {
       const est = assembleEstimateObject();
@@ -2619,17 +2598,8 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* Permanent Delete removed per owner request — use Void to cancel a
               bill (reversible, keeps the record). */}
 
-          {onSaveDraft && (
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-none transition-colors shadow-none cursor-pointer"
-              title="Park this as a draft to finish later (does not commit stock or a final number)"
-            >
-              <Save className="h-3.5 w-3.5 text-amber-600" />
-              <span>Save Draft</span>
-            </button>
-          )}
+          {/* "Save Draft" button removed — the bill auto-drafts to Saved Drafts
+              as it is typed, so nothing in progress is ever lost. */}
 
           <button
             type="button"

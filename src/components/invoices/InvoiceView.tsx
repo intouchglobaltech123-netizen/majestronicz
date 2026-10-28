@@ -160,6 +160,9 @@ interface BillTab {
   duplicateSourceInvoice: Invoice | null;
   duplicateSourceEstimate: Estimate | null;
   resumedDraftId: string | null;
+  /** Stable draft id for this tab — the bill auto-saves to Saved Drafts under
+   *  this id as it is typed (no manual "Save Draft" needed). */
+  autoDraftId?: string;
   /** SAL4-13: the form's latest contents, kept so a page reload restores the tab with its lines. */
   workingCopy?: Invoice | Estimate | null;
 }
@@ -215,14 +218,18 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         if (Array.isArray(p.openBills)) {
           // SAL4-13: a tab comes back with what was typed into it — its last
           // working copy reopens like a parked draft.
-          const openBills = (p.openBills as BillTab[]).map((t) => (t.workingCopy
-            ? {
-                ...t,
-                editingInvoice: t.documentType === 'Invoice' ? (t.workingCopy as Invoice) : null,
-                editingEstimate: t.documentType === 'Quotation' ? (t.workingCopy as Estimate) : null,
-                convertedEstimate: null, duplicateSourceInvoice: null, duplicateSourceEstimate: null,
-              }
-            : t));
+          const openBills = (p.openBills as BillTab[]).map((t) => {
+            const base = t.workingCopy
+              ? {
+                  ...t,
+                  editingInvoice: t.documentType === 'Invoice' ? (t.workingCopy as Invoice) : null,
+                  editingEstimate: t.documentType === 'Quotation' ? (t.workingCopy as Estimate) : null,
+                  convertedEstimate: null, duplicateSourceInvoice: null, duplicateSourceEstimate: null,
+                }
+              : t;
+            // Every restored tab keeps (or gets) a draft id so auto-draft continues.
+            return { ...base, autoDraftId: t.autoDraftId ?? t.resumedDraftId ?? newDraftId() } as BillTab;
+          });
           return { openBills, activeBillId: p.activeBillId ?? null, activeTab: p.activeTab ?? null };
         }
       }
@@ -316,6 +323,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       duplicateSourceInvoice: seed.duplicateSourceInvoice ?? null,
       duplicateSourceEstimate: seed.duplicateSourceEstimate ?? null,
       resumedDraftId: seed.resumedDraftId ?? null,
+      // Resumed drafts keep their id; a fresh bill gets a new one so it starts
+      // auto-saving to Saved Drafts the moment it has content.
+      autoDraftId: seed.resumedDraftId ?? newDraftId(),
     };
     setOpenBills((prev) => [...prev, tab]);
     setActiveBillId(id);
@@ -346,8 +356,50 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     }
   }, [activeSubTab]);
 
-  // Close a tab; fall back to the ledger when nothing is left open.
+  // ---- Auto-draft: a bill saves itself to Saved Drafts as it is typed -------
+  // No manual "Save Draft" button. The moment a bill has a customer or a product
+  // line it is parked (debounced) under its tab's draft id, so nothing in
+  // progress is ever lost. The draft is removed when the bill is committed, or
+  // when the staff explicitly close/cancel the tab (that is "discard").
+  const autoDraftTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autoSaveDraft = (tab: BillTab, doc: Invoice | Estimate) => {
+    const id = tab.autoDraftId || tab.resumedDraftId;
+    if (!id) return;
+    const hasContent = !!(
+      (doc.customerName || '').trim() ||
+      ((doc as Invoice).customerPhone || '').trim() ||
+      (doc.items || []).some((it) => (it.itemName || '').trim())
+    );
+    if (autoDraftTimers.current[tab.id]) clearTimeout(autoDraftTimers.current[tab.id]);
+    autoDraftTimers.current[tab.id] = setTimeout(() => {
+      if (!hasContent) return;
+      const isInvoice = tab.documentType === 'Invoice';
+      const draft: SalesDraft = {
+        draftId: id,
+        kind: tab.documentType,
+        savedAt: new Date().toISOString(),
+        customerName: doc.customerName || 'Unnamed',
+        number: isInvoice ? (doc as Invoice).invoiceNumber : (doc as Estimate).estimateNumber,
+        grandTotal: doc.grandTotal || 0,
+        branchId: doc.branchId,
+        data: doc,
+      };
+      setDrafts(upsertDraft(draftUserKey, draft));
+    }, 1200);
+  };
+  const dropAutoDraft = (tab: BillTab) => {
+    if (autoDraftTimers.current[tab.id]) { clearTimeout(autoDraftTimers.current[tab.id]); delete autoDraftTimers.current[tab.id]; }
+    const id = tab.autoDraftId || tab.resumedDraftId;
+    if (id) setDrafts(removeDraft(draftUserKey, id));
+  };
+
+  // Close a tab. The in-progress bill STAYS parked in Saved Drafts (auto-draft),
+  // so closing a tab never loses it — reopen it from Saved Drafts, or delete it
+  // there to discard. Only committing the bill clears its draft.
   const closeBillTab = (id: string, fallbackTab: 'ledger' | 'estimates' = 'ledger') => {
+    const closing = openBills.find((t) => t.id === id);
+    // Stop any pending debounced write, but keep whatever is already drafted.
+    if (closing && autoDraftTimers.current[closing.id]) { clearTimeout(autoDraftTimers.current[closing.id]); delete autoDraftTimers.current[closing.id]; }
     const next = openBills.filter((t) => t.id !== id);
     setOpenBills(next);
     if (next.length === 0) {
@@ -568,7 +620,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     // no preview window to close each time. The 80mm thermal still auto-prints
     // when that device setting is on; any bill can be reprinted/previewed from
     // the list (thermal reprint button, or double-click to open).
-    if (_tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, _tab.resumedDraftId));
+    dropAutoDraft(_tab); // the bill is committed — its auto-draft is no longer needed
     // Keep the cashier IN billing after a new counter sale: move to the next
     // open tab, or open a fresh blank bill if none remain — never drop onto the
     // Invoice History list (that interrupted rapid billing after every bill).
@@ -590,26 +642,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   };
 
   const handleSavedEstimate = (tab: BillTab, savedEstimate: Estimate) => {
-    if (tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, tab.resumedDraftId));
+    dropAutoDraft(tab); // committed — clear its auto-draft
     setPreviewEstimate(savedEstimate);
     closeBillTab(tab.id, 'estimates');
-  };
-
-  // Save the current in-form document as a draft (parked, not committed).
-  const handleSaveDraft = (tab: BillTab, doc: Invoice | Estimate, kind: 'Invoice' | 'Quotation') => {
-    const draftId = tab.resumedDraftId || newDraftId();
-    const draft: SalesDraft = {
-      draftId,
-      kind,
-      savedAt: new Date().toISOString(),
-      customerName: doc.customerName || 'Unnamed',
-      number: kind === 'Quotation' ? (doc as Estimate).estimateNumber : (doc as Invoice).invoiceNumber,
-      grandTotal: doc.grandTotal || 0,
-      branchId: doc.branchId,
-      data: doc,
-    };
-    setDrafts(upsertDraft(draftUserKey, draft));
-    closeBillTab(tab.id, kind === 'Quotation' ? 'estimates' : 'ledger');
   };
 
   // Reopen a saved draft into a new billing tab to finish/finalize it.
@@ -953,8 +988,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 initialDocumentType={tab.documentType}
                 onSaved={(inv) => handleSaved(tab, inv)}
                 onSavedEstimate={(est) => handleSavedEstimate(tab, est)}
-                onSaveDraft={(doc, kind) => handleSaveDraft(tab, doc, kind)}
-                onWorkingCopy={(doc) => setOpenBills((prev) => prev.map((t) => (t.id === tab.id ? { ...t, workingCopy: doc } : t)))}
+                onWorkingCopy={(doc) => {
+                  setOpenBills((prev) => prev.map((t) => (t.id === tab.id ? { ...t, workingCopy: doc } : t)));
+                  autoSaveDraft(tab, doc); // auto-draft as the bill is typed (no Save Draft button)
+                }}
                 onPreviewPdf={(inv) => setPreviewInvoice(inv)}
                 onPreviewEstimatePdf={(est) => setPreviewEstimate(est)}
                 onCancel={() => closeBillTab(tab.id, tab.documentType === 'Quotation' ? 'estimates' : 'ledger')}
