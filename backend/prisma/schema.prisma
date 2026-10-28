@@ -169,9 +169,12 @@ model Invoice {
   // retry. If a save reaches the DB but its reply is lost (e.g. a Railway
   // redeploy restarts the API mid-request), the browser retries with the same
   // key and the server returns the already-saved bill instead of creating a
-  // duplicate. Null for bills saved before this field existed (Postgres allows
-  // many NULLs under a unique index, so old rows are fine).
-  clientKey                 String?  @unique
+  // duplicate. NOT a unique column on purpose: a unique constraint can't be
+  // added by `prisma db push` without --accept-data-loss (which we won't run on
+  // every deploy), and duplicate saves are already made sequential client-side
+  // (savingRef + outbox in-flight guard) so the server's clientKey lookup always
+  // sees the committed prior. Indexed only, for a fast lookup.
+  clientKey                 String?
   branchId                  String
   transactionType           String
   customerId                String?
@@ -283,6 +286,7 @@ model Invoice {
   @@index([customerId])
   @@index([date])
   @@index([branchId, date])
+  @@index([clientKey])
 }
 
 model Enquiry {

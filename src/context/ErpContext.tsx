@@ -4,7 +4,7 @@ import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString, formatCurrency, nameWithRole } from '../lib/utils';
 import { reorderThresholdOf, stockStatusOf, ItemSales90d, StockStatus } from '../lib/stockThreshold';
 import { makeOpeningLookup } from '../lib/cashClosing';
-import { enqueueBill, removeBill, markBillAttempt, getOutbox, newClientKey } from '../lib/saveOutbox';
+import { enqueueBill, removeBill, markBillAttempt, getOutbox, newClientKey, markInFlight, clearInFlight, isInFlight } from '../lib/saveOutbox';
 
 /**
  * Persists a collection to the backend whenever it changes, so Postgres always
@@ -2880,8 +2880,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // mid-save (e.g. a deploy) the bill can never be lost — it auto-retries, and
     // the clientKey stops a retry from ever creating a duplicate.
     const invoice: Invoice = { ...newInvoice, clientKey: newInvoice.clientKey || newClientKey() };
+    const key = invoice.clientKey!;
     const wasEdit = invoices.some((i) => i.id === invoice.id);
     enqueueBill(invoice);
+    markInFlight(key); // the retry loop will skip this bill while it is in flight
 
     try {
       const snap = await apiPost<any>('/api/tx/sale', invoice);
@@ -2924,6 +2926,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       void flushOutbox();
       return undefined;
+    } finally {
+      clearInFlight(key);
     }
   };
 
@@ -2945,6 +2949,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           removeBill(entry.clientKey);
           continue;
         }
+        // An inline save of this same bill is mid-flight — skip it this pass so
+        // the bill is never POSTed twice at once.
+        if (isInFlight(entry.clientKey)) continue;
+        markInFlight(entry.clientKey);
         try {
           const snap = await apiPost<any>('/api/tx/sale', entry.invoice);
           applySaleSnapshot(snap);
@@ -2963,8 +2971,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Still unreachable — keep it and stop this pass; the interval/online
             // listener will try again shortly.
             markBillAttempt(entry.clientKey, e?.message);
-            break;
+            break; // the `finally` clears the in-flight mark
           }
+        } finally {
+          clearInFlight(entry.clientKey);
         }
       }
     } finally {

@@ -106,6 +106,16 @@ export const subscribeOutbox = (cb: () => void): (() => void) => {
   return () => listeners.delete(cb);
 };
 
+// Keys whose save is in flight RIGHT NOW (an inline save or a retry). The retry
+// loop skips these so the same bill is never POSTed twice at the same instant —
+// which, with no DB unique constraint, is what keeps a duplicate from slipping
+// through the gap before the first POST commits. In-memory only (a tab reload
+// clears it, which is correct: nothing is in flight after a reload).
+const inFlight = new Set<string>();
+export const markInFlight = (clientKey: string): void => { inFlight.add(clientKey); };
+export const clearInFlight = (clientKey: string): void => { inFlight.delete(clientKey); };
+export const isInFlight = (clientKey: string): boolean => inFlight.has(clientKey);
+
 // Keep multiple tabs in sync — another tab's save/retry updates this one's banner.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
