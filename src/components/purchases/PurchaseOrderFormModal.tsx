@@ -48,7 +48,12 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     accessibleBranches,
     savePurchaseOrder,
     getNextPoNumber,
+    items,
   } = useErp();
+
+  // Bulk add by SKU (same as the sales bill): paste "SKU" or "SKU qty" lines.
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
 
   // Selected Branch
   const defaultBranch: BranchId =
@@ -342,6 +347,60 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
     ]);
   };
 
+  // Bulk add by SKU — paste the supplier's list, one item per line as "SKU" or
+  // "SKU qty" / "SKU,qty" / "SKU<tab>qty". Known catalog codes become PO lines
+  // (merged if already present); codes not in the catalog are skipped and
+  // reported (a PO orders existing catalogue items).
+  const handleBulkAddPO = () => {
+    const text = bulkText.trim();
+    if (!text) return;
+    const codeMap = new Map(items.map((i) => [String(i.itemCode || '').trim().toUpperCase(), i]));
+    const working = lines.filter((l) => l.item).map((l) => ({ ...l }));
+    let matched = 0, merged = 0, unknown = 0;
+    for (const raw of text.split(/\r?\n/)) {
+      const lineStr = raw.trim();
+      if (!lineStr) continue;
+      const parts = lineStr.split(/[,\t]|\s{2,}|\s+/).map((s) => s.trim()).filter(Boolean);
+      const code = parts[0];
+      const qty = Math.max(1, Math.round(Number(parts[1]) || 1));
+      if (!code) continue;
+      const item = codeMap.get(code.toUpperCase());
+      if (!item) { unknown++; continue; }
+      const ix = working.findIndex((l) => l.item?.id === item.id);
+      if (ix >= 0) {
+        const mergedQty = (working[ix].quantity || 0) + qty;
+        working[ix] = { ...working[ix], quantity: mergedQty, quantityText: undefined, amount: mergedQty * (working[ix].purchasePrice || 0) };
+        merged++;
+      } else {
+        const price = item.purchasePrice || Math.round((item.salePrice || 0) * 0.7);
+        working.push({
+          id: `poli-bulk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          item,
+          searchQuery: item.itemName,
+          vendorCode: vendorCodeForItem(item, selectedVendorId),
+          vendorSku: vendorCodeForItem(item, selectedVendorId) || '',
+          quantity: qty,
+          purchasePrice: price,
+          amount: qty * price,
+          taxPercent: item.gstTaxSlab ?? 18,
+        });
+        matched++;
+      }
+    }
+    if (!matched && !merged) {
+      toast.error(unknown ? 'None of those SKUs are in the catalog' : 'No SKUs found to add');
+      return;
+    }
+    // Keep a trailing blank row for continued manual entry.
+    working.push({ id: `poli-add-${Date.now()}`, item: null, searchQuery: '', quantity: 1, purchasePrice: 0, amount: 0 });
+    setLines(working);
+    setBulkOpen(false);
+    setBulkText('');
+    toast.success('Bulk add done', {
+      description: [matched && `${matched} added`, merged && `${merged} merged`, unknown && `${unknown} not in catalog (skipped)`].filter(Boolean).join(' · '),
+    });
+  };
+
   const handleRemoveLine = (index: number) => {
     setLines((prev) => {
       // Removing the only remaining line clears it back to a fresh blank row
@@ -610,14 +669,25 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
                     Search item catalog with live stock status. Unit cost pre-fills from purchase master and is editable.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddLine}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Line Item</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setBulkText(''); setBulkOpen(true); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                    title="Paste a list of SKUs (and quantities) to add many items at once"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Bulk add (SKU)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddLine}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Line Item</span>
+                  </button>
+                </div>
               </div>
 
               {formErrors.lines && (
@@ -835,6 +905,37 @@ export const PurchaseOrderFormModal: React.FC<PurchaseOrderFormModalProps> = ({
         onClose={() => setIsVendorModalOpen(false)}
         onVendorSaved={(v) => setSelectedVendorId(v.id)}
       />
+
+      {/* Bulk add by SKU */}
+      {bulkOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50" onClick={() => setBulkOpen(false)}>
+          <div className="bg-white border border-slate-300 rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Bulk add by SKU</h3>
+              <button type="button" onClick={() => setBulkOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600">
+                Paste your list — one item per line, as <span className="font-mono bg-slate-100 px-1">SKU</span> or
+                {' '}<span className="font-mono bg-slate-100 px-1">SKU qty</span> (two columns straight from Excel works too).
+                Codes in your catalog are added to the order; codes that aren't are skipped.
+              </p>
+              <textarea
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                rows={8}
+                placeholder={'MC-AR-ARDU  5\nDP-ED-13NC  10\nCON-PCB-0009  20'}
+                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={() => setBulkOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-300">Cancel</button>
+                <button type="button" onClick={handleBulkAddPO} className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg border border-emerald-700">Add items</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
