@@ -698,8 +698,21 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         else if (modeOf(s.mode)) by[modeOf(s.mode)] += s.amount;
       }
     }
+    // AUDIT SEPARATION: a customer receipt belongs to the channel of the bill it
+    // was collected against. A receipt fully allocated to online (Shopify) orders
+    // is ONLINE money; everything else (counter bills, advances, on-account) is
+    // STORE money. So the Store metrics never include a paisa of Shopify receipts,
+    // and the Online view shows only Shopify — clean for daily audit.
+    const onlineInvoiceIds = new Set(
+      invoices.filter((i) => String(i.sourceChannel || '').startsWith('shopify')).map((i) => i.id),
+    );
+    const paymentIsOnline = (p: any) =>
+      Array.isArray(p.allocations) && p.allocations.length > 0 &&
+      p.allocations.every((a: any) => a && onlineInvoiceIds.has(a.refId));
+    const paymentInChannel = (p: any) =>
+      channelScope === 'all' ? true : channelScope === 'online' ? paymentIsOnline(p) : !paymentIsOnline(p);
     for (const p of payments) {
-      if (p.partyType !== 'customer' || p.date !== todayStr || !inScope(p.branchId)) continue;
+      if (p.partyType !== 'customer' || p.date !== todayStr || !inScope(p.branchId) || !paymentInChannel(p)) continue;
       const k = modeOf(p.paymentMode);
       if (!k) continue; // store credit moves no money
       by[k] += p.type === 'in' ? Number(p.amount) || 0 : -(Number(p.amount) || 0);
