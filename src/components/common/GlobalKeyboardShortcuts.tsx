@@ -31,6 +31,7 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
     currentBranch,
     accessibleBranches,
     navigateToTab,
+    currentView,
   } = useErp();
 
   const { shortcuts, formatShortcut } = useThemeSettings();
@@ -134,6 +135,13 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
         return;
       }
 
+      // On the billing / quotation screen, a bare number or arrow key must NEVER
+      // navigate: USB barcode scanners type the barcode's digits as keystrokes,
+      // and staff press numbers constantly — a stray key (scanner burst, or a
+      // number hit while focus isn't in a field) was jumping the whole app to
+      // another module mid-bill. Nav there is via the sidebar / on-screen tabs.
+      if (currentView === 'invoices' || currentView === 'estimates') return;
+
       // Arrow navigation to switch branch
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         if (branchCycle.length <= 1) return;
@@ -159,7 +167,7 @@ export const GlobalKeyboardShortcuts: React.FC = () => {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [shortcuts, visibleViews, branchCycle, currentBranch, currentUser.role, navigateToTab, setCurrentView, switchBranch]);
+  }, [shortcuts, visibleViews, branchCycle, currentBranch, currentUser.role, navigateToTab, setCurrentView, switchBranch, currentView]);
 
   if (!showHelp) return null;
 

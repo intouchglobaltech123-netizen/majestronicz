@@ -191,6 +191,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     companyProfile,
     openingGpayByBranch,
     employees,
+    historyLoading,
   } = useErp();
 
   // Active view: 'ledger' (Sales Ledger list), 'estimates' (Quotation History),
@@ -460,7 +461,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       if (!inChannel(inv)) return false;
 
       // Date filter — show only bills within the chosen range (defaults to today).
-      const d = inv.date || '';
+      // Slice to the date part (YYYY-MM-DD) so a bill whose date ever carries a
+      // time component is still counted on its day — the end date stays INCLUSIVE.
+      const d = (inv.date || '').slice(0, 10);
       if (ledgerFrom && d < ledgerFrom) return false;
       if (ledgerTo && d > ledgerTo) return false;
 
@@ -552,7 +555,24 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     // when that device setting is on; any bill can be reprinted/previewed from
     // the list (thermal reprint button, or double-click to open).
     if (_tab.resumedDraftId) setDrafts(removeDraft(draftUserKey, _tab.resumedDraftId));
-    closeBillTab(_tab.id, 'ledger');
+    // Keep the cashier IN billing after a new counter sale: move to the next
+    // open tab, or open a fresh blank bill if none remain — never drop onto the
+    // Invoice History list (that interrupted rapid billing after every bill).
+    // Editing an existing bill is different: there we go back to the list.
+    const wasEdit = !!_tab.editingInvoice;
+    const remaining = openBills.filter((t) => t.id !== _tab.id);
+    setOpenBills(remaining);
+    if (remaining.length > 0) {
+      if (activeBillId === _tab.id) {
+        setActiveBillId(remaining[remaining.length - 1].id);
+        setActiveTab('new');
+      }
+    } else if (wasEdit) {
+      setActiveBillId(null);
+      setActiveTab('ledger');
+    } else {
+      openBillTab({ documentType: _tab.documentType });
+    }
   };
 
   const handleSavedEstimate = (tab: BillTab, savedEstimate: Estimate) => {
@@ -1304,6 +1324,12 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               {voidedCount > 0 && (
                 <span className="text-[11px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold border border-rose-200">
                   {voidedCount} Voided
+                </span>
+              )}
+              {historyLoading && (
+                <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200 inline-flex items-center gap-1" role="status">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Loading older bills… older dates may be incomplete for a moment
                 </span>
               )}
             </div>
