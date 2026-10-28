@@ -204,6 +204,11 @@ export const InvoiceForm: React.FC<Props> = ({
   const billIdRef = useRef<string>('');
   if (!billIdRef.current) billIdRef.current = initialInvoice?.id || `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+  // Duplicate-bill guard: when the staff re-type a bill that was already saved
+  // (same customer + same items + same total, within the last few minutes) we
+  // pause and confirm before making a SECOND bill (which would hit stock twice).
+  const [dupWarn, setDupWarn] = useState<{ number: string; minsAgo: number; amount: number; opts?: { previewAfter?: boolean } } | null>(null);
+
   // Invoice / Quotation Number
   const [invoiceNumber, setInvoiceNumber] = useState(() => {
     if (initialInvoice) return initialInvoice.invoiceNumber;
@@ -2002,7 +2007,7 @@ export const InvoiceForm: React.FC<Props> = ({
   const savingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async (opts?: { previewAfter?: boolean }) => {
+  const handleSave = async (opts?: { previewAfter?: boolean; skipDupCheck?: boolean }) => {
     // M1: a second click (or Ctrl+Enter) while the first save is still in flight
     // must not create a second bill with its own number and a second stock hit.
     if (savingRef.current) return;
@@ -2045,6 +2050,39 @@ export const InvoiceForm: React.FC<Props> = ({
       }
       if ((customerPhone || '').replace(/\D/g, '').length !== 10) {
         toast.error('Customer mobile number is required', { description: 'Enter a valid 10-digit mobile number before saving the bill.' });
+        return;
+      }
+    }
+
+    // Duplicate-bill guard (NEW sales only): if the same customer + the exact
+    // same items + the same total was saved in the last 10 minutes, this is
+    // almost certainly a re-typed bill. Pause and confirm so staff don't make a
+    // second bill and hit stock twice. (Edits and quotations are exempt; a
+    // genuine repeat sale just clicks "Save anyway".)
+    if (documentType === 'Invoice' && !isSavedBill && !opts?.skipDupCheck) {
+      const phone = (customerPhone || '').replace(/\D/g, '');
+      const gt = Math.round((totals.grandTotal || 0) * 100) / 100;
+      const sig = JSON.stringify(
+        lineItems.filter((l) => l.itemName.trim() && (Number(l.quantity) || 0) > 0)
+          .map((l) => [l.itemId || l.itemName.trim().toLowerCase(), Number(l.quantity) || 0])
+          .sort(),
+      );
+      const now = Date.now();
+      const dup = invoices.find((iv) => {
+        if (iv.isVoided || iv.clientKey === billKeyRef.current) return false;
+        if (String(iv.sourceChannel || '').startsWith('shopify')) return false;
+        if ((iv.customerPhone || '').replace(/\D/g, '') !== phone || !phone) return false;
+        if (Math.round((iv.grandTotal || 0) * 100) / 100 !== gt) return false;
+        const t = Date.parse(iv.createdAt || iv.date || '') || 0;
+        if (!t || now - t > 10 * 60 * 1000 || now - t < 0) return false;
+        const ivSig = JSON.stringify(
+          (iv.items || []).map((it) => [it.itemId || (it.itemName || '').trim().toLowerCase(), Number(it.quantity) || 0]).sort(),
+        );
+        return ivSig === sig;
+      });
+      if (dup) {
+        const t = Date.parse(dup.createdAt || dup.date || '') || now;
+        setDupWarn({ number: dup.invoiceNumber, minsAgo: Math.max(0, Math.round((now - t) / 60000)), amount: gt, opts });
         return;
       }
     }
@@ -2266,6 +2304,43 @@ export const InvoiceForm: React.FC<Props> = ({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
+      {/* Duplicate-bill confirmation — a re-typed bill would hit stock twice. */}
+      {dupWarn && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md bg-white border-2 border-amber-400 rounded-xl shadow-2xl p-5">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <h3 className="text-base font-extrabold text-slate-900">This looks like a duplicate bill</h3>
+                <p className="text-sm text-slate-700 mt-1 leading-snug">
+                  An identical bill for <strong>{customerName.trim() || 'this customer'}</strong> — same items, <strong>{formatCurrency(dupWarn.amount)}</strong> — was already saved as{' '}
+                  <strong>{dupWarn.number}</strong> {dupWarn.minsAgo <= 0 ? 'just now' : `about ${dupWarn.minsAgo} min ago`}.
+                </p>
+                <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 font-semibold">
+                  Saving again makes a <u>second</u> bill and reduces stock a second time. Only continue if this is a genuinely separate sale.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setDupWarn(null)}
+                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-sm font-bold text-slate-800 cursor-pointer"
+              >
+                Cancel — it's the same bill
+              </button>
+              <button
+                type="button"
+                onClick={() => { const o = dupWarn.opts; setDupWarn(null); void handleSave({ ...o, skipDupCheck: true }); }}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold cursor-pointer"
+              >
+                Save anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Duplicate Notice Banner */}
       {duplicateSourceInvoice && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-950">
