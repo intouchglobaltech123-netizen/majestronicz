@@ -82,3 +82,51 @@ export function collectionsByMode(
   const total = Math.round(MODE_GROUPS.reduce((t, g) => t + byGroup[g], 0) * 100) / 100;
   return { byGroup, total, creditGiven: Math.round(creditGiven * 100) / 100 };
 }
+
+/** Normalise a mode to a display name: Cash & GPay/UPI collapse synonyms; every
+ *  other mode (HDFC, IOB, Card, Online, …) keeps its OWN name so a custom bank
+ *  mode is never hidden inside "Other". */
+export function modeName(mode?: string | null): string {
+  const x = String(mode || '').trim();
+  const lx = x.toLowerCase();
+  if (lx === 'cash') return 'Cash';
+  if (lx === 'gpay' || lx === 'upi' || lx === 'google pay' || lx === 'googlepay' || lx === 'phonepe' || lx === 'paytm') return 'GPay / UPI';
+  return x || 'Other';
+}
+
+/**
+ * Money COLLECTED in a period broken down by the ACTUAL payment mode (not the
+ * coarse groups) — one row per mode in use, biggest first. COD-Credit and store
+ * credit are excluded (no real money moved). Use this wherever a custom mode
+ * like IOB must be shown by name instead of lumped into "Other".
+ */
+export function collectionsByModeName(
+  invoices: Invoice[],
+  payments: Payment[],
+  inRange: (date: string) => boolean,
+  inScope: (branchId: string) => boolean,
+): { rows: { mode: string; amount: number }[]; total: number } {
+  const by: Record<string, number> = {};
+  const isStoreCredit = (m?: string | null) => {
+    const x = String(m || '').trim().toLowerCase();
+    return x === 'store credit' || x === 'store-credit' || x === 'credit' || x === 'cod-credit';
+  };
+  for (const inv of invoices || []) {
+    if (inv.isVoided || !inRange(inv.date) || !inScope(inv.branchId)) continue;
+    for (const s of getInvoicePaymentSplits(inv)) {
+      if (s.mode === 'COD-Credit') continue;
+      by[modeName(s.mode)] = (by[modeName(s.mode)] || 0) + (Number(s.amount) || 0);
+    }
+  }
+  for (const p of payments || []) {
+    if (p.type !== 'in' || p.partyType !== 'customer') continue;
+    if (!inRange(p.date) || !inScope(p.branchId) || isStoreCredit(p.paymentMode)) continue;
+    by[modeName(p.paymentMode)] = (by[modeName(p.paymentMode)] || 0) + (Number(p.amount) || 0);
+  }
+  const rows = Object.entries(by)
+    .map(([mode, amount]) => ({ mode, amount: Math.round(amount * 100) / 100 }))
+    .filter((r) => r.amount > 0.004)
+    .sort((a, b) => b.amount - a.amount);
+  const total = Math.round(rows.reduce((t, r) => t + r.amount, 0) * 100) / 100;
+  return { rows, total };
+}

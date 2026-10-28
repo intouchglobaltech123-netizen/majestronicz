@@ -4,11 +4,11 @@ import { BRANCHES, BranchId, Invoice, computeInvoiceFinance, vendorPayables, tot
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { makeOpeningLookup, dayAfter } from '../../lib/cashClosing';
 import { computeProfit, productSales, periodSales, salesByDay } from '../../lib/reportMath';
-import { collectionsByMode, MODE_GROUPS } from '../../lib/paymentModes';
+import { collectionsByModeName } from '../../lib/paymentModes';
 import {
   TrendingUp, TrendingDown, Boxes, AlertTriangle, Building, ArrowRight, ShieldCheck,
   Building2, ChevronRight, ArrowDownCircle, ArrowUpCircle, Wallet,
-  Receipt, ClipboardList, IndianRupee, Trophy, CreditCard, Banknote, Smartphone, Landmark, AlertOctagon, Percent, CheckCircle2,
+  Receipt, ClipboardList, IndianRupee, Trophy, AlertOctagon, Percent, CheckCircle2,
 } from 'lucide-react';
 
 // Outstanding due on a single invoice — single source of truth.
@@ -16,12 +16,6 @@ const invoiceDue = (inv: Invoice): number => computeInvoiceFinance(inv).due;
 const netRevenue = (inv: Invoice) => computeInvoiceFinance(inv).net;
 const pct = (cur: number, prev: number) => (prev <= 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100));
 
-const MODE_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  Cash: { label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
-  'GPay / UPI': { label: 'GPay / UPI', icon: Smartphone, color: 'bg-blue-500' },
-  'Bank / Card': { label: 'Bank / Card', icon: Landmark, color: 'bg-cyan-500' },
-  Other: { label: 'Other', icon: CreditCard, color: 'bg-violet-500' },
-};
 
 export const DashboardView: React.FC = () => {
   const {
@@ -176,12 +170,14 @@ export const DashboardView: React.FC = () => {
   // and date it came in: bills' at-billing splits plus receipts on the RECEIPT's
   // own date and mode (CRM6-9). Shared with the Sales register and Payments Log.
   const modeSplit = useMemo(() => {
-    const m = collectionsByMode(invoices, payments, (d) => (d || '').startsWith(thisMonth), inScope);
-    const rows = MODE_GROUPS.filter((g) => m.byGroup[g] > 0)
-      .map((g) => ({ mode: g, amount: m.byGroup[g], meta: MODE_META[g] || { label: g, icon: Wallet, color: 'bg-slate-400' } }))
-      .sort((a, b) => b.amount - a.amount);
+    // COUNTER money only, by ACTUAL mode (Cash, HDFC, IOB, …) — online (Shopify)
+    // is excluded (tracked separately) and IOB is shown by name, never buried in
+    // "Other" (owner audit request, Oct 2026).
+    const COLORS = ['bg-emerald-500', 'bg-cyan-500', 'bg-violet-500', 'bg-amber-500', 'bg-blue-500', 'bg-rose-500', 'bg-teal-500'];
+    const m = collectionsByModeName(counterInvoices, payments, (d) => (d || '').startsWith(thisMonth), inScope);
+    const rows = m.rows.map((r, idx) => ({ mode: r.mode, amount: r.amount, color: COLORS[idx % COLORS.length] }));
     return { rows, total: m.total || 1 };
-  }, [invoices, payments, thisMonth, isAllBranches, currentBranch]);
+  }, [counterInvoices, payments, thisMonth, isAllBranches, currentBranch]);
 
   // ---- Top products (this month) ----
   // RPT-1 / RPT5-3 / RPT9-3: units and revenue NET of returns and of the
@@ -330,22 +326,21 @@ export const DashboardView: React.FC = () => {
         {/* Payment mode split */}
         <div className="p-4 rounded-none bg-white border border-slate-300 shadow-none">
           <h3 className="text-sm font-extrabold text-slate-900 mb-1">Payment Modes</h3>
-          <p className="text-[11px] text-slate-500 mb-4">This month · money collected (bills + receipts), by the mode it came in</p>
+          <p className="text-[11px] text-slate-500 mb-4">This month · counter money collected (bills + receipts), by mode · online separate</p>
           {modeSplit.rows.length === 0 ? (
-            <p className="text-xs text-slate-400 py-8 text-center">No sales this month yet.</p>
+            <p className="text-xs text-slate-400 py-8 text-center">No counter sales this month yet.</p>
           ) : (
             <div className="space-y-3">
               {modeSplit.rows.map((r) => {
-                const Icon = r.meta.icon;
                 const share = Math.round((r.amount / modeSplit.total) * 100);
                 return (
                   <div key={r.mode}>
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="flex items-center gap-1.5 font-semibold text-slate-700"><Icon className="h-3.5 w-3.5 text-slate-400" />{r.meta.label}</span>
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-700"><Wallet className="h-3.5 w-3.5 text-slate-400" />{r.mode}</span>
                       <span className="font-mono font-bold text-slate-800">{formatCurrency(r.amount)} <span className="text-slate-400 font-sans font-normal">· {share}%</span></span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div className={cn('h-full rounded-full', r.meta.color)} style={{ width: `${share}%` }} />
+                      <div className={cn('h-full rounded-full', r.color)} style={{ width: `${share}%` }} />
                     </div>
                   </div>
                 );
