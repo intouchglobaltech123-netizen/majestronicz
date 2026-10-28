@@ -1,18 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { useOutbox } from '../../lib/saveOutbox';
 import { useErp } from '../../context/ErpContext';
 
+// A bill still in the outbox with attempts=0 is one whose FIRST save is simply
+// in flight right now — the normal 1–2s of every save. We must NOT alarm staff
+// for that (it would flash on every single bill). We only show a bill once we
+// KNOW its save failed (attempts > 0), or it has been stuck far longer than any
+// healthy save would take (the POST is hanging because the server is down).
+const STUCK_MS = 10_000;
+
 /**
- * A loud, always-on-screen banner shown whenever one or more bills are still
- * waiting to reach the server (the save caught a network/server-down moment).
- * It reassures staff the bill is safe, auto-retries, and offers a manual retry.
- * Hidden entirely when the outbox is empty (the normal state).
+ * A loud, always-on-screen banner shown ONLY when one or more bills have truly
+ * failed to reach the server (or are hung mid-save because it is down) and are
+ * waiting to auto-retry. It reassures staff the bill is safe and offers a manual
+ * retry. It stays hidden during the normal in-flight moment of a healthy save.
  */
 export const UnsavedBillsBanner: React.FC = () => {
-  const pending = useOutbox();
+  const queued = useOutbox();
   const { flushOutbox } = useErp();
   const [busy, setBusy] = useState(false);
+  // Re-evaluate the "stuck" age a couple of times a second while anything is
+  // queued, so a hanging save surfaces even before its POST finally rejects.
+  const [, tick] = useState(0);
+  const hasQueued = queued.length > 0;
+  useEffect(() => {
+    if (!hasQueued) return;
+    const t = setInterval(() => tick((n) => n + 1), 2000);
+    return () => clearInterval(t);
+  }, [hasQueued]);
+
+  const now = Date.now();
+  const pending = queued.filter(
+    (b) => (b.attempts || 0) > 0 || now - Date.parse(b.queuedAt) >= STUCK_MS,
+  );
 
   if (!pending.length) return null;
 
