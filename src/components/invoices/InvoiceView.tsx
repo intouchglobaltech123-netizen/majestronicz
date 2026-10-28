@@ -239,7 +239,10 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   const [activeTab, setActiveTab] = useState<'ledger' | 'estimates' | 'returns' | 'new' | 'draft-sales' | 'draft-quotes' | 'challans'>(() => {
     const p = readPersistedBills();
-    return p.openBills.length > 0 && p.activeTab === 'new' ? 'new' : initialTab;
+    // If any bill tab is open, ALWAYS come up on the billing form — never drop
+    // to the ledger on a (re)mount (e.g. an error-boundary recovery under heavy
+    // load). This stops the "billing screen suddenly jumps to Sales Invoices".
+    return p.openBills.length > 0 ? 'new' : initialTab;
   });
   // Which challan sub-tab to show when the embedded Delivery Challans tab is open.
   const [challanTab, setChallanTab] = useState<'new' | 'history'>('history');
@@ -419,9 +422,14 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   useEffect(() => {
     if (prevInitialTabRef.current === initialTab) return;
     prevInitialTabRef.current = initialTab;
+    // Don't yank an active biller to the ledger: if a bill is open and the user
+    // is on the form, a prop flip (e.g. a deferred re-render under heavy load)
+    // must not switch the screen to the list.
+    if (initialTab === 'ledger' && openBills.length > 0 && activeTab === 'new') return;
     if (initialTab) {
       setActiveTab(initialTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTab]);
 
   // Void confirmation modal state
