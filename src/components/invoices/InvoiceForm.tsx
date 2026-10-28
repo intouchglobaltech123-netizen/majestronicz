@@ -1995,7 +1995,7 @@ export const InvoiceForm: React.FC<Props> = ({
   const savingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { previewAfter?: boolean }) => {
     // M1: a second click (or Ctrl+Enter) while the first save is still in flight
     // must not create a second bill with its own number and a second stock hit.
     if (savingRef.current) return;
@@ -2122,6 +2122,10 @@ export const InvoiceForm: React.FC<Props> = ({
       }
       // Auto-print the 80mm thermal bill (department-store style) on save.
       if (isThermalAutoPrintOn()) printThermalReceipt(saved, companyProfile);
+      // If "Save & Print" was used, open the A4 of the SAVED bill (real server
+      // number) — never a provisional, unsaved copy whose number a later bill
+      // could reuse, leaving the printed bill lost from history.
+      if (opts?.previewAfter) onPreviewPdf(saved);
       onSaved(saved);
     }
     } finally {
@@ -2225,6 +2229,11 @@ export const InvoiceForm: React.FC<Props> = ({
         toast.info(`Previewing Quotation #${est.estimateNumber}`);
       }
     } else {
+      // A SAVED bill reprints its real PDF directly. A NEW bill must be SAVED
+      // first so the printed A4 carries the real server invoice number and the
+      // bill always exists in history. Printing a provisional, unsaved bill is
+      // exactly how bills got printed-but-lost with a number a later bill reused.
+      if (!isSavedBill) { void handleSave({ previewAfter: true }); return; }
       const inv = assembleInvoiceObject();
       if (!inv) return;
       onPreviewPdf(inv);
@@ -2509,9 +2518,10 @@ export const InvoiceForm: React.FC<Props> = ({
             type="button"
             onClick={handlePreview}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-none transition-colors shadow-none cursor-pointer"
+            title={documentType === 'Invoice' && !isSavedBill ? 'Saves the bill first, then opens the A4 to print — a printed bill is always recorded' : 'Open the A4 PDF to print'}
           >
             <Printer className="h-3.5 w-3.5 text-slate-500" />
-            <span>Reprint PDF</span>
+            <span>{documentType === 'Invoice' && !isSavedBill ? 'Save & Print A4' : 'Reprint PDF'}</span>
           </button>
 
           {/* #4: edit-mode actions moved off the list and into the open bill. */}
@@ -2552,7 +2562,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
             className={cn(
               "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-none border transition-colors shadow-none cursor-pointer",
@@ -3858,7 +3868,7 @@ export const InvoiceForm: React.FC<Props> = ({
           {/* Primary Save Action Button (Vyapar Crimson Red) */}
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
             className={cn(
               "w-full py-3 rounded-none text-white font-bold text-xs shadow-none border transition-colors flex items-center justify-center gap-2 cursor-pointer",
@@ -4001,7 +4011,7 @@ export const InvoiceForm: React.FC<Props> = ({
         </div>
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
           className={cn(
             'flex items-center gap-2 px-5 py-2.5 rounded-none text-white font-bold text-xs border transition-colors shrink-0 cursor-pointer',
