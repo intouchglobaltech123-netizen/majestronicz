@@ -979,11 +979,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       </div>
 
       {/* VIEW CONTENT */}
-      {activeTab === 'new' ? (
-        /* MULTI-TAB BILLING — several sale/quotation drafts open at once (tabs live in the heading) */
-        <div className="space-y-3">
-          {/* Every open form stays mounted; only the active tab is shown so each
-              in-progress bill keeps its state when you switch between them. */}
+      {/* MULTI-TAB BILLING — the billing forms stay MOUNTED while any bill is
+          open, so switching to the ledger / returns / drafts and back never
+          empties an in-progress bill. The block is HIDDEN (not unmounted) when
+          the active tab isn't the billing form. Within it, only the active bill
+          tab is shown so each open bill keeps its own state. */}
+      {openBills.length > 0 && (
+        <div className={cn('space-y-3', activeTab !== 'new' && 'hidden')}>
           {openBills.map((tab) => (
             <div key={tab.id} className={tab.id === activeBillId ? '' : 'hidden'}>
               <InvoiceForm
@@ -1010,7 +1012,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             </div>
           ))}
         </div>
-      ) : activeTab === 'draft-sales' ? (
+      )}
+      {activeTab === 'new' ? null : activeTab === 'draft-sales' ? (
         <DraftList
           kind="Invoice"
           drafts={draftSales}
