@@ -162,17 +162,27 @@ export const InvoiceHistoryModal: React.FC<{
   onClose: () => void;
 }> = ({ invoice, employees, onClose }) => {
   const events = useMemo(() => {
-    const out: { at: string; who: string; what: string; tone: string; icon: React.ReactNode }[] = [];
+    const out: { at: string; who: string; what: string; detail?: string; tone: string; icon: React.ReactNode }[] = [];
     if (invoice.createdAt) out.push({ at: invoice.createdAt, who: resolveName(invoice.createdById, employees), what: 'Bill created', tone: 'text-emerald-700', icon: <Plus className="h-3.5 w-3.5" /> });
     if (invoice.updatedAt && invoice.updatedAt.slice(0, 16) !== (invoice.createdAt || '').slice(0, 16))
       out.push({ at: invoice.updatedAt, who: 'Staff', what: 'Bill edited', tone: 'text-blue-700', icon: <Pencil className="h-3.5 w-3.5" /> });
     for (const rv of invoice.revisions || [])
       out.push({ at: rv.at, who: resolveName(rv.by, employees), what: `${rv.change}${rv.deltaAmount ? ` (${rv.deltaAmount > 0 ? '+' : ''}${formatCurrency(rv.deltaAmount)})` : ''}`, tone: 'text-blue-700', icon: <Pencil className="h-3.5 w-3.5" /> });
     for (const rt of invoice.returns || [])
-      if ((rt.returnedQuantity || 0) > 0)
-        out.push({ at: rt.returnedAt, who: resolveName(rt.processedBy, employees), what: `Returned ${rt.returnedQuantity} × ${rt.itemName} (refund ${formatCurrency(rt.refundAmount || 0)})`, tone: 'text-amber-700', icon: <RotateCcw className="h-3.5 w-3.5" /> });
+      if ((rt.returnedQuantity || 0) > 0) {
+        // Show WHY: the return reason (incl. "Customer Exchange") and any audit note.
+        const isExchange = /exchang/i.test(rt.reason || '');
+        out.push({
+          at: rt.returnedAt,
+          who: resolveName(rt.processedBy, employees),
+          what: `${isExchange ? 'Exchanged' : 'Returned'} ${rt.returnedQuantity} × ${rt.itemName} (refund ${formatCurrency(rt.refundAmount || 0)})`,
+          detail: [rt.reason ? `Reason: ${rt.reason}` : '', rt.notes ? `Note: ${rt.notes}` : ''].filter(Boolean).join('  •  '),
+          tone: 'text-amber-700',
+          icon: <RotateCcw className="h-3.5 w-3.5" />,
+        });
+      }
     if (invoice.isVoided)
-      out.push({ at: invoice.voidedAt || invoice.updatedAt || '', who: resolveName(invoice.voidedBy, employees), what: `Voided — ${invoice.voidReason || 'no reason given'}`, tone: 'text-rose-700', icon: <Ban className="h-3.5 w-3.5" /> });
+      out.push({ at: invoice.voidedAt || invoice.updatedAt || '', who: resolveName(invoice.voidedBy, employees), what: 'Cancelled', detail: `Reason: ${invoice.voidReason || 'no reason given'}`, tone: 'text-rose-700', icon: <Ban className="h-3.5 w-3.5" /> });
     return out.sort((a, b) => (String(a.at) < String(b.at) ? -1 : 1));
   }, [invoice, employees]);
 
@@ -186,7 +196,7 @@ export const InvoiceHistoryModal: React.FC<{
   return (
     <Shell
       title="Bill History"
-      subtitle={`${invoice.invoiceNumber} • who created / edited / returned / voided this bill`}
+      subtitle={`${invoice.invoiceNumber} • created / edited / returned / exchanged / cancelled — with the reason for each`}
       icon={<History className="h-4 w-4" />}
       onClose={onClose}
       footer={<button type="button" onClick={onClose} className="px-4 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg">Close</button>}
@@ -207,7 +217,12 @@ export const InvoiceHistoryModal: React.FC<{
               <span className={`text-xs font-bold ${e.tone}`}>{e.what}</span>
               <span className="text-[11px] font-mono text-slate-400">{when(e.at)}</span>
             </div>
-            <div className="text-[11px] text-slate-500">by {e.who}</div>
+            {e.detail && (
+              <div className="text-[11px] text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 mt-1 whitespace-pre-wrap break-words">
+                {e.detail}
+              </div>
+            )}
+            <div className="text-[11px] text-slate-500 mt-0.5">by {e.who}</div>
           </li>
         ))}
       </ol>
