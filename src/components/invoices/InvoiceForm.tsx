@@ -196,6 +196,13 @@ export const InvoiceForm: React.FC<Props> = ({
   // dedupes by this key. An edit keeps the stored bill's key.
   const billKeyRef = useRef<string>('');
   if (!billKeyRef.current) billKeyRef.current = initialInvoice?.clientKey || newClientKey();
+  // STABLE id for this open bill, minted once with randomness (not `inv-${Date.now()}`
+  // re-generated per assemble). Two bills saved in the same millisecond used to get
+  // the same `inv-<ms>` id; now each tab has its own. (The server also re-mints a
+  // UUID for every new sale and dedupes retries by clientKey — this just keeps the
+  // client's optimistic id unique and stable before the server replies.)
+  const billIdRef = useRef<string>('');
+  if (!billIdRef.current) billIdRef.current = initialInvoice?.id || `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   // Invoice / Quotation Number
   const [invoiceNumber, setInvoiceNumber] = useState(() => {
@@ -1854,7 +1861,7 @@ export const InvoiceForm: React.FC<Props> = ({
     const primaryMode = finalSplits[0]?.mode || 'Cash';
 
     const newInvoice: Invoice = {
-      id: initialInvoice ? initialInvoice.id : `inv-${Date.now()}`,
+      id: initialInvoice ? initialInvoice.id : billIdRef.current,
       clientKey: billKeyRef.current, // stable per open bill → retries never duplicate
       invoiceNumber,
       branchId: selectedBranch,
