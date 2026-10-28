@@ -689,13 +689,23 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     const todayStr = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
     const inScope = (b: string) => isAllBranches || b === currentBranch;
     const scoped = invoices.filter((i) => !i.isVoided && i.date === todayStr && inScope(i.branchId) && inChannel(i));
-    const modeOf = (m: string) => { const x = String(m || '').trim().toLowerCase(); return x === 'cash' ? 'cash' : x === 'gpay' || x === 'upi' ? 'gpay' : x === 'hdfc' || x === 'card' || x === 'bank transfer' || x === 'cheque' ? 'hdfc' : ''; };
-    const by: Record<string, number> = { cash: 0, gpay: 0, hdfc: 0 };
+    // Normalise a payment mode to a display bucket. Cash & GPay have synonyms;
+    // every OTHER mode (HDFC, IOB, Card, Online, …) keeps its own name so NO mode
+    // is ever dropped. A custom bank mode like IOB used to vanish from the money
+    // tiles entirely because only cash/gpay/hdfc were recognised (owner, Oct 2026).
+    const norm = (m: string) => {
+      const x = String(m || '').trim().toLowerCase();
+      if (x === 'cash') return 'Cash';
+      if (x === 'gpay' || x === 'upi' || x === 'google pay' || x === 'googlepay') return 'GPay';
+      return String(m || '').trim() || 'Other';
+    };
+    const isStoreCredit = (m: string) => { const x = String(m || '').trim().toLowerCase(); return x === 'cod-credit' || x === 'store credit' || x === 'store-credit' || x === 'credit'; };
+    const by: Record<string, number> = {};
     let credit = 0;
     for (const inv of scoped) {
       for (const s of getInvoicePaymentSplits(inv)) {
-        if (s.mode === 'COD-Credit') credit += s.amount;
-        else if (modeOf(s.mode)) by[modeOf(s.mode)] += s.amount;
+        if (s.mode === 'COD-Credit') credit += Number(s.amount) || 0;
+        else { const k = norm(s.mode); by[k] = (by[k] || 0) + (Number(s.amount) || 0); }
       }
     }
     // AUDIT SEPARATION: a customer receipt belongs to the channel of the bill it
@@ -713,12 +723,19 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       channelScope === 'all' ? true : channelScope === 'online' ? paymentIsOnline(p) : !paymentIsOnline(p);
     for (const p of payments) {
       if (p.partyType !== 'customer' || p.date !== todayStr || !inScope(p.branchId) || !paymentInChannel(p)) continue;
-      const k = modeOf(p.paymentMode);
-      if (!k) continue; // store credit moves no money
-      by[k] += p.type === 'in' ? Number(p.amount) || 0 : -(Number(p.amount) || 0);
+      if (isStoreCredit(p.paymentMode)) continue; // store credit moves no real money
+      const k = norm(p.paymentMode);
+      by[k] = (by[k] || 0) + (p.type === 'in' ? Number(p.amount) || 0 : -(Number(p.amount) || 0));
     }
     const amount = periodSales(invoices.filter((i) => inScope(i.branchId) && inChannel(i)), (d) => d === todayStr).net;
-    return { count: scoped.length, amount, cash: by.cash, gpay: by.gpay, hdfc: by.hdfc, credit };
+    // One money tile per mode actually in use — Cash/GPay/HDFC always shown (the
+    // staples), then any other configured mode (IOB, …) with money. Nothing drops.
+    const PREFERRED = ['Cash', 'GPay', 'HDFC'];
+    const others = Object.keys(by).filter((m) => !PREFERRED.includes(m)).sort((a, b) => (by[b] || 0) - (by[a] || 0));
+    const modes = [...PREFERRED, ...others]
+      .filter((m) => PREFERRED.includes(m) || Math.abs(by[m] || 0) > 0.004)
+      .map((m) => ({ mode: m, amount: by[m] || 0 }));
+    return { count: scoped.length, amount, modes, credit };
   }, [invoices, payments, isAllBranches, currentBranch, channelScope]);
 
   // Running GPay/UPI balance: the go-live opening balance per branch (set by the
@@ -1232,12 +1249,21 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               {[
                 { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900', sub: 'Counter bills today' },
                 { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900', sub: 'Goods billed today (incl. credit)' },
-                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700', sub: 'Cash in today · incl. old-dues receipts, less refunds' },
-                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700', sub: 'GPay in today · incl. old-dues receipts, less refunds' },
-                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700', sub: 'HDFC in today · incl. old-dues receipts, less refunds' },
+                // One tile per payment mode actually in use (Cash, GPay, HDFC, IOB,
+                // …) so EVERY rupee collected shows — no mode is ever dropped.
+                ...todayStats.modes.map((m) => ({
+                  label: m.mode,
+                  value: formatCurrency(m.amount),
+                  tone: m.mode === 'Cash' ? 'text-emerald-700'
+                    : m.mode === 'GPay' ? 'text-blue-700'
+                    : m.mode === 'HDFC' ? 'text-indigo-700'
+                    : m.mode === 'Online' ? 'text-slate-700'
+                    : 'text-teal-700',
+                  sub: `${m.mode} in today · incl. old-dues receipts, less refunds`,
+                })),
                 // Credit tile so the money cards reconcile with Sales: a sale can
-                // be paid (cash/gpay/hdfc) or left on credit — this is today's
-                // unpaid portion. (Owner asked why Sales ≠ cash+gpay+hdfc, Oct 2026.)
+                // be paid (any mode) or left on credit — this is today's unpaid
+                // portion. (Owner asked why Sales ≠ sum of the mode tiles, Oct 2026.)
                 { label: 'Credit (due)', value: formatCurrency(todayStats.credit), tone: 'text-purple-700', sub: "Billed today, not yet paid" },
                 ...(gpayBalance.configured
                   ? [{ label: 'GPay Balance', value: formatCurrency(gpayBalance.amount), tone: 'text-blue-800', sub: 'Running · opening + GPay in − out' }]
