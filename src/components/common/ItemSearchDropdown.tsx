@@ -99,18 +99,18 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     const menuW = Math.min(Math.max(r.width, 360), vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
     const MAX = 340;
+    const GAP = 6;
     const below = vh - r.bottom - 10;
     const above = r.top - 10;
-    // ALWAYS drop the suggestions BELOW the field the user is typing in, so the
-    // list never covers the input and they can see what they type (billing
-    // staff's ask). The menu scrolls within whatever room is below. Only when
-    // there is almost no space below AND clearly more above (e.g. a row pinned
-    // to the very bottom of a short screen) does it flip up — and even then it
-    // sits entirely above the input's top, never over it.
-    if (below < 140 && above > below + 40) {
-      setMenuPos({ bottom: vh - r.top + 6, left, width: menuW, maxHeight: Math.min(MAX, above) });
+    // Place the suggestions where they actually FIT, and NEVER over the field
+    // being typed in. If a full menu fits below the input (or there is simply
+    // more room below than above) open downward; otherwise open UPWARD — so a
+    // row low on the screen keeps its input visible with the list rising above
+    // it, instead of a big panel cramming over the field (billing staff's ask).
+    if (below >= MAX || below >= above) {
+      setMenuPos({ top: r.bottom + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, below - GAP)) });
     } else {
-      setMenuPos({ top: r.bottom + 6, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, below)) });
+      setMenuPos({ bottom: vh - r.top + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, above - GAP)) });
     }
   };
   // Re-place once the menu has rendered and its real width is known.
