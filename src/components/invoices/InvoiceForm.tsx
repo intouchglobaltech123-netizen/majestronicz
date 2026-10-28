@@ -3905,6 +3905,8 @@ export const InvoiceForm: React.FC<Props> = ({
                       .map((e) => ({ value: e.id, label: e.name, sublabel: e.designation })),
                   ]}
                   placeholder="Select employee…"
+                  searchable
+                  searchPlaceholder="Type salesperson name…"
                   buttonClassName="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-900"
                 />
               </div>

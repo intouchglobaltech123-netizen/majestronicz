@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Plus, Check, X } from 'lucide-react';
+import { ChevronDown, Plus, Check, X, Search } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export interface DropdownSubOption {
@@ -41,6 +41,9 @@ export interface UniversalDropdownProps {
   buttonClassName?: string;
   menuClassName?: string;
   required?: boolean;
+  /** Show a type-to-filter search box at the top of the menu (long lists). */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
@@ -57,8 +60,12 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
   buttonClassName = '',
   menuClassName = '',
   required = false,
+  searchable = false,
+  searchPlaceholder = 'Type to search…',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   // Screen position of the row the flyout belongs to. The options list scrolls
   // and clips (max-h-52 overflow-y-auto), so a submenu positioned inside it is
@@ -99,11 +106,22 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
         setOpenSubmenu(null);
         setIsAddingNew(false);
         setNewOptionInput('');
+        setQuery('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Focus the search box the moment a searchable menu opens, and clear the
+  // filter when it closes, so staff can just open and start typing a name.
+  useEffect(() => {
+    if (isOpen && searchable) {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+    if (!isOpen) setQuery('');
+  }, [isOpen, searchable]);
 
   // Auto-focus input when "+ Add New" is clicked
   useEffect(() => {
@@ -119,7 +137,18 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
     setIsOpen(false);
     setIsAddingNew(false);
     setNewOptionInput('');
+    setQuery('');
   };
+
+  // Type-to-filter: match the typed text against each option's label/sublabel
+  // (and any submenu entry labels), case-insensitively. Off unless `searchable`.
+  const q = query.trim().toLowerCase();
+  const visibleOptions = searchable && q
+    ? options.filter((o) =>
+        String(o.label).toLowerCase().includes(q) ||
+        String(o.sublabel || '').toLowerCase().includes(q) ||
+        (o.submenu || []).some((s) => String(s.label).toLowerCase().includes(q)))
+    : options;
 
   const handleSaveNew = () => {
     const trimmed = newOptionInput.trim();
@@ -177,14 +206,42 @@ export const UniversalDropdown: React.FC<UniversalDropdownProps> = ({
             menuClassName
           )}
         >
+          {/* Search box (opt-in) */}
+          {searchable && (
+            <div className="p-1.5 border-b border-slate-200 bg-slate-50">
+              <div className="relative">
+                <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const first = visibleOptions.find((o) => !o.submenu?.length);
+                      if (first) handleSelect(first.value);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      if (query) setQuery('');
+                      else setIsOpen(false);
+                    }
+                  }}
+                  placeholder={searchPlaceholder}
+                  className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-none focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 text-slate-900 placeholder-slate-400 font-medium"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Options List */}
           <div className="max-h-52 overflow-y-auto divide-y divide-slate-100">
-            {options.length === 0 ? (
+            {visibleOptions.length === 0 ? (
               <div className="px-3.5 py-2.5 text-xs text-slate-400 text-center">
-                No options available
+                {searchable && q ? 'No matches' : 'No options available'}
               </div>
             ) : (
-              options.map((opt) => {
+              visibleOptions.map((opt) => {
                 const isSelected = String(opt.value) === String(value);
 
                 if (opt.submenu?.length) {
