@@ -489,6 +489,11 @@ export const InvoiceForm: React.FC<Props> = ({
   });
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState<number>(0);
+  // Mandatory "payment received" confirmation (owner): staff must tick this
+  // before a bill can be saved, so they consciously confirm the money came in
+  // and the payment mode is right — instead of leaving the default Cash by
+  // accident when it was actually GPay. Pre-ticked when editing a saved bill.
+  const [paymentReceived, setPaymentReceived] = useState<boolean>(() => !!initialInvoice);
 
   // Overall Discount & Shipping
   const [overallDiscountType, setOverallDiscountType] = useState<DiscountType>('%');
@@ -2083,6 +2088,12 @@ export const InvoiceForm: React.FC<Props> = ({
         toast.error('Enter a full 10-digit mobile number, or leave it blank', { description: 'A half-typed number is not allowed — clear it to bill with the name only.' });
         return;
       }
+      // Mandatory "Received" confirmation — forces the cashier to check the
+      // payment mode before saving (so it isn't left on the default Cash).
+      if (!paymentReceived) {
+        toast.error('Tick "Received" to confirm the payment', { description: 'Check the payment mode above is correct, then tick Received to save the bill.' });
+        return;
+      }
     }
 
     // Duplicate-bill guard (NEW sales only): if the same customer + the exact
@@ -2639,10 +2650,10 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => handleSave()}
-            disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
+            disabled={isSaving || (documentType === 'Invoice' && (!isPaymentReconciled || !paymentReceived))}
             className={cn(
               "flex items-center gap-2 px-5 py-2 text-xs font-bold text-white rounded-none border transition-colors shadow-none cursor-pointer",
-              documentType === 'Invoice' && !isPaymentReconciled
+              documentType === 'Invoice' && (!isPaymentReconciled || !paymentReceived)
                 ? "bg-slate-400 border-slate-500 cursor-not-allowed opacity-60"
                 : documentType === 'Quotation'
                 ? "bg-slate-800 hover:bg-slate-900 border-slate-900"
@@ -2651,6 +2662,8 @@ export const InvoiceForm: React.FC<Props> = ({
             title={
               documentType === 'Invoice' && !isPaymentReconciled
                 ? `Reconcile payment splits: ${remainingBalance > 0 ? `₹${remainingBalance} remaining` : `₹${Math.abs(remainingBalance)} over`}`
+                : documentType === 'Invoice' && !paymentReceived
+                ? 'Tick "Received" (below the payment mode) to confirm the payment before saving'
                 : undefined
             }
           >
@@ -3490,6 +3503,31 @@ export const InvoiceForm: React.FC<Props> = ({
                   )}
                 </div>
               )}
+
+              {/* Mandatory "Received" confirmation — the bill can't be saved
+                  until the cashier ticks it, so the payment mode is never left
+                  on the default Cash by mistake. */}
+              <label
+                className={cn(
+                  'mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 cursor-pointer select-none transition-colors',
+                  paymentReceived
+                    ? 'bg-emerald-50 border-emerald-400'
+                    : 'bg-amber-50 border-amber-400 animate-pulse'
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={paymentReceived}
+                  onChange={(e) => setPaymentReceived(e.target.checked)}
+                  className="h-5 w-5 accent-emerald-600 cursor-pointer shrink-0"
+                />
+                <span className="text-sm font-extrabold text-slate-900">Received</span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {paymentReceived
+                    ? '— payment confirmed by the mode above'
+                    : '— tick after confirming the payment & mode (required to save)'}
+                </span>
+              </label>
             </div>
           ) : (
             <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-5 shadow-xs space-y-2">
@@ -3970,7 +4008,7 @@ export const InvoiceForm: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => handleSave()}
-            disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
+            disabled={isSaving || (documentType === 'Invoice' && (!isPaymentReconciled || !paymentReceived))}
             className={cn(
               "w-full py-3 rounded-none text-white font-bold text-xs shadow-none border transition-colors flex items-center justify-center gap-2 cursor-pointer",
               documentType === 'Invoice' && !isPaymentReconciled
@@ -4113,7 +4151,7 @@ export const InvoiceForm: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => handleSave()}
-          disabled={isSaving || (documentType === 'Invoice' && !isPaymentReconciled)}
+          disabled={isSaving || (documentType === 'Invoice' && (!isPaymentReconciled || !paymentReceived))}
           className={cn(
             'flex items-center gap-2 px-5 py-2.5 rounded-none text-white font-bold text-xs border transition-colors shrink-0 cursor-pointer',
             documentType === 'Invoice' && !isPaymentReconciled
