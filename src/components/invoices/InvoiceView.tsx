@@ -441,7 +441,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // Helper for computing sale status — uses the single finance-truth (nets returns).
   const getSaleStatus = (inv: Invoice): { label: string; color: string } => {
     if (inv.isVoided) {
-      return { label: 'Voided', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+      return { label: 'Cancelled', color: 'bg-rose-50 text-rose-700 border-rose-200' };
     }
     const fin = computeInvoiceFinance(inv);
     if (fin.due > 0) {
@@ -1331,7 +1331,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
               </span>
               {voidedCount > 0 && (
                 <span className="text-[11px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold border border-rose-200">
-                  {voidedCount} Voided
+                  {voidedCount} Cancelled
                 </span>
               )}
               {historyLoading && (
