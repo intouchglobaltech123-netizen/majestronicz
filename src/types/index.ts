@@ -496,6 +496,9 @@ export const onlinePipelineIndex = (status?: OnlineOrderStatus): number => {
 
 export interface Invoice {
   id: string;
+  // Idempotency key minted once per bill by the browser (survives save retries).
+  // Lets a retried save return the already-stored bill instead of duplicating it.
+  clientKey?: string;
   invoiceNumber: string; // e.g. MZERD26-27/7307
   branchId: BranchId;
   transactionType: TransactionType; // Credit vs Cash toggle at top

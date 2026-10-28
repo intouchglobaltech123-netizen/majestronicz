@@ -385,6 +385,23 @@ export function createSale(inv: any, reqUser?: any) {
     // the branch (spurious DAY_CLOSED). An edit keeps the stored bill's date; a
     // new sale must state one.
     const stored = inv.id ? await tx.invoice.findUnique({ where: { id: inv.id } }) : null;
+    // RELIABILITY / idempotent retry — checked FIRST, before the day-open and
+    // stock guards: a brand-new save whose clientKey already belongs to a stored
+    // bill is a RETRY of a save that DID reach the DB (its reply was lost, e.g.
+    // the API restarted mid-request during a deploy). Return that already-saved
+    // bill unchanged — never mint a second invoice number, move stock twice, or
+    // get blocked by a day that has since closed. (Edits send the bill's real id,
+    // so `stored` is found and this is skipped.)
+    if (!stored && inv.clientKey) {
+      const prior = await tx.invoice.findFirst({ where: { clientKey: String(inv.clientKey) } });
+      if (prior) {
+        const delta = await saleDelta(tx, {
+          invoiceIds: [prior.id], customerIds: [prior.customerId].filter(Boolean) as string[],
+          branchId: prior.branchId, itemIds: [], logs: [],
+        });
+        return { ...delta, savedInvoice: prior };
+      }
+    }
     if (!inv.date) {
       if (!stored) throw new AppError('DATE_REQUIRED', 'The bill date is required.', 400);
       inv.date = stored.date;

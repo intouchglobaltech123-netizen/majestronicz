@@ -165,6 +165,13 @@ model DeliveryChallan {
 model Invoice {
   id                        String   @id
   invoiceNumber             String   @unique
+  // Idempotency key minted ONCE by the browser per bill and resent on every
+  // retry. If a save reaches the DB but its reply is lost (e.g. a Railway
+  // redeploy restarts the API mid-request), the browser retries with the same
+  // key and the server returns the already-saved bill instead of creating a
+  // duplicate. Null for bills saved before this field existed (Postgres allows
+  // many NULLs under a unique index, so old rows are fine).
+  clientKey                 String?  @unique
   branchId                  String
   transactionType           String
   customerId                String?

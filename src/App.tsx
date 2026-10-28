@@ -5,6 +5,7 @@ import { TopBar } from './components/layout/TopBar';
 import { InvoiceView } from './components/invoices/InvoiceView';
 import { ThemeSettingsProvider } from './context/ThemeSettingsContext';
 import { GlobalKeyboardShortcuts } from './components/common/GlobalKeyboardShortcuts';
+import { UnsavedBillsBanner } from './components/common/UnsavedBillsBanner';
 import { Toaster } from 'sonner';
 import { Minimize2 } from 'lucide-react';
 import { getIsFullscreen, enterNativeFullscreen, exitNativeFullscreen } from './lib/utils';
@@ -288,6 +289,9 @@ const AppContent: React.FC = () => {
 
       {/* App-wide keyboard navigation (press ? for help) */}
       <GlobalKeyboardShortcuts />
+
+      {/* Reliability: a loud banner if any bill hasn't reached the server yet */}
+      <UnsavedBillsBanner />
 
       {/* Sonner Toast Notifications */}
       {/* Top centre, below the top bar (INV4-14): bottom-right toasts sat on top

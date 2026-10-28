@@ -58,6 +58,7 @@ import {
 import { toast } from 'sonner';
 import { CameraScanModal } from '../common/CameraScanModal';
 import { printThermalReceipt, isThermalAutoPrintOn } from '../../lib/thermalReceipt';
+import { newClientKey } from '../../lib/saveOutbox';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
 import { UniversalDropdown } from '../common/UniversalDropdown';
 import { PhoneInput } from '../common/PhoneInput';
@@ -187,6 +188,14 @@ export const InvoiceForm: React.FC<Props> = ({
   const [transactionType, setTransactionType] = useState<TransactionType>(() => {
     return initialInvoice ? initialInvoice.transactionType : 'Cash';
   });
+
+  // Stable idempotency key for THIS open bill — minted once per form (per open
+  // tab) and reused on every Save, manual re-save and auto-retry. This is what
+  // guarantees that pressing Save twice during an outage, or an auto-retry of a
+  // save whose reply was lost, can never create a duplicate bill: the backend
+  // dedupes by this key. An edit keeps the stored bill's key.
+  const billKeyRef = useRef<string>('');
+  if (!billKeyRef.current) billKeyRef.current = initialInvoice?.clientKey || newClientKey();
 
   // Invoice / Quotation Number
   const [invoiceNumber, setInvoiceNumber] = useState(() => {
@@ -1842,6 +1851,7 @@ export const InvoiceForm: React.FC<Props> = ({
 
     const newInvoice: Invoice = {
       id: initialInvoice ? initialInvoice.id : `inv-${Date.now()}`,
+      clientKey: billKeyRef.current, // stable per open bill → retries never duplicate
       invoiceNumber,
       branchId: selectedBranch,
       transactionType,

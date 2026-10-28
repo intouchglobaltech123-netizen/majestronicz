@@ -4,6 +4,7 @@ import { readScoped, writeScoped, removeScoped } from '../lib/userPrefs';
 import { getTodayDateString, formatCurrency, nameWithRole } from '../lib/utils';
 import { reorderThresholdOf, stockStatusOf, ItemSales90d, StockStatus } from '../lib/stockThreshold';
 import { makeOpeningLookup } from '../lib/cashClosing';
+import { enqueueBill, removeBill, markBillAttempt, getOutbox, newClientKey } from '../lib/saveOutbox';
 
 /**
  * Persists a collection to the backend whenever it changes, so Postgres always
@@ -222,6 +223,8 @@ interface ErpContextType {
   // Sales Invoices (Core Billing)
   invoices: Invoice[];
   saveInvoice: (invoice: Invoice) => Promise<Invoice | undefined>;
+  /** Retry every bill still waiting in the on-device save outbox (manual kick). */
+  flushOutbox: () => Promise<void>;
   deleteInvoice: (invoiceId: string) => void;
   voidInvoice: (invoiceId: string, reason: string) => void;
   importShopifyOrder: (externalOrderId: string) => Promise<{ ok: boolean; orderNo?: string }>;
@@ -2854,6 +2857,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const actorLabel = () => nameWithRole(currentUser.name, currentUser.role);
 
+  // A server-REFUSED-the-data error (bad mode, closed day, no stock, …) will
+  // never succeed on retry, so such a bill must NOT stay queued. Connectivity
+  // errors (no status, 5xx, or a timeout/429) DO retry; 401 stays queued so it
+  // retries after re-login.
+  const isPermanentSaveError = (e: any): boolean => {
+    const s = Number(e?.status);
+    return s >= 400 && s < 500 && s !== 401 && s !== 408 && s !== 429;
+  };
+
   const saveInvoice = async (newInvoice: Invoice) => {
     // Prevent backdating into a closed register
     if (isDayClosed(newInvoice.branchId, newInvoice.date)) {
@@ -2863,14 +2875,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    // RELIABILITY: stamp a stable idempotency key (once) and park the whole bill
+    // in the on-device outbox BEFORE the network call. If the server restarts
+    // mid-save (e.g. a deploy) the bill can never be lost — it auto-retries, and
+    // the clientKey stops a retry from ever creating a duplicate.
+    const invoice: Invoice = { ...newInvoice, clientKey: newInvoice.clientKey || newClientKey() };
+    const wasEdit = invoices.some((i) => i.id === invoice.id);
+    enqueueBill(invoice);
+
     try {
-      const snap = await apiPost<any>('/api/tx/sale', newInvoice);
+      const snap = await apiPost<any>('/api/tx/sale', invoice);
       applySaleSnapshot(snap);
+      removeBill(invoice.clientKey!); // confirmed in the DB — drop the local copy
       // The server assigns the authoritative id, invoice number and reconciled
       // payment split — use that saved row for the toast and the preview (SAL4-1).
-      const saved: Invoice = (snap?.savedInvoice as Invoice) || newInvoice;
-      // TOAST-1: an edit is "updated" (the stock moves only by the difference, if any).
-      const wasEdit = invoices.some((i) => i.id === newInvoice.id);
+      const saved: Invoice = (snap?.savedInvoice as Invoice) || invoice;
       // SAL9-15: name every mode the bill was split into, not just the first.
       const modes = getInvoicePaymentSplits(saved)
         .filter((sp) => (Number(sp.amount) || 0) > 0)
@@ -2882,15 +2901,90 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return saved;
     } catch (e: any) {
       if (String(e?.message || '').includes('DAY_CLOSED')) {
+        removeBill(invoice.clientKey!);
         toast.error('Cannot save invoice on a closed day', {
           description: `Daily cash register for ${newInvoice.date} at this branch is already closed. Please select an open date.`,
         });
-      } else {
-        toast.error('Failed to save invoice', { description: e?.message ?? 'Backend error' });
+        return undefined;
       }
+      if (isPermanentSaveError(e)) {
+        // The server rejected the bill's DATA — retrying can't help. Surface the
+        // real reason and drop it from the outbox so it isn't retried forever.
+        removeBill(invoice.clientKey!);
+        toast.error('Bill not saved', { description: e?.message ?? 'The server refused this bill.' });
+        return undefined;
+      }
+      // Server unreachable / down (the deploy-restart case). The bill is safe in
+      // the outbox and will finish saving automatically — tell staff NOT to
+      // re-enter it (a re-entry is deduped by clientKey anyway).
+      markBillAttempt(invoice.clientKey!, e?.message);
+      toast.info('Saved on this device — will finish saving automatically', {
+        description: 'The server is unreachable right now. This bill is kept safe and submitted the moment the connection is back. Do NOT re-enter it.',
+        duration: 9000,
+      });
+      void flushOutbox();
       return undefined;
     }
   };
+
+  // ---- Save outbox retry loop ------------------------------------------------
+  // Re-submits every bill still waiting in the on-device outbox. Safe to call
+  // anytime: already-saved bills are returned by their clientKey (no duplicate),
+  // data-refused bills are dropped, connectivity failures stay queued.
+  const flushingRef = useRef(false);
+  const flushOutbox = useCallback(async () => {
+    if (flushingRef.current) return;
+    const queue = getOutbox();
+    if (!queue.length) return;
+    flushingRef.current = true;
+    try {
+      for (const entry of queue) {
+        // Already in state (the inline save landed it) — just clean the queue,
+        // never re-post it.
+        if (invoices.some((i) => i.clientKey && i.clientKey === entry.clientKey)) {
+          removeBill(entry.clientKey);
+          continue;
+        }
+        try {
+          const snap = await apiPost<any>('/api/tx/sale', entry.invoice);
+          applySaleSnapshot(snap);
+          removeBill(entry.clientKey);
+          const saved: Invoice = (snap?.savedInvoice as Invoice) || entry.invoice;
+          toast.success(`Pending bill ${saved.invoiceNumber || ''} saved`, {
+            description: `${saved.customerName || ''} • ₹${(saved.grandTotal || 0).toLocaleString('en-IN')} — now in history.`,
+          });
+        } catch (e: any) {
+          if (isPermanentSaveError(e)) {
+            removeBill(entry.clientKey);
+            toast.error('A pending bill could not be saved', {
+              description: `${entry.customerName || 'Bill'} • ₹${(entry.grandTotal || 0).toLocaleString('en-IN')}: ${e?.message ?? 'rejected by server'}. Please re-check and re-enter it.`,
+            });
+          } else {
+            // Still unreachable — keep it and stop this pass; the interval/online
+            // listener will try again shortly.
+            markBillAttempt(entry.clientKey, e?.message);
+            break;
+          }
+        }
+      }
+    } finally {
+      flushingRef.current = false;
+    }
+  }, [applySaleSnapshot, invoices]);
+
+  // Drive the retry loop: once on mount, whenever the browser regains network,
+  // and on a steady interval while anything is still waiting. The interval is
+  // set up ONCE (via a ref to the latest flushOutbox) so frequent re-renders
+  // can't keep clearing it before the 20s tick fires.
+  const flushRef = useRef(flushOutbox);
+  flushRef.current = flushOutbox;
+  useEffect(() => {
+    const run = () => { void flushRef.current(); };
+    run();
+    window.addEventListener('online', run);
+    const id = window.setInterval(() => { if (getOutbox().length) run(); }, 20000);
+    return () => { window.removeEventListener('online', run); window.clearInterval(id); };
+  }, []);
 
   const deleteInvoice = async (invoiceId: string) => {
     try {
@@ -4465,6 +4559,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getNextChallanNumber,
         invoices,
         saveInvoice,
+        flushOutbox,
         importShopifyOrder,
         resetOnlineProcessing,
         restoreOnlineProcessing,
