@@ -418,7 +418,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // 'store' = this branch's own bills only; 'online' = Shopify only; 'all' = both.
   const [channelScope, setChannelScope] = useState<'store' | 'online' | 'all'>('store');
   const inChannel = (inv: Invoice) => {
-    const isOnline = inv.sourceChannel === 'shopify';
+    // Any online-origin bill (shopify, shopify-demo, …) counts as ONLINE, so an
+    // online order can never leak into the counter "Store bills" sales totals.
+    const isOnline = String(inv.sourceChannel || '').startsWith('shopify');
     return channelScope === 'all' ? true : channelScope === 'online' ? isOnline : !isOnline;
   };
 
@@ -1215,11 +1217,15 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
           {activeTab === 'ledger' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
-                { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900', sub: 'Today' },
-                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900', sub: 'Today' },
-                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700', sub: 'Today · incl. receipts, less refunds' },
-                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700', sub: 'Today · incl. receipts, less refunds' },
-                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700', sub: 'Today · incl. receipts, less refunds' },
+                { label: 'Bills Today', value: String(todayStats.count), tone: 'text-slate-900', sub: 'Counter bills today' },
+                { label: 'Sales', value: formatCurrency(todayStats.amount), tone: 'text-slate-900', sub: 'Goods billed today (incl. credit)' },
+                { label: 'Cash', value: formatCurrency(todayStats.cash), tone: 'text-emerald-700', sub: 'Cash in today · incl. old-dues receipts, less refunds' },
+                { label: 'GPay', value: formatCurrency(todayStats.gpay), tone: 'text-blue-700', sub: 'GPay in today · incl. old-dues receipts, less refunds' },
+                { label: 'HDFC', value: formatCurrency(todayStats.hdfc), tone: 'text-indigo-700', sub: 'HDFC in today · incl. old-dues receipts, less refunds' },
+                // Credit tile so the money cards reconcile with Sales: a sale can
+                // be paid (cash/gpay/hdfc) or left on credit — this is today's
+                // unpaid portion. (Owner asked why Sales ≠ cash+gpay+hdfc, Oct 2026.)
+                { label: 'Credit (due)', value: formatCurrency(todayStats.credit), tone: 'text-purple-700', sub: "Billed today, not yet paid" },
                 ...(gpayBalance.configured
                   ? [{ label: 'GPay Balance', value: formatCurrency(gpayBalance.amount), tone: 'text-blue-800', sub: 'Running · opening + GPay in − out' }]
                   : []),

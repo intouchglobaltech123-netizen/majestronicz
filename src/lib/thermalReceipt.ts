@@ -1,5 +1,4 @@
-import QRCode from 'qrcode';
-import { Invoice, CompanyProfile, customerWebsite } from '../types';
+import { Invoice, CompanyProfile } from '../types';
 
 /**
  * Thermal (80mm) receipt printing for sale bills — the small department-store
@@ -44,16 +43,18 @@ const money = (n: number): string => (Number(n) || 0).toFixed(2);
 /** Build the receipt HTML for one sale bill, sized to the chosen paper width.
  *  `logoDataUrl`, when given, prints the Majestronicz logo at the very top in
  *  place of the shop-name text (the rest of the format is unchanged). */
-export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth(), logoDataUrl?: string, websiteQrDataUrl?: string): string => {
+export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth(), logoDataUrl?: string): string => {
   // Narrow (58mm) paper gets smaller fonts and tighter columns than 80mm.
   const narrow = widthMm === 58;
-  const pad = narrow ? '2mm 2.5mm 4mm' : '3mm 3.5mm 5mm';
-  // Larger fonts than before: bigger glyphs have thicker strokes, so the thermal
-  // head burns them darker and they stay legible instead of fading.
-  const fHd = narrow ? 15 : 17;
-  const fItem = narrow ? 11 : 13;
-  const fTot = narrow ? 12 : 14;
-  const fGrand = narrow ? 15 : 17;
+  // Tighter padding than before — the client wanted a shorter slip to save
+  // thermal roll (Oct 2026). Still readable, not cramped.
+  const pad = narrow ? '1.5mm 2.5mm 3mm' : '2mm 3mm 3.5mm';
+  // Fonts a notch smaller than the old "big" slip (client: not too big, not
+  // too small) — strokes stay bold so the thermal head still burns them solid.
+  const fHd = narrow ? 13 : 15;
+  const fItem = narrow ? 11 : 12;
+  const fTot = narrow ? 11 : 13;
+  const fGrand = narrow ? 14 : 16;
   const aW = narrow ? 16 : 20;
   const gW = narrow ? 9 : 12;
   const items = Array.isArray(inv.items) ? inv.items : [];
@@ -115,7 +116,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
        no longer anti-alias to grey and fade — every line burns solid black.
        The printer's own Density/Darkness setting is still the main lever if it
        is set low. */
-    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; font-weight: 700; -webkit-font-smoothing: none; -webkit-text-stroke: 0.3px #000; }
+    body { width: ${widthMm}mm; font-family: 'Courier New', monospace; color: #000; font-weight: 700; -webkit-font-smoothing: none; -webkit-text-stroke: 0.38px #000; }
     .r { padding: ${pad}; }
     .c { text-align: center; }
     .b { font-weight: 700; }
@@ -123,7 +124,7 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     .ttl { font-size: ${fItem + 1}px; font-weight: 800; }
     .sm { font-size: ${narrow ? 10 : 12}px; line-height: 1.45; }
     .xs { font-size: ${narrow ? 9 : 11}px; }
-    hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
+    hr { border: none; border-top: 1px dashed #000; margin: 1.2mm 0; }
     table { width: 100%; border-collapse: collapse; }
     td { font-size: ${fItem}px; vertical-align: top; padding: 0; }
     thead td { font-weight: 700; border-bottom: 1px solid #000; padding-bottom: 1mm; }
@@ -139,16 +140,18 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
   </style></head>
   <body><div class="r">
     ${logoDataUrl
-      ? `<div class="c" style="margin-bottom:1.5mm"><img src="${logoDataUrl}" alt="MAJESTRONICZ" style="width:${narrow ? 44 : 58}mm;max-width:100%;height:auto;object-fit:contain;filter:grayscale(1) brightness(0.9) contrast(2.8);"/></div>`
-      : `<div class="c hd">${esc(company.name || 'RETAIL INVOICE')}</div>`}
-    <div class="c sm">${esc(company.address || '')}</div>
-    <div class="c sm">${company.phone ? 'PHONE : ' + esc(company.phone) : ''}</div>
-    <div class="c sm">${company.gstin ? 'GSTIN : ' + esc(company.gstin) : ''}</div>
-    <div class="c ttl" style="margin-top:2mm">Retail Invoice</div>
+      ? `<div class="c" style="margin-bottom:1mm"><img src="${logoDataUrl}" alt="MAJESTRONICZ" style="width:${narrow ? 26 : 34}mm;max-width:100%;height:auto;object-fit:contain;filter:grayscale(1) brightness(0.9) contrast(2.8);"/></div>`
+      : `<div class="c hd">${esc(company.name || 'MAJESTRONICZ')}</div>`}
+    <!-- Header kept minimal per client: logo, "Erode", shop phone only.
+         Address & GSTIN removed from the thermal slip (Oct 2026). -->
+    <div class="c sm b" style="margin-top:0.5mm">Erode</div>
+    ${company.phone ? `<div class="c sm">${esc(company.phone)}</div>` : ''}
+    <div class="c ttl" style="margin-top:1.5mm">Retail Invoice</div>
     <hr/>
     <div class="sm"><span class="b">Date :</span> ${esc(inv.date || '')}${inv.time ? ', ' + esc(inv.time) : ''}</div>
-    ${inv.customerName ? `<div class="sm b" style="margin-top:1mm">${esc(inv.customerName)}</div>` : ''}
-    ${inv.customerPhone ? `<div class="sm">${esc(inv.customerPhone)}</div>` : ''}
+    ${(inv.customerName || inv.customerPhone)
+      ? `<div class="sm b" style="margin-top:1mm">${esc(inv.customerName || 'Walk-in')}${inv.customerPhone ? ' - ' + esc(inv.customerPhone) : ''}</div>`
+      : ''}
     <div class="sm" style="margin-top:1mm"><span class="b">Bill No:</span> ${esc(inv.invoiceNumber)}</div>
     ${hidePayment ? '' : `<div class="sm"><span class="b">Payment Mode:</span> ${esc(inv.paymentMode || 'Cash')}</div>`}
     <hr/>
@@ -178,9 +181,6 @@ export const buildThermalReceiptHtml = (inv: Invoice, company: CompanyProfile, w
     <div class="c xs b">E & O E</div>
     <div class="c foot">Thank you! Visit again.</div>
     ${!hidePayment && company.upiId ? `<div class="c xs">UPI: ${esc(company.upiId)}</div>` : ''}
-    ${websiteQrDataUrl
-      ? `<div class="c" style="margin-top:2mm"><img src="${websiteQrDataUrl}" alt="website" style="width:${narrow ? 18 : 22}mm;height:${narrow ? 18 : 22}mm;"/><div class="c xs">Scan to visit our website</div></div>`
-      : ''}
   </div></body></html>`;
 };
 
@@ -226,12 +226,7 @@ const waitForImages = (win: Window | null): Promise<void> =>
 export const printThermalReceipt = async (inv: Invoice, company: CompanyProfile, widthMm: ThermalWidth = getThermalWidth()): Promise<void> => {
   try {
     const logo = await loadLogoDataUrl();
-    // A QR that opens the public website (majestronicz.in), never the ERP app URL.
-    let websiteQr: string | undefined;
-    try {
-      websiteQr = await QRCode.toDataURL(customerWebsite(company.website), { margin: 1, width: 160 });
-    } catch { websiteQr = undefined; }
-    const html = buildThermalReceiptHtml(inv, company, widthMm, logo || undefined, websiteQr);
+    const html = buildThermalReceiptHtml(inv, company, widthMm, logo || undefined);
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });

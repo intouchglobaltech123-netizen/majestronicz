@@ -313,7 +313,9 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <tr className="border-b border-black text-[10px]">
                   <th className="border-r border-black px-1 py-1 w-9 text-center align-middle">Sl<br/>No.</th>
                   <th className="border-r border-black px-2 py-1 text-left align-middle">Description of Goods</th>
-                  <th className="border-r border-black px-1 py-1 w-16 text-center align-middle">HSN/SAC</th>
+                  {/* HSN/SAC column shows ONLY on a GST tax invoice — a normal
+                      Bill of Supply has no HSN column at all (client, Oct 2026). */}
+                  {invoice.withGst && <th className="border-r border-black px-1 py-1 w-16 text-center align-middle">HSN/SAC</th>}
                   <th className="border-r border-black px-1 py-1 w-20 text-right align-middle">Quantity</th>
                   <th className="border-r border-black px-1 py-1 w-16 text-right align-middle">Rate</th>
                   <th className="border-r border-black px-1 py-1 w-10 text-center align-middle">per</th>
@@ -323,7 +325,9 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
               </thead>
               <tbody className="align-top">
                 {invoice.items.map((item, idx) => (
-                  <tr key={item.id}>
+                  // A full line under every product so quantities/rates don't run
+                  // into the next item's (client readability request, Oct 2026).
+                  <tr key={item.id} className="border-b border-black">
                     <td className="border-r border-black px-1 py-0.5 text-center">{idx + 1}</td>
                     <td className="border-r border-black px-2 py-0.5">
                       <span className="font-semibold">{item.itemName}</span>
@@ -339,7 +343,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                         ) : null;
                       })()}
                     </td>
-                    <td className="border-r border-black px-1 py-0.5 text-center">{item.itemHSN || '—'}</td>
+                    {invoice.withGst && <td className="border-r border-black px-1 py-0.5 text-center">{item.itemHSN || '—'}</td>}
                     <td className="border-r border-black px-1 py-0.5 text-right whitespace-nowrap">{item.quantity} {item.unit}</td>
                     <td className="border-r border-black px-1 py-0.5 text-right">{n2(item.unitPrice)}</td>
                     <td className="border-r border-black px-1 py-0.5 text-center">{item.unit}</td>
@@ -352,7 +356,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <tr>
                   <td className="border-r border-black" />
                   <td className="border-r border-black px-2 py-0.5" />
-                  <td className="border-r border-black" />
+                  {invoice.withGst && <td className="border-r border-black" />}
                   <td className="border-r border-black" />
                   <td className="border-r border-black" />
                   <td className="border-r border-black" />
@@ -365,7 +369,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   <tr>
                     <td className="border-r border-black" />
                     <td className="border-r border-black px-2 py-0.5 text-right italic">Less : Discount</td>
-                    <td className="border-r border-black" />
+                    {invoice.withGst && <td className="border-r border-black" />}
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
@@ -379,7 +383,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   <tr>
                     <td className="border-r border-black" />
                     <td className="border-r border-black px-2 py-0.5 text-right">Shipping Charges</td>
-                    <td className="border-r border-black" />
+                    {invoice.withGst && <td className="border-r border-black" />}
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
@@ -407,7 +411,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                   <tr>
                     <td className="border-r border-black" />
                     <td className="border-r border-black px-2 py-0.5 text-right italic">Round Off</td>
-                    <td className="border-r border-black" />
+                    {invoice.withGst && <td className="border-r border-black" />}
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
                     <td className="border-r border-black" />
@@ -420,7 +424,7 @@ export const InvoicePdfModal: React.FC<Props> = ({ invoice, isOpen, onClose }) =
                 <tr className="border-t border-black font-bold">
                   <td className="border-r border-black" />
                   <td className="border-r border-black px-2 py-1 text-right">Total</td>
-                  <td className="border-r border-black" />
+                  {invoice.withGst && <td className="border-r border-black" />}
                   <td className="border-r border-black px-1 py-1 text-right whitespace-nowrap">{qtyTotalLabel}</td>
                   <td className="border-r border-black" />
                   <td className="border-r border-black" />
