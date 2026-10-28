@@ -1509,8 +1509,12 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Calculate aggregated invoice totals
   const totals = useMemo(() => {
+    // Only rows with a product/description count toward the bill — a blank row
+    // (no name) can never add its stray qty×price to the total, even if some
+    // amount lingered on it. Save already filters the same way.
+    const billableLines = lineItems.filter((l) => l.itemName && l.itemName.trim());
     return calculateInvoiceTotals(
-      lineItems,
+      billableLines,
       withGst,
       overallDiscountType,
       overallDiscountValue,
@@ -2751,6 +2755,10 @@ export const InvoiceForm: React.FC<Props> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
               {lineItems.map((item, idx) => {
+                // A row with no product picked/typed is just the blank "add item"
+                // row — quantity, price and discount stay locked there so a
+                // nameless line can never carry an amount into the bill total.
+                const hasProduct = !!(item.itemName && item.itemName.trim());
                 return (
                   <tr
                     key={item.id}
@@ -2812,7 +2820,8 @@ export const InvoiceForm: React.FC<Props> = ({
                         data-testid="line-qty"
                         aria-label={`Quantity, line ${idx + 1}`}
                         aria-invalid={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity))}
-                        title={lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? `${(item.unit || '').toUpperCase()} is counted in whole numbers` : undefined}
+                        disabled={!hasProduct}
+                        title={!hasProduct ? 'Pick a product first' : (lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? `${(item.unit || '').toUpperCase()} is counted in whole numbers` : undefined)}
                         onChange={(e) => updateLineItem(item.id, { quantity: Number(e.target.value) })}
                         onKeyDown={(e) => {
                           // Real-billing shortcut: Enter on the last row's qty adds a fresh item row.
@@ -2821,7 +2830,7 @@ export const InvoiceForm: React.FC<Props> = ({
                             addNewRow();
                           }
                         }}
-                        className={cn("w-full px-2 py-1.5 rounded-lg bg-slate-50 border text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono", lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? "border-rose-500 bg-rose-50" : "border-slate-200")}
+                        className={cn("w-full px-2 py-1.5 rounded-lg bg-slate-50 border text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed", lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? "border-rose-500 bg-rose-50" : "border-slate-200")}
                       />
                     </td>
 
@@ -2846,8 +2855,9 @@ export const InvoiceForm: React.FC<Props> = ({
                         value={item.unitPrice}
                         onChange={(e) => updateLineItem(item.id, { unitPrice: Number(e.target.value) })}
                         readOnly={!hasFlag('bill.editPrice')}
-                        className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
-                        title={hasFlag('bill.editPrice') ? 'Override price for this invoice. Never mutates catalog.' : 'Price editing is not permitted for your role.'}
+                        disabled={!hasProduct}
+                        className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
+                        title={!hasProduct ? 'Pick a product first' : (hasFlag('bill.editPrice') ? 'Override price for this invoice. Never mutates catalog.' : 'Price editing is not permitted for your role.')}
                       />
                       {isZeroFreeTextLine(item) && (
                         <p className="mt-0.5 text-[10px] font-bold text-rose-600" data-testid="zero-price-warning">
@@ -2869,18 +2879,19 @@ export const InvoiceForm: React.FC<Props> = ({
                           onChange={(e) =>
                             updateLineItem(item.id, { discountValue: Number(e.target.value) })
                           }
-                          disabled={!hasFlag('bill.giveDiscount')}
-                          title={hasFlag('bill.giveDiscount') ? undefined : 'Discounts are not permitted for your role.'}
-                          className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600 ${hasFlag('bill.giveDiscount') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
+                          disabled={!hasFlag('bill.giveDiscount') || !hasProduct}
+                          title={!hasProduct ? 'Pick a product first' : (hasFlag('bill.giveDiscount') ? undefined : 'Discounts are not permitted for your role.')}
+                          className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.giveDiscount') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
                         />
                         <button
                           type="button"
+                          disabled={!hasFlag('bill.giveDiscount') || !hasProduct}
                           onClick={() =>
                             updateLineItem(item.id, {
                               discountType: item.discountType === '%' ? 'amount' : '%',
                             })
                           }
-                          className="px-1.5 py-1 text-[11px] font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-600 shrink-0"
+                          className="px-1.5 py-1 text-[11px] font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-600 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                           title="Toggle % or ₹"
                         >
                           {item.discountType === '%' ? '%' : '₹'}
