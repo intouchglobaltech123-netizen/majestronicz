@@ -144,6 +144,10 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       svg.removeAttribute('width');
       svg.removeAttribute('height');
       svg.setAttribute('preserveAspectRatio', 'none');
+      // crispEdges tells the (print) rasteriser NOT to anti-alias the bar edges.
+      // Without it a barcode stretched to fill the label prints with soft/grey
+      // edges — the "blurry sticker" staff reported, which also scans slower.
+      svg.setAttribute('shape-rendering', 'crispEdges');
       const hPx = typeof height === 'number' ? `${height}px` : String(height);
       svg.style.cssText = `display:block;width:100%;height:${hPx};`;
     } catch {
@@ -156,6 +160,7 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       <svg
         ref={svgRef}
         preserveAspectRatio="none"
+        shapeRendering="crispEdges"
         style={{ display: 'block', width: '100%', height }}
         xmlns="http://www.w3.org/2000/svg"
       />
