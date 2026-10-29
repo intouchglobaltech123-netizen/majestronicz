@@ -495,27 +495,22 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
                               >
                                 {item.itemName}
                               </p>
+                              {/* Only the SKU code on one line (category + HSN
+                                  removed per owner — name, code, price & stock
+                                  are enough). nowrap so the code never wraps. */}
                               <div
                                 className={cn(
-                                  'flex items-center gap-1.5 mt-0.5 text-[11px]',
+                                  'mt-0.5 text-[11px]',
                                   isLocked ? 'text-rose-700/80' : 'text-slate-500'
                                 )}
                               >
                                 <span
                                   className={cn(
-                                    'font-mono font-medium',
+                                    'font-mono font-medium whitespace-nowrap',
                                     isLocked ? 'text-rose-800 font-semibold' : 'text-slate-500'
                                   )}
                                 >
                                   {item.itemCode}
-                                </span>
-                                <span className={isLocked ? 'text-rose-300' : 'text-slate-300'}>•</span>
-                                <span className={cn('truncate', isLocked ? 'text-rose-700' : 'text-slate-400')}>
-                                  {item.category}{item.subcategory ? ` / ${item.subcategory}` : ''}
-                                </span>
-                                <span className={isLocked ? 'text-rose-300' : 'text-slate-300'}>•</span>
-                                <span className={cn('font-mono', isLocked ? 'text-rose-700' : 'text-slate-400')}>
-                                  HSN: {item.itemHSN}
                                 </span>
                               </div>
                             </div>
