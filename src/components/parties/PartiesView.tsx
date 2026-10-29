@@ -95,6 +95,8 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       const tab = activeSubTab.tab;
       if (tab === 'customers' || tab === 'suppliers' || tab === 'all' || tab === 'loyalty') {
         setActiveTab(tab as PartyTab);
+        // Deep link from global search → filter straight to that party.
+        if (activeSubTab.search) setSearchQuery(activeSubTab.search);
       } else if (tab === 'new-customer') {
         setActiveTab('customers');
         setCustomerToEdit(null);
@@ -108,6 +110,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       const tab = activeSubTab.tab;
       if (tab === 'directory' || tab === 'customers') {
         setActiveTab('customers');
+        if (activeSubTab.search) setSearchQuery(activeSubTab.search);
       } else if (tab === 'loyalty') {
         setActiveTab('loyalty');
       } else if (tab === 'new-customer') {

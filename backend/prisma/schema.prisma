@@ -140,6 +140,9 @@ model Estimate {
   cancelReason        String?
   cancelledAt         String?
   cancelledBy         String?
+  // Chosen quotation payment-info block (terms + bank/UPI), snapshotted from a
+  // Settings template. Null when no payment info was attached.
+  paymentInfo         Json?
 }
 
 model DeliveryChallan {
@@ -152,6 +155,9 @@ model DeliveryChallan {
   time               String
   items              Json
   totalQuantity      Float
+  // Sum of line amounts for a priced external/customer challan; null for a
+  // value-free goods-movement / branch-transfer challan.
+  totalAmount        Float?
   termsAndConditions String
   receivedBy         Json?
   deliveredBy        Json?

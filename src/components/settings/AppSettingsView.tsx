@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useThemeSettings, ErpTheme, ErpFontSize, ErpFontFamily, ShortcutConfig } from '../../context/ThemeSettingsContext';
 import { useErp } from '../../context/ErpContext';
 import { CompanyProfileSettings } from './CompanyProfileSettings';
+import { QuotationPaymentTemplatesSettings } from './QuotationPaymentTemplatesSettings';
 import {
   Palette,
   Keyboard,
@@ -284,7 +285,12 @@ export const AppSettingsView: React.FC = () => {
         </div>
 
         {/* TAB 3: COMPANY & INVOICE (#6) */}
-        {activeTab === 'company' && <CompanyProfileSettings />}
+        {activeTab === 'company' && (
+          <div className="space-y-6">
+            <CompanyProfileSettings />
+            <QuotationPaymentTemplatesSettings />
+          </div>
+        )}
 
         {/* TAB 1: APPEARANCE & TYPOGRAPHY */}
         {activeTab === 'appearance' && (

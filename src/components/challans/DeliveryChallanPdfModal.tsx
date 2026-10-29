@@ -42,6 +42,13 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
 
   if (!isOpen || !challan) return null;
 
+  // A priced external/customer challan shows Rate + Amount columns and a total;
+  // a value-free goods-movement / branch-transfer challan shows quantities only.
+  const priced =
+    (challan.totalAmount != null && challan.totalAmount > 0) ||
+    challan.items.some((it) => it.rate != null);
+  const money = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   // INV6-7: print through the same scope as the invoice — the app is hidden, the
   // (portaled) overlay is un-fixed so every row flows across A4 pages once, the
   // table header repeats and no row or signature block is cut in half.
@@ -49,7 +56,8 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
   const handleSavePdf = () => printDocument('invoice-printing', { saveAsPdf: `${challan.challanNumber}.pdf` });
 
   const handleShareWhatsApp = () => {
-    const text = `*DELIVERY CHALLAN — ${COMPANY_PROFILE.name}*\nChallan No: ${challan.challanNumber}\nDate: ${challan.date}\nDelivered To: ${challan.recipientName}\nTotal Qty: ${challan.totalQuantity} items\n\nGoods Movement Verification Note.`;
+    const amountLine = challan.totalAmount != null && challan.totalAmount > 0 ? `\nTotal Amount: ₹${challan.totalAmount.toLocaleString('en-IN')}` : '';
+    const text = `*DELIVERY CHALLAN — ${COMPANY_PROFILE.name}*\nChallan No: ${challan.challanNumber}\nDate: ${challan.date}\nDelivered To: ${challan.recipientName}\nTotal Qty: ${challan.totalQuantity} items${amountLine}\n\nGoods Movement Verification Note.`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -214,6 +222,8 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
                   <th className="py-2.5 px-3 w-28 text-center">HSN / SAC</th>
                   <th className="py-2.5 px-3 w-28 text-right">Quantity</th>
                   <th className="py-2.5 px-3 w-24 text-center">Unit</th>
+                  {priced && <th className="py-2.5 px-3 w-24 text-right">Rate (₹)</th>}
+                  {priced && <th className="py-2.5 px-3 w-28 text-right">Amount (₹)</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -234,10 +244,20 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
                     <td className="py-2.5 px-3 text-center font-bold text-slate-600">
                       {item.unit}
                     </td>
+                    {priced && (
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                        {item.rate != null ? money(Number(item.rate)) : '—'}
+                      </td>
+                    )}
+                    {priced && (
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                        {item.rate != null ? money((Number(item.rate) || 0) * (Number(item.quantity) || 0)) : '—'}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
-              {/* Total Quantity Row */}
+              {/* Total Quantity (+ Total Amount for a priced challan) */}
               <tfoot>
                 <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-900">
                   <td colSpan={3} className="py-3 px-3 text-right text-xs uppercase tracking-wider text-slate-700">
@@ -249,7 +269,18 @@ export const DeliveryChallanPdfModal: React.FC<Props> = ({
                   <td className="py-3 px-3 text-center text-xs text-slate-700 font-bold">
                     Units / Items
                   </td>
+                  {priced && <td colSpan={2}></td>}
                 </tr>
+                {priced && (
+                  <tr className="bg-red-50 border-t border-slate-300 font-bold text-slate-900">
+                    <td colSpan={5} className="py-3 px-3 text-right text-xs uppercase tracking-wider text-slate-700">
+                      Total Amount:
+                    </td>
+                    <td colSpan={2} className="py-3 px-3 text-right text-sm font-black font-mono text-red-700">
+                      ₹{money(Number(challan.totalAmount ?? challan.items.reduce((t, it) => t + (Number(it.rate) || 0) * (Number(it.quantity) || 0), 0)))}
+                    </td>
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>

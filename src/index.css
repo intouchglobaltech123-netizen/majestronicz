@@ -286,6 +286,20 @@
   font-feature-settings: 'tnum' 1, 'lnum' 1 !important;
 }
 
+/* Number fields marked .no-spinner hide the browser's up/down stepper arrows
+   (so a stray click never changes the value); we also blur on wheel in JS so
+   scrolling the page over the field can't silently increment it. Used on the
+   billing line Qty / Price / Discount inputs. */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Number & currency typography standardization across all HTML tables, inputs, and elements */
 .font-mono,
 [class*="font-mono"],

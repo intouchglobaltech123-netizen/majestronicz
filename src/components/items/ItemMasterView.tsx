@@ -78,6 +78,8 @@ export const ItemMasterView: React.FC = () => {
           toast.error('Permission denied: You do not have permission to create combos');
         }
       }
+      // Deep link from global search → filter the list straight to that item.
+      if (activeSubTab.search) setSearchQuery(activeSubTab.search);
     }
   }, [activeSubTab, canManageItems]);
   const [searchQuery, setSearchQuery] = useState('');

@@ -15,7 +15,6 @@ export const GlobalSearch: React.FC = () => {
     vendors,
     items,
     navigateToTab,
-    setCurrentView,
   } = useErp();
 
   const [query, setQuery] = useState('');
@@ -106,7 +105,7 @@ export const GlobalSearch: React.FC = () => {
               {results.inv.length > 0 && (
                 <Group label="Sales Invoices" icon={Receipt}>
                   {results.inv.map((i) => (
-                    <button key={i.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('invoices', 'ledger'))}>
+                    <button key={i.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('invoices', 'ledger', { search: i.invoiceNumber }))}>
                       <Receipt className="h-3.5 w-3.5 text-red-600 shrink-0" />
                       <span className="font-mono font-bold text-[11px] text-slate-700 shrink-0">{i.invoiceNumber}</span>
                       <span className="text-xs text-slate-700 truncate">{i.customerName}</span>
@@ -118,7 +117,7 @@ export const GlobalSearch: React.FC = () => {
               {results.est.length > 0 && (
                 <Group label="Quotations" icon={FileText}>
                   {results.est.map((e) => (
-                    <button key={e.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('invoices', 'estimates'))}>
+                    <button key={e.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('invoices', 'estimates', { search: e.estimateNumber }))}>
                       <FileText className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                       <span className="font-mono font-bold text-[11px] text-slate-700 shrink-0">{e.estimateNumber}</span>
                       <span className="text-xs text-slate-700 truncate">{e.customerName}</span>
@@ -129,7 +128,7 @@ export const GlobalSearch: React.FC = () => {
               {results.cust.length > 0 && (
                 <Group label="Customers" icon={Users}>
                   {results.cust.map((c) => (
-                    <button key={c.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('parties', 'customers'))}>
+                    <button key={c.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('parties', 'customers', { search: c.name }))}>
                       <Users className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                       <span className="text-xs font-semibold text-slate-800 truncate">{c.name}</span>
                       <span className="ml-auto text-[11px] font-mono text-slate-500 shrink-0">{c.phone}</span>
@@ -140,7 +139,7 @@ export const GlobalSearch: React.FC = () => {
               {results.vend.length > 0 && (
                 <Group label="Suppliers" icon={Building2}>
                   {results.vend.map((v) => (
-                    <button key={v.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('parties', 'suppliers'))}>
+                    <button key={v.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('parties', 'suppliers', { search: v.vendorName }))}>
                       <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                       <span className="text-xs font-semibold text-slate-800 truncate">{v.vendorName}</span>
                       <span className="ml-auto text-[11px] font-mono text-slate-500 shrink-0">{v.contactNo}</span>
@@ -151,7 +150,7 @@ export const GlobalSearch: React.FC = () => {
               {results.it.length > 0 && (
                 <Group label="Items" icon={Boxes}>
                   {results.it.map((i) => (
-                    <button key={i.id} type="button" className={rowCls} onClick={() => go(() => setCurrentView('items'))}>
+                    <button key={i.id} type="button" className={rowCls} onClick={() => go(() => navigateToTab('items', 'products', { search: i.itemCode }))}>
                       <Boxes className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                       <span className="text-xs font-semibold text-slate-800 truncate">{i.itemName}</span>
                       <span className="ml-auto font-mono text-[11px] text-slate-500 shrink-0">{i.itemCode}</span>

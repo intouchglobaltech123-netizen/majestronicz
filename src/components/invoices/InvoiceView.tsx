@@ -345,6 +345,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       const tab = activeSubTab.tab;
       if (tab === 'ledger' || tab === 'estimates' || tab === 'returns' || tab === 'draft-sales' || tab === 'draft-quotes') {
         setActiveTab(tab);
+        // Deep link from global search → filter the list straight to that record.
+        if (activeSubTab.search) setSearchQuery(activeSubTab.search);
       } else if (tab === 'new') {
         openBillTab({ documentType: 'Invoice' });
       } else if (tab === 'open-bills') {
@@ -477,8 +479,11 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // see that day's / period's bills. Empty = unbounded on that side.
   const [ledgerFrom, setLedgerFrom] = useState<string>(() => getTodayDateString());
   const [ledgerTo, setLedgerTo] = useState<string>(() => getTodayDateString());
-  // Date-range / mode / status filtering now lives in the Reports section.
-  // The ledger keeps only a quick search; branch follows the global top-bar toggle.
+  // Ledger quick filters: payment mode ('ALL' or a mode like Cash/HDFC) and
+  // status ('ALL' | Paid | Partial | Credit | Cancelled).
+  const [paymentModeFilter, setPaymentModeFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Paid' | 'Partial' | 'Credit' | 'Cancelled'>('ALL');
+  // The ledger keeps a quick search; branch follows the global top-bar toggle.
   const [branchFilter, setBranchFilter] = useState<'ALL' | BranchId>(() =>
     isAllBranches ? 'ALL' : (currentBranch as BranchId)
   );
@@ -550,6 +555,17 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         }
       }
 
+      // Payment-mode filter — matches a bill if ANY of its payment splits use the
+      // chosen mode (so a split bill paying part in Cash shows under "Cash" too).
+      if (paymentModeFilter !== 'ALL') {
+        const want = paymentModeFilter.toLowerCase();
+        const modes = getInvoicePaymentSplits(inv).map((s) => (s.mode || '').toLowerCase());
+        if (!modes.includes(want) && (inv.paymentMode || '').toLowerCase() !== want) return false;
+      }
+
+      // Status filter — Paid / Partial / Credit / Cancelled (same label the row shows).
+      if (statusFilter !== 'ALL' && getSaleStatus(inv).label !== statusFilter) return false;
+
       return true;
     }).sort((a, b) => {
       // Order by DATE (newest first), then strictly by invoice NUMBER (highest
@@ -563,15 +579,29 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       if (s !== 0) return s;
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope, ledgerFrom, ledgerTo]);
+  }, [invoices, branchFilter, isAllBranches, currentBranch, debouncedSearch, channelScope, ledgerFrom, ledgerTo, paymentModeFilter, statusFilter]);
   // Back to the first page whenever the list itself changes shape.
-  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch, channelScope, ledgerFrom, ledgerTo]);
+  useEffect(() => { setLedgerPage(0); }, [branchFilter, currentBranch, isAllBranches, debouncedSearch, channelScope, ledgerFrom, ledgerTo, paymentModeFilter, statusFilter]);
   const ledgerPages = Math.max(1, Math.ceil(filteredInvoices.length / LEDGER_PAGE));
   const safeLedgerPage = Math.min(ledgerPage, ledgerPages - 1);
   const pagedInvoices = useMemo(
     () => filteredInvoices.slice(safeLedgerPage * LEDGER_PAGE, (safeLedgerPage + 1) * LEDGER_PAGE),
     [filteredInvoices, safeLedgerPage],
   );
+
+  // Distinct payment modes actually present (for the ledger's Payment Mode
+  // filter dropdown) — scoped to branch + channel so the options match the list.
+  const paymentModeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const inv of invoices) {
+      if (!(branchFilter === 'ALL' ? isAllBranches || inv.branchId === currentBranch : inv.branchId === branchFilter)) continue;
+      if (!inChannel(inv)) continue;
+      for (const s of getInvoicePaymentSplits(inv)) if (s.mode) set.add(s.mode);
+      if (inv.paymentMode) set.add(inv.paymentMode);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices, branchFilter, isAllBranches, currentBranch, channelScope]);
 
   // ---- Quotation lifecycle (SAL8-3): Open → Converted (a live bill was made
   // from it) or Cancelled (with a reason). Converted is stored by the server and
@@ -1386,8 +1416,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             </div>
           )}
 
-          {/* Slim toolbar: quick search + at-a-glance totals. Date-range, payment
-              mode & status filtering (and CSV export) live in the Reports section. */}
+          {/* Slim toolbar: quick search + at-a-glance totals + date-range, payment
+              mode & status filters (CSV/Excel/PDF export also lives here). */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="relative w-full lg:max-w-md">
               <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1449,6 +1479,43 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
                 title="Show all dates"
               >All</button>
+            </div>
+
+            {/* Payment-mode & status quick filters */}
+            <div className="flex items-center gap-2 text-xs">
+              <select
+                value={paymentModeFilter}
+                onChange={(e) => setPaymentModeFilter(e.target.value)}
+                aria-label="Filter by payment mode"
+                title="Filter by payment mode"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-blue-600 cursor-pointer"
+              >
+                <option value="ALL">All modes</option>
+                {paymentModeOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                aria-label="Filter by status"
+                title="Filter by status"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-blue-600 cursor-pointer"
+              >
+                <option value="ALL">All status</option>
+                <option value="Paid">Paid</option>
+                <option value="Partial">Partial</option>
+                <option value="Credit">Credit</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              {(paymentModeFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => { setPaymentModeFilter('ALL'); setStatusFilter('ALL'); }}
+                  className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                  title="Clear payment & status filters"
+                >Clear</button>
+              )}
             </div>
 
             {/* Export the bills currently shown (same date range) → PDF / Excel / CSV */}

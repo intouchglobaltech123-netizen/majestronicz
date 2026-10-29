@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { getTodayDateString } from '../../lib/utils';
 import {
@@ -58,6 +58,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
   const [toBranch, setToBranch] = useState<BranchId | ''>('');
   const [transferring, setTransferring] = useState(false);
 
+  // Pricing (Rate + Amount + Total) is only for external/customer challans. A
+  // branch-to-branch stock transfer stays value-free, and an existing DC-TRF
+  // transfer challan is never priced even when reopened for editing.
+  const isTransferChallanEdit = !!initialChallan && /^DC-TRF-/i.test(initialChallan.challanNumber || '');
+  const showPricing = challanMode === 'external' && !isTransferChallanEdit;
+
   // Form State
   const [challanNumber, setChallanNumber] = useState<string>('');
   const [date, setDate] = useState<string>(() => getTodayDateString());
@@ -88,8 +94,19 @@ export const DeliveryChallanForm: React.FC<Props> = ({
   const [showItemAutocomplete, setShowItemAutocomplete] = useState<string | null>(null);
   const [itemSearchQuery, setItemSearchQuery] = useState<string>('');
 
-  // Initialize or reset form
+  // Initialize or reset form. Seeded ONCE per document identity — a new blank
+  // challan, or a specific challan being edited. It must NOT re-run on every
+  // provider re-render: getNextChallanNumber is a fresh function reference each
+  // render, so a background live-sync (SSE from a stock adjustment, a sale on
+  // another device, anything) used to re-fire this effect and wipe a half-typed
+  // challan back to one empty row. The guard makes it idempotent, so in-progress
+  // work is never cleared by a background update (the number is server-assigned
+  // on save anyway). Same protection the billing form has.
+  const seededKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    const key = initialChallan ? `edit:${initialChallan.id}` : 'new';
+    if (seededKeyRef.current === key) return;
+    seededKeyRef.current = key;
     if (initialChallan) {
       setChallanNumber(initialChallan.challanNumber);
       setDate(initialChallan.date);
@@ -150,11 +167,23 @@ export const DeliveryChallanForm: React.FC<Props> = ({
       .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   }, [lineItems]);
 
+  // Total value of the challan (priced external challans only). Sums rate × qty
+  // of the rows that will actually be saved.
+  const totalAmount = useMemo(() => {
+    if (!showPricing) return 0;
+    return Math.round(
+      lineItems
+        .filter((item) => item.itemName.trim() && (Number(item.quantity) || 0) > 0)
+        .reduce((sum, item) => sum + (Number(item.rate) || 0) * (Number(item.quantity) || 0), 0) * 100,
+    ) / 100;
+  }, [lineItems, showPricing]);
+
   const addNewRow = (selectedItem?: Item) => {
     const newId = `dcli-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     let newRow: DeliveryChallanLineItem;
 
     if (selectedItem) {
+      const rate = Number(selectedItem.salePrice) || 0;
       newRow = {
         id: newId,
         itemId: selectedItem.id,
@@ -162,6 +191,8 @@ export const DeliveryChallanForm: React.FC<Props> = ({
         itemHSN: selectedItem.itemHSN,
         quantity: 1,
         unit: selectedItem.unit,
+        rate,
+        amount: rate,
       };
     } else {
       newRow = {
@@ -180,7 +211,12 @@ export const DeliveryChallanForm: React.FC<Props> = ({
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
-        return { ...item, ...updates };
+        const merged = { ...item, ...updates };
+        // Keep amount = rate × quantity whenever a rate is present.
+        if (merged.rate != null && merged.rate !== undefined) {
+          merged.amount = Math.round((Number(merged.rate) || 0) * (Number(merged.quantity) || 0) * 100) / 100;
+        }
+        return merged;
       })
     );
   };
@@ -194,11 +230,13 @@ export const DeliveryChallanForm: React.FC<Props> = ({
   };
 
   const selectMasterItemForRow = (rowId: string, item: Item) => {
+    // Prefill the rate from the item's sale price (editable) for a priced challan.
     updateLineItem(rowId, {
       itemId: item.id,
       itemName: item.itemName,
       itemHSN: item.itemHSN,
       unit: item.unit,
+      rate: Number(item.salePrice) || 0,
     });
     setShowItemAutocomplete(null);
     setItemSearchQuery('');
@@ -216,6 +254,16 @@ export const DeliveryChallanForm: React.FC<Props> = ({
       return null;
     }
 
+    // For a priced external challan, carry rate + amount per line and a total.
+    // Branch-transfer / value-free challans keep no pricing.
+    const pricedItems: DeliveryChallanLineItem[] = validItems.map((i) => {
+      if (!showPricing || i.rate == null) {
+        return { id: i.id, itemId: i.itemId, itemName: i.itemName, itemHSN: i.itemHSN, quantity: i.quantity, unit: i.unit };
+      }
+      const rate = Number(i.rate) || 0;
+      return { ...i, rate, amount: Math.round(rate * (Number(i.quantity) || 0) * 100) / 100 };
+    });
+
     return {
       id: initialChallan?.id || `dc-${Date.now()}`,
       challanNumber: challanNumber.trim() || getNextChallanNumber(),
@@ -224,8 +272,9 @@ export const DeliveryChallanForm: React.FC<Props> = ({
       contactNo: contactNo.trim() || undefined,
       date,
       time,
-      items: validItems,
+      items: pricedItems,
       totalQuantity,
+      totalAmount: showPricing && totalAmount > 0 ? totalAmount : undefined,
       termsAndConditions,
       deliveredBy: deliveredByName.trim()
         ? {
@@ -548,7 +597,9 @@ export const DeliveryChallanForm: React.FC<Props> = ({
               Goods Movement Items
             </span>
             <span className="text-[11px] text-slate-500">
-              *Delivery Challan tracks item quantities only. No pricing columns per goods-movement rule.
+              {showPricing
+                ? '*Rate is prefilled from the item sale price — edit it if needed; Amount = Rate × Quantity.'
+                : '*Branch-transfer challan tracks item quantities only (value-free stock movement).'}
             </span>
           </div>
 
@@ -561,6 +612,8 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   <th className="py-2.5 px-3 w-32 text-center">HSN / SAC</th>
                   <th className="py-2.5 px-3 w-28 text-right">Quantity</th>
                   <th className="py-2.5 px-3 w-24 text-center">Unit</th>
+                  {showPricing && <th className="py-2.5 px-3 w-28 text-right">Rate (₹)</th>}
+                  {showPricing && <th className="py-2.5 px-3 w-28 text-right">Amount (₹)</th>}
                   <th className="py-2.5 px-2 w-10 text-center"></th>
                 </tr>
               </thead>
@@ -675,6 +728,30 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                       </select>
                     </td>
 
+                    {/* Rate (per unit) — priced external challan only */}
+                    {showPricing && (
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.rate ?? ''}
+                          placeholder="0"
+                          onChange={(e) =>
+                            updateLineItem(row.id, { rate: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0) })
+                          }
+                          className="w-full px-2 py-1.5 text-right font-mono rounded-lg border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-blue-600"
+                        />
+                      </td>
+                    )}
+
+                    {/* Amount = rate × qty (read-only) */}
+                    {showPricing && (
+                      <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
+                        {((Number(row.rate) || 0) * (Number(row.quantity) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    )}
+
                     {/* Remove Row Button */}
                     <td className="py-2 px-2 text-center">
                       <button
@@ -690,7 +767,7 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                 ))}
               </tbody>
 
-              {/* Total Quantity Row */}
+              {/* Total Quantity (+ Total Amount for a priced challan) */}
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
                   <td colSpan={3} className="py-2.5 px-3 text-right text-xs uppercase tracking-wider text-slate-600">
@@ -702,6 +779,16 @@ export const DeliveryChallanForm: React.FC<Props> = ({
                   <td className="py-2.5 px-3 text-center text-xs text-blue-700 font-bold">
                     Units
                   </td>
+                  {showPricing && (
+                    <>
+                      <td className="py-2.5 px-3 text-right text-xs uppercase tracking-wider text-slate-600">
+                        Total Amount:
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-sm font-black font-mono text-blue-700">
+                        ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </>
+                  )}
                   <td></td>
                 </tr>
               </tfoot>

@@ -141,7 +141,9 @@ export function computeMarginSalePrice(
   const net = purchasePrice * mult;
   const gst = Number(gstTaxSlab) || 0;
   const priced = salePriceTaxMode === 'with' ? net * (1 + gst / 100) : net;
-  return Math.round(priced * 100) / 100;
+  // Sale price derived from a margin % is rounded to a whole rupee so the shop
+  // never gets an odd paise price (e.g. 103 × 1.35 = 139.05 → ₹139).
+  return Math.round(priced);
 }
 
 /** The custom margin % implied by a sale price over a purchase price. For a
@@ -706,6 +708,37 @@ export const COMPANY_PROFILE: CompanyProfile = {
   bankBranch: 'Erode - Tamilnadu',
 };
 
+/** A reusable "payment information" block for quotations. The shop keeps a few
+ *  of these in Settings (e.g. "Advance 50% — HDFC", "Full advance — IOB") and
+ *  picks one when raising a quote; the chosen block's details are shown on the
+ *  quotation PDF so the customer knows the terms and where to pay. */
+export interface QuotationPaymentTemplate {
+  id: string;
+  name: string;            // short label shown in the picker (e.g. "Advance 50% — HDFC")
+  terms?: string;          // payment terms text (e.g. "50% advance, balance on delivery")
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
+  upiId?: string;
+}
+
+/** The snapshot of the chosen payment template stored on an estimate, so the
+ *  quote keeps the terms/bank details it was raised with even if the template
+ *  is later edited. Same shape as the template minus the list id. */
+export interface EstimatePaymentInfo {
+  templateId?: string;     // which template it came from (may be deleted later)
+  name?: string;
+  terms?: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
+  upiId?: string;
+}
+
 export const DEFAULT_TERMS_AND_CONDITIONS = `**NO WARRANTY**
 **NO EXCHANGE**
 **NO RETURN**`;
@@ -782,6 +815,9 @@ export interface Estimate {
   cancelReason?: string;
   cancelledAt?: string;
   cancelledBy?: string;
+  // Chosen "payment information" block (terms + bank/UPI), snapshotted from a
+  // Settings template so the quote keeps what it was raised with.
+  paymentInfo?: EstimatePaymentInfo;
 }
 
 export type EstimateLifecycle = 'Open' | 'Converted' | 'Cancelled';
@@ -896,6 +932,10 @@ export interface DeliveryChallanLineItem {
   itemHSN: string;
   quantity: number;
   unit: string;
+  // Optional pricing for external/customer challans (branch-transfer challans
+  // stay value-free). rate = per-unit value, amount = rate × quantity.
+  rate?: number;
+  amount?: number;
 }
 
 export interface ChallanPartyBlock {
@@ -916,6 +956,9 @@ export interface DeliveryChallan {
   time: string; // HH:mm
   items: DeliveryChallanLineItem[];
   totalQuantity: number;
+  // Sum of line amounts for a priced external/customer challan; undefined for a
+  // value-free goods-movement / branch-transfer challan.
+  totalAmount?: number;
   termsAndConditions: string;
   receivedBy?: ChallanPartyBlock;
   deliveredBy?: ChallanPartyBlock;

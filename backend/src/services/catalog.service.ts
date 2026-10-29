@@ -263,8 +263,27 @@ async function cleanChallanItems(tx: any, items: any): Promise<any[]> {
     if (q > MAX_CHALLAN_LINE_QTY) throw new AppError('BAD_QTY', `Quantity for "${name.slice(0, 60)}" is too large (at most ${MAX_CHALLAN_LINE_QTY}).`, 400);
     const unit = (it.itemId && unitOf.get(it.itemId)) || it.unit;
     if (isWholeUnit(unit) && !Number.isInteger(q)) throw new AppError('BAD_QTY', `Quantity for "${name.slice(0, 60)}" must be a whole number.`, 400);
-    return { ...it, itemName: name, quantity: q };
+    // Optional per-line value for external/customer challans. When a rate is
+    // given, amount is always rate × quantity (server-authoritative, so a tampered
+    // line amount can't disagree with the printed total).
+    const rate = typeof it?.rate === 'number' ? it.rate : Number(it?.rate);
+    const hasRate = typeof it?.rate !== 'boolean' && Number.isFinite(rate) && rate >= 0;
+    return {
+      ...it,
+      itemName: name,
+      quantity: q,
+      rate: hasRate ? rate : undefined,
+      amount: hasRate ? Math.round(rate * q * 100) / 100 : undefined,
+    };
   });
+}
+
+/** Total value of a priced challan: sum of line amounts, or null when no line
+ *  carries a rate (a value-free goods-movement note). */
+function challanTotalAmount(items: any[]): number | null {
+  const priced = items.some((it) => Number.isFinite(it?.amount));
+  if (!priced) return null;
+  return Math.round(items.reduce((t, it) => t + (Number(it?.amount) || 0), 0) * 100) / 100;
 }
 
 export function saveChallan(data: any, reqUser?: any) {
@@ -288,6 +307,7 @@ export function saveChallan(data: any, reqUser?: any) {
       } else {
         rest.items = await cleanChallanItems(tx, rest.items ?? existing.items);
         rest.totalQuantity = rest.items.reduce((t: number, it: any) => t + it.quantity, 0);
+        rest.totalAmount = challanTotalAmount(rest.items);
       }
       await tx.deliveryChallan.update({ where: { id: existing.id }, data: rest });
       return { challans: await tx.deliveryChallan.findMany(), savedChallan: await tx.deliveryChallan.findUnique({ where: { id: existing.id } }) };
@@ -295,6 +315,7 @@ export function saveChallan(data: any, reqUser?: any) {
     if (!String(rest.recipientName || '').trim()) throw new AppError('NAME_REQUIRED', 'Recipient name is required.', 400);
     rest.items = await cleanChallanItems(tx, rest.items);
     rest.totalQuantity = rest.items.reduce((t: number, it: any) => t + it.quantity, 0);
+    rest.totalAmount = challanTotalAmount(rest.items);
     const id = data.id ? String(data.id) : `dc-${Date.now()}`;
     // Persistent sequence: a number is never reissued after a delete (INV-3).
     const challanNumber = await nextChallanNumber(tx);

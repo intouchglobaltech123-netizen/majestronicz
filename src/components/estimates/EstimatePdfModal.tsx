@@ -340,6 +340,44 @@ export const EstimatePdfModal: React.FC<Props> = ({ estimate, isOpen, onClose })
                   ))}
                 </div>
               </div>
+
+              {/* Payment Information (chosen template: terms + bank/UPI) */}
+              {estimate.paymentInfo && (
+                estimate.paymentInfo.terms ||
+                estimate.paymentInfo.bankName ||
+                estimate.paymentInfo.bankAccountNumber ||
+                estimate.paymentInfo.upiId
+              ) && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Payment Information:
+                  </span>
+                  {estimate.paymentInfo.terms && (
+                    <p className="text-[11px] text-slate-800 font-semibold mb-1.5 whitespace-pre-line leading-relaxed">
+                      {estimate.paymentInfo.terms}
+                    </p>
+                  )}
+                  {(estimate.paymentInfo.bankName || estimate.paymentInfo.bankAccountNumber || estimate.paymentInfo.upiId) && (
+                    <div className="text-[11px] text-slate-700 space-y-0.5">
+                      {estimate.paymentInfo.bankAccountName && (
+                        <div><span className="text-slate-500">A/c Name: </span><span className="font-semibold">{estimate.paymentInfo.bankAccountName}</span></div>
+                      )}
+                      {estimate.paymentInfo.bankName && (
+                        <div><span className="text-slate-500">Bank: </span><span className="font-semibold">{estimate.paymentInfo.bankName}{estimate.paymentInfo.bankBranch ? `, ${estimate.paymentInfo.bankBranch}` : ''}</span></div>
+                      )}
+                      {estimate.paymentInfo.bankAccountNumber && (
+                        <div><span className="text-slate-500">A/c No: </span><span className="font-semibold font-mono">{estimate.paymentInfo.bankAccountNumber}</span></div>
+                      )}
+                      {estimate.paymentInfo.bankIfsc && (
+                        <div><span className="text-slate-500">IFSC: </span><span className="font-semibold font-mono">{estimate.paymentInfo.bankIfsc}</span></div>
+                      )}
+                      {estimate.paymentInfo.upiId && (
+                        <div><span className="text-slate-500">UPI: </span><span className="font-semibold font-mono">{estimate.paymentInfo.upiId}</span></div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Right Column (Span 5): Amounts Summary Panel */}

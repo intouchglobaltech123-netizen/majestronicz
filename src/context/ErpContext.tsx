@@ -77,6 +77,7 @@ import {
   LoyaltySettings,
   CompanyProfile,
   COMPANY_PROFILE,
+  QuotationPaymentTemplate,
   StockTransfer,
   Payment,
   RecordPaymentInput,
@@ -123,6 +124,9 @@ export interface ActiveSubTabState {
   view: ActiveNavView;
   tab: string;
   nonce: number;
+  /** Optional term to seed the destination view's search box, so a global-search
+   *  result (or any deep link) lands ON the record, not just its section. */
+  search?: string;
 }
 
 interface StorageState {
@@ -156,6 +160,7 @@ interface StorageState {
   openingGpayByBranch?: Record<string, { amount: number; date: string }>;
   gstSlabsList?: { label: string; rate: number }[];
   paymentTermsOptions?: { label: string; value: string; days: number }[];
+  quotationPaymentTemplates?: QuotationPaymentTemplate[];
   currentBranch: BranchScope;
   currentUser: UserSession;
   currentView?: ActiveNavView;
@@ -166,7 +171,7 @@ interface ErpContextType {
   currentView: ActiveNavView;
   setCurrentView: (view: ActiveNavView) => void;
   activeSubTab: ActiveSubTabState | null;
-  navigateToTab: (view: ActiveNavView, tab: string) => void;
+  navigateToTab: (view: ActiveNavView, tab: string, opts?: { search?: string }) => void;
 
   // Branch Scope State (controls which branch's STOCK is viewed/edited or 'all' for aggregated)
   currentBranch: BranchScope;
@@ -392,6 +397,10 @@ interface ErpContextType {
   addGstSlab: (rate: number, label?: string) => void;
   paymentTermsOptions: { label: string; value: string; days: number }[];
   addPaymentTerm: (term: string, days?: number) => void;
+  /** Reusable "payment information" blocks (terms + bank/UPI) a quotation can
+   *  pick from; managed in Settings. */
+  quotationPaymentTemplates: QuotationPaymentTemplate[];
+  saveQuotationPaymentTemplates: (templates: QuotationPaymentTemplate[]) => void;
 
   // Items & Master Pricing Data
   /** Active items only — what every picker and list shows (archived items hidden, INV5-7). */
@@ -690,9 +699,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const navigateToTab = useCallback((view: ActiveNavView, tab: string) => {
+  const navigateToTab = useCallback((view: ActiveNavView, tab: string, opts?: { search?: string }) => {
     const target = view === 'customers' ? 'parties' : view;
-    const subState = { view: target, tab, nonce: Date.now() };
+    const subState = { view: target, tab, nonce: Date.now(), search: opts?.search };
     setActiveSubTab(subState);
     writeScoped(SUBTAB_STORAGE_KEY, JSON.stringify({ view: target, tab }));
     setCurrentViewRaw(target);
@@ -838,6 +847,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [expenseCategoriesList, setExpenseCategoriesList] = useState<string[]>([]);
   const [openingGpayByBranch, setOpeningGpayByBranch] = useState<Record<string, { amount: number; date: string }>>({});
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<{ label: string; value: string; days: number }[]>([]);
+  const [quotationPaymentTemplates, setQuotationPaymentTemplates] = useState<QuotationPaymentTemplate[]>([]);
 
   const [currentBranch, setCurrentBranch] = useState<BranchScope>(() => {
     const locked = lockedBranchFor(currentUser);
@@ -943,6 +953,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.openingGpayByBranch && typeof data.openingGpayByBranch === 'object') setOpeningGpayByBranch(data.openingGpayByBranch as any);
     if (Array.isArray(data.gstSlabsList)) setGstSlabsList(data.gstSlabsList);
     if (Array.isArray(data.paymentTermsOptions)) setPaymentTermsOptions(data.paymentTermsOptions);
+    if (Array.isArray(data.quotationPaymentTemplates)) setQuotationPaymentTemplates(data.quotationPaymentTemplates as QuotationPaymentTemplate[]);
     if (data.loyaltySettings) setLoyaltySettings(data.loyaltySettings);
     if (data.payrollSettings) setPayrollSettings(data.payrollSettings);
     if (from && !historyRef.current.started) {
@@ -1124,6 +1135,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useDbSync('/api/config/expenseCategoriesList', expenseCategoriesList, canSyncConfig);
   useDbSync('/api/config/gstSlabsList', gstSlabsList, canSyncConfig);
   useDbSync('/api/config/paymentTermsOptions', paymentTermsOptions, canSyncConfig);
+  useDbSync('/api/config/quotationPaymentTemplates', quotationPaymentTemplates, canSyncConfig);
   useDbSync('/api/config/loyaltySettings', loyaltySettings, canSyncConfig);
   useDbSync('/api/config/payrollSettings', payrollSettings, canSyncConfig);
 
@@ -1672,6 +1684,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setPaymentTermsOptions((prev) => [...prev, newTerm]);
     toast.success(`Payment term "${trimmed}" added`);
+  };
+
+  // Replace the whole quotation payment-template list; useDbSync persists it to
+  // /api/config/quotationPaymentTemplates and SSE fans it out to other devices.
+  const saveQuotationPaymentTemplates = (templates: QuotationPaymentTemplate[]) => {
+    setQuotationPaymentTemplates(Array.isArray(templates) ? templates : []);
   };
 
   const addItem = (
@@ -4826,6 +4844,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addGstSlab,
         paymentTermsOptions,
         addPaymentTerm,
+        quotationPaymentTemplates,
+        saveQuotationPaymentTemplates,
         stockAdjustmentLogs,
         adjustStock,
         transferStock,

@@ -13,6 +13,7 @@ import {
   INVOICE_TERMS_PRESETS,
   DiscountType,
   Estimate,
+  EstimatePaymentInfo,
   Enquiry,
   EstimateLineItem,
   GstBreakdownRow,
@@ -128,6 +129,7 @@ export const InvoiceForm: React.FC<Props> = ({
     branchStocks,
     getComboAvailability,
     paymentTermsOptions,
+    quotationPaymentTemplates,
     customers,
     saveCustomer,
     loyaltySettings,
@@ -532,6 +534,16 @@ export const InvoiceForm: React.FC<Props> = ({
   const [termsPresetId, setTermsPresetId] = useState('sale-invoice-default');
   const [terms, setTerms] = useState(INVOICE_TERMS_PRESETS[0].terms);
 
+  // Quotation only: the chosen "payment information" template (shown on the
+  // quote PDF). '' = none. Restored from the saved estimate's snapshot below.
+  const [paymentTemplateId, setPaymentTemplateId] = useState<string>(
+    () =>
+      initialEstimate?.paymentInfo?.templateId ||
+      duplicateSourceEstimate?.paymentInfo?.templateId ||
+      convertedFromEstimate?.paymentInfo?.templateId ||
+      '',
+  );
+
   // Additional fields accordion
   const [isExtraOpen, setIsExtraOpen] = useState(false);
   const [description, setDescription] = useState('');
@@ -702,6 +714,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setWithGst(initialEstimate.withGst);
       setStateOfSupply(initialEstimate.stateOfSupply || '33-Tamil Nadu');
       setTerms(initialEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+      setPaymentTemplateId(initialEstimate.paymentInfo?.templateId || '');
       setSourceEnquiryId(initialEstimate.sourceEnquiryId);
       setSourceEnquiryNumber(initialEstimate.sourceEnquiryNumber);
       setOverallDiscountType(initialEstimate.overallDiscountType || '%');
@@ -761,6 +774,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setWithGst(duplicateSourceEstimate.withGst);
       setStateOfSupply(duplicateSourceEstimate.stateOfSupply || '33-Tamil Nadu');
       setTerms(duplicateSourceEstimate.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
+      setPaymentTemplateId(duplicateSourceEstimate.paymentInfo?.templateId || '');
       setOverallDiscountType(duplicateSourceEstimate.overallDiscountType || '%');
       setOverallDiscountValue(duplicateSourceEstimate.overallDiscountValue || 0);
       setShippingCharges(duplicateSourceEstimate.shippingCharges || 0);
@@ -1449,11 +1463,25 @@ export const InvoiceForm: React.FC<Props> = ({
   };
 
   const handleScanSubmit = (raw: string) => {
-    const code = raw.trim();
+    let code = raw.trim();
     if (!code) return;
-    const norm = code.toLowerCase();
-    const matchedItem = items.find((it) => it.itemCode.toLowerCase() === norm);
-    const matchedCombo = matchedItem ? undefined : combos.find((c) => c.comboCode.toLowerCase() === norm);
+    const findMatch = (c: string) => {
+      const norm = c.toLowerCase();
+      const mi = items.find((it) => it.itemCode.toLowerCase() === norm);
+      return { mi, mc: mi ? undefined : combos.find((cm) => cm.comboCode.toLowerCase() === norm) };
+    };
+    let { mi: matchedItem, mc: matchedCombo } = findMatch(code);
+
+    // Resilience: some USB scanners are misconfigured to prepend a stray prefix
+    // character to every scan (e.g. "d" → "dCOM-ANA-0008"). If the raw code finds
+    // nothing, retry once after dropping a single leading letter — accepted ONLY
+    // when the remainder is an exact code match, so correct scans are never
+    // altered. (The real fix is to clear the prefix in the scanner's settings.)
+    if (!matchedItem && !matchedCombo && code.length > 3 && /^[A-Za-z]/.test(code)) {
+      const stripped = code.slice(1);
+      const retry = findMatch(stripped);
+      if (retry.mi || retry.mc) { code = stripped; matchedItem = retry.mi; matchedCombo = retry.mc; }
+    }
 
     if (!matchedItem && !matchedCombo) {
       toast.error('No item found for scanned code', { description: `"${code}" doesn't match any item or combo code.` });
@@ -1512,7 +1540,29 @@ export const InvoiceForm: React.FC<Props> = ({
     if (!isActive) return;
     let buffer = '';
     let lastTime = 0;
+    // The first char of a scan can't be told apart from human typing until the
+    // 2nd char arrives fast, so we let it through — but remember it here so we
+    // can pull it back out of the focused field the instant a scan is confirmed
+    // (otherwise every scan drops a stray char into the customer/search/line box,
+    // which is what made scanning unusable).
+    let leakedChar = '';
     const GAP = 35; // ms between chars — scanners are far faster than a person
+
+    // Remove one character that leaked into the focused field. Works on a
+    // controlled React input: set the value through the native setter, then fire
+    // a real 'input' event so React's onChange runs with the corrected value.
+    const undoLeak = (ch: string) => {
+      const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+      if (!el.value || !el.value.endsWith(ch)) return;
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      try {
+        setter?.call(el, el.value.slice(0, el.value.length - ch.length));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      } catch { /* ignore */ }
+    };
+
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const now = Date.now();
@@ -1521,24 +1571,30 @@ export const InvoiceForm: React.FC<Props> = ({
           e.preventDefault();
           e.stopPropagation();
           const code = buffer;
-          buffer = '';
+          buffer = ''; leakedChar = '';
           scanHandlerRef.current(code);
         } else {
-          buffer = '';
+          buffer = ''; leakedChar = '';
         }
         return;
       }
       if (e.key.length === 1) {
         const rapid = now - lastTime < GAP;
-        if (!rapid) buffer = ''; // gap too big → treat as human/new input
-        buffer += e.key;
-        lastTime = now;
-        // While a rapid burst is in progress, keep the scanned chars out of any
-        // focused field so a scan never pollutes the customer/search inputs.
         if (rapid) {
+          // Confirmed scanner burst → this is a scan. Pull the first char back
+          // out of whatever field it leaked into, then swallow the rest so the
+          // code never pollutes the customer / search / line inputs.
+          if (leakedChar) { undoLeak(leakedChar); leakedChar = ''; }
+          buffer += e.key;
           e.preventDefault();
           e.stopPropagation();
+        } else {
+          // Could be human typing OR a scan's first char — let it through so real
+          // typing works, but remember it to undo if the next char proves a scan.
+          buffer = e.key;
+          leakedChar = e.key;
         }
+        lastTime = now;
       }
     };
     document.addEventListener('keydown', onKey, true);
@@ -2087,6 +2143,30 @@ export const InvoiceForm: React.FC<Props> = ({
 
     const finalEstimateNumber = invoiceNumber.trim() || getNextEstimateNumber(selectedBranch, date);
 
+    // Snapshot the chosen payment-info template onto the quote, so it keeps the
+    // terms/bank details even if the template is later edited or removed. If the
+    // template was deleted but this quote already carried one, keep the old snapshot.
+    let paymentInfo: EstimatePaymentInfo | undefined;
+    if (paymentTemplateId) {
+      const tpl = quotationPaymentTemplates.find((t) => t.id === paymentTemplateId);
+      if (tpl) {
+        paymentInfo = {
+          templateId: tpl.id,
+          name: tpl.name,
+          terms: tpl.terms,
+          bankName: tpl.bankName,
+          bankAccountName: tpl.bankAccountName,
+          bankAccountNumber: tpl.bankAccountNumber,
+          bankIfsc: tpl.bankIfsc,
+          bankBranch: tpl.bankBranch,
+          upiId: tpl.upiId,
+        };
+      } else {
+        const prior = initialEstimate?.paymentInfo || duplicateSourceEstimate?.paymentInfo || convertedFromEstimate?.paymentInfo;
+        if (prior && prior.templateId === paymentTemplateId) paymentInfo = prior;
+      }
+    }
+
     const newEstimate: Estimate = {
       id: initialEstimate ? initialEstimate.id : `est-${Date.now()}`,
       estimateNumber: finalEstimateNumber,
@@ -2115,6 +2195,7 @@ export const InvoiceForm: React.FC<Props> = ({
       sourceEnquiryId,
       sourceEnquiryNumber,
       stateOfSupply,
+      paymentInfo,
       createdAt: initialEstimate ? initialEstimate.createdAt : new Date().toISOString(),
     };
 
@@ -3042,6 +3123,7 @@ export const InvoiceForm: React.FC<Props> = ({
                         disabled={!hasProduct}
                         title={!hasProduct ? 'Pick a product first' : (lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? `${(item.unit || '').toUpperCase()} is counted in whole numbers` : undefined)}
                         onChange={(e) => updateLineItem(item.id, { quantity: Number(e.target.value) })}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onKeyDown={(e) => {
                           // Real-billing shortcut: Enter on the last row's qty adds a fresh item row.
                           if (e.key === 'Enter' && item.itemName.trim() && idx === lineItems.length - 1) {
@@ -3049,7 +3131,7 @@ export const InvoiceForm: React.FC<Props> = ({
                             addNewRow();
                           }
                         }}
-                        className={cn("w-full px-2 py-1.5 rounded-lg bg-slate-50 border text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed", lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? "border-rose-500 bg-rose-50" : "border-slate-200")}
+                        className={cn("no-spinner w-full px-2 py-1.5 rounded-lg bg-slate-50 border text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed", lineIsWholeUnit(item) && !Number.isInteger(Number(item.quantity)) ? "border-rose-500 bg-rose-50" : "border-slate-200")}
                       />
                     </td>
 
@@ -3073,9 +3155,10 @@ export const InvoiceForm: React.FC<Props> = ({
                         step="0.01"
                         value={item.unitPrice}
                         onChange={(e) => updateLineItem(item.id, { unitPrice: Number(e.target.value) })}
+                        onWheel={(e) => e.currentTarget.blur()}
                         readOnly={!hasFlag('bill.editPrice')}
                         disabled={!hasProduct}
-                        className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
+                        className={`no-spinner w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-blue-600 font-mono disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.editPrice') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
                         title={!hasProduct ? 'Pick a product first' : (hasFlag('bill.editPrice') ? 'Override price for this invoice. Never mutates catalog.' : 'Price editing is not permitted for your role.')}
                       />
                       {isZeroFreeTextLine(item) && (
@@ -3098,9 +3181,10 @@ export const InvoiceForm: React.FC<Props> = ({
                           onChange={(e) =>
                             updateLineItem(item.id, { discountValue: Number(e.target.value) })
                           }
+                          onWheel={(e) => e.currentTarget.blur()}
                           disabled={!hasFlag('bill.giveDiscount') || !hasProduct}
                           title={!hasProduct ? 'Pick a product first' : (hasFlag('bill.giveDiscount') ? undefined : 'Discounts are not permitted for your role.')}
-                          className={`w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.giveDiscount') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
+                          className={`no-spinner w-full px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed ${hasFlag('bill.giveDiscount') ? 'bg-slate-50' : 'bg-slate-100 cursor-not-allowed'}`}
                         />
                         <button
                           type="button"
@@ -3549,6 +3633,15 @@ export const InvoiceForm: React.FC<Props> = ({
 
                     <span className="text-[11px] text-slate-500 font-medium">
                       Total Allocated: <span className="font-mono font-bold text-slate-800">{formatCurrency(totalAllocated)}</span> / <span className="font-mono">{formatCurrency(totals.grandTotal)}</span>
+                      {remainingBalance > 0.01 && (
+                        <span className="ml-1 font-mono font-bold text-amber-700">· {formatCurrency(remainingBalance)} remaining</span>
+                      )}
+                      {remainingBalance < -0.01 && (
+                        <span className="ml-1 font-mono font-bold text-rose-700">· {formatCurrency(Math.abs(remainingBalance))} over</span>
+                      )}
+                      {Math.abs(remainingBalance) < 0.01 && (
+                        <span className="ml-1 font-mono font-bold text-emerald-700">· fully allocated</span>
+                      )}
                     </span>
                   </div>
 
@@ -3568,10 +3661,10 @@ export const InvoiceForm: React.FC<Props> = ({
                       <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between text-xs text-amber-900 font-bold">
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                          <span>₹{remainingBalance.toLocaleString('en-IN')} remaining to allocate</span>
+                          <span>Payment not fully allocated yet</span>
                         </div>
-                        <span className="text-[11px] font-medium text-amber-700">
-                          Must equal ₹{totals.grandTotal.toLocaleString('en-IN')} before saving
+                        <span className="text-[11px] font-mono font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
+                          Remaining balance: ₹{remainingBalance.toLocaleString('en-IN')}
                         </span>
                       </div>
                     ) : (
@@ -3718,6 +3811,62 @@ export const InvoiceForm: React.FC<Props> = ({
               className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600 font-mono"
             />
           </div>
+
+          {/* Quotation only: Payment Information template (terms + bank/UPI shown
+              on the quote PDF). Managed in Settings → Company & Invoice. */}
+          {documentType === 'Quotation' && (
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                  Payment Information
+                </label>
+                <div className="w-60">
+                  <UniversalDropdown
+                    value={paymentTemplateId}
+                    onChange={(v) => setPaymentTemplateId(String(v))}
+                    options={[
+                      { value: '', label: 'None — no payment info' },
+                      ...quotationPaymentTemplates.map((t) => ({ value: t.id, label: t.name })),
+                    ]}
+                  />
+                </div>
+              </div>
+              {(() => {
+                const tpl = quotationPaymentTemplates.find((t) => t.id === paymentTemplateId);
+                if (!paymentTemplateId) {
+                  return (
+                    <p className="text-[11px] text-slate-500">
+                      Choose a payment template to print the terms and bank / UPI details on this quotation.
+                      {quotationPaymentTemplates.length === 0 && ' Add templates in Settings → Company & Invoice.'}
+                    </p>
+                  );
+                }
+                if (!tpl) {
+                  return (
+                    <p className="text-[11px] text-amber-700">
+                      This template was removed — the quote keeps the payment details it was saved with.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-700 space-y-1">
+                    {tpl.terms && <p><span className="font-bold text-slate-900">Terms:</span> {tpl.terms}</p>}
+                    {(tpl.bankName || tpl.bankAccountNumber || tpl.upiId) && (
+                      <p className="font-mono text-[11px] text-slate-600">
+                        {[
+                          tpl.bankAccountName && `A/c: ${tpl.bankAccountName}`,
+                          tpl.bankName && (tpl.bankBranch ? `${tpl.bankName}, ${tpl.bankBranch}` : tpl.bankName),
+                          tpl.bankAccountNumber && `A/c No: ${tpl.bankAccountNumber}`,
+                          tpl.bankIfsc && `IFSC: ${tpl.bankIfsc}`,
+                          tpl.upiId && `UPI: ${tpl.upiId}`,
+                        ].filter(Boolean).join('  •  ')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Extra Notes & Attachments Accordion */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
