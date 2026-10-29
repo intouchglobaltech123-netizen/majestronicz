@@ -98,20 +98,20 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     // instead of being a fixed, narrower box.
     const menuW = Math.min(Math.max(r.width, 360), vw - 16);
     const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
-    const MAX = 340;
-    const GAP = 6;
-    const MIN_BELOW = 150; // enough room to show a few suggestions under the field
-    const below = vh - r.bottom - 10;
-    const above = r.top - 10;
-    // ALWAYS prefer opening the list DOWNWARD (below the field), so the field
-    // being typed in AND the item rows already added ABOVE it both stay visible
-    // (billing staff's ask: the previous products must not be covered). The list
-    // only flips UP when the row is so low on the screen that there's really no
-    // room below it (and more room above).
+    const MAX = 320;
+    const GAP = 4;
+    const MIN_BELOW = 110; // minimum room under the field to still open downward
+    const below = vh - r.bottom - 8; // space under the field
+    const above = r.top - 8;         // space over the field
+    // ALWAYS open the list DOWNWARD (starting just UNDER the field) so the field
+    // being typed in AND the item rows already added ABOVE it both stay visible —
+    // the list must never cover the field. It flips up only when the field is so
+    // low on screen that there's basically no room below it. maxHeight is capped
+    // to the real space on that side so the panel scrolls instead of ballooning.
     if (below >= MIN_BELOW || below >= above) {
-      setMenuPos({ top: r.bottom + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, below - GAP)) });
+      setMenuPos({ top: Math.round(r.bottom + GAP), left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, below - GAP)) });
     } else {
-      setMenuPos({ bottom: vh - r.top + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, above - GAP)) });
+      setMenuPos({ bottom: Math.round(vh - r.top + GAP), left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, above - GAP)) });
     }
   };
   // Re-place once the menu has rendered and its real width is known.
