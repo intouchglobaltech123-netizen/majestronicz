@@ -113,27 +113,53 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     setSelectedPendingOrderForDetail,
     setCurrentView,
   } = useErp();
-  // Edit-prices mode: only before any goods are received (status 'Ordered'), so
-  // we never rewrite the cost of stock already taken in.
+  // Edit mode: only before any goods are received (status 'Ordered'), so we
+  // never rewrite the cost / quantity of stock already taken in. Covers the
+  // unit price AND the ordered quantity, and lets a wrong line be removed
+  // entirely (a supplier dropped an item, or it was added by mistake).
   const [isEditingPrices, setIsEditingPrices] = useState(false);
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+  const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({});
+  const [removedLineIds, setRemovedLineIds] = useState<Set<string>>(new Set());
 
   const startEditPrices = () => {
     if (!purchaseOrder) return;
-    const seed: Record<string, string> = {};
-    purchaseOrder.items.forEach((it) => { seed[it.id] = String(it.purchasePrice ?? 0); });
-    setPriceEdits(seed);
+    const seedP: Record<string, string> = {};
+    const seedQ: Record<string, string> = {};
+    purchaseOrder.items.forEach((it) => {
+      seedP[it.id] = String(it.purchasePrice ?? 0);
+      seedQ[it.id] = String(it.quantityOrdered ?? 0);
+    });
+    setPriceEdits(seedP);
+    setQtyEdits(seedQ);
+    setRemovedLineIds(new Set());
     setIsEditingPrices(true);
+  };
+  const toggleRemoveLine = (id: string) => {
+    setRemovedLineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
   const saveEditedPrices = async () => {
     if (!purchaseOrder) return;
-    const newItems = purchaseOrder.items.map((it) => {
-      const raw = priceEdits[it.id];
-      const price = raw != null && raw !== '' ? Math.max(0, Number(raw) || 0) : (it.purchasePrice || 0);
-      const amount = Math.round(price * (it.quantityOrdered || 0) * 100) / 100;
+    const kept = purchaseOrder.items.filter((it) => !removedLineIds.has(it.id));
+    if (kept.length === 0) {
+      toast.error('A purchase order must keep at least one item', {
+        description: 'To scrap the whole order, use "Cancel PO" instead of removing every line.',
+      });
+      return;
+    }
+    const newItems = kept.map((it) => {
+      const rawP = priceEdits[it.id];
+      const price = rawP != null && rawP !== '' ? Math.max(0, Number(rawP) || 0) : (it.purchasePrice || 0);
+      const rawQ = qtyEdits[it.id];
+      const qty = rawQ != null && rawQ !== '' ? Math.max(1, Math.round(Number(rawQ) || 0)) : (it.quantityOrdered || 0);
+      const amount = Math.round(price * qty * 100) / 100;
       const taxPercent = it.taxPercent || 0;
       const taxAmount = Math.round((amount * taxPercent) / 100 * 100) / 100;
-      return { ...it, purchasePrice: price, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
+      return { ...it, purchasePrice: price, quantityOrdered: qty, amount, taxAmount, lineTotal: Math.round((amount + taxAmount) * 100) / 100 };
     });
     const totalAmount = Math.round(newItems.reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100;
     const totalTax = Math.round(newItems.reduce((s, i) => s + (i.taxAmount || 0), 0) * 100) / 100;
@@ -1032,19 +1058,20 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <span className="text-xs text-slate-500">
                       Total Qty: <strong>{totalOrdered}</strong> • Received: <strong>{totalReceived}</strong>
                     </span>
-                    {/* Edit prices — only before any receipt (status Ordered) so we
-                        don't rewrite the cost of stock already taken in. */}
+                    {/* Edit items — only before any receipt (status Ordered) so we
+                        don't rewrite the cost / quantity of stock already taken
+                        in. Edits price + quantity, and removes a wrong line. */}
                     {canManagePurchases && purchaseOrder.status === 'Ordered' && (
                       isEditingPrices ? (
                         <span className="flex items-center gap-1.5">
                           <button type="button" onClick={saveEditedPrices}
-                            className="px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded border border-emerald-700 cursor-pointer">Save Prices</button>
+                            className="px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded border border-emerald-700 cursor-pointer">Save Changes</button>
                           <button type="button" onClick={() => setIsEditingPrices(false)}
                             className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 rounded border border-slate-300 cursor-pointer">Cancel</button>
                         </span>
                       ) : (
                         <button type="button" onClick={startEditPrices}
-                          className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 rounded border border-slate-300 cursor-pointer">Edit Prices</button>
+                          className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 rounded border border-slate-300 cursor-pointer">Edit Items</button>
                       )
                     )}
                   </div>
@@ -1072,9 +1099,10 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         const pending = poLineOpen(item);
                         const isDone = pending === 0;
                         const billedBack = (item.damagedQuantity || 0) + (item.missingQuantity || 0);
+                        const isRemoved = isEditingPrices && removedLineIds.has(item.id);
 
                         return (
-                          <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                          <tr key={item.id} className={cn('hover:bg-slate-50/60 transition-colors', isRemoved && 'opacity-50 bg-rose-50/40 line-through')}>
                             <td className="py-3 px-4">
                               <div className="font-semibold text-slate-900">{item.itemName}</div>
                               <div className="text-xs font-mono text-slate-400">{item.itemCode}</div>
@@ -1097,7 +1125,21 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               )}
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-slate-800">
-                              {item.quantityOrdered} <span className="text-[11px] font-normal text-slate-400">{item.unit}</span>
+                              {isEditingPrices && !isRemoved ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step="1"
+                                    value={qtyEdits[item.id] ?? ''}
+                                    onChange={(e) => setQtyEdits((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                    className="w-16 text-center px-1.5 py-1 text-sm font-mono border border-slate-300 rounded focus:outline-none focus:border-red-500 no-underline"
+                                  />
+                                  <span className="text-[11px] font-normal text-slate-400">{item.unit}</span>
+                                </span>
+                              ) : (
+                                <>{item.quantityOrdered} <span className="text-[11px] font-normal text-slate-400">{item.unit}</span></>
+                              )}
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-emerald-700">
                               {rec} <span className="text-[11px] font-normal text-slate-400">{item.unit}</span>
@@ -1140,7 +1182,20 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                               ) : null}
                             </td>
                             <td className="py-3 px-4 text-center">
-                              {isDone ? (
+                              {isEditingPrices ? (
+                                isRemoved ? (
+                                  <button type="button" onClick={() => toggleRemoveLine(item.id)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 px-2 py-1 rounded border border-slate-300 cursor-pointer no-underline">
+                                    Undo
+                                  </button>
+                                ) : (
+                                  <button type="button" onClick={() => toggleRemoveLine(item.id)} title="Remove this item from the order"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded border border-rose-200 cursor-pointer">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Remove
+                                  </button>
+                                )
+                              ) : isDone ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                   <CheckCircle2 className="h-3 w-3" />
                                   {billedBack > 0 ? 'Settled' : 'Fulfilled'}

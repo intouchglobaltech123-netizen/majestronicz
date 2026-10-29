@@ -465,16 +465,14 @@ export function createSale(inv: any, reqUser?: any) {
       // sequence (SAL2-6).
       inv.branchId = existing.branchId;
       inv.invoiceNumber = existing.invoiceNumber;
-      // H2: a finalized GST bill's buyer and place of supply are part of the tax
-      // record filed with the GST return — billing staff must not rewrite the
-      // customer or the GST state on an edit. Freeze them to the stored values
-      // (items, quantities and payment stay editable). buyerGstin is already
-      // frozen further below.
+      // H2: a finalized GST bill's GST STATE (place of supply / on-off) and buyer
+      // GSTIN are part of the tax record filed with the return — they stay frozen
+      // on edit (buyerGstin is frozen further below). The customer NAME / PHONE /
+      // ADDRESS, however, may be CORRECTED (typo fixes); the change is recorded in
+      // the bill's revision history below. The customer LINK (customerId) is kept
+      // so the bill stays tied to the same party master.
       if (existing.withGst) {
         inv.customerId = existing.customerId ?? undefined;
-        inv.customerName = existing.customerName;
-        inv.customerPhone = existing.customerPhone ?? undefined;
-        inv.customerAddress = existing.customerAddress ?? undefined;
         inv.stateOfSupply = existing.stateOfSupply;
         inv.withGst = existing.withGst;
       }
@@ -893,6 +891,35 @@ export function createSale(inv: any, reqUser?: any) {
     if (saleLogs.length) await tx.stockAdjustmentLog.createMany({ data: saleLogs });
 
     await snapshotLineCosts(tx, inv.items as any[], (oldInvoice?.items as any[]) || []);
+
+    // Audit a buyer name/phone/address correction on an existing bill so it is
+    // visible in the bill's history (never silently rewritten). Based on the
+    // STORED values, not the client payload, so the trail can't be faked.
+    if (existing) {
+      const parts: string[] = [];
+      const oldName = existing.customerName || '';
+      const newName = inv.customerName || '';
+      if (oldName !== newName) parts.push(`name "${oldName || '—'}" → "${newName || '—'}"`);
+      const oldPhone = existing.customerPhone || '';
+      const newPhone = inv.customerPhone || '';
+      if (oldPhone !== newPhone) parts.push(`phone "${oldPhone || '—'}" → "${newPhone || '—'}"`);
+      const oldAddr = existing.customerAddress || '';
+      const newAddr = inv.customerAddress || '';
+      if (oldAddr !== newAddr) parts.push('address updated');
+      if (parts.length) {
+        const prevRevs = Array.isArray((existing as any).revisions) ? ((existing as any).revisions as any[]) : [];
+        inv.revisions = [
+          ...prevRevs,
+          {
+            id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            at: ts,
+            by: reqUser?.userId || reqUser?.name || 'staff',
+            change: `Customer details corrected: ${parts.join(', ')}`,
+            deltaAmount: 0,
+          },
+        ];
+      }
+    }
 
     const { id, ...rest } = inv;
     // New sales use create with the freshly-minted unique id (never overwrite an

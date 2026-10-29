@@ -229,6 +229,9 @@ export const InvoiceForm: React.FC<Props> = ({
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   });
+  // True once staff deliberately pick a date. A counter bill is otherwise dated
+  // when it is actually rung up — see the stale-tab guard below.
+  const dateTouchedRef = useRef(false);
 
   // Customer & Loyalty Details
   const [customerId, setCustomerId] = useState<string | undefined>(
@@ -375,9 +378,13 @@ export const InvoiceForm: React.FC<Props> = ({
       if (!nm || nm.toLowerCase() === 'walk-in customer') return;
       const clean = (phoneRaw || '').replace(/\D/g, '');
       // Keep whatever number digits exist so picking the name still fills the
-      // phone; dedupe by a 10-digit number when there is one, else by name.
+      // phone. Dedupe by the 10-digit NUMBER first (not the id) so a customer's
+      // master row and their old bills — which carry the number but the OLD,
+      // pre-rename name — collapse into one entry; the master (processed last,
+      // carries the id) then wins and its CURRENT name is the one shown. Only
+      // fall back to id / name when there is no full number to key on.
       const phone = clean;
-      const key = id || (clean.length === 10 ? `p:${clean}` : `n:${nm.toLowerCase()}`);
+      const key = clean.length === 10 ? `p:${clean}` : (id ? `id:${id}` : `n:${nm.toLowerCase()}`);
       const existing = byKey.get(key);
       if (!existing || (id && !existing.id)) byKey.set(key, { id, phone, name: nm, address: address || '', notes });
     };
@@ -901,6 +908,26 @@ export const InvoiceForm: React.FC<Props> = ({
     if (seed.overallDiscountValue != null) setOverallDiscountValue(seed.overallDiscountValue);
     if (seed.shippingCharges != null) setShippingCharges(seed.shippingCharges);
     if (seed.invoiceNumber) setInvoiceNumber(seed.invoiceNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Stale-tab date guard. A bill tab or parked draft left open across days keeps
+  // the date from when it was first started (localStorage persists tabs). A
+  // counter sale belongs to the day it is actually rung up, so when this is an
+  // UNSAVED bill whose date is an earlier day, refresh it to today. This stops
+  // the "bill missing" reports: a stale tab saved this morning was landing on
+  // its original day (e.g. 28-Oct) and vanishing from today's list. Staff can
+  // still choose a past date by hand (dateTouchedRef); editing a already-saved
+  // invoice keeps its real date (isSavedBill).
+  useEffect(() => {
+    if (isSavedBill || dateTouchedRef.current) return;
+    const today = getTodayDateString();
+    if (date && date < today) {
+      setDate(today);
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    }
+    // mount-only: correct the restored date once, never fight live typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1699,9 +1726,14 @@ export const InvoiceForm: React.FC<Props> = ({
     [totals.grandTotal, settlePrevDues, customerOutstanding]
   );
 
-  // H2: a finalized GST bill's buyer and place of supply are part of the filed
-  // tax record — lock them on edit (the backend also refuses to change them).
+  // H2: a finalized GST bill's place of supply / GST state is part of the filed
+  // tax record — lock it on edit (the backend also refuses to change it).
   const lockBuyer = isSavedBill && withGst && documentType === 'Invoice';
+  // The customer NAME and PHONE, however, can be corrected even on a saved bill
+  // (typos happen). The change is written to the bill and logged in its history
+  // (the backend records a revision). Tax identity (GSTIN / place of supply)
+  // stays frozen above.
+  const buyerIdentityEditable = isSavedBill;
 
   const handleTermsPresetChange = (presetId: string) => {
     setTermsPresetId(presetId);
@@ -1883,6 +1915,16 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // Build the complete invoice object
   const assembleInvoiceObject = (quiet = false): Invoice | null => {
+    // Stale-tab safety net (mirrors the mount guard): a brand-new bill is dated
+    // when it is actually committed, never the day its tab/draft was started —
+    // unless staff deliberately picked a date, or this is an existing invoice.
+    let effectiveDate = date;
+    let effectiveTime = time;
+    if (!isSavedBill && !dateTouchedRef.current && date < getTodayDateString()) {
+      effectiveDate = getTodayDateString();
+      const d = new Date();
+      effectiveTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
     // Customer name is optional — a phone-only walk-in bill is fine.
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
@@ -1946,8 +1988,8 @@ export const InvoiceForm: React.FC<Props> = ({
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
       ...(skipCustomerSave && !(customerId || selectedCustomerObj?.id) ? { skipCustomerSave: true } : {}),
-      date,
-      time,
+      date: effectiveDate,
+      time: effectiveTime,
       paymentTerms,
       dueDate,
       stateOfSupply,
@@ -1994,7 +2036,12 @@ export const InvoiceForm: React.FC<Props> = ({
       sourceEnquiryId,
       sourceEnquiryNumber,
       createdById: 'usr-active',
-      createdAt: initialInvoice ? initialInvoice.createdAt : new Date().toISOString(),
+      // Only a truly SAVED bill keeps its original creation time. A bill restored
+      // from a long-open tab / parked draft (initialInvoice is set, but it isn't
+      // in the saved ledger yet) is being committed NOW, so it is stamped now —
+      // otherwise it inherited the stale time from when the tab was first opened
+      // (the cause of bills landing on an earlier day).
+      createdAt: isSavedBill && initialInvoice ? initialInvoice.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -2612,7 +2659,7 @@ export const InvoiceForm: React.FC<Props> = ({
               value={date}
               // FIN-A-3: an edited bill stays in the current month (an ended month is reported).
               min={isSavedBill && documentType === 'Invoice' ? `${getTodayDateString().slice(0, 7)}-01` : undefined}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => { dateTouchedRef.current = true; setDate(e.target.value); }}
               className="bg-slate-50 border border-slate-200 rounded-none px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600"
             />
           </label>
@@ -2721,7 +2768,7 @@ export const InvoiceForm: React.FC<Props> = ({
               value={customerPhone}
               onChange={setCustomerPhone}
               size="md"
-              disabled={lockBuyer}
+              disabled={lockBuyer && !buyerIdentityEditable}
               inputClassName="text-base font-bold tracking-wide"
               onFocus={() => setPhoneFocused(true)}
               onBlur={() => setTimeout(() => setPhoneFocused(false), 150)}
@@ -2752,9 +2799,9 @@ export const InvoiceForm: React.FC<Props> = ({
           <div className="w-56 shrink-0 relative">
             <input
               type="text"
-              value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
+              value={selectedCustomerObj && !buyerIdentityEditable ? selectedCustomerObj.name : customerName}
               onChange={(e) => { setCustomerName(e.target.value); setNameHighlight(0); }}
-              readOnly={!!selectedCustomerObj || lockBuyer}
+              readOnly={(!!selectedCustomerObj || lockBuyer) && !buyerIdentityEditable}
               onFocus={() => setNameFocused(true)}
               onBlur={() => setTimeout(() => setNameFocused(false), 150)}
               onKeyDown={(e) => {
@@ -2769,7 +2816,7 @@ export const InvoiceForm: React.FC<Props> = ({
               placeholder={documentType === 'Quotation' ? 'Name (optional)' : 'Customer name *'}
               className={cn(
                 'w-full px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
-                selectedCustomerObj
+                selectedCustomerObj && !buyerIdentityEditable
                   ? 'bg-slate-100 border-slate-200 cursor-default'
                   : 'bg-slate-50 border-slate-200 focus:border-blue-600'
               )}

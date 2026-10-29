@@ -477,7 +477,39 @@ export function saveCustomer(data: any) {
       throw new AppError('INVALID_GSTIN', `GSTIN ${fields.gstin} fails its check digit — please re-check it, or leave it blank.`, 400);
     }
     if (existing) {
+      const oldName = existing.name;
+      const oldPhone = cleanPhone(existing.phone);
+      const oldAddr = existing.address ?? '';
       await tx.customer.update({ where: { id: existing.id }, data: { ...fields, updatedAt: ts } });
+
+      // Keep linked bills in step with the master. When the party's name (or
+      // phone / address) is corrected, the copy denormalised onto their bills
+      // and quotations is refreshed too, so history shows the CURRENT details —
+      // the owner expects a rename to flow through to every linked bill.
+      // GST tax invoices that carry a buyer GSTIN stay frozen: the buyer name
+      // there is tied to that GSTIN and must not change once the invoice is
+      // issued.
+      const nameChanged = oldName !== fields.name;
+      const phoneChanged = oldPhone !== cleanPhone(fields.phone);
+      const addrChanged = fields.address !== undefined && oldAddr !== fields.address;
+      if (nameChanged || phoneChanged || addrChanged) {
+        const invData: Record<string, any> = { updatedAt: ts };
+        const estData: Record<string, any> = {};
+        if (nameChanged) { invData.customerName = fields.name; estData.customerName = fields.name; }
+        if (phoneChanged) { invData.customerPhone = String(fields.phone); estData.customerContact = String(fields.phone); }
+        if (addrChanged) { invData.customerAddress = fields.address; estData.customerAddress = fields.address; }
+        await tx.invoice.updateMany({
+          where: { customerId: existing.id, OR: [{ withGst: false }, { buyerGstin: null }, { buyerGstin: '' }] },
+          data: invData,
+        });
+        await tx.estimate.updateMany({ where: { customerId: existing.id }, data: estData });
+        return {
+          delta: true,
+          customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }), // FIN-A-5
+          invoices: await tx.invoice.findMany({ where: { customerId: existing.id } }),
+          estimates: await tx.estimate.findMany(),
+        };
+      }
     } else {
       const id = data.id ? String(data.id) : `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const firstPurchaseDate = typeof data.firstPurchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.firstPurchaseDate)

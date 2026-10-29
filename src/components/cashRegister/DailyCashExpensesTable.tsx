@@ -99,6 +99,11 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
       toast.error('Please enter an expense reason or description');
       return;
     }
+    // Category is mandatory so every payout is classified (clean day-end report).
+    if (!category.trim()) {
+      toast.error('Please choose a category for this expense');
+      return;
+    }
 
     const c = parseFloat(cashAmount) || 0;
     const g = parseFloat(gpayAmount) || 0;
@@ -257,7 +262,7 @@ export const DailyCashExpensesTable: React.FC<Props> = ({
             {/* Category + Bill upload row */}
             <div className="flex flex-wrap items-end gap-2.5">
               <div className="flex-1 min-w-[180px]">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Category</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Category <span className="text-red-600">*</span></label>
                 <div className="flex items-stretch gap-1.5">
                   <input
                     list="expense-category-list"

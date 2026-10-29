@@ -705,6 +705,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Kept in sync with currentView so the popstate handler (registered once) can
+  // read the live view without re-subscribing on every navigation.
+  const currentViewRef = useRef(currentView);
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+
   useEffect(() => {
     // Seed a baseline history entry for the initial view so the first Back
     // press has an in-app target rather than leaving the app.
@@ -716,6 +721,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       /* ignore */
     }
     const onPop = (e: PopStateEvent) => {
+      // On the billing / quotation screen, a browser "Back" must NEVER pull the
+      // staff out of a bill in progress. In a busy shop, Back fires by accident
+      // constantly — a two-finger touchpad swipe, a mouse side-button, or the
+      // Back key — and each one was yanking the whole app to the dashboard or
+      // the sales list mid-bill (reported "jumps away 7-8 times/hour"). Swallow
+      // it: re-assert the current screen so the pointer never leaves billing.
+      // Deliberate navigation is via the sidebar / on-screen tabs, which still
+      // work. Other screens keep normal in-app Back.
+      const here = currentViewRef.current;
+      if (here === 'invoices' || here === 'estimates') {
+        try { window.history.pushState({ view: here }, ''); } catch { /* ignore */ }
+        return;
+      }
       const view = (e.state as { view?: ActiveNavView } | null)?.view;
       if (view) setCurrentViewRaw(view);
     };
