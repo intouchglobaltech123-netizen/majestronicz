@@ -87,6 +87,7 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
   // right edge (390 px phones), and opened upward when there is no room below
   // (an item row near the bottom of a modal at 1440×900).
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+  const menuPosRef = useRef(menuPos);
   const updateMenuPos = () => {
     const el = containerRef.current;
     if (!el) return;
@@ -108,11 +109,15 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     // the list must never cover the field. It flips up only when the field is so
     // low on screen that there's basically no room below it. maxHeight is capped
     // to the real space on that side so the panel scrolls instead of ballooning.
-    if (below >= MIN_BELOW || below >= above) {
-      setMenuPos({ top: Math.round(r.bottom + GAP), left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, below - GAP)) });
-    } else {
-      setMenuPos({ bottom: Math.round(vh - r.top + GAP), left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, above - GAP)) });
-    }
+    const next = (below >= MIN_BELOW || below >= above)
+      ? { top: Math.round(r.bottom + GAP), bottom: undefined as number | undefined, left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, below - GAP)) }
+      : { top: undefined as number | undefined, bottom: Math.round(vh - r.top + GAP), left, width: menuW, maxHeight: Math.max(96, Math.min(MAX, above - GAP)) };
+    // Only re-set when the position actually changed, so the per-frame tracker
+    // (below) doesn't cause a render every frame.
+    const cur = menuPosRef.current;
+    if (cur && cur.top === next.top && cur.bottom === next.bottom && cur.left === next.left && cur.width === next.width && cur.maxHeight === next.maxHeight) return;
+    menuPosRef.current = next;
+    setMenuPos(next);
   };
   // Re-place once the menu has rendered and its real width is known.
   const menuShown = isOpen && !!menuPos;
@@ -121,15 +126,23 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuShown]);
   useEffect(() => {
-    if (!isOpen) return;
-    updateMenuPos();
+    if (!isOpen) { menuPosRef.current = null; return; }
+    // Track the field's position EVERY frame while open, so the list stays glued
+    // just below it even when the row grows/shrinks (e.g. the "not a catalogue
+    // item" note appears) or the page scrolls. updateMenuPos only re-renders when
+    // the position actually changes, so this is cheap.
+    let raf = 0;
+    const loop = () => { updateMenuPos(); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
     const onMove = () => updateMenuPos();
     window.addEventListener('scroll', onMove, true);
     window.addEventListener('resize', onMove);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onMove, true);
       window.removeEventListener('resize', onMove);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const effectiveBranchId = selectedBranchId ?? (currentBranch === 'all' ? 'erode-hq' : currentBranch);
