@@ -351,10 +351,13 @@ export const InvoiceForm: React.FC<Props> = ({
       .slice(0, 8);
   }, [knownContacts, customerPhone, customerId]);
   const pickCustomer = (c: { id?: string; phone: string; name: string; address: string; notes?: string }) => {
+    // A saved customer's master record is authoritative — use its phone/address
+    // so picking by NAME always fills the number (not just the one in the row).
+    const master = c.id ? customers.find((cc) => cc.id === c.id) : undefined;
     setCustomerId(c.id);
-    setCustomerPhone((c.phone || '').replace(/\D/g, ''));
-    setCustomerName(cleanCustomerName(c.name, c.notes));
-    setCustomerAddress(c.address || '');
+    setCustomerPhone((master?.phone || c.phone || '').replace(/\D/g, ''));
+    setCustomerName(cleanCustomerName(master?.name ?? c.name, master?.notes ?? c.notes));
+    setCustomerAddress(master?.address || c.address || '');
     setShowNewCustomerPrompt(false);
     setPhoneFocused(false);
     setNameFocused(false);
@@ -364,14 +367,17 @@ export const InvoiceForm: React.FC<Props> = ({
   // way the mobile field suggests by number prefix. A phone is NOT required here,
   // so a name-only customer (billed without a number) still shows up.
   const [nameFocused, setNameFocused] = useState(false);
+  const [nameHighlight, setNameHighlight] = useState(0);
   const nameContacts = useMemo(() => {
     const byKey = new Map<string, { id?: string; phone: string; name: string; address: string; notes?: string }>();
     const put = (phoneRaw?: string, name?: string, address?: string, id?: string, notes?: string) => {
       const nm = (name || '').trim();
       if (!nm || nm.toLowerCase() === 'walk-in customer') return;
       const clean = (phoneRaw || '').replace(/\D/g, '');
-      const phone = clean.length === 10 ? clean : '';
-      const key = id || (phone ? `p:${phone}` : `n:${nm.toLowerCase()}`);
+      // Keep whatever number digits exist so picking the name still fills the
+      // phone; dedupe by a 10-digit number when there is one, else by name.
+      const phone = clean;
+      const key = id || (clean.length === 10 ? `p:${clean}` : `n:${nm.toLowerCase()}`);
       const existing = byKey.get(key);
       if (!existing || (id && !existing.id)) byKey.set(key, { id, phone, name: nm, address: address || '', notes });
     };
@@ -2747,10 +2753,19 @@ export const InvoiceForm: React.FC<Props> = ({
             <input
               type="text"
               value={selectedCustomerObj ? selectedCustomerObj.name : customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              onChange={(e) => { setCustomerName(e.target.value); setNameHighlight(0); }}
               readOnly={!!selectedCustomerObj || lockBuyer}
               onFocus={() => setNameFocused(true)}
               onBlur={() => setTimeout(() => setNameFocused(false), 150)}
+              onKeyDown={(e) => {
+                // Keyboard pick: ↑/↓ to move, ENTER to select the highlighted
+                // suggestion (fills name + phone + address), ESC to close.
+                if (!nameFocused || nameSuggestions.length === 0) return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); setNameHighlight((h) => Math.min(h + 1, nameSuggestions.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setNameHighlight((h) => Math.max(h - 1, 0)); }
+                else if (e.key === 'Enter') { e.preventDefault(); const pick = nameSuggestions[nameHighlight] || nameSuggestions[0]; if (pick) pickCustomer(pick); }
+                else if (e.key === 'Escape') { setNameFocused(false); }
+              }}
               placeholder={documentType === 'Quotation' ? 'Name (optional)' : 'Customer name *'}
               className={cn(
                 'w-full px-2.5 py-1.5 rounded-lg border text-base font-bold text-slate-900 placeholder-slate-400 placeholder:text-sm placeholder:font-semibold focus:outline-none',
@@ -2767,7 +2782,8 @@ export const InvoiceForm: React.FC<Props> = ({
                     key={(c.id || c.phone || c.name) + i}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
-                    className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                    onMouseEnter={() => setNameHighlight(i)}
+                    className={cn('w-full text-left px-3 py-2 border-b border-slate-100 last:border-0', i === nameHighlight ? 'bg-blue-50' : 'hover:bg-blue-50')}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-slate-900 text-sm truncate">{c.name || 'Customer'}</span>
