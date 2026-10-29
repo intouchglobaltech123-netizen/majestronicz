@@ -105,12 +105,19 @@ export function gstinProviderConfigured(): boolean {
  * so swapping provider is an env change rather than a code change.
  */
 function mapProviderResponse(gstin: string, body: any): GstinResult {
-  const d = body?.data ?? body?.result ?? body ?? {};
+  // Reach the record wherever the provider nests it: Appyflow / GST-portal use
+  // `taxpayerInfo`, others use `data`/`result`, some put it at the top level.
+  const d = body?.taxpayerInfo ?? body?.data?.taxpayerInfo ?? body?.data ?? body?.result ?? body ?? {};
   const legalName = d.legal_name ?? d.lgnm ?? d.legalName ?? d.name;
   const tradeName = d.trade_name ?? d.tradeNam ?? d.tradeName;
   const status = d.status ?? d.sts ?? d.gstinStatus;
-  const addr = d.address ?? d.pradr?.adr ?? d.principalAddress;
-  // city/pincode come separately from this provider; fold them in so the
+  let addr: any = d.address ?? d.pradr?.adr ?? d.principalAddress;
+  // GST-portal / Appyflow give a STRUCTURED principal address — build a line.
+  if ((!addr || typeof addr !== 'string') && d.pradr?.addr && typeof d.pradr.addr === 'object') {
+    const a = d.pradr.addr;
+    addr = [a.bno, a.bnm, a.flno, a.st, a.loc, a.city, a.dst, a.stcd, a.pncd].filter(Boolean).join(', ');
+  }
+  // city/pincode come separately from some providers; fold them in so the
   // vendor form can show one usable line.
   const parts = [typeof addr === 'string' ? addr : undefined, d.city, d.pincode].filter(Boolean);
   return {
