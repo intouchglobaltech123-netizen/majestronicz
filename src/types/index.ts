@@ -1876,7 +1876,19 @@ export const getInvoicePaymentSplits = (
     { mode: !inv.paymentMode || inv.paymentMode === 'COD-Credit' ? 'Cash' : inv.paymentMode, amount: partial },
     { mode: 'COD-Credit', amount: Math.round((grand - partial) * 100) / 100 },
   ];
-  if (inv.paymentSplits && inv.paymentSplits.length > 0) return inv.paymentSplits;
+  if (inv.paymentSplits && inv.paymentSplits.length > 0) {
+    // A bill paid fully in ONE mode must have that split equal the bill total.
+    // If an old edit reduced the total but left the split stale (amount !=
+    // grandTotal), normalise it so collections/bank reconciliation never over-
+    // or under-count that mode. Multi-mode splits are intentional — left as is.
+    if (inv.paymentSplits.length === 1) {
+      const only = inv.paymentSplits[0];
+      if (only.mode !== 'COD-Credit' && Math.round(((Number(only.amount) || 0) - grand) * 100) / 100 !== 0) {
+        return [{ mode: only.mode, amount: grand }];
+      }
+    }
+    return inv.paymentSplits;
+  }
   if (inv.isPartialPayment && partial > 0) return legacyPartial();
   return [{ mode: inv.paymentMode || 'Cash', amount: grand }];
 };
