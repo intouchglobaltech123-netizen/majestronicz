@@ -890,7 +890,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
         {/* Multi-tab bill strip — inline on the RIGHT of the heading, horizontal scroll */}
         {activeTab === 'new' && (
-          <div ref={tabStripRef} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div ref={tabStripRef} className="flex-1 min-w-0 flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
             {openBills.map((tab) => {
               const isActive = tab.id === activeBillId;
               const isQuote = tab.documentType === 'Quotation';
@@ -910,7 +910,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   data-bill-id={tab.id}
                   onClick={() => setActiveBillId(tab.id)}
                   className={cn(
-                    'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-none border text-[11px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
+                    // Bigger chips + a clear gap so staff don't mis-tap a neighbour.
+                    'group flex items-center gap-2 pl-3.5 pr-1.5 py-2 rounded-lg border text-[12.5px] font-bold cursor-pointer whitespace-nowrap transition-colors shrink-0',
                     isActive
                       ? isQuote
                         ? 'bg-slate-800 text-white border-slate-900'
@@ -918,15 +919,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                       : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   )}
                 >
-                  {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
-                  <span className="max-w-[120px] truncate" title={tabLabel}>{tabLabel}</span>
+                  {isQuote ? <FileText className="h-4 w-4 shrink-0" /> : <Receipt className="h-4 w-4 shrink-0" />}
+                  <span className="max-w-[160px] truncate" title={tabLabel}>{tabLabel}</span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
-                    className={cn('p-0.5 rounded transition-colors', isActive ? 'text-white/80 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-100')}
+                    // The ✕ only shows on the ACTIVE or hovered tab, so tapping a
+                    // neighbour to switch can't accidentally close it.
+                    className={cn(
+                      'ml-0.5 p-1 rounded transition-opacity',
+                      isActive ? 'opacity-100 text-white/80 hover:bg-white/20' : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:bg-slate-100',
+                    )}
                     title="Close this bill"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               );
