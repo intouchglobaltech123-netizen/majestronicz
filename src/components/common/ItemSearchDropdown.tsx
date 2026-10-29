@@ -100,14 +100,15 @@ export const ItemSearchDropdown: React.FC<ItemSearchDropdownProps> = ({
     const left = Math.max(8, Math.min(r.left, vw - menuW - 8));
     const MAX = 340;
     const GAP = 6;
+    const MIN_BELOW = 150; // enough room to show a few suggestions under the field
     const below = vh - r.bottom - 10;
     const above = r.top - 10;
-    // Place the suggestions where they actually FIT, and NEVER over the field
-    // being typed in. If a full menu fits below the input (or there is simply
-    // more room below than above) open downward; otherwise open UPWARD — so a
-    // row low on the screen keeps its input visible with the list rising above
-    // it, instead of a big panel cramming over the field (billing staff's ask).
-    if (below >= MAX || below >= above) {
+    // ALWAYS prefer opening the list DOWNWARD (below the field), so the field
+    // being typed in AND the item rows already added ABOVE it both stay visible
+    // (billing staff's ask: the previous products must not be covered). The list
+    // only flips UP when the row is so low on the screen that there's really no
+    // room below it (and more room above).
+    if (below >= MIN_BELOW || below >= above) {
       setMenuPos({ top: r.bottom + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, below - GAP)) });
     } else {
       setMenuPos({ bottom: vh - r.top + GAP, left, width: menuW, maxHeight: Math.min(MAX, Math.max(140, above - GAP)) });
