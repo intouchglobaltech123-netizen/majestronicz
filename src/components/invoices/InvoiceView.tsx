@@ -894,6 +894,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             {openBills.map((tab) => {
               const isActive = tab.id === activeBillId;
               const isQuote = tab.documentType === 'Quotation';
+              // Show the CUSTOMER NAME on the tab once it's entered (from the
+              // live working copy / the bill being edited) so staff can tell
+              // whose bill is which when many tabs are open; else "Sale N".
+              const custName = (
+                (tab.workingCopy as { customerName?: string } | undefined)?.customerName
+                || tab.editingInvoice?.customerName
+                || tab.editingEstimate?.customerName
+                || ''
+              ).trim();
+              const tabLabel = custName && custName.toLowerCase() !== 'walk-in customer' ? custName : tab.label;
               return (
                 <div
                   key={tab.id}
@@ -909,7 +919,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                   )}
                 >
                   {isQuote ? <FileText className="h-3 w-3 shrink-0" /> : <Receipt className="h-3 w-3 shrink-0" />}
-                  <span className="max-w-[110px] truncate">{tab.label}</span>
+                  <span className="max-w-[120px] truncate" title={tabLabel}>{tabLabel}</span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); closeBillTab(tab.id, isQuote ? 'estimates' : 'ledger'); }}
