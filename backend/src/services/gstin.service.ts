@@ -118,8 +118,15 @@ function mapProviderResponse(gstin: string, body: any): GstinResult {
     addr = [a.bno, a.bnm, a.flno, a.st, a.loc, a.city, a.dst, a.stcd, a.pncd].filter(Boolean).join(', ');
   }
   // city/pincode come separately from some providers; fold them in so the
-  // vendor form can show one usable line.
-  const parts = [typeof addr === 'string' ? addr : undefined, d.city, d.pincode].filter(Boolean);
+  // vendor form shows one usable line — but skip either if the address string
+  // already contains it (avoids "Erode, Erode, 638001").
+  const addrStr = typeof addr === 'string' ? addr.trim() : undefined;
+  const low = (addrStr || '').toLowerCase();
+  const parts = [
+    addrStr || undefined,
+    d.city && !low.includes(String(d.city).trim().toLowerCase()) ? d.city : undefined,
+    d.pincode && !low.includes(String(d.pincode).trim()) ? d.pincode : undefined,
+  ].filter(Boolean);
   return {
     gstin,
     valid: true,
