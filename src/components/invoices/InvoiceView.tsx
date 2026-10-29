@@ -1336,7 +1336,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                     : m.mode === 'HDFC' ? 'text-indigo-700'
                     : m.mode === 'Online' ? 'text-slate-700'
                     : 'text-teal-700',
-                  sub: `${m.mode} in today · incl. old-dues receipts, less refunds`,
+                  sub: m.mode === 'Cash'
+                    ? 'Cash collected (bills + old dues, less refunds). Drawer balance — after vendor payouts & expenses — is in the Cash Register.'
+                    : `${m.mode} in today · incl. old-dues receipts, less refunds`,
                 })),
                 // Credit tile so the money cards reconcile with Sales: a sale can
                 // be paid (any mode) or left on credit — this is today's unpaid
