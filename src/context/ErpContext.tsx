@@ -282,6 +282,12 @@ interface ErpContextType {
   estimateToConvert: Estimate | null;
   setEstimateToConvert: (estimate: Estimate | null) => void;
   // Pre-filled quotation (e.g. from an enquiry) to open in the Sales form in
+  /** Build a Quotation from plain lines (Shopify order in-shop, or an Excel/CSV
+   *  upload) and open it pre-filled at the chosen branch. */
+  startQuotationFromLines: (
+    lines: Array<{ sku?: string; name?: string; qty: number; price?: number }>,
+    opts: { branchId: string; customerName?: string; customerPhone?: string; customerAddress?: string; note?: string },
+  ) => { matched: number; unmatched: number };
   // Quotation mode — distinct from estimateToConvert which opens an invoice.
   quoteToPrefill: Estimate | null;
   setQuoteToPrefill: (estimate: Estimate | null) => void;
@@ -3963,6 +3969,83 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Build a QUOTATION from a plain list of lines and open it pre-filled, at the
+  // chosen branch. Shared by: converting a Shopify order fulfilled in-shop, and
+  // the Excel/CSV upload. Each line matches the catalog by SKU (itemCode) or
+  // name for HSN/GST/price; an unmatched code becomes a free-text line (price
+  // from the file, else 0 — the staff fill it in). A per-line price from the
+  // file is taken as the pre-tax unit price; otherwise the catalog price is used.
+  const startQuotationFromLines = (
+    lines: Array<{ sku?: string; name?: string; qty: number; price?: number }>,
+    opts: { branchId: string; customerName?: string; customerPhone?: string; customerAddress?: string; note?: string },
+  ): { matched: number; unmatched: number } => {
+    const codeMap = new Map(items.map((i) => [String(i.itemCode || '').trim().toUpperCase(), i]));
+    const nameMap = new Map(items.map((i) => [String(i.itemName || '').trim().toLowerCase(), i]));
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    let matched = 0, unmatched = 0;
+    const estItems = lines
+      .filter((l) => (Number(l.qty) || 0) > 0 && ((l.sku && l.sku.trim()) || (l.name && l.name.trim())))
+      .map((l, idx) => {
+        const code = (l.sku || '').trim();
+        const nm = (l.name || '').trim();
+        const item = (code && codeMap.get(code.toUpperCase())) || (nm && nameMap.get(nm.toLowerCase())) || undefined;
+        if (item) matched++; else unmatched++;
+        const gstRate = item?.gstTaxSlab ?? 18;
+        const catalogPreTax = item
+          ? (item.salePriceTaxMode === 'with' ? r2(item.salePrice / (1 + gstRate / 100)) : item.salePrice)
+          : 0;
+        const unitPrice = l.price != null && Number.isFinite(Number(l.price)) ? r2(Number(l.price)) : catalogPreTax;
+        const qty = Math.max(1, Number(l.qty) || 1);
+        const taxable = r2(qty * unitPrice);
+        const totalTax = r2((taxable * gstRate) / 100);
+        return {
+          id: `li-q-${Date.now()}-${idx}`,
+          itemId: item?.id,
+          itemName: item?.itemName || nm || code,
+          itemHSN: item?.itemHSN ?? '',
+          quantity: qty,
+          unit: item?.unit || 'PCS',
+          unitPrice,
+          gstRate,
+          taxableAmount: taxable,
+          cgstAmount: r2(totalTax / 2),
+          sgstAmount: r2(totalTax - r2(totalTax / 2)),
+          totalTax,
+          totalAmount: r2(taxable + totalTax),
+        };
+      });
+    if (estItems.length === 0) { toast.error('Nothing to convert', { description: 'No lines with a product and a quantity were found.' }); return { matched: 0, unmatched: 0 }; }
+    const subtotal = r2(estItems.reduce((s, it) => s + it.taxableAmount, 0));
+    const totalTax = r2(estItems.reduce((s, it) => s + it.totalTax, 0));
+    const est: Estimate = {
+      id: `est-conv-${Date.now()}`,
+      estimateNumber: getNextEstimateNumber(opts.branchId as BranchId),
+      branchId: opts.branchId as BranchId,
+      date: getTodayDateString(),
+      time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+      customerName: opts.customerName || '',
+      customerContact: opts.customerPhone || '',
+      customerAddress: opts.customerAddress || '',
+      withGst: true,
+      items: estItems as any,
+      subtotal,
+      totalCgst: r2(totalTax / 2),
+      totalSgst: r2(totalTax - r2(totalTax / 2)),
+      totalTax,
+      grandTotal: r2(subtotal + totalTax),
+      amountInWords: '',
+      termsAndConditions: `**NO WARRANTY**\n**NO EXCHANGE**\n**NO RETURN**`,
+      createdAt: new Date().toISOString(),
+    };
+    setQuoteToPrefill(est);
+    setEstimateToConvert(null);
+    setCurrentView('estimates');
+    toast.success('Quotation ready — review & save', {
+      description: `${matched} item(s) matched${unmatched ? `, ${unmatched} not in catalog (check price)` : ''}${opts.note ? ` · ${opts.note}` : ''}.`,
+    });
+    return { matched, unmatched };
+  };
+
   const markEnquiryConverted = async (enquiryId: string, targetType: 'estimate' | 'invoice', docId: string, docNumber: string) => {
     const enq = enquiries.find((e) => e.id === enquiryId);
     if (enq && enq.status !== 'Follow-up') return; // already converted / cancelled
@@ -4598,6 +4681,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setEstimateToConvert,
         quoteToPrefill,
         setQuoteToPrefill,
+        startQuotationFromLines,
         inventoryFilterQuery,
         setInventoryFilterQuery,
         navigateToInventoryItem,

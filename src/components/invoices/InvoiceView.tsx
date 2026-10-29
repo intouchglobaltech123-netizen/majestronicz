@@ -13,6 +13,7 @@ import { InvoicePdfModal } from './InvoicePdfModal';
 import { PaymentHistoryModal, InvoiceHistoryModal, ChallanPreviewModal, EInvoiceModal } from './InvoiceInfoModals';
 import { ConvertEstimateModal } from './ConvertEstimateModal';
 import { SaleReturnModal } from './SaleReturnModal';
+import { ImportQuotationModal } from './ImportQuotationModal';
 import { ReturnsListView } from './ReturnsListView';
 import { SaleReturnDetailModal } from './SaleReturnDetailModal';
 import { EstimatePdfModal } from '../estimates/EstimatePdfModal';
@@ -41,6 +42,7 @@ import {
   MoreVertical,
   Share2,
   Eye,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createPortal } from 'react-dom';
@@ -247,6 +249,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // Which challan sub-tab to show when the embedded Delivery Challans tab is open.
   const [challanTab, setChallanTab] = useState<'new' | 'history'>('history');
   const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const [showImportQuote, setShowImportQuote] = useState(false);
 
   // Work-in-progress drafts (per-user, browser-local)
   const [drafts, setDrafts] = useState<SalesDraft[]>(() => loadDrafts(draftUserKey));
@@ -1059,6 +1062,16 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 {k === 'all' ? 'All' : k} ({quoteCounts[k]})
               </button>
             ))}
+            {/* Build a quotation from an uploaded Excel/CSV list of items. */}
+            <button
+              type="button"
+              onClick={() => setShowImportQuote(true)}
+              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold border rounded-none bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 transition-colors cursor-pointer"
+              title="Upload an Excel/CSV list of items and turn it into a quotation"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Import Excel/CSV → Quote</span>
+            </button>
           </div>
 
           {/* Quick Filter Bar */}
@@ -1751,6 +1764,8 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
       />
 
       {/* Line-Item Return Modal */}
+      <ImportQuotationModal isOpen={showImportQuote} onClose={() => setShowImportQuote(false)} />
+
       <SaleReturnModal
         invoice={returnInvoice}
         isOpen={!!returnInvoice}

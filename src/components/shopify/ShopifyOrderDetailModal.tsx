@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
+import { useErp } from '../../context/ErpContext';
 import { ShopifySimilarProductsModal } from './ShopifySimilarProductsModal';
 
 interface Props {
@@ -42,6 +44,25 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
   variant = 'modal',
 }) => {
   const isPage = variant === 'page';
+  const { startQuotationFromLines, accessibleBranches } = useErp();
+  // Convert an in-shop pickup order into a counter Quotation at a chosen branch.
+  const [showConvertPick, setShowConvertPick] = useState(false);
+  const convertToQuotation = (branchId: string) => {
+    if (!order) return;
+    const lines = (order.lines || [])
+      .filter((l) => (Number(l.qty) || 0) > 0)
+      .map((l) => ({ sku: l.sku, name: l.itemName || l.title, qty: Number(l.qty) || 1 }));
+    if (lines.length === 0) { toast.error('This order has no items to convert'); return; }
+    setShowConvertPick(false);
+    startQuotationFromLines(lines, {
+      branchId,
+      customerName: order.customerName || order.shippingAddress?.name || '',
+      customerPhone: cleanPhoneDigits(order.customerPhone || order.shippingAddress?.phone || ''),
+      customerAddress: order.shippingAddress?.address1 || '',
+      note: `from online order ${order.orderName}`,
+    });
+    onClose();
+  };
   const [carrier, setCarrier] = useState<string>(order?.trackingCompany || 'Delhivery');
   const [trackingNumber, setTrackingNumber] = useState<string>(order?.trackingNumber || '');
   const [fulfilling, setFulfilling] = useState(false);
@@ -250,6 +271,34 @@ export const ShopifyOrderDetailModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* In-shop pickup: convert this online order into a counter Quotation
+                at the chosen branch (customer came to the shop to collect). */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowConvertPick((s) => !s)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white border border-violet-700 transition-colors cursor-pointer"
+                title="Customer came to the shop — make a counter Quotation from this order"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>Convert to Quotation</span>
+              </button>
+              {showConvertPick && (
+                <div className="absolute right-0 mt-1 z-20 bg-white border border-slate-300 rounded-lg shadow-xl w-56 overflow-hidden">
+                  <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200">Quote at which branch?</div>
+                  {accessibleBranches.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => convertToQuotation(b.id)}
+                      className="w-full text-left px-3 py-2.5 text-xs font-semibold text-slate-800 hover:bg-violet-50 border-b border-slate-100 last:border-0"
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setShowPackingSlip((s) => !s)}
