@@ -992,6 +992,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
                 isActive={tab.id === activeBillId}
                 initialInvoice={tab.editingInvoice}
                 initialEstimate={tab.editingEstimate}
+                restoreSeed={tab.editingInvoice || tab.editingEstimate ? null : (tab.workingCopy ?? null)}
                 convertedFromEstimate={tab.convertedEstimate}
                 duplicateSourceInvoice={tab.duplicateSourceInvoice}
                 duplicateSourceEstimate={tab.duplicateSourceEstimate}

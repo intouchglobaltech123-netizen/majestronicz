@@ -84,6 +84,9 @@ interface Props {
   /** SAL4-13: the form's current contents (unvalidated), so the bill tabs can be
    *  restored WITH their lines after a page reload. */
   onWorkingCopy?: (doc: Invoice | Estimate) => void;
+  /** A new bill's last working copy, used to re-seed the form ONCE if it ever
+   *  (re)mounts mid-entry — so an in-progress bill is never shown empty. */
+  restoreSeed?: Invoice | Estimate | null;
   /** True when this bill tab is the one on screen (enables the global scanner). */
   isActive?: boolean;
   /** Edit-mode only (#4): void / delete THIS saved bill from inside the screen. */
@@ -107,6 +110,7 @@ export const InvoiceForm: React.FC<Props> = ({
   onCancel,
   onBackToList,
   onWorkingCopy,
+  restoreSeed,
   onVoidBill,
   canVoidBill,
 }) => {
@@ -493,7 +497,7 @@ export const InvoiceForm: React.FC<Props> = ({
   // before a bill can be saved, so they consciously confirm the money came in
   // and the payment mode is right — instead of leaving the default Cash by
   // accident when it was actually GPay. Pre-ticked when editing a saved bill.
-  const [paymentReceived, setPaymentReceived] = useState<boolean>(() => !!initialInvoice);
+  const [paymentReceived, setPaymentReceived] = useState<boolean>(() => isSavedBill);
 
   // Overall Discount & Shipping
   const [overallDiscountType, setOverallDiscountType] = useState<DiscountType>('%');
@@ -865,6 +869,34 @@ export const InvoiceForm: React.FC<Props> = ({
     // `key` when a new source is chosen, so this is safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInvoice?.id, initialEstimate?.id, convertedFromEstimate?.id, duplicateSourceInvoice?.id, duplicateSourceEstimate?.id]);
+
+  // One-time restore: if this NEW bill tab was handed its last working copy (it
+  // may have just (re)mounted mid-entry) and there is no explicit edit source,
+  // seed the form from it ONCE on mount so an in-progress bill is never shown
+  // empty. Mount-only (empty deps) so it never re-seeds / fights live typing.
+  const didRestoreRef = useRef(false);
+  useEffect(() => {
+    if (didRestoreRef.current) return;
+    didRestoreRef.current = true;
+    const seed = restoreSeed as Invoice | undefined;
+    if (!seed || initialInvoice || initialEstimate || convertedFromEstimate || duplicateSourceInvoice || duplicateSourceEstimate) return;
+    if (!(seed.items && seed.items.length)) return;
+    // Keep the original bill identity so a re-save still dedupes correctly.
+    if (seed.clientKey) billKeyRef.current = seed.clientKey;
+    if (seed.id) billIdRef.current = seed.id;
+    setLineItems(seed.items);
+    if (seed.customerName) setCustomerName(seed.customerName);
+    if (seed.customerPhone) setCustomerPhone(seed.customerPhone);
+    if (seed.customerAddress) setCustomerAddress(seed.customerAddress);
+    if (seed.date) setDate(seed.date);
+    if (typeof seed.withGst === 'boolean') setWithGst(seed.withGst);
+    if (seed.paymentSplits && seed.paymentSplits.length) setPaymentSplits(seed.paymentSplits);
+    if (seed.overallDiscountType) setOverallDiscountType(seed.overallDiscountType);
+    if (seed.overallDiscountValue != null) setOverallDiscountValue(seed.overallDiscountValue);
+    if (seed.shippingCharges != null) setShippingCharges(seed.shippingCharges);
+    if (seed.invoiceNumber) setInvoiceNumber(seed.invoiceNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep document number in sync with financial year and mode when date or branch changes
   useEffect(() => {
