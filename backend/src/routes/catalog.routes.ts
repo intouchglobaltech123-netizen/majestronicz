@@ -25,6 +25,8 @@ router.post('/combo', requireCapability('items:write'), asyncHandler(ctrl.saveCo
 router.delete('/combo/:id', requireCapability('items:write'), asyncHandler(ctrl.deleteCombo));
 // Customers
 router.post('/customer', requireCapability('customer:write'), asyncHandler(ctrl.saveCustomer));
+// Bulk party import (one-time migration) — Manager/CEO only.
+router.post('/customers/import', requireCapability('customer:write'), requireManagerOrCEO, asyncHandler(ctrl.importCustomers));
 router.delete('/customer/:id', requireCapability('customer:write'), asyncHandler(ctrl.deleteCustomer));
 // Manually grant / correct a customer's store credit — CEO/Manager only.
 router.post('/customer/:id/credit', requireManagerOrCEO, asyncHandler(ctrl.adjustCustomerCredit));

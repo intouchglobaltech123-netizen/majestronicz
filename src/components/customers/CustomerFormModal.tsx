@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Customer, CustomerType, cleanCustomerName, gstStateInfo } from '../../types';
+import { Customer, CustomerType, normalizeCustomerName, gstStateInfo } from '../../types';
 import { useErp } from '../../context/ErpContext';
 import { X, User, MapPin, FileText, Building2 } from 'lucide-react';
 import { cn, getTodayDateString } from '../../lib/utils';
@@ -27,6 +27,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [gstin, setGstin] = useState('');
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
+  const [openingBalanceDue, setOpeningBalanceDue] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   // GSTIN registry lookup (on blur): fills name/address from the GST registry.
   const [gstinChecking, setGstinChecking] = useState(false);
@@ -60,6 +61,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setAddress(customerToEdit.address || '');
       setGstin(customerToEdit.gstin || '');
       setNotes(customerToEdit.notes || '');
+      setOpeningBalanceDue(customerToEdit.openingBalanceDue != null && customerToEdit.openingBalanceDue > 0 ? String(customerToEdit.openingBalanceDue) : '');
     } else {
       setCustomerType(null);
       setName('');
@@ -67,6 +69,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setAddress('');
       setGstin('');
       setNotes('');
+      setOpeningBalanceDue('');
     }
     setErrorMessage('');
   }, [customerToEdit, isOpen]);
@@ -78,7 +81,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     setErrorMessage('');
 
     const cleanPhone = phone.trim().replace(/\D/g, '');
-    const cleanName = cleanCustomerName(name, notes);
+    const cleanName = normalizeCustomerName(name);
 
     if (!customerType) {
       setErrorMessage('Please explicitly select Customer Type (Retail or Wholesale)');
@@ -117,6 +120,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       // CRM5-4: a cleared GSTIN is sent as null so the server clears it too.
       gstin: (gstin.trim().toUpperCase() || null) as any,
       notes: notes.trim() || undefined,
+      // Blank clears it (sends 0 → server stores null); a positive number keeps it.
+      openingBalanceDue: openingBalanceDue.trim() === '' ? 0 : (Number(openingBalanceDue) || 0),
       firstPurchaseDate: customerToEdit?.firstPurchaseDate || getTodayDateString(),
       purchaseCount: customerToEdit?.purchaseCount ?? 0,
       totalSpent: customerToEdit?.totalSpent ?? 0,
@@ -327,6 +332,26 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               />
               <FileText className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Opening Balance Due (₹) — Optional
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="0"
+              value={openingBalanceDue}
+              onChange={(e) => setOpeningBalanceDue(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
+              className="no-spinner w-full px-3 py-1.5 rounded-none bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono focus:outline-none focus:border-red-600 transition-all"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Amount this customer already owes (e.g. carried over from a previous system). It does not create a sale — set it to <strong>0</strong> once collected.
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">

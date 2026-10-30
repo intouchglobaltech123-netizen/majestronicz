@@ -16,6 +16,11 @@ export interface Customer {
   lastRewardRedeemedPurchaseCount?: number; // tracks when milestone reward was last applied
   creditBalance?: number; // store credit the customer can spend on future bills
   creditHistory?: CustomerCreditEntry[]; // append-only audit of credit movements
+  // Opening balance the customer owed when first loaded (e.g. migrated from a
+  // previous system). Purely informational/collectible — it does NOT create a
+  // sale, so it never touches GST, stock or sales reports. Set it to 0 (edit the
+  // customer) once collected.
+  openingBalanceDue?: number;
 }
 
 export interface CustomerCreditEntry {
@@ -129,6 +134,23 @@ export function cleanCustomerName(rawName: string, _notes?: string): string {
   cleaned = cleaned.replace(/\s*[-•|]\s*$/, '').trim();
 
   return cleaned;
+}
+
+/**
+ * Normalise a customer name for saving: ALL CAPS, with stray punctuation the
+ * shop doesn't want in names removed — underscore, hyphen, brackets and quotes
+ * are turned into spaces, then runs of spaces collapse. Legitimate business
+ * punctuation (& . , /) is kept. Runs the system-suffix strip (cleanCustomerName)
+ * first. Used on every customer save and on the party import.
+ */
+export function normalizeCustomerName(rawName: string): string {
+  const base = cleanCustomerName(rawName);
+  if (!base) return '';
+  return base
+    .replace(/[_\-\[\]{}()"'`]+/g, ' ') // underscore, hyphen, brackets, quotes → space
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
 }
 
 /**

@@ -356,6 +356,20 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </span>
             </div>
 
+            {/* Opening balance due — migrated from a previous system (collectible,
+                does not count as a sale). Shown until cleared (edit → set 0). */}
+            {(currentCustomer.openingBalanceDue || 0) > 0 && (
+              <div className="p-4 rounded-xl border bg-orange-50/80 border-orange-200 shadow-2xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider block text-orange-900">Opening Balance Due</span>
+                <div className="text-xl font-bold mt-1 font-mono text-orange-700">
+                  {formatCurrency(currentCustomer.openingBalanceDue || 0)}
+                </div>
+                <span className="text-[11px] mt-0.5 block font-medium text-orange-700/80">
+                  Carried over (migration) — edit the customer and set it to 0 once collected
+                </span>
+              </div>
+            )}
+
             {/* Store Credit KPI Card — shown when the customer holds credit */}
             {(currentCustomer.creditBalance || 0) > 0 && (
               <div className="p-4 rounded-xl border bg-emerald-50/80 border-emerald-200 shadow-2xs">

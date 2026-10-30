@@ -15,6 +15,16 @@ import { roleCan, roleFlags } from '../lib/auth.js';
 import { isValidBranch } from '../lib/constants.js';
 import { receiveStockTransfer, isTransferChallan } from './stock.service.js';
 
+/** Normalise a customer name on save/import: ALL CAPS, with underscore/hyphen/
+ *  brackets/quotes turned into spaces and runs of spaces collapsed. Legitimate
+ *  business punctuation (& . , /) is kept. Mirrors the frontend normalizeCustomerName. */
+function normalizeCustomerName(raw: any): string {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  return s.replace(/[_\-\[\]{}()"'`]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
  * Server-authoritative recompute of estimate line taxes + totals.
  * Mirrors the invoice recompute: honors per-line discounts, overall discount,
@@ -481,7 +491,7 @@ export function saveCustomer(data: any) {
     // and come back as a 500 quoting the query). Purchase aggregates and store
     // credit are server-maintained from bills (CRM2-10 / CRM5-6) and never taken
     // from the client. A missing address defaults to blank.
-    const fields: Record<string, any> = { name: String(data.name).trim(), phone: String(data.phone).trim() };
+    const fields: Record<string, any> = { name: normalizeCustomerName(data.name), phone: String(data.phone).trim() };
     for (const k of ['address', 'email', 'customerType', 'notes'] as const) {
       if (data[k] === undefined) continue;
       if (data[k] !== null && typeof data[k] !== 'string') throw new AppError('BAD_REQUEST', `Invalid ${k}.`, 400);
@@ -489,6 +499,11 @@ export function saveCustomer(data: any) {
     }
     if (data.gstin !== undefined) fields.gstin = data.gstin;
     if (fields.address === null) fields.address = '';
+    // Opening balance (migrated due) — a positive number, or 0/blank clears it.
+    if (data.openingBalanceDue !== undefined) {
+      const v = Number(data.openingBalanceDue);
+      fields.openingBalanceDue = Number.isFinite(v) && v > 0 ? round2(v) : null;
+    }
 
     const ts = nowIso();
     const existing = data.id ? await tx.customer.findUnique({ where: { id: String(data.id) } }) : null;
@@ -547,6 +562,65 @@ export function saveCustomer(data: any) {
     }
     return { customers: await withLiveBillCounts(tx, await tx.customer.findMany(), { all: true }) }; // FIN-A-5
   });
+}
+
+/**
+ * Bulk-import parties (one-time migration from another system). Each row:
+ * { name, phone, gstin?, address?, openingBalanceDue? }. Phones are the unique
+ * key: invalid phones and any already on file (or repeated within the batch) are
+ * SKIPPED, not failed, so a big import never aborts on one bad row. Names are
+ * normalised (ALL CAPS, punctuation stripped); a bad GSTIN is dropped rather than
+ * rejected. Inserts in one transaction and reports the counts. Call it in chunks
+ * (≤5000) for a large file — each chunk dedupes against everything already saved.
+ */
+export function importCustomers(parties: any[]) {
+  if (!Array.isArray(parties) || !parties.length) {
+    throw new AppError('NO_PARTIES', 'No parties to import.', 400);
+  }
+  if (parties.length > 5000) {
+    throw new AppError('TOO_MANY', 'Import at most 5000 parties per request.', 400);
+  }
+  return withRetry(() => prisma.$transaction(async (tx: any) => {
+    const existing = await tx.customer.findMany({ select: { phone: true } });
+    const seen = new Set<string>(existing.map((c: any) => cleanPhone(c.phone)));
+    const ts = nowIso();
+    const today = istToday();
+    const stamp = ts.replace(/\D/g, '').slice(-10);
+    const toCreate: any[] = [];
+    let skippedDup = 0, skippedInvalid = 0, withBalance = 0;
+    parties.forEach((p: any, i: number) => {
+      const phone = cleanPhone(p?.phone);
+      if (!phone || phone.length !== 10 || !/^[6-9]\d{9}$/.test(phone)) { skippedInvalid++; return; }
+      if (seen.has(phone)) { skippedDup++; return; }
+      seen.add(phone);
+      const name = normalizeCustomerName(p?.name) || 'UNNAMED';
+      let gstin = String(p?.gstin ?? '').trim().toUpperCase();
+      if (gstin && !GSTIN_RE.test(gstin)) gstin = '';
+      const bal = Number(p?.openingBalanceDue) || 0;
+      if (bal > 0) withBalance++;
+      toCreate.push({
+        id: `cust-imp-${stamp}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        name, phone,
+        address: String(p?.address ?? '').trim(),
+        gstin: gstin || null,
+        customerType: gstin ? 'Organization' : 'Retail',
+        firstPurchaseDate: today,
+        purchaseCount: 0,
+        totalSpent: 0,
+        openingBalanceDue: bal > 0 ? round2(bal) : null,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+    });
+    if (toCreate.length) await tx.customer.createMany({ data: toCreate, skipDuplicates: true });
+    return {
+      created: toCreate.length,
+      skippedDup,
+      skippedInvalid,
+      withBalance,
+      totalCustomers: await tx.customer.count(),
+    };
+  }));
 }
 
 export function deleteCustomer(id: string) {

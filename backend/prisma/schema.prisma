@@ -544,6 +544,10 @@ model Customer {
   // movements that make up the balance.
   creditBalance                 Float?
   creditHistory                 Json?
+  // Opening balance the customer owed when first loaded (migrated from a prior
+  // system). Informational/collectible only — never creates a sale, so it does
+  // not touch GST, stock or sales reports. Cleared by editing the customer.
+  openingBalanceDue             Float?
 }
 
 // Multi-item inter-branch stock transfer record (batch).
