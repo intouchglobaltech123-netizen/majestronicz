@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Users,
   Search,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { HistoryLoadingHint } from '../common/HistoryLoadingHint';
-import { Customer, Vendor, getCustomerOutstandingSummary, computeInvoiceFinance, vendorPayables, isInvoiceForCustomer, customerSalesSummary } from '../../types';
+import { Customer, Vendor, computeInvoiceFinance, vendorPayables, normalizePhone } from '../../types';
 import { isLoyaltyMilestoneEligible, getLoyaltyProgress } from '../../types/customer';
 import { formatCurrency, cn, getTodayDateString } from '../../lib/utils';
 import { ListExportBar } from '../common/ListExportBar';
@@ -158,11 +158,56 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
     return map;
   }, [vendorSummary]);
 
+  // PERF (10k+ customers): precompute per-customer sales and outstanding in a
+  // SINGLE pass over the bills instead of scanning every bill once per customer
+  // (that was O(customers × invoices) ≈ millions of ops, re-run on every
+  // live-sync — the cause of the frozen UI after the Vyapar import). Bills are
+  // bucketed by the SAME match rule as isInvoiceForCustomer: a bill with a
+  // customerId belongs to that account; an older bill with no id is matched to
+  // any customer sharing its (normalised) phone. See [[perf-concurrent-users]].
+  const salesAgg = useMemo(() => {
+    const byId = new Map<string, { count: number; spent: number }>();
+    const byPhone = new Map<string, { count: number; spent: number }>();
+    for (const inv of invoices) {
+      if (inv.isVoided) continue;
+      const net = computeInvoiceFinance(inv).net;
+      if (inv.customerId) {
+        const e = byId.get(inv.customerId) || { count: 0, spent: 0 };
+        e.count += 1; e.spent += net; byId.set(inv.customerId, e);
+      } else {
+        const p = normalizePhone(inv.customerPhone);
+        if (!p) continue;
+        const e = byPhone.get(p) || { count: 0, spent: 0 };
+        e.count += 1; e.spent += net; byPhone.set(p, e);
+      }
+    }
+    return { byId, byPhone };
+  }, [invoices]);
+  const dueAgg = useMemo(() => {
+    const byId = new Map<string, number>();
+    const byPhone = new Map<string, number>();
+    for (const inv of scopedInvoices) {
+      if (inv.isVoided) continue;
+      const due = computeInvoiceFinance(inv).due;
+      if (due <= 0) continue;
+      if (inv.customerId) byId.set(inv.customerId, (byId.get(inv.customerId) || 0) + due);
+      else {
+        const p = normalizePhone(inv.customerPhone);
+        if (p) byPhone.set(p, (byPhone.get(p) || 0) + due);
+      }
+    }
+    return { byId, byPhone };
+  }, [scopedInvoices]);
+  const outstandingOf = useCallback(
+    (c: Customer) => (dueAgg.byId.get(c.id) || 0) + (dueAgg.byPhone.get(normalizePhone(c.phone)) || 0),
+    [dueAgg],
+  );
+
   // Unified Parties List
   const parties: UnifiedParty[] = useMemo(() => {
     const list: UnifiedParty[] = [];
     for (const c of customers) {
-      const toCollect = getCustomerOutstandingSummary(c, scopedInvoices).totalOutstanding;
+      const toCollect = outstandingOf(c);
       list.push({
         key: `c-${c.id}`,
         kind: 'customer',
@@ -186,7 +231,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
       });
     }
     return list;
-  }, [customers, vendors, scopedInvoices, vendorPayable]);
+  }, [customers, vendors, outstandingOf, vendorPayable]);
 
   // Filtered Parties for the "All Parties" tab
   const filteredAllParties = useMemo(() => {
@@ -214,11 +259,14 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
   const customerSales = useMemo(() => {
     const map = new Map<string, { count: number; spent: number }>();
     for (const c of customers) {
-      const { count, spent } = customerSalesSummary(c, invoices);
+      const byId = salesAgg.byId.get(c.id);
+      const byPhone = salesAgg.byPhone.get(normalizePhone(c.phone));
+      const count = (byId?.count || 0) + (byPhone?.count || 0);
+      const spent = Math.round(((byId?.spent || 0) + (byPhone?.spent || 0)) * 100) / 100;
       map.set(c.id, { count, spent });
     }
     return map;
-  }, [invoices, customers]);
+  }, [salesAgg, customers]);
   const customerLifetimeSpent = useMemo(() => new Map([...customerSales].map(([id, v]) => [id, v.spent])), [customerSales]);
   const purchasesOf = (c: Customer) => customerSales.get(c.id)?.count ?? 0;
 
@@ -259,6 +307,24 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
 
     return result;
   }, [customers, searchQuery, customerTypeFilter, customerStatusFilter, customerSortBy, loyaltySettings, customerLifetimeSpent, customerSales]);
+
+  // PERF: the shop now has 10k+ customers (Vyapar import 2026-10-30). Painting
+  // every matching row — plus the per-row outstanding-balance scan over all bills
+  // — froze the browser when the directory was opened unfiltered. Only render a
+  // capped page; the user narrows with the search box (which filters the FULL
+  // list above, so nothing is unreachable). See [[perf-concurrent-users]].
+  const CUSTOMER_RENDER_CAP = 100;
+  const visibleCustomers = useMemo(
+    () => filteredCustomers.slice(0, CUSTOMER_RENDER_CAP),
+    [filteredCustomers]
+  );
+  const customersHidden = filteredCustomers.length - visibleCustomers.length;
+  // Same cap for the combined "All parties" tab.
+  const visibleAllParties = useMemo(
+    () => filteredAllParties.slice(0, CUSTOMER_RENDER_CAP),
+    [filteredAllParties]
+  );
+  const allPartiesHidden = filteredAllParties.length - visibleAllParties.length;
 
   // Filtered Suppliers
   const filteredSuppliers = useMemo(() => {
@@ -301,14 +367,26 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
   }, [customers, customerLifetimeSpent]);
 
   const customersWithDueCount = useMemo(() => {
-    return customers.filter((c) => getCustomerOutstandingSummary(c, scopedInvoices).totalOutstanding > 0).length;
-  }, [customers, scopedInvoices]);
+    return customers.reduce((n, c) => (outstandingOf(c) > 0 ? n + 1 : n), 0);
+  }, [customers, outstandingOf]);
   // Dues on bills that belong to no customer account (walk-in bills with no
   // matching phone, or a deleted account) — shown as their own "Unlinked" row
-  // so the rows add up to the header (RPT7-1).
+  // so the rows add up to the header (RPT7-1). PERF: test linkage against id /
+  // phone sets (O(1)) instead of scanning every customer per bill.
+  const customerIdSet = useMemo(() => new Set(customers.map((c) => c.id)), [customers]);
+  const customerPhoneSet = useMemo(
+    () => new Set(customers.map((c) => normalizePhone(c.phone)).filter(Boolean)),
+    [customers],
+  );
   const unlinkedBills = useMemo(
-    () => scopedInvoices.filter((i) => !i.isVoided && computeInvoiceFinance(i).due > 0.004 && !customers.some((c) => isInvoiceForCustomer(i, c))),
-    [scopedInvoices, customers],
+    () => scopedInvoices.filter((i) => {
+      if (i.isVoided || computeInvoiceFinance(i).due <= 0.004) return false;
+      const linked = i.customerId
+        ? customerIdSet.has(i.customerId)
+        : customerPhoneSet.has(normalizePhone(i.customerPhone));
+      return !linked;
+    }),
+    [scopedInvoices, customerIdSet, customerPhoneSet],
   );
 
   const avgPurchases = useMemo(() => {
@@ -677,12 +755,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                    {filteredCustomers.map((cust) => {
+                    {visibleCustomers.map((cust) => {
                       const isOrg = (cust.customerType || 'Retail') === 'Organization';
                       const isEligible = !isOrg && isLoyaltyMilestoneEligible(cust, loyaltySettings);
                       const progress = getLoyaltyProgress(cust, loyaltySettings);
                       // Same scope as the header card (RPT7-1), so the rows add up to it.
-                      const bal = getCustomerOutstandingSummary(cust, scopedInvoices).totalOutstanding;
+                      const bal = outstandingOf(cust);
 
                       return (
                         <tr
@@ -854,6 +932,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                     )}
                   </tbody>
                 </table>
+                {customersHidden > 0 && (
+                  <div className="px-4 py-3 bg-amber-50 border-t border-amber-200 text-[11px] font-semibold text-amber-800 text-center">
+                    Showing first {visibleCustomers.length} of {filteredCustomers.length.toLocaleString('en-IN')} customers.
+                    Type a name or phone in the search box above to find the rest.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-16 text-center space-y-3">
@@ -1194,7 +1278,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                       </td>
                     </tr>
                   ) : (
-                    filteredAllParties.map((p) => {
+                    visibleAllParties.map((p) => {
                       const isCustomer = p.kind === 'customer';
                       const balance = isCustomer ? p.toCollect : p.toPay;
                       return (
@@ -1291,6 +1375,12 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   )}
                 </tbody>
               </table>
+              {allPartiesHidden > 0 && (
+                <div className="px-4 py-3 bg-amber-50 border-t border-amber-200 text-[11px] font-semibold text-amber-800 text-center">
+                  Showing first {visibleAllParties.length} of {filteredAllParties.length.toLocaleString('en-IN')} parties.
+                  Type a name or phone in the search box above to find the rest.
+                </div>
+              )}
             </div>
           </div>
         </>
