@@ -125,11 +125,14 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
     try {
       JsBarcode(svg, safeValue, {
         format: 'CODE128',
-        width: 2,            // narrow-bar (module) width in px — uniform & crisp
-        height: 100,         // intrinsic bar height; viewBox scales it to `height`
+        width: 4,            // narrow-bar (module) width in px — higher intrinsic
+                             // resolution so when the SVG is scaled to the label
+                             // width the bar edges land more precisely (crisper,
+                             // faster-scanning bars on paper)
+        height: 140,         // intrinsic bar height; viewBox scales it to `height`
         margin: 0,
-        marginLeft: 20,      // quiet zone (10 modules × 2px) — scanners require it
-        marginRight: 20,
+        marginLeft: 40,      // quiet zone (10 modules × 4px) — scanners require it
+        marginRight: 40,
         displayValue: false, // the caller prints the human-readable code itself
         background: '#ffffff',
         lineColor: barColor,

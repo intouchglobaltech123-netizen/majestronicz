@@ -166,6 +166,32 @@ export const BarcodeSettingsModal: React.FC<Props> = ({
             </div>
           </div>
 
+          {/* Label Text Size */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Label Text Size (product name / MRP)
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['small', 'medium', 'large'] as const).map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => setLocalSettings({ ...localSettings, fontSize: sz })}
+                  className={`px-3 py-2 text-xs font-bold rounded-none border capitalize transition-colors ${
+                    localSettings.fontSize === sz
+                      ? 'bg-red-600 text-white border-red-700'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Bigger = product name &amp; price are easier to read. Large is the default.
+            </p>
+          </div>
+
           {/* Additional Options */}
           <div className="pt-2 border-t border-slate-100 space-y-3">
             <label className="flex items-center gap-2.5 cursor-pointer">

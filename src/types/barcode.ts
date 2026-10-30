@@ -104,3 +104,26 @@ export interface BarcodeSettings {
   showBorders: boolean;
   fontSize: 'small' | 'medium' | 'large';
 }
+
+// Label text sizes (in px; the print CSS px→mm maps at ~0.265 mm/px). One shared
+// scale so the on-screen preview and the printed sticker use identical sizing,
+// and the shop can bump everything up/down with the Label Text Size setting.
+// Client 2026-10-30: wanted the product details bigger + bold and the barcode
+// easier/faster to scan.
+export interface LabelTextScale {
+  header: number;
+  code: number;
+  name: number;   // line1 — product name, the most important line
+  line: number;   // line2 (e.g. MRP)
+  lineSmall: number; // line3 / line4
+}
+
+export const LABEL_TEXT_SCALES: Record<BarcodeSettings['fontSize'], LabelTextScale> = {
+  small:  { header: 8,   code: 7,   name: 8.5, line: 7.5, lineSmall: 7 },
+  medium: { header: 9,   code: 8,   name: 10,  line: 8.5, lineSmall: 7.5 },
+  large:  { header: 10,  code: 9,   name: 12,  line: 10,  lineSmall: 8.5 },
+};
+
+export function labelTextScale(fontSize: BarcodeSettings['fontSize'] | undefined): LabelTextScale {
+  return LABEL_TEXT_SCALES[fontSize || 'medium'] || LABEL_TEXT_SCALES.medium;
+}

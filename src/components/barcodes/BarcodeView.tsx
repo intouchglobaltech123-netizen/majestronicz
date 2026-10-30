@@ -28,7 +28,7 @@ export const BarcodeView: React.FC = () => {
     printerType: 'regular',
     labelPresetId: 'a4-48', // 48L: 48×24 mm, 48 labels per A4 sheet (4×12) - Default
     showBorders: false,
-    fontSize: 'medium',
+    fontSize: 'large',
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -310,6 +310,7 @@ export const BarcodeView: React.FC = () => {
             line4={line4}
             preset={activePreset}
             printerType={settings.printerType}
+            fontSize={settings.fontSize}
           />
         </div>
       </div>

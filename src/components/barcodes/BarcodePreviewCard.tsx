@@ -1,6 +1,6 @@
 import React from 'react';
 import { Code128Barcode } from '../../lib/code128';
-import { LabelSizePreset } from '../../types/barcode';
+import { LabelSizePreset, BarcodeSettings, labelTextScale } from '../../types/barcode';
 import { Eye, Printer } from 'lucide-react';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   line4: string;
   preset: LabelSizePreset;
   printerType: string;
+  fontSize?: BarcodeSettings['fontSize'];
 }
 
 export const BarcodePreviewCard: React.FC<Props> = ({
@@ -25,7 +26,19 @@ export const BarcodePreviewCard: React.FC<Props> = ({
   line4,
   preset,
   printerType,
+  fontSize,
 }) => {
+  // The preview sticker is drawn ~1.5× bigger than the physical label, so scale
+  // the shared print text sizes up by the same factor for a faithful look.
+  const base = labelTextScale(fontSize);
+  const Z = 1.5;
+  const tx = {
+    header: base.header * Z,
+    code: base.code * Z,
+    name: base.name * Z,
+    line: base.line * Z,
+    lineSmall: base.lineSmall * Z,
+  };
   const displayCode = itemCode.trim() || 'MZ-SAMPLE-01';
   const displayHeader = header.trim() || (itemName ? 'MAJESTRONICZ' : 'MAJESTRONICZ ENTERPRISES');
   const isDummy = !itemCode.trim();
@@ -77,7 +90,10 @@ export const BarcodePreviewCard: React.FC<Props> = ({
 
           {/* Label Header */}
           {displayHeader ? (
-            <div className="w-full text-center font-extrabold text-[11px] tracking-wide text-slate-900 truncate uppercase border-b border-slate-100 pb-0.5">
+            <div
+              className="w-full text-center font-extrabold tracking-wide text-slate-900 truncate uppercase border-b border-slate-100 pb-0.5"
+              style={{ fontSize: `${tx.header}px` }}
+            >
               {displayHeader}
             </div>
           ) : (
@@ -85,39 +101,42 @@ export const BarcodePreviewCard: React.FC<Props> = ({
           )}
 
           {/* Barcode SVG Vector + Code */}
-          <div className="w-full my-1.5 px-1 flex flex-col items-center">
+          <div className="w-full my-1.5 px-0.5 flex flex-col items-center">
             <Code128Barcode
               value={displayCode}
-              height={44}
+              height={Math.max(44, Math.round(preset.heightMm * 1.7 * Z))}
               barColor="#000000"
               showText={false}
               className="w-full"
             />
-            <span className="font-mono text-[10px] font-extrabold tracking-widest text-slate-900 mt-0.5">
+            <span
+              className="font-mono font-extrabold tracking-widest text-slate-900 mt-0.5"
+              style={{ fontSize: `${tx.code}px` }}
+            >
               {displayCode}
             </span>
           </div>
 
-          {/* Label Lines (1 to 4) */}
-          <div className="w-full flex flex-col items-center text-center space-y-0.5 pt-1 border-t border-slate-100 text-[10px] font-semibold text-slate-800">
+          {/* Label Lines (1 to 4) — product name biggest + bold */}
+          <div className="w-full flex flex-col items-center text-center space-y-0.5 pt-1 border-t border-slate-100 font-semibold text-slate-800">
             {line1 ? (
-              <div className="w-full truncate font-bold text-slate-900">{line1}</div>
+              <div className="w-full truncate font-bold text-slate-900" style={{ fontSize: `${tx.name}px` }}>{line1}</div>
             ) : isDummy ? (
-              <div className="w-full truncate font-bold text-slate-900">SAMSUNG 55" ULTRA HD TV</div>
+              <div className="w-full truncate font-bold text-slate-900" style={{ fontSize: `${tx.name}px` }}>SAMSUNG 55" ULTRA HD TV</div>
             ) : null}
 
             {line2 ? (
-              <div className="w-full truncate text-slate-700 text-[9.5px]">{line2}</div>
+              <div className="w-full truncate font-semibold text-slate-700" style={{ fontSize: `${tx.line}px` }}>{line2}</div>
             ) : isDummy ? (
-              <div className="w-full truncate text-slate-700 text-[9.5px]">MRP: ₹42,990.00</div>
+              <div className="w-full truncate font-semibold text-slate-700" style={{ fontSize: `${tx.line}px` }}>MRP: ₹42,990.00</div>
             ) : null}
 
             {line3 ? (
-              <div className="w-full truncate text-slate-600 text-[9px]">{line3}</div>
+              <div className="w-full truncate text-slate-600" style={{ fontSize: `${tx.lineSmall}px` }}>{line3}</div>
             ) : null}
 
             {line4 ? (
-              <div className="w-full truncate text-slate-500 text-[8.5px]">{line4}</div>
+              <div className="w-full truncate text-slate-500" style={{ fontSize: `${tx.lineSmall}px` }}>{line4}</div>
             ) : null}
           </div>
         </div>

@@ -4,6 +4,7 @@ import {
   QueuedBarcodeItem,
   BarcodeSettings,
   LABEL_SIZE_PRESETS,
+  labelTextScale,
 } from '../../types/barcode';
 import { Code128Barcode } from '../../lib/code128';
 import {
@@ -103,10 +104,13 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   const printPageWidthMm = isSingleLabel ? preset.widthMm - 0.3 : 209.5;
 
   // Bar height scaled to the label so the barcode is tall enough to scan on every
-  // sheet size (a too-short barcode is a common scan failure), but short enough
-  // that header + barcode + name + MRP all fit inside the sticker without
-  // overflowing onto the next one. ~1.35 px/mm of label height.
-  const printBarcodeHeight = Math.max(24, Math.round(preset.heightMm * 1.35));
+  // sheet size (a too-short barcode is the #1 reason a scanner is slow to lock on
+  // and read), but short enough that header + barcode + name + MRP still fit
+  // inside the sticker without overflowing onto the next one. Bumped to ~1.7 px/mm
+  // (client 2026-10-30: "scan panna romba time edukkuthu" — slow scans). ~0.265
+  // mm/px at print, so a 24 mm label now gets ~41 px ≈ 11 mm of bars.
+  const printBarcodeHeight = Math.max(26, Math.round(preset.heightMm * 1.7));
+  const tx = labelTextScale(settings.fontSize);
 
   return createPortal(
     <div id="barcode-print-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto print:overflow-visible">
@@ -370,12 +374,17 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                         height: `${preset.heightMm}mm`,
                         // A safe inner margin so the content (barcode included) never
                         // reaches the die-cut edge — a small print drift then lands in
-                        // the gap, not on the neighbouring sticker.
-                        padding: '0.8mm 2mm',
+                        // the gap, not on the neighbouring sticker. Side margin kept
+                        // tight (1.3 mm) so the barcode gets as much width as possible
+                        // (wider bars / X-dimension = faster, more reliable scans).
+                        padding: '0.8mm 1.3mm',
                       }}
                     >
                       {/* Header (brand name, always printed above the barcode) */}
-                      <div className="w-full font-extrabold text-[8.5px] uppercase tracking-wide text-black truncate leading-tight">
+                      <div
+                        className="w-full font-extrabold uppercase tracking-wide text-black truncate leading-tight"
+                        style={{ fontSize: `${tx.header}px` }}
+                      >
                         {(label.header && label.header.trim()) || 'MAJESTRONICZ'}
                       </div>
 
@@ -389,17 +398,21 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                           showText={false}
                           className="w-full"
                         />
-                        <span className="font-mono text-[7px] font-bold text-black tracking-widest">
+                        <span
+                          className="font-mono font-bold text-black tracking-widest"
+                          style={{ fontSize: `${tx.code}px` }}
+                        >
                           {label.itemCode}
                         </span>
                       </div>
 
-                      {/* Text Lines — show every optional line the user entered */}
-                      <div className="w-full text-[7px] leading-tight text-black space-y-0.2">
-                        {label.line1 && <div className="font-bold truncate">{label.line1}</div>}
-                        {label.line2 && <div className="truncate">{label.line2}</div>}
-                        {label.line3 && <div className="truncate">{label.line3}</div>}
-                        {label.line4 && <div className="truncate">{label.line4}</div>}
+                      {/* Text Lines — show every optional line the user entered.
+                          line1 (product name) is the biggest + bold. */}
+                      <div className="w-full leading-tight text-black space-y-0.2">
+                        {label.line1 && <div className="font-bold truncate" style={{ fontSize: `${tx.name}px` }}>{label.line1}</div>}
+                        {label.line2 && <div className="font-semibold truncate" style={{ fontSize: `${tx.line}px` }}>{label.line2}</div>}
+                        {label.line3 && <div className="truncate" style={{ fontSize: `${tx.lineSmall}px` }}>{label.line3}</div>}
+                        {label.line4 && <div className="truncate" style={{ fontSize: `${tx.lineSmall}px` }}>{label.line4}</div>}
                       </div>
                     </div>
                   );
