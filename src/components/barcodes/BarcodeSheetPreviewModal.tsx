@@ -107,8 +107,9 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   // stack (header + barcode + code + name + MRP) must leave CLEAR top/bottom
   // margin inside the sticker — an over-tall barcode (the earlier ×1.7) pushed
   // the bars onto the die-cut line so one barcode straddled two stickers and
-  // nothing scanned. ~0.265 mm/px at print → a 24 mm label gets ~29 px ≈ 7.6 mm.
-  const printBarcodeHeight = Math.max(22, Math.round(preset.heightMm * 1.2));
+  // nothing scanned. ~0.265 mm/px at print → a 24 mm label gets ~32 px ≈ 8.5 mm.
+  // Taller bars = the scanner locks on faster; still clears the margin after centering.
+  const printBarcodeHeight = Math.max(24, Math.round(preset.heightMm * 1.35));
   const tx = labelTextScale(settings.fontSize);
 
   return createPortal(

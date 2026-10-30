@@ -104,7 +104,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
           <div className="w-full my-1.5 px-0.5 flex flex-col items-center">
             <Code128Barcode
               value={displayCode}
-              height={Math.max(40, Math.round(preset.heightMm * 1.2 * Z))}
+              height={Math.max(44, Math.round(preset.heightMm * 1.35 * Z))}
               barColor="#000000"
               showText={false}
               className="w-full"

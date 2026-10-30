@@ -147,13 +147,13 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       svg.removeAttribute('width');
       svg.removeAttribute('height');
       svg.setAttribute('preserveAspectRatio', 'none');
-      // geometricPrecision = render the bars as true vector and let the PRINTER
-      // rasterise them at its own (high) DPI. crispEdges, which we tried before,
-      // snaps every edge to the browser's coarse print-raster grid, so when the
-      // barcode is scaled to the label width adjacent equal-width bars came out
-      // UNEQUAL — the uneven/dense bars that stopped scanning. Precise vector
-      // positions scan far more reliably.
-      svg.setAttribute('shape-rendering', 'geometricPrecision');
+      // crispEdges = NO anti-aliasing: every bar prints as solid black with a
+      // hard black/white boundary. geometricPrecision (tried before) anti-aliases
+      // the edges, so each bar got a soft grey halo — the "ink spread / shadow /
+      // blur" the shop saw, which also makes the scanner hunt for the true edge
+      // (slow scans). A 1-D barcode wants hard edges, exactly like every print-
+      // oriented barcode library (JsBarcode/ZXing/bwip-js) outputs for print.
+      svg.setAttribute('shape-rendering', 'crispEdges');
       const hPx = typeof height === 'number' ? `${height}px` : String(height);
       svg.style.cssText = `display:block;width:100%;height:${hPx};`;
     } catch {
@@ -166,7 +166,7 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       <svg
         ref={svgRef}
         preserveAspectRatio="none"
-        shapeRendering="geometricPrecision"
+        shapeRendering="crispEdges"
         style={{ display: 'block', width: '100%', height }}
         xmlns="http://www.w3.org/2000/svg"
       />
