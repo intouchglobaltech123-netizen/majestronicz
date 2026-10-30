@@ -37,6 +37,25 @@ export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
     gapYmm: 0,
   },
   {
+    // 65-up is the universal A4 label grid (Avery L7651 / Trendz 65L). Its die-cut
+    // pitch is 38.1 × 21.2 mm (NOT a round 38 × 21) — using the exact pitch is what
+    // keeps every row/column landing on its sticker instead of drifting onto the
+    // cut line over 13 rows. The shop uses 48L + 65L, so this sits second.
+    id: 'a4-65',
+    name: '38 × 21 mm (65 Labels / A4 — 65L)',
+    description: 'Common small sticker sheet (5 columns × 13 rows)',
+    widthMm: 38.1,
+    heightMm: 21.2,
+    columns: 5,
+    rows: 13,
+    labelsPerPage: 65,
+    // width: 5×38.1 + 4×2.54 + 2×4.675 = 210 mm; height: 13×21.2 + 2×10.7 = 297 mm.
+    pageMarginTopMm: 10.7,
+    pageMarginLeftMm: 4.675,
+    gapXmm: 2.54,
+    gapYmm: 0,
+  },
+  {
     id: 'a4-56',
     name: '46 × 20 mm (56 Labels / A4 — 56L)',
     description: 'Compact retail sticker sheet (4 columns × 14 rows)',
@@ -118,10 +137,13 @@ export interface LabelTextScale {
   lineSmall: number; // line3 / line4
 }
 
+// Sizes kept modest so header + barcode + code + name + MRP all fit INSIDE a
+// small label (even 38×21 mm / 65L) with margin to spare — an over-tall stack
+// was overflowing the sticker and pushing the barcode onto the die-cut line.
 export const LABEL_TEXT_SCALES: Record<BarcodeSettings['fontSize'], LabelTextScale> = {
-  small:  { header: 8,   code: 7,   name: 8.5, line: 7.5, lineSmall: 7 },
-  medium: { header: 9,   code: 8,   name: 10,  line: 8.5, lineSmall: 7.5 },
-  large:  { header: 10,  code: 9,   name: 12,  line: 10,  lineSmall: 8.5 },
+  small:  { header: 7,   code: 6.5, name: 7,   line: 6.5, lineSmall: 6 },
+  medium: { header: 8,   code: 7,   name: 8.5, line: 7.5, lineSmall: 6.5 },
+  large:  { header: 9,   code: 8,   name: 10,  line: 8.5, lineSmall: 7.5 },
 };
 
 export function labelTextScale(fontSize: BarcodeSettings['fontSize'] | undefined): LabelTextScale {

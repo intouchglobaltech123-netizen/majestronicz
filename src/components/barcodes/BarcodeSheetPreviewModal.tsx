@@ -103,13 +103,12 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
   const printPageHeightMm = isSingleLabel ? preset.heightMm - 0.3 : 296.5;
   const printPageWidthMm = isSingleLabel ? preset.widthMm - 0.3 : 209.5;
 
-  // Bar height scaled to the label so the barcode is tall enough to scan on every
-  // sheet size (a too-short barcode is the #1 reason a scanner is slow to lock on
-  // and read), but short enough that header + barcode + name + MRP still fit
-  // inside the sticker without overflowing onto the next one. Bumped to ~1.7 px/mm
-  // (client 2026-10-30: "scan panna romba time edukkuthu" — slow scans). ~0.265
-  // mm/px at print, so a 24 mm label now gets ~41 px ≈ 11 mm of bars.
-  const printBarcodeHeight = Math.max(26, Math.round(preset.heightMm * 1.7));
+  // Bar height = ~1.2 px/mm of label height. Tall enough to scan, but the whole
+  // stack (header + barcode + code + name + MRP) must leave CLEAR top/bottom
+  // margin inside the sticker — an over-tall barcode (the earlier ×1.7) pushed
+  // the bars onto the die-cut line so one barcode straddled two stickers and
+  // nothing scanned. ~0.265 mm/px at print → a 24 mm label gets ~29 px ≈ 7.6 mm.
+  const printBarcodeHeight = Math.max(22, Math.round(preset.heightMm * 1.2));
   const tx = labelTextScale(settings.fontSize);
 
   return createPortal(
@@ -229,7 +228,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                 return (
                   <div
                     key={`label-${idx}`}
-                    className={`h-20 bg-white p-1 rounded flex flex-col justify-between items-center text-center select-none overflow-hidden ${
+                    className={`h-20 bg-white p-1 rounded flex flex-col justify-center gap-0.5 items-center text-center select-none overflow-hidden ${
                       settings.showBorders
                         ? 'border border-slate-300'
                         : 'border border-slate-100'
@@ -367,17 +366,20 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
                   return (
                     <div
                       key={`print-label-${slotIdx}`}
-                      className="flex flex-col justify-between items-center text-center box-border overflow-hidden"
+                      className="flex flex-col justify-center items-center text-center box-border overflow-hidden"
                       style={{
                         border: settings.showBorders ? '0.5px solid #bbb' : 'none',
                         width: `${preset.widthMm}mm`,
                         height: `${preset.heightMm}mm`,
-                        // A safe inner margin so the content (barcode included) never
-                        // reaches the die-cut edge — a small print drift then lands in
-                        // the gap, not on the neighbouring sticker. Side margin kept
-                        // tight (1.3 mm) so the barcode gets as much width as possible
-                        // (wider bars / X-dimension = faster, more reliable scans).
-                        padding: '0.8mm 1.3mm',
+                        // Content is CENTERED (top-to-bottom + left-to-right). Vertical
+                        // margin (1.3 mm) is the important one — it stops the barcode
+                        // landing on the horizontal die-cut line between two stacked
+                        // stickers (the straddle the client hit). Side margin is kept
+                        // tight (1.1 mm) because columns already have a gap between
+                        // them, and a wider barcode = larger X-dimension = scans better
+                        // (it's borderline on the small 38×21 label with a long code).
+                        padding: '1.3mm 1.1mm',
+                        gap: '0.3mm',
                       }}
                     >
                       {/* Header (brand name, always printed above the barcode) */}
@@ -390,7 +392,7 @@ export const BarcodeSheetPreviewModal: React.FC<Props> = ({
 
                       {/* Barcode Graphic — fills the sticker width (bigger X-dim =
                           more scannable) and uses the label-scaled bar height. */}
-                      <div className="w-full flex flex-col items-center my-0.5">
+                      <div className="w-full flex flex-col items-center">
                         <Code128Barcode
                           value={label.itemCode}
                           height={printBarcodeHeight}

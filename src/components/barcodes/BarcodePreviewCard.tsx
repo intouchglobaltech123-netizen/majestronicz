@@ -78,7 +78,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
 
         {/* Physical Sticker Container (Zoomed 1.8x for crisp readability) */}
         <div
-          className="bg-white text-slate-950 rounded-md border border-slate-300 shadow-md p-3 flex flex-col items-center justify-between relative select-none transition-all duration-150"
+          className="bg-white text-slate-950 rounded-md border border-slate-300 shadow-md p-3 flex flex-col items-center justify-center gap-1 relative select-none transition-all duration-150"
           style={{
             width: '240px',
             minHeight: '140px',
@@ -104,7 +104,7 @@ export const BarcodePreviewCard: React.FC<Props> = ({
           <div className="w-full my-1.5 px-0.5 flex flex-col items-center">
             <Code128Barcode
               value={displayCode}
-              height={Math.max(44, Math.round(preset.heightMm * 1.7 * Z))}
+              height={Math.max(40, Math.round(preset.heightMm * 1.2 * Z))}
               barColor="#000000"
               showText={false}
               className="w-full"

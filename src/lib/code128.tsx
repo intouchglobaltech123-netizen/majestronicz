@@ -147,10 +147,13 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       svg.removeAttribute('width');
       svg.removeAttribute('height');
       svg.setAttribute('preserveAspectRatio', 'none');
-      // crispEdges tells the (print) rasteriser NOT to anti-alias the bar edges.
-      // Without it a barcode stretched to fill the label prints with soft/grey
-      // edges — the "blurry sticker" staff reported, which also scans slower.
-      svg.setAttribute('shape-rendering', 'crispEdges');
+      // geometricPrecision = render the bars as true vector and let the PRINTER
+      // rasterise them at its own (high) DPI. crispEdges, which we tried before,
+      // snaps every edge to the browser's coarse print-raster grid, so when the
+      // barcode is scaled to the label width adjacent equal-width bars came out
+      // UNEQUAL — the uneven/dense bars that stopped scanning. Precise vector
+      // positions scan far more reliably.
+      svg.setAttribute('shape-rendering', 'geometricPrecision');
       const hPx = typeof height === 'number' ? `${height}px` : String(height);
       svg.style.cssText = `display:block;width:100%;height:${hPx};`;
     } catch {
@@ -163,7 +166,7 @@ export const Code128Barcode: React.FC<Code128BarcodeProps> = ({
       <svg
         ref={svgRef}
         preserveAspectRatio="none"
-        shapeRendering="crispEdges"
+        shapeRendering="geometricPrecision"
         style={{ display: 'block', width: '100%', height }}
         xmlns="http://www.w3.org/2000/svg"
       />
