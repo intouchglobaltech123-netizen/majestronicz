@@ -374,6 +374,25 @@ export const InvoiceForm: React.FC<Props> = ({
     setNameFocused(false);
   };
 
+  // A party's outstanding dues / store credit — shown in the customer suggestions
+  // and next to the selected customer, like Vyapar's "Party Balance" (client
+  // 2026-10-31). Dues come from unpaid bills; credit is an advance the shop holds.
+  const contactBalance = (s: { id?: string; phone?: string }): { dues: number; credit: number } => {
+    let cust = s.id ? customers.find((c) => c.id === s.id) : undefined;
+    if (!cust && s.phone) {
+      const p = (s.phone || '').replace(/\D/g, '');
+      if (p.length === 10) cust = customers.find((c) => c.phone.replace(/\D/g, '') === p);
+    }
+    if (!cust) return { dues: 0, credit: 0 };
+    const dues = getCustomerOutstandingSummary(cust, invoices).totalOutstanding;
+    const credit = Math.max(0, Number(cust.creditBalance) || 0);
+    return { dues, credit };
+  };
+  const balanceLabel = (b: { dues: number; credit: number }): { text: string; cls: string } =>
+    b.dues > 0 ? { text: `Bal ₹${Math.round(b.dues).toLocaleString('en-IN')}`, cls: 'text-rose-600' }
+      : b.credit > 0 ? { text: `Adv ₹${Math.round(b.credit).toLocaleString('en-IN')}`, cls: 'text-emerald-600' }
+        : { text: '₹0', cls: 'text-slate-400' };
+
   // Name-first entry: suggest existing customers as the NAME is typed — the same
   // way the mobile field suggests by number prefix. A phone is NOT required here,
   // so a name-only customer (billed without a number) still shows up.
@@ -2914,20 +2933,24 @@ export const InvoiceForm: React.FC<Props> = ({
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Party
                 </button>
-                {phoneSuggestions.map((c) => (
+                {phoneSuggestions.map((c) => {
+                  const bl = balanceLabel(contactBalance(c));
+                  return (
                   <button
                     key={c.phone}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
                     className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 text-sm truncate">{c.name || 'Customer'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm truncate flex-1">{c.name || 'Customer'}</span>
                       <span className="font-mono text-xs text-slate-600 shrink-0">{c.phone}</span>
+                      <span className={cn('font-mono text-xs font-bold shrink-0 w-24 text-right', bl.cls)}>{bl.text}</span>
                     </div>
                     {c.address && <div className="text-[11px] text-slate-400 truncate">{c.address}</div>}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2970,7 +2993,9 @@ export const InvoiceForm: React.FC<Props> = ({
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Party
                 </button>
-                {nameSuggestions.map((c, i) => (
+                {nameSuggestions.map((c, i) => {
+                  const bl = balanceLabel(contactBalance(c));
+                  return (
                   <button
                     key={(c.id || c.phone || c.name) + i}
                     type="button"
@@ -2978,13 +3003,15 @@ export const InvoiceForm: React.FC<Props> = ({
                     onMouseEnter={() => setNameHighlight(i)}
                     className={cn('w-full text-left px-3 py-2 border-b border-slate-100 last:border-0', i === nameHighlight ? 'bg-blue-50' : 'hover:bg-blue-50')}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 text-sm truncate">{c.name || 'Customer'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm truncate flex-1">{c.name || 'Customer'}</span>
                       {c.phone && <span className="font-mono text-xs text-slate-600 shrink-0">{c.phone}</span>}
+                      <span className={cn('font-mono text-xs font-bold shrink-0 w-24 text-right', bl.cls)}>{bl.text}</span>
                     </div>
                     {c.address && <div className="text-[11px] text-slate-400 truncate">{c.address}</div>}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -3018,6 +3045,19 @@ export const InvoiceForm: React.FC<Props> = ({
               )}
             </div>
           )}
+          {/* Selected party's outstanding balance (Vyapar-style). */}
+          {selectedCustomerObj && (() => {
+            const bl = balanceLabel(contactBalance({ id: selectedCustomerObj.id, phone: selectedCustomerObj.phone }));
+            if (bl.text === '₹0') return null;
+            return (
+              <span
+                className={cn('shrink-0 text-xs font-bold px-2 py-1 rounded-md bg-slate-50 border border-slate-200', bl.cls)}
+                title="This customer's outstanding balance (dues) / advance held"
+              >
+                {bl.text}
+              </span>
+            );
+          })()}
           {selectedCustomerObj && !lockBuyer && (
             <button
               type="button"
