@@ -37,6 +37,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   // Short shipment: line.id -> number of units the vendor never delivered (also
   // billed back to the vendor, and it settles the ordered quantity).
   const [missingToAssign, setMissingToAssign] = useState<Record<string, number>>({});
+  // F3: line.id -> units the vendor will NOT supply (order cancelled for them).
+  // Settles the ordered quantity like missing, but is NEVER billed back/owed —
+  // the unsupplied units are recorded as cancelled, not as a shortfall.
+  const [cancelledToAssign, setCancelledToAssign] = useState<Record<string, number>>({});
   // Tax % per PO line, pre-filled from the item's catalog slab and editable
   // against the supplier's bill. What is confirmed here becomes this branch's
   // rate for the item (BranchStock.gstTaxSlab), so a rate corrected once at
@@ -98,6 +102,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setPerUnitInputs({});
       setDamagedToAssign({});
       setMissingToAssign({});
+      setCancelledToAssign({});
       setPayNowInput('');
       setPayMode('Cash');
       setPackingChargeInput('');
@@ -113,6 +118,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       setPerUnitInputs({});
       setDamagedToAssign({});
       setMissingToAssign({});
+      setCancelledToAssign({});
       setTaxToAssign({});
       setTaxInputs({});
       setPayNowInput('');
@@ -137,11 +143,12 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     const line = purchaseOrder.items.find((l) => l.id === lineId);
     return line ? poLineOpen(line) : 0;
   };
-  const roomFor = (lineId: string, field: 'good' | 'dmg' | 'missing'): number => {
+  const roomFor = (lineId: string, field: 'good' | 'dmg' | 'missing' | 'cancel'): number => {
     const good = field === 'good' ? 0 : Number(quantitiesToReceive[lineId]) || 0;
     const dmg = field === 'dmg' ? 0 : Number(damagedToAssign[lineId]) || 0;
     const missing = field === 'missing' ? 0 : Number(missingToAssign[lineId]) || 0;
-    return Math.max(0, lineRemaining(lineId) - good - dmg - missing);
+    const cancel = field === 'cancel' ? 0 : Number(cancelledToAssign[lineId]) || 0;
+    return Math.max(0, lineRemaining(lineId) - good - dmg - missing - cancel);
   };
 
   const handleQtyChange = (lineId: string, valStr: string) => {
@@ -182,25 +189,31 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
     });
   };
 
-  // A damaged / missing count first takes room from the pre-filled inward qty
-  // (the units are the same physical units), then is capped at what remains.
-  const handleBillBackChange = (lineId: string, valStr: string, field: 'dmg' | 'missing') => {
+  // A damaged / missing / cancelled count first takes room from the pre-filled
+  // inward qty (the units are the same physical units), then is capped at what
+  // remains after the OTHER settlement fields on the line.
+  const handleBillBackChange = (lineId: string, valStr: string, field: 'dmg' | 'missing' | 'cancel') => {
     const parsed = parseInt(valStr, 10);
     const want = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-    const other = Number((field === 'dmg' ? missingToAssign : damagedToAssign)[lineId]) || 0;
-    const safe = Math.min(want, Math.max(0, lineRemaining(lineId) - other));
+    const stores = { dmg: damagedToAssign, missing: missingToAssign, cancel: cancelledToAssign } as const;
+    const setters = { dmg: setDamagedToAssign, missing: setMissingToAssign, cancel: setCancelledToAssign } as const;
+    const otherSum = (['dmg', 'missing', 'cancel'] as const)
+      .filter((f) => f !== field)
+      .reduce((s, f) => s + (Number(stores[f][lineId]) || 0), 0);
+    const safe = Math.min(want, Math.max(0, lineRemaining(lineId) - otherSum));
     const goodNow = Number(quantitiesToReceive[lineId]) || 0;
-    const goodMax = Math.max(0, lineRemaining(lineId) - other - safe);
+    const goodMax = Math.max(0, lineRemaining(lineId) - otherSum - safe);
     if (goodNow > goodMax) setQuantitiesToReceive((prev) => ({ ...prev, [lineId]: goodMax }));
-    (field === 'dmg' ? setDamagedToAssign : setMissingToAssign)((prev) => ({ ...prev, [lineId]: safe }));
+    setters[field]((prev) => ({ ...prev, [lineId]: safe }));
   };
   const handleDamagedChange = (lineId: string, valStr: string) => handleBillBackChange(lineId, valStr, 'dmg');
   const handleMissingChange = (lineId: string, valStr: string) => handleBillBackChange(lineId, valStr, 'missing');
+  const handleCancelledChange = (lineId: string, valStr: string) => handleBillBackChange(lineId, valStr, 'cancel');
 
   const handleFillAllRemaining = () => {
     const full: Record<string, number> = {};
     purchaseOrder.items.forEach((item) => {
-      full[item.id] = Math.max(0, poLineOpen(item) - (Number(damagedToAssign[item.id]) || 0) - (Number(missingToAssign[item.id]) || 0));
+      full[item.id] = Math.max(0, poLineOpen(item) - (Number(damagedToAssign[item.id]) || 0) - (Number(missingToAssign[item.id]) || 0) - (Number(cancelledToAssign[item.id]) || 0));
     });
     setQuantitiesToReceive(full);
   };
@@ -241,24 +254,27 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
   const poPayableInclTax = Math.round((poOwedNow + receiptPayable) * 100) / 100;
   const totalDamagedNow = Object.values(damagedToAssign).reduce((sum, val) => sum + (val || 0), 0);
   const totalMissingNow = Object.values(missingToAssign).reduce((sum, val) => sum + (val || 0), 0);
+  const totalCancelledNow = Object.values(cancelledToAssign).reduce((sum, val) => sum + (val || 0), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0) return;
+    if (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0 && totalCancelledNow <= 0) return;
 
     // Aggregate line-id-keyed inputs back to one receipt per itemId (summing
     // quantities if the same product spans multiple PO lines).
-    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }> = {};
+    const byItem: Record<string, { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; cancelledQuantity?: number; taxPercent?: number }> = {};
     purchaseOrder.items.forEach((line) => {
       const q = Number(quantitiesToReceive[line.id]) || 0;
       const dmg = Number(damagedToAssign[line.id]) || 0;
       const missing = Number(missingToAssign[line.id]) || 0;
-      if (q <= 0 && dmg <= 0 && missing <= 0) return;
-      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0 };
+      const cancelled = Number(cancelledToAssign[line.id]) || 0;
+      if (q <= 0 && dmg <= 0 && missing <= 0 && cancelled <= 0) return;
+      const acc = byItem[line.itemId] || { itemId: line.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0, cancelledQuantity: 0 };
       acc.quantityReceived += q;
       acc.damagedQuantity = (acc.damagedQuantity || 0) + dmg;
       acc.missingQuantity = (acc.missingQuantity || 0) + missing;
+      acc.cancelledQuantity = (acc.cancelledQuantity || 0) + cancelled;
       const loc = locationsToAssign[line.id]?.trim();
       if (loc) acc.location = loc;
       // Flush any price still held as raw text (submit clicked before blur) — PUR2-7.
@@ -284,7 +300,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       if (tax != null) acc.taxPercent = tax;
       byItem[line.itemId] = acc;
     });
-    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0);
+    const receipts = Object.values(byItem).filter((r) => r.quantityReceived > 0 || (r.damagedQuantity || 0) > 0 || (r.missingQuantity || 0) > 0 || (r.cancelledQuantity || 0) > 0);
 
     // Vendor payment validation: confirm whether money was paid before stock-in.
     // Uses the tax-inclusive payable so GST owed isn't treated as "fully paid".
@@ -387,6 +403,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                   <th className="py-2.5 px-3 text-right w-28">Inward Now</th>
                   <th className="py-2.5 px-3 text-right w-28 text-rose-600">Damaged (QC)</th>
                   <th className="py-2.5 px-3 text-right w-28 text-amber-600">Missing (Short)</th>
+                  <th className="py-2.5 px-3 text-right w-28 text-slate-500">Cancelled<br/><span className="text-[9px] font-normal lowercase text-slate-400">vendor won't supply</span></th>
                   <th className="py-2.5 px-3 text-right w-44">Purchase Price<br/><span className="text-[9px] font-normal lowercase text-slate-400">total for all units → per unit</span></th>
                   <th className="py-2.5 px-3 text-right w-32">GST %<br/><span className="text-[9px] font-normal lowercase text-slate-400">as billed by supplier</span></th>
                   <th className="py-2.5 px-3 text-left">
@@ -505,6 +522,26 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                             placeholder="0"
                             title="Units the vendor did not deliver (short shipment) — billed back to the vendor and settles the line"
                             className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-amber-200 text-amber-700 focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                          />
+                        )}
+                      </td>
+
+                      {/* F3: Cancelled qty — vendor won't supply. Settles the line but
+                          is NEVER billed back (no debit note) and never owed. */}
+                      <td className="py-3 px-3 text-right">
+                        {isFullyReceived ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={roomFor(line.id, 'cancel')}
+                            value={cancelledToAssign[line.id] ?? ''}
+                            onChange={(e) => handleCancelledChange(line.id, e.target.value)}
+                            aria-label={`Cancelled for ${line.itemName}`}
+                            placeholder="0"
+                            title="Units the vendor will not supply — the order line is closed for them (kept in history, never billed back or owed)"
+                            className="w-20 text-right px-2 py-1.5 text-sm font-bold border rounded-lg bg-white border-slate-300 text-slate-600 focus:outline-hidden focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                           />
                         )}
                       </td>
@@ -631,10 +668,10 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
           </div>
 
           {/* Verification check */}
-          {totalUnitsReceivingNow === 0 && totalDamagedNow === 0 && totalMissingNow === 0 && (
+          {totalUnitsReceivingNow === 0 && totalDamagedNow === 0 && totalMissingNow === 0 && totalCancelledNow === 0 && (
             <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
               <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-              <span>Enter an inward, damaged or missing quantity for at least one item before clicking confirm.</span>
+              <span>Enter an inward, damaged, missing or cancelled quantity for at least one item before clicking confirm.</span>
             </div>
           )}
           {(totalDamagedNow > 0 || totalMissingNow > 0) && (
@@ -645,6 +682,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
                 {totalDamagedNow > 0 && totalMissingNow > 0 && ' and '}
                 {totalMissingNow > 0 && <><strong>{totalMissingNow}</strong> missing</>}
                 {' '}unit(s) will raise a <strong>vendor debit/credit note</strong> — these are NOT added to stock.
+              </span>
+            </div>
+          )}
+          {totalCancelledNow > 0 && (
+            <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 text-slate-500" />
+              <span>
+                <strong>{totalCancelledNow}</strong> unit(s) will be marked <strong>Cancelled</strong> (vendor won't supply) —
+                kept in the order history, NOT added to stock, and <strong>never billed back or owed</strong>.
               </span>
             </div>
           )}
@@ -730,15 +776,15 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0)}
+              disabled={submitting || (totalUnitsReceivingNow <= 0 && totalDamagedNow <= 0 && totalMissingNow <= 0 && totalCancelledNow <= 0)}
               className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl shadow-xs transition-colors ${
-                !submitting && (totalUnitsReceivingNow > 0 || totalDamagedNow > 0 || totalMissingNow > 0)
+                !submitting && (totalUnitsReceivingNow > 0 || totalDamagedNow > 0 || totalMissingNow > 0 || totalCancelledNow > 0)
                   ? 'text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
                   : 'text-slate-400 bg-slate-200 cursor-not-allowed'
               }`}
             >
               <PackageCheck className="h-4 w-4" />
-              <span>{submitting ? 'Saving… ' : ''}Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}{totalMissingNow > 0 ? ` · ${totalMissingNow} missing` : ''}</span>
+              <span>{submitting ? 'Saving… ' : ''}Confirm Stock In ({totalUnitsReceivingNow}){totalDamagedNow > 0 ? ` · ${totalDamagedNow} damaged` : ''}{totalMissingNow > 0 ? ` · ${totalMissingNow} missing` : ''}{totalCancelledNow > 0 ? ` · ${totalCancelledNow} cancelled` : ''}</span>
             </button>
           </div>
         </div>

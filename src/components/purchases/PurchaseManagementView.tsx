@@ -9,6 +9,7 @@ import {
   IndianRupee,
   HandCoins,
   Receipt,
+  Ban,
 } from 'lucide-react';
 import { useErp } from '../../context/ErpContext';
 import { Vendor, purchaseOrderBalanceDue, purchaseOrderTotalValue, purchaseOrderOpenValue, poLineOpen, vendorPayables, totalVendorPayable } from '../../types';
@@ -18,6 +19,7 @@ import { DirectPurchaseBillModal } from './DirectPurchaseBillModal';
 import { VendorMasterModal } from './VendorMasterModal';
 import { VendorCreditModal } from './VendorCreditModal';
 import { SupplierPayablesView } from './SupplierPayablesView';
+import { CancelledProductsView } from './CancelledProductsView';
 import { formatCurrency, getTodayDateString } from '../../lib/utils';
 
 export const PurchaseManagementView: React.FC = () => {
@@ -29,6 +31,7 @@ export const PurchaseManagementView: React.FC = () => {
   const [isDirectBillOpen, setIsDirectBillOpen] = useState(false);
   const [selectedVendorForPo, setSelectedVendorForPo] = useState<Vendor | null>(null);
   const [showPayables, setShowPayables] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   // Synchronize actions when triggered from secondary navbar flyout.
   // The supplier directory now lives in Parties → Suppliers, so 'vendors' here
@@ -51,6 +54,15 @@ export const PurchaseManagementView: React.FC = () => {
   // (PUR5-6: the To Pay card used to add up all branches).
   const inScope = (branchId: string) => isAllBranches || branchId === currentBranch;
   const purchaseOrders = allPurchaseOrders.filter((p) => inScope(p.branchId));
+  // F3: cancelled-product totals (units the vendor won't supply) across in-scope POs.
+  let cancelledUnits = 0;
+  let cancelledLines = 0;
+  for (const p of purchaseOrders) {
+    for (const l of ((p.items as any[]) || [])) {
+      const c = Number(l.cancelledQuantity) || 0;
+      if (c > 0) { cancelledUnits += c; cancelledLines += 1; }
+    }
+  }
   const activeOrders = purchaseOrders.filter(
     (p) => p.status === 'Ordered' || p.status === 'Partially Received'
   );
@@ -88,6 +100,10 @@ export const PurchaseManagementView: React.FC = () => {
   // Clicking "To Pay (Suppliers)" opens the vendor-grouped payables page.
   if (showPayables) {
     return <SupplierPayablesView onBack={() => setShowPayables(false)} />;
+  }
+  // F3: the cancelled-products list.
+  if (showCancelled) {
+    return <CancelledProductsView onBack={() => setShowCancelled(false)} />;
   }
 
   return (
@@ -273,6 +289,27 @@ export const PurchaseManagementView: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* F3: Cancelled Products — items the vendor won't supply (click to list) */}
+        <button
+          type="button"
+          onClick={() => setShowCancelled(true)}
+          title="Products cancelled on a PO because the vendor won't supply them"
+          className={`text-left p-4 rounded-xl border shadow-2xs flex items-center gap-3.5 transition-colors cursor-pointer ${cancelledUnits > 0 ? 'bg-slate-50 border-slate-300 hover:bg-slate-100' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+        >
+          <div className="h-11 w-11 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 border border-slate-200/60">
+            <Ban className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Cancelled Products</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-900 truncate font-mono mt-0.5">
+              {cancelledUnits.toLocaleString('en-IN')} <span className="text-sm font-bold text-slate-500">unit{cancelledUnits === 1 ? '' : 's'}</span>
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {cancelledLines > 0 ? `${cancelledLines} line${cancelledLines === 1 ? '' : 's'} not supplied — tap to view` : 'Vendor-unsupplied items'}
+            </p>
+          </div>
+        </button>
       </div>
 
       {/* Purchase orders list */}

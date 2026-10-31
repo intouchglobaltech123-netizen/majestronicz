@@ -1144,6 +1144,10 @@ export interface POLineItem {
   receivedQuantity: number; // Tracks units actually received into physical stock
   damagedQuantity?: number; // Cumulative units received damaged (billed back to vendor)
   missingQuantity?: number; // Cumulative units short-shipped / never delivered (billed back)
+  // F3: units the vendor will NOT supply — the order line is closed for them.
+  // Settles the line (so the PO can complete) but is NEVER billed back or owed,
+  // unlike missingQuantity. The original quantityOrdered is kept for history.
+  cancelledQuantity?: number;
   // Confirmed while receiving, against the supplier's bill. Absent on lines
   // created before this existed, and on POs not yet received — treat as 0.
   taxPercent?: number;
@@ -1189,6 +1193,7 @@ export interface POReceiptLineItem {
   location?: string;
   damagedQuantity?: number;
   missingQuantity?: number;
+  cancelledQuantity?: number; // F3: units cancelled (vendor won't supply) in this event
 }
 
 /**
@@ -1696,9 +1701,9 @@ export const computeInvoiceFinance = (
 const poR2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const poTax = (taxable: number, pct: number) => Math.round((Number(taxable) || 0) * ((Number(pct) || 0) / 100) * 100) / 100;
 
-/** Units settled on a line (good + damaged + missing). */
-export const poLineSettled = (l: Pick<POLineItem, 'receivedQuantity' | 'damagedQuantity' | 'missingQuantity'>): number =>
-  (Number(l.receivedQuantity) || 0) + (Number(l.damagedQuantity) || 0) + (Number(l.missingQuantity) || 0);
+/** Units settled on a line (good + damaged + missing + cancelled). */
+export const poLineSettled = (l: Pick<POLineItem, 'receivedQuantity' | 'damagedQuantity' | 'missingQuantity' | 'cancelledQuantity'>): number =>
+  (Number(l.receivedQuantity) || 0) + (Number(l.damagedQuantity) || 0) + (Number(l.missingQuantity) || 0) + (Number((l as any).cancelledQuantity) || 0);
 
 /** Units still expected on a line. */
 export const poLineOpen = (l: POLineItem): number => Math.max(0, (Number(l.quantityOrdered) || 0) - poLineSettled(l));

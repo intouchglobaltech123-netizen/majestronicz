@@ -340,7 +340,7 @@ export function cancelPurchaseOrder(poId: string, reqUser?: any) {
 /** Receive stock against a PO: update lines/status/history + increment branch stock (atomic). */
 export function receivePurchaseOrderStock(
   poId: string,
-  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; taxPercent?: number }[],
+  receipts: { itemId: string; quantityReceived: number; location?: string; purchasePrice?: number; damagedQuantity?: number; missingQuantity?: number; cancelledQuantity?: number; taxPercent?: number }[],
   notes: string | undefined,
   payment: { amount?: number; mode?: string } | undefined,
   actor: string,
@@ -359,21 +359,23 @@ export function receivePurchaseOrderStock(
 
     const n = (v: unknown) => Number(v) || 0;
     for (const r of receipts || []) {
-      for (const v of [r?.quantityReceived, r?.damagedQuantity, r?.missingQuantity]) {
+      for (const v of [r?.quantityReceived, r?.damagedQuantity, r?.missingQuantity, r?.cancelledQuantity]) {
         if (v != null && (v as any) !== '' && !Number.isFinite(Number(v))) throw new AppError('BAD_QTY', 'Quantities must be numbers.', 400);
       }
     }
     // PUR4-3: a receipt of 0 good + N missing (nothing arrived) is a real event.
-    const rawValid = (receipts || []).filter((r) => n(r.quantityReceived) > 0 || n(r.damagedQuantity) > 0 || n(r.missingQuantity) > 0);
+    // F3: cancelling the remaining units (vendor won't supply) is also a real event.
+    const rawValid = (receipts || []).filter((r) => n(r.quantityReceived) > 0 || n(r.damagedQuantity) > 0 || n(r.missingQuantity) > 0 || n(r.cancelledQuantity) > 0);
     if (!rawValid.length) throw new AppError('NO_ITEMS', 'No items to receive', 400);
     // Aggregate multiple receipt entries for the SAME item into one, so sending the
     // item twice in one receipt can't double the stock (PUR3-1).
     const aggByItem = new Map<string, any>();
     for (const r of rawValid) {
-      const cur = aggByItem.get(r.itemId) || { itemId: r.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0 };
+      const cur = aggByItem.get(r.itemId) || { itemId: r.itemId, quantityReceived: 0, damagedQuantity: 0, missingQuantity: 0, cancelledQuantity: 0 };
       cur.quantityReceived += n(r.quantityReceived);
       cur.damagedQuantity += n(r.damagedQuantity);
       cur.missingQuantity += n(r.missingQuantity);
+      cur.cancelledQuantity += n(r.cancelledQuantity);
       if (r.location) cur.location = r.location;
       if (r.purchasePrice != null) cur.purchasePrice = Number(r.purchasePrice);
       if (r.taxPercent != null) cur.taxPercent = r.taxPercent;
@@ -398,9 +400,10 @@ export function receivePurchaseOrderStock(
       const good = n(rec.quantityReceived);
       const dmg = n(rec.damagedQuantity);
       const missing = n(rec.missingQuantity);
-      if (good < 0 || dmg < 0 || missing < 0) throw new AppError('NEGATIVE_QTY', 'Received, damaged or missing quantity cannot be negative.', 400);
+      const cancelled = n(rec.cancelledQuantity);
+      if (good < 0 || dmg < 0 || missing < 0 || cancelled < 0) throw new AppError('NEGATIVE_QTY', 'Received, damaged, missing or cancelled quantity cannot be negative.', 400);
       const unit = masterUnits.get(rec.itemId) || line.unit;
-      if (!allowsFractionalQty(unit) && [good, dmg, missing].some((q) => !Number.isInteger(q))) {
+      if (!allowsFractionalQty(unit) && [good, dmg, missing, cancelled].some((q) => !Number.isInteger(q))) {
         throw new AppError('BAD_QTY', `"${line.itemName || rec.itemId}" is counted in whole ${String(unit || 'units').toUpperCase()} — enter whole quantities.`, 400);
       }
       if (rec.taxPercent != null && !isValidTaxPercent(rec.taxPercent)) {
@@ -419,20 +422,22 @@ export function receivePurchaseOrderStock(
     // quantity (and, now, the received-value payable). Reject anything that can't
     // fit across the item's combined remaining (over-receipt). Keyed by line
     // index, so legacy lines without an id can't collide.
-    const lineAlloc = new Map<number, { good: number; dmg: number; missing: number }>();
+    const lineAlloc = new Map<number, { good: number; dmg: number; missing: number; cancelled: number }>();
     for (const rec of valid) {
       let g = n(rec.quantityReceived);
       let d = n(rec.damagedQuantity);
       let m = n(rec.missingQuantity);
+      let c = n(rec.cancelledQuantity);
       lines.forEach((line, idx) => {
         if (line.itemId !== rec.itemId) return;
         let cap = Math.max(0, (line.quantityOrdered || 0) - lineSettled(line));
         const ag = Math.min(g, cap); cap -= ag; g -= ag;
         const ad = Math.min(d, cap); cap -= ad; d -= ad;
         const am = Math.min(m, cap); cap -= am; m -= am;
-        lineAlloc.set(idx, { good: ag, dmg: ad, missing: am });
+        const ac = Math.min(c, cap); cap -= ac; c -= ac;
+        lineAlloc.set(idx, { good: ag, dmg: ad, missing: am, cancelled: ac });
       });
-      if (g + d + m > 0.0001) {
+      if (g + d + m + c > 0.0001) {
         const first = lines.find((l) => l.itemId === rec.itemId);
         throw new AppError('OVER_RECEIPT', `Cannot settle more of "${first?.itemName || rec.itemId}" than remains on the PO.`, 400);
       }
@@ -443,7 +448,7 @@ export function receivePurchaseOrderStock(
     const dnLines: any[] = [];
     const updatedLines = lines.map((line, idx) => {
       const alloc = lineAlloc.get(idx);
-      if (!alloc || (alloc.good <= 0 && alloc.dmg <= 0 && alloc.missing <= 0)) return line;
+      if (!alloc || (alloc.good <= 0 && alloc.dmg <= 0 && alloc.missing <= 0 && alloc.cancelled <= 0)) return line;
       const rec = recByItem.get(line.itemId)!;
       const nextPrice =
         rec.purchasePrice != null && rec.purchasePrice > 0 ? rec.purchasePrice : line.purchasePrice || 0;
@@ -473,6 +478,9 @@ export function receivePurchaseOrderStock(
         receivedQuantity: (line.receivedQuantity || 0) + alloc.good,
         damagedQuantity: (line.damagedQuantity || 0) + alloc.dmg,
         missingQuantity: (line.missingQuantity || 0) + alloc.missing,
+        // F3: cancelled units settle the line but are never billed back (not added
+        // to the debit note above) and never owed (poOwed is good-units only).
+        cancelledQuantity: (line.cancelledQuantity || 0) + alloc.cancelled,
         receivedTaxable: Math.round((before.taxable + addTaxable) * 100) / 100,
         receivedTax: Math.round((before.tax + addTax) * 100) / 100,
         purchasePrice: nextPrice,
@@ -504,6 +512,7 @@ export function receivePurchaseOrderStock(
         quantityReceivedThisEvent: rec.quantityReceived,
         damagedQuantity: rec.damagedQuantity || 0,
         missingQuantity: rec.missingQuantity || 0,
+        cancelledQuantity: rec.cancelledQuantity || 0, // F3
         totalReceivedSoFar: prevReceived + rec.quantityReceived, location: rec.location?.trim() || undefined,
         // What this receipt itself cost, so the history shows the money that
         // moved on the day rather than only the PO's running totals.

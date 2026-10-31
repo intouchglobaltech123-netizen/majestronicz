@@ -27,9 +27,14 @@ import { taxAmountFor } from './tax.js';
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (v: unknown) => Number(v) || 0;
 
-/** Units on a line that are settled (good + damaged + missing). */
+/**
+ * Units on a line that are settled (good + damaged + missing + cancelled).
+ * `cancelledQuantity` (F3) are units the vendor will NOT supply — the order line
+ * is closed for them, so they settle the line (letting the PO complete) but,
+ * unlike missing, are never billed back on a debit note and are never owed.
+ */
 export const lineSettled = (l: any): number =>
-  num(l?.receivedQuantity) + num(l?.damagedQuantity) + num(l?.missingQuantity);
+  num(l?.receivedQuantity) + num(l?.damagedQuantity) + num(l?.missingQuantity) + num(l?.cancelledQuantity);
 
 /** Taxable value and GST of the GOOD units received on a line. */
 export function lineGoodValue(l: any): { taxable: number; tax: number } {
