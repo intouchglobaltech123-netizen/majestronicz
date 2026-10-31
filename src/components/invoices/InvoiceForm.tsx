@@ -59,6 +59,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraScanModal } from '../common/CameraScanModal';
+import { CustomerFormModal } from '../customers/CustomerFormModal';
 import { printThermalReceipt, isThermalAutoPrintOn } from '../../lib/thermalReceipt';
 import { newClientKey } from '../../lib/saveOutbox';
 import { ItemSearchDropdown } from '../common/ItemSearchDropdown';
@@ -285,6 +286,9 @@ export const InvoiceForm: React.FC<Props> = ({
 
   // A new/unknown 10-digit mobile prompts a small "add customer" card.
   const [showNewCustomerPrompt, setShowNewCustomerPrompt] = useState(false);
+  // "+ Add Party" (Vyapar-style) — opens the full customer form (name, phone,
+  // address, GSTIN) prefilled with whatever was typed, for a brand-new party.
+  const [showAddParty, setShowAddParty] = useState(false);
   // "Skip" on that card bills the number as a walk-in: no customer is created (E2E8-12).
   const [skipCustomerSave, setSkipCustomerSave] = useState(false);
   useEffect(() => { setSkipCustomerSave(false); }, [customerPhone]);
@@ -2901,8 +2905,15 @@ export const InvoiceForm: React.FC<Props> = ({
             />
             {/* Old-customer suggestions by number prefix (#6). Wider than the box
                 so the name + phone of each match read clearly (client 2026-10-31). */}
-            {phoneFocused && !selectedCustomerObj && phoneSuggestions.length > 0 && (
+            {phoneFocused && !selectedCustomerObj && customerPhone.replace(/\D/g, '').length >= 2 && (
               <div className="absolute z-30 left-0 mt-1 w-[480px] max-w-[92vw] bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); setPhoneFocused(false); setShowAddParty(true); }}
+                  className="sticky top-0 z-10 w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs font-bold text-blue-600 bg-white hover:bg-blue-50 border-b border-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Party
+                </button>
                 {phoneSuggestions.map((c) => (
                   <button
                     key={c.phone}
@@ -2950,8 +2961,15 @@ export const InvoiceForm: React.FC<Props> = ({
             />
             {/* Old-customer suggestions by NAME (mirrors the number-prefix search).
                 Wider than the box so name + phone show side by side. */}
-            {nameFocused && !selectedCustomerObj && nameSuggestions.length > 0 && (
+            {nameFocused && !selectedCustomerObj && customerName.trim().length >= 2 && (
               <div className="absolute z-30 left-0 mt-1 w-[480px] max-w-[92vw] bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); setNameFocused(false); setShowAddParty(true); }}
+                  className="sticky top-0 z-10 w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs font-bold text-blue-600 bg-white hover:bg-blue-50 border-b border-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Party
+                </button>
                 {nameSuggestions.map((c, i) => (
                   <button
                     key={(c.id || c.phone || c.name) + i}
@@ -3407,6 +3425,18 @@ export const InvoiceForm: React.FC<Props> = ({
         onClose={() => setScanOpen(false)}
         onScan={(code) => scanHandlerRef.current(code)}
         title={documentType === 'Quotation' ? 'Scan item for quotation' : 'Scan item for bill'}
+      />
+
+      {/* "+ Add Party" — add a brand-new customer (incl. GSTIN) from the bill and
+          attach it. Prefilled with the typed name/number. */}
+      <CustomerFormModal
+        isOpen={showAddParty}
+        onClose={() => setShowAddParty(false)}
+        prefill={{ name: customerName.trim(), phone: customerPhone.replace(/\D/g, '') }}
+        onSaved={(c) => {
+          setShowAddParty(false);
+          pickCustomer({ id: c.id, phone: c.phone, name: c.name, address: c.address || '', notes: c.notes });
+        }}
       />
 
       {/* Bulk add by SKU (#4c) */}

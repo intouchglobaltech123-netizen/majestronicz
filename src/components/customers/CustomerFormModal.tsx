@@ -11,6 +11,8 @@ interface CustomerFormModalProps {
   onClose: () => void;
   customerToEdit?: Customer | null;
   onSaved?: (customer: Customer) => void;
+  // Seed a NEW party's name/phone (e.g. "+ Add Party" from the billing screen).
+  prefill?: { name?: string; phone?: string } | null;
 }
 
 export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
@@ -18,6 +20,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onClose,
   customerToEdit,
   onSaved,
+  prefill,
 }) => {
   const { saveCustomer } = useErp();
   const [customerType, setCustomerType] = useState<CustomerType | null>(null);
@@ -64,15 +67,15 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setOpeningBalanceDue(customerToEdit.openingBalanceDue != null && customerToEdit.openingBalanceDue > 0 ? String(customerToEdit.openingBalanceDue) : '');
     } else {
       setCustomerType(null);
-      setName('');
-      setPhone('');
+      setName(prefill?.name || '');
+      setPhone(prefill?.phone || '');
       setAddress('');
       setGstin('');
       setNotes('');
       setOpeningBalanceDue('');
     }
     setErrorMessage('');
-  }, [customerToEdit, isOpen]);
+  }, [customerToEdit, isOpen, prefill]);
 
   if (!isOpen) return null;
 
