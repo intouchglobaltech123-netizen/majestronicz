@@ -258,15 +258,16 @@ export const InvoiceForm: React.FC<Props> = ({
     if (customerId) return customers.find((c) => c.id === customerId);
     if (customerPhone) {
       const clean = customerPhone.replace(/\D/g, '');
-      if (clean) return customers.find((c) => c.phone.replace(/\D/g, '') === clean);
+      // Only a FULL 10-digit number locks a customer in — a partial number keeps
+      // the field open so suggestions still show.
+      if (clean.length === 10) return customers.find((c) => c.phone.replace(/\D/g, '') === clean);
     }
-    if (customerName) {
-      return customers.find(
-        (c) => c.name.trim().toLowerCase() === customerName.trim().toLowerCase()
-      );
-    }
+    // Deliberately NOT matched by typed name: typing a name that happens to equal
+    // a saved customer used to auto-lock the field mid-typing (e.g. "JANA" locking
+    // to a saved "JANA" before you finish "JANA K"), and left the phone blank.
+    // A name is linked to a customer ONLY by explicitly picking a suggestion.
     return null;
-  }, [customers, customerId, customerPhone, customerName]);
+  }, [customers, customerId, customerPhone]);
 
   // SAL4-14 / E2E6-8: a line copied from ANOTHER document (duplicate, or a quote
   // converted to a bill) is charged today's catalogue GST rate at the bill's
@@ -427,6 +428,18 @@ export const InvoiceForm: React.FC<Props> = ({
     } else {
       toast.error('Could not save the customer', { description: res.error });
     }
+  };
+
+  // Update ONLY the address of an already-saved customer, right here on the bill
+  // (client 2026-10-31: fix a customer's address without touching name/phone).
+  const [savingAddress, setSavingAddress] = useState(false);
+  const handleSaveCustomerAddress = async () => {
+    if (!selectedCustomerObj?.id || savingAddress) return;
+    setSavingAddress(true);
+    const res = await saveCustomer({ ...selectedCustomerObj, address: customerAddress.trim() } as any);
+    setSavingAddress(false);
+    if (res.success) toast.success('Address updated for this customer');
+    else toast.error('Could not update the address', { description: res.error });
   };
 
   const isEligibleForLoyalty = useMemo(() => {
@@ -2886,9 +2899,10 @@ export const InvoiceForm: React.FC<Props> = ({
               onFocus={() => setPhoneFocused(true)}
               onBlur={() => setTimeout(() => setPhoneFocused(false), 150)}
             />
-            {/* Old-customer suggestions by number prefix (#6) */}
+            {/* Old-customer suggestions by number prefix (#6). Wider than the box
+                so the name + phone of each match read clearly (client 2026-10-31). */}
             {phoneFocused && !selectedCustomerObj && phoneSuggestions.length > 0 && (
-              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+              <div className="absolute z-30 left-0 mt-1 w-[480px] max-w-[92vw] bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
                 {phoneSuggestions.map((c) => (
                   <button
                     key={c.phone}
@@ -2934,9 +2948,10 @@ export const InvoiceForm: React.FC<Props> = ({
                   : 'bg-slate-50 border-slate-200 focus:border-blue-600'
               )}
             />
-            {/* Old-customer suggestions by NAME (mirrors the number-prefix search) */}
+            {/* Old-customer suggestions by NAME (mirrors the number-prefix search).
+                Wider than the box so name + phone show side by side. */}
             {nameFocused && !selectedCustomerObj && nameSuggestions.length > 0 && (
-              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+              <div className="absolute z-30 left-0 mt-1 w-[480px] max-w-[92vw] bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto">
                 {nameSuggestions.map((c, i) => (
                   <button
                     key={(c.id || c.phone || c.name) + i}
@@ -2955,15 +2970,35 @@ export const InvoiceForm: React.FC<Props> = ({
               </div>
             )}
           </div>
-          {/* Address — auto-filled & locked when a saved customer is matched */}
+          {/* Address — editable for a saved customer, with a "Save address" link
+              that updates ONLY the address on the customer master (not name/phone). */}
           {selectedCustomerObj && (
-            <input
-              type="text"
-              value={customerAddress || selectedCustomerObj.address || ''}
-              readOnly
-              placeholder="Address"
-              className="w-64 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700 cursor-default focus:outline-none"
-            />
+            <div className="flex items-center gap-1.5 relative">
+              <input
+                type="text"
+                value={customerAddress}
+                onChange={(e) => setCustomerAddress(e.target.value)}
+                readOnly={lockBuyer && !buyerIdentityEditable}
+                placeholder="Address"
+                className={cn(
+                  'w-64 px-2.5 py-1.5 rounded-lg border text-xs font-medium text-slate-700 focus:outline-none',
+                  lockBuyer && !buyerIdentityEditable
+                    ? 'bg-slate-100 border-slate-200 cursor-default'
+                    : 'bg-slate-50 border-slate-200 focus:border-blue-600'
+                )}
+              />
+              {selectedCustomerObj.id && !lockBuyer && customerAddress.trim() !== (selectedCustomerObj.address || '').trim() && (
+                <button
+                  type="button"
+                  onClick={handleSaveCustomerAddress}
+                  disabled={savingAddress}
+                  className="shrink-0 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50 cursor-pointer"
+                  title="Save this address to the customer (name & phone unchanged)"
+                >
+                  {savingAddress ? 'Saving…' : 'Save address'}
+                </button>
+              )}
+            </div>
           )}
           {selectedCustomerObj && !lockBuyer && (
             <button
