@@ -2125,6 +2125,19 @@ export const InvoiceForm: React.FC<Props> = ({
   const assembleEstimateObject = (quiet = false): Estimate | null => {
     // Customer name optional here too (phone-first entry).
 
+    // A NEW quote is dated when it is actually saved, not when its tab was opened
+    // (a tab opened yesterday and saved today must not keep yesterday's date/time)
+    // — unless staff deliberately picked a date, or this is an existing quote.
+    // Same rule bills already use, so the quotation list sorts newest-first and the
+    // creation date/time is accurate.
+    let effectiveDate = date;
+    let effectiveTime = time;
+    if (!initialEstimate && !dateTouchedRef.current && date < getTodayDateString()) {
+      effectiveDate = getTodayDateString();
+      const d = new Date();
+      effectiveTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
     const validItems = lineItems.filter((i) => i.itemName.trim() && i.quantity > 0);
     if (validItems.length === 0) {
       if (!quiet) toast.error('At least one valid item is required', {
@@ -2158,7 +2171,7 @@ export const InvoiceForm: React.FC<Props> = ({
       leadDays: item.leadDays,
     }));
 
-    const finalEstimateNumber = invoiceNumber.trim() || getNextEstimateNumber(selectedBranch, date);
+    const finalEstimateNumber = invoiceNumber.trim() || getNextEstimateNumber(selectedBranch, effectiveDate);
 
     // Snapshot the chosen payment-info template onto the quote, so it keeps the
     // terms/bank details even if the template is later edited or removed. If the
@@ -2192,8 +2205,8 @@ export const InvoiceForm: React.FC<Props> = ({
       customerName: customerName.trim() ? normalizeCustomerName(customerName) : 'Walk-in Customer',
       customerContact: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
-      date,
-      time,
+      date: effectiveDate,
+      time: effectiveTime,
       withGst,
       items: estimateItems,
       subtotal: totals.subtotal,

@@ -643,6 +643,13 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
     return branchScopedEstimates.filter((est) => {
       if (quoteStatusFilter !== 'all' && lifecycleOf(est) !== quoteStatusFilter) return false;
 
+      // Date filter — honour the chosen range (same inputs as the ledger). The
+      // estimates list used to ignore it, so changing the dates did nothing.
+      // End date INCLUSIVE; slice to YYYY-MM-DD so a time component never hides a day.
+      const d = (est.date || '').slice(0, 10);
+      if (ledgerFrom && d < ledgerFrom) return false;
+      if (ledgerTo && d > ledgerTo) return false;
+
       const q = estimateSearchQuery.trim().toLowerCase();
       if (!q) return true;
 
@@ -651,9 +658,20 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
         est.estimateNumber.toLowerCase().includes(q) ||
         (est.customerContact && est.customerContact.includes(q))
       );
+    }).sort((a, b) => {
+      // Newest first: the quote you just made shows at the top. Compare the full
+      // date+time, then the creation timestamp, then the quote number as a
+      // final tie-break (so same-minute quotes keep a stable newest-first order).
+      const ta = `${a.date || ''}T${a.time || ''}`;
+      const tb = `${b.date || ''}T${b.time || ''}`;
+      if (tb !== ta) return tb.localeCompare(ta);
+      const ca = (a as any).createdAt || '';
+      const cb = (b as any).createdAt || '';
+      if (cb !== ca) return cb.localeCompare(ca);
+      return (b.estimateNumber || '').localeCompare(a.estimateNumber || '', undefined, { numeric: true });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchScopedEstimates, estimateSearchQuery, quoteStatusFilter, convertedEstimateMap]);
+  }, [branchScopedEstimates, estimateSearchQuery, quoteStatusFilter, ledgerFrom, ledgerTo, convertedEstimateMap]);
 
   // Once a resumed draft is finalized (committed), remove it from the draft store.
   const handleSaved = (_tab: BillTab, _savedInvoice: Invoice) => {
