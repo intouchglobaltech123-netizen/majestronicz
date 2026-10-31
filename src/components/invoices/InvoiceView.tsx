@@ -212,15 +212,30 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
 
   // Open bill tabs are persisted per-user so they survive a full page refresh.
   const OPEN_BILLS_KEY = `majestronicz_openbills_${draftUserKey}`;
+  // A tab is only worth restoring if real work was typed into it (at least one
+  // named line item). A blank "Walk-in Customer" tab that was opened and never
+  // used carries nothing to preserve — restoring it just piles up empty tabs
+  // that reappear by themselves (client 2026-10-31).
+  const tabHasContent = (t: any): boolean => {
+    const doc = t?.workingCopy;
+    return Array.isArray(doc?.items) && doc.items.some((it: any) => String(it?.itemName || '').trim());
+  };
+  // Tabs from an earlier session (a previous day / 12h+ ago) must NOT dump
+  // themselves back onto the billing screen — refreshing mid-session keeps your
+  // work, but coming back later starts clean.
+  const STALE_TABS_MS = 12 * 60 * 60 * 1000;
   const readPersistedBills = (): { openBills: BillTab[]; activeBillId: string | null; activeTab: string | null } => {
     try {
       const raw = localStorage.getItem(OPEN_BILLS_KEY);
       if (raw) {
         const p = JSON.parse(raw);
+        if (typeof p.savedAt === 'number' && Date.now() - p.savedAt > STALE_TABS_MS) {
+          return { openBills: [], activeBillId: null, activeTab: null };
+        }
         if (Array.isArray(p.openBills)) {
           // SAL4-13: a tab comes back with what was typed into it — its last
-          // working copy reopens like a parked draft.
-          const openBills = (p.openBills as BillTab[]).map((t) => {
+          // working copy reopens like a parked draft. Empty tabs are dropped.
+          const openBills = (p.openBills as BillTab[]).filter(tabHasContent).map((t) => {
             const base = t.workingCopy
               ? {
                   ...t,
@@ -232,7 +247,9 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
             // Every restored tab keeps (or gets) a draft id so auto-draft continues.
             return { ...base, autoDraftId: t.autoDraftId ?? t.resumedDraftId ?? newDraftId() } as BillTab;
           });
-          return { openBills, activeBillId: p.activeBillId ?? null, activeTab: p.activeTab ?? null };
+          const keptIds = new Set(openBills.map((t) => t.id));
+          const activeBillId = p.activeBillId && keptIds.has(p.activeBillId) ? p.activeBillId : (openBills[0]?.id ?? null);
+          return { openBills, activeBillId, activeTab: openBills.length ? (p.activeTab ?? null) : null };
         }
       }
     } catch { /* ignore */ }
@@ -281,7 +298,7 @@ export const InvoiceView: React.FC<Props> = ({ initialTab = 'ledger' }) => {
   // Persist open tabs + active selection so a refresh restores them.
   useEffect(() => {
     try {
-      localStorage.setItem(OPEN_BILLS_KEY, JSON.stringify({ openBills, activeBillId, activeTab }));
+      localStorage.setItem(OPEN_BILLS_KEY, JSON.stringify({ openBills, activeBillId, activeTab, savedAt: Date.now() }));
     } catch { /* ignore */ }
   }, [openBills, activeBillId, activeTab, OPEN_BILLS_KEY]);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
