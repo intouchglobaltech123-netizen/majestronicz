@@ -286,15 +286,19 @@
   font-feature-settings: 'tnum' 1, 'lnum' 1 !important;
 }
 
-/* Number fields marked .no-spinner hide the browser's up/down stepper arrows
-   (so a stray click never changes the value); we also blur on wheel in JS so
-   scrolling the page over the field can't silently increment it. Used on the
-   billing line Qty / Price / Discount inputs. */
+/* Hide the browser's up/down stepper arrows on EVERY number field (client
+   2026-10-31: staff type amounts manually and a stray click/scroll must never
+   change them). A global wheel guard in src/lib/numberInputGuard.ts also stops
+   the mouse wheel from incrementing a focused number input anywhere. `.no-spinner`
+   stays as an explicit alias for the same effect. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+input[type="number"],
 .no-spinner {
   -moz-appearance: textfield;
   appearance: textfield;

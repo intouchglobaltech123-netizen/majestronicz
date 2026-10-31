@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { installNumberInputWheelGuard } from './lib/numberInputGuard';
+
+// Stop the mouse wheel from changing any focused number input, app-wide.
+installNumberInputWheelGuard();
 
 // PLT-16: an image that can't load (offline, or a blocked host such as the
 // Unsplash photos in the seed data) shows a neutral placeholder instead of the
