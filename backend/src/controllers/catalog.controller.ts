@@ -35,6 +35,7 @@ export const saveCombo = async (req: Request, res: Response) => res.json(await c
 export const deleteCombo = async (req: Request, res: Response) => res.json(await catalog.deleteCombo(req.params.id));
 export const saveCustomer = async (req: Request, res: Response) => res.json(await catalog.saveCustomer(req.body));
 export const importCustomers = async (req: Request, res: Response) => res.json(await catalog.importCustomers(req.body?.parties));
+export const searchCustomers = async (req: Request, res: Response) => res.json(await catalog.searchCustomersByText(String(req.query?.q ?? '')));
 export const deleteCustomer = async (req: Request, res: Response) => res.json(await catalog.deleteCustomer(req.params.id));
 export const adjustCustomerCredit = async (req: Request, res: Response) => {
   const u = (req as any).user;

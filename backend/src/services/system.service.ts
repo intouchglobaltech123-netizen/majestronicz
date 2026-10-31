@@ -190,6 +190,39 @@ export async function itemStats() {
   return { itemSales90d: itemSales90dV, itemLastSale: itemLastSaleV };
 }
 
+/**
+ * PERF (tablets / low memory): the shop now has 10k+ customers after the Vyapar
+ * import, and shipping them all made the ~9 MB bootstrap choke weaker devices
+ * (lag, dropped taps, memory tab-crashes). The start-up payload now carries only
+ * the FINANCIALLY-RELEVANT customers — anyone with a bill, store credit, or an
+ * opening balance due. Dormant imported contacts (no bill, no balance) are
+ * fetched on demand via GET /api/catalog/customers/search, and a bill always
+ * stores the customer's name/phone on itself, so nothing that shows or totals
+ * money depends on a dormant customer being preloaded. `customerCount` is the
+ * true total for the directory headline.
+ */
+async function loadActiveCustomers(db: any): Promise<any[]> {
+  const billed = await db.invoice.groupBy({
+    by: ['customerId'],
+    where: { customerId: { not: null }, OR: [{ isVoided: null }, { isVoided: false }] },
+    _count: { _all: true },
+  });
+  const byId = new Map<string, number>(billed.map((c: any) => [c.customerId, c._count._all]));
+  const billedIds = [...byId.keys()].filter(Boolean) as string[];
+  const customers = await db.customer.findMany({
+    where: {
+      OR: [
+        { id: { in: billedIds } },
+        { creditBalance: { gt: 0 } },
+        { openingBalanceDue: { gt: 0 } },
+      ],
+    },
+  });
+  // Live purchase count (same rule as withLiveBillCounts), so loyalty/`Reward
+  // ready` stays correct without a second query.
+  return customers.map((c: any) => ({ ...c, purchaseCount: byId.get(c.id) ?? 0 }));
+}
+
 /** Scoped ERP state payload matching role authorization. */
 export async function getBootstrap(user?: SessionUser | null, q: Record<string, unknown> = {}) {
   const full = String(q?.full || '') === '1';
@@ -263,13 +296,13 @@ export async function getBootstrap(user?: SessionUser | null, q: Record<string, 
       prisma.estimate.findMany(), prisma.deliveryChallan.findMany(),
       prisma.invoice.findMany(full ? undefined : { where: recentInvoicesWhere(cut, user.assignedBranchId || null) }),
       prisma.enquiry.findMany(), prisma.pendingOrder.findMany(), prisma.followUpReminder.findMany(),
-      prisma.dailyCashRegister.findMany(), prisma.customer.findMany(), prisma.payment.findMany(),
+      prisma.dailyCashRegister.findMany(), loadActiveCustomers(prisma), prisma.payment.findMany(),
       branchStockHistory(user, full ? null : cut.iso),
     ]);
     return scopeBootstrap({
       items, branchStocks, combos, stockAdjustmentLogs: history.stockAdjustmentLogs, estimates, challans, invoices,
       enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses: [], vendors: [],
-      purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers: await withLiveBillCounts(prisma, customers, { all: true }),
+      purchaseOrders: [], employees: [], attendanceRecords: [], payrollRecords: [], customers, customerCount: await prisma.customer.count(),
       stockTransfers: history.stockTransfers, payments, ...config, historyFrom,
     }, user);
   }
@@ -300,13 +333,13 @@ export async function getBootstrap(user?: SessionUser | null, q: Record<string, 
       },
     }),
     canPayroll ? prisma.payrollRecord.findMany() : Promise.resolve([]),
-    prisma.customer.findMany(), prisma.stockTransfer.findMany(), prisma.payment.findMany(),
+    loadActiveCustomers(prisma), prisma.stockTransfer.findMany(), prisma.payment.findMany(),
   ]);
 
   return scopeBootstrap({
     items, branchStocks, combos, stockAdjustmentLogs, estimates, challans, invoices,
     enquiries, pendingOrders, reminders, cashRegisters: await registersWithLiveOpenings(prisma, cashRegisters), recurringExpenses, vendors,
-    purchaseOrders, employees, attendanceRecords, payrollRecords, customers: await withLiveBillCounts(prisma, customers, { all: true }), stockTransfers, payments, ...config, historyFrom,
+    purchaseOrders, employees, attendanceRecords, payrollRecords, customers, customerCount: await prisma.customer.count(), stockTransfers, payments, ...config, historyFrom,
   }, user);
 }
 

@@ -576,6 +576,24 @@ export function saveCustomer(data: any) {
  * rejected. Inserts in one transaction and reports the counts. Call it in chunks
  * (≤5000) for a large file — each chunk dedupes against everything already saved.
  */
+/**
+ * PERF: the bootstrap now ships only active customers (see loadActiveCustomers),
+ * so dormant imported contacts are found on demand here — by name, phone or
+ * GSTIN. Returns up to 40 full records (with live purchase counts) so the billing
+ * picker / parties directory can attach or open any customer.
+ */
+export async function searchCustomersByText(query: string) {
+  const q = String(query ?? '').trim();
+  if (q.length < 2) return [];
+  const digits = q.replace(/\D/g, '');
+  const or: any[] = [{ name: { contains: q, mode: 'insensitive' } }];
+  if (digits.length >= 3) or.push({ phone: { contains: digits } });
+  const up = q.toUpperCase();
+  if (/[0-9A-Z]/.test(up)) or.push({ gstin: { contains: up } });
+  const rows = await prisma.customer.findMany({ where: { OR: or }, take: 40, orderBy: { name: 'asc' } });
+  return withLiveBillCounts(prisma, rows);
+}
+
 export function importCustomers(parties: any[]) {
   if (!Array.isArray(parties) || !parties.length) {
     throw new AppError('NO_PARTIES', 'No parties to import.', 400);

@@ -57,6 +57,8 @@ interface UnifiedParty {
 export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customers' }) => {
   const {
     customers,
+    customerCount,
+    searchCustomers,
     vendors,
     invoices,
     purchaseOrders,
@@ -355,7 +357,19 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
   const attributedReceivable = parties.reduce((s, p) => s + p.toCollect, 0);
   const unassignedDues = Math.max(0, Math.round((totalReceivable - attributedReceivable) * 100) / 100);
   const totalPayable = parties.reduce((s, p) => s + p.toPay, 0);
-  const totalCustomers = customers.length;
+  const totalCustomers = customers.length; // loaded (active) customers — used for averages
+  // True DB total for headline counts (only active customers are preloaded).
+  const displayCustomerCount = customerCount || totalCustomers;
+
+  // PERF: find dormant (not-preloaded) customers on the server as the user types,
+  // debounced. Found rows merge into the global list, so the directory below shows
+  // them. Mirrors the billing picker.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+    const t = setTimeout(() => { void searchCustomers(q); }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery, searchCustomers]);
   const totalSuppliers = vendors.length;
 
   const milestoneReadyCount = useMemo(() => {
@@ -485,7 +499,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
             'px-1.5 py-0.2 rounded-none text-[10px]',
             activeTab === 'customers' ? 'bg-red-700 text-white font-bold' : 'bg-slate-100 text-slate-700 border border-slate-200'
           )}>
-            {totalCustomers}
+            {displayCustomerCount}
           </span>
         </button>
 
@@ -558,7 +572,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Total Customers
               </span>
-              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{totalCustomers}</div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">{displayCustomerCount}</div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">Active accounts</span>
             </div>
 
@@ -1232,7 +1246,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({ initialTab = 'customer
                   {parties.length}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {totalCustomers} customers · {totalSuppliers} suppliers
+                  {displayCustomerCount} customers · {totalSuppliers} suppliers
                 </p>
               </div>
             </div>

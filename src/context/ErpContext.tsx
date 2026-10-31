@@ -599,6 +599,8 @@ interface ErpContextType {
 
   // Customer Master & Loyalty
   customers: Customer[];
+  customerCount: number;
+  searchCustomers: (q: string) => Promise<Customer[]>;
   loyaltySettings: LoyaltySettings;
   saveCustomer: (customer: Customer) => Promise<{ success: boolean; error?: string; customer?: Customer }>;
   deleteCustomer: (customerId: string) => void;
@@ -787,6 +789,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>({ standardHoursPerMonth: 208, monthlyCasualLeaves: 1 });
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  // True total in the DB (the `customers` array above holds only the preloaded
+  // active ones; dormant imported contacts are fetched on demand).
+  const [customerCount, setCustomerCount] = useState<number>(0);
   const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>({ purchaseThreshold: 10, discountType: 'percentage', discountValue: 0, isActive: false, updatedAt: '', updatedBy: '' });
 
   const [selectedCustomerForDetail, setSelectedCustomerForDetail] = useState<Customer | null>(null);
@@ -936,6 +941,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(data.attendanceRecords)) setAttendanceRecords(data.attendanceRecords);
     if (Array.isArray(data.payrollRecords)) setPayrollRecords(data.payrollRecords);
     if (Array.isArray(data.customers)) setCustomers(data.customers);
+    // PERF: the bootstrap now preloads only active customers; customerCount is the
+    // true total for directory headlines. Dormant ones load via searchCustomers().
+    if (typeof data.customerCount === 'number') setCustomerCount(data.customerCount);
     if (Array.isArray(data.stockTransfers)) setStockTransfers(data.stockTransfers);
     if (Array.isArray(data.payments)) setPayments(data.payments);
     if (data.itemSales90d && typeof data.itemSales90d === 'object') setItemSales90d(data.itemSales90d);
@@ -2735,6 +2743,29 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Added to ${date} register via ${paymentMode}. Total expenses and closing balance updated.`,
       }));
   };
+
+  // PERF: look up customers NOT in the preloaded active set (dormant imported
+  // contacts), by name / phone / GSTIN. Found rows are merged into `customers` so
+  // they can be attached to a bill and shown; the set only grows by what's
+  // searched, so tablet memory stays small.
+  const searchCustomers = useCallback(async (q: string): Promise<Customer[]> => {
+    const query = (q || '').trim();
+    if (query.length < 2) return [];
+    try {
+      const rows = await apiGet<Customer[]>(`/api/catalog/customers/search?q=${encodeURIComponent(query)}`);
+      if (Array.isArray(rows) && rows.length) {
+        setCustomers((prev) => {
+          const byId = new Map(prev.map((c) => [c.id, c]));
+          for (const r of rows) byId.set(r.id, { ...byId.get(r.id), ...r });
+          return [...byId.values()];
+        });
+        return rows;
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }, []);
 
   const saveCustomer = async (customerData: Customer): Promise<{ success: boolean; error?: string; customer?: Customer }> => {
     // Normalize (country code / leading 0) so equivalent formats are caught as duplicates.
@@ -4897,6 +4928,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         navigateToInventoryWithMovementFilter,
         canViewPayrollReport,
         customers,
+        customerCount,
+        searchCustomers,
         loyaltySettings,
         saveCustomer,
         deleteCustomer,

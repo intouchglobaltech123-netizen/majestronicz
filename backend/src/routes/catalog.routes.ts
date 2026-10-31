@@ -27,6 +27,9 @@ router.delete('/combo/:id', requireCapability('items:write'), asyncHandler(ctrl.
 router.post('/customer', requireCapability('customer:write'), asyncHandler(ctrl.saveCustomer));
 // Bulk party import (one-time migration) — Manager/CEO only.
 router.post('/customers/import', requireCapability('customer:write'), requireManagerOrCEO, asyncHandler(ctrl.importCustomers));
+// On-demand customer lookup (name / phone / GSTIN) — the bootstrap only preloads
+// active customers, so billing/parties search the rest here.
+router.get('/customers/search', requireCapability('customer:write'), asyncHandler(ctrl.searchCustomers));
 router.delete('/customer/:id', requireCapability('customer:write'), asyncHandler(ctrl.deleteCustomer));
 // Manually grant / correct a customer's store credit — CEO/Manager only.
 router.post('/customer/:id/credit', requireManagerOrCEO, asyncHandler(ctrl.adjustCustomerCredit));

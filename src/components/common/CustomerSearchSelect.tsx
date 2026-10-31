@@ -48,9 +48,24 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   disabled = false,
   className = '',
 }) => {
-  const { customers, loyaltySettings, saveCustomer, invoices, hasFlag } = useErp();
+  const { customers, loyaltySettings, saveCustomer, invoices, hasFlag, searchCustomers } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [serverSearching, setServerSearching] = useState(false);
+
+  // PERF: dormant imported customers aren't preloaded, so when staff type a name/
+  // phone we also look them up on the server (debounced). Found rows get merged
+  // into the global customer list, so the local filter below then shows them.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) { setServerSearching(false); return; }
+    let cancelled = false;
+    setServerSearching(true);
+    const t = setTimeout(async () => {
+      try { await searchCustomers(q); } finally { if (!cancelled) setServerSearching(false); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [searchQuery, searchCustomers]);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
@@ -480,6 +495,10 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                   </button>
                 );
               })
+            ) : serverSearching ? (
+              <div className="py-6 text-center">
+                <p className="text-xs text-slate-500">Searching customers…</p>
+              </div>
             ) : (
               <div className="py-6 text-center space-y-2">
                 <p className="text-xs text-slate-500">No existing customer found matching "{searchQuery}"</p>
