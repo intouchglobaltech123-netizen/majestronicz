@@ -524,6 +524,11 @@ export interface Invoice {
   overallDiscountValue: number;
   overallDiscountAmount: number;
   shippingCharges: number;
+  // F4: GST on delivery/packing (shipping) charges. `...TaxPercent` is the rate
+  // (e.g. 18); `...Tax` is the computed tax, already folded into totalTax /
+  // totalCgst / totalSgst / grandTotal. Absent on pre-F4 bills (treated as 0).
+  shippingChargesTaxPercent?: number;
+  shippingChargesTax?: number;
   roundOff: number;
   roundOffEnabled: boolean;
   grandTotal: number;
@@ -799,6 +804,9 @@ export interface Estimate {
   overallDiscountValue?: number;
   overallDiscountAmount?: number;
   shippingCharges?: number;
+  // F4: GST on delivery/packing charges (mirrors Invoice) — rate + computed tax.
+  shippingChargesTaxPercent?: number;
+  shippingChargesTax?: number;
   roundOff?: number;
   roundOffEnabled?: boolean;
   grandTotal: number;

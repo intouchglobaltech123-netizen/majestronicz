@@ -124,6 +124,8 @@ model Estimate {
   overallDiscountValue Float?
   overallDiscountAmount Float?
   shippingCharges     Float?
+  shippingChargesTaxPercent Float?
+  shippingChargesTax  Float?
   roundOff            Float?
   roundOffEnabled     Boolean?
   grandTotal          Float
@@ -206,6 +208,8 @@ model Invoice {
   overallDiscountValue      Float
   overallDiscountAmount     Float
   shippingCharges           Float
+  shippingChargesTaxPercent Float?
+  shippingChargesTax        Float?
   roundOff                  Float
   roundOffEnabled           Boolean
   grandTotal                Float

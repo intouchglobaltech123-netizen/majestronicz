@@ -38,12 +38,17 @@ function recomputeInvoiceMoney(inv: any) {
   });
   const totals = calculateInvoiceTotals(
     inv.items, withGst, inv.overallDiscountType || '%', inv.overallDiscountValue || 0,
-    inv.shippingCharges || 0, !!inv.roundOffEnabled
+    inv.shippingCharges || 0, !!inv.roundOffEnabled,
+    // F4: GST rate on delivery/packing charges. Absent (older bills) => 0 => no
+    // charge tax, so historical bills recompute unchanged.
+    Number(inv.shippingChargesTaxPercent) || 0
   );
   inv.subtotal = totals.subtotal;
   inv.totalTax = totals.totalTax;
   inv.totalCgst = totals.totalCgst;
   inv.totalSgst = totals.totalSgst;
+  inv.shippingChargesTax = totals.shippingChargesTax;
+  inv.shippingChargesTaxPercent = totals.shippingChargesTaxPercent;
   // Inter-state supply is taxed as IGST, not CGST + SGST (RPT4-3). The total tax is
   // unchanged; it just isn't split into the two state halves. "Tamil Nadu" with or
   // without its code is intra-state (SAL8-5).

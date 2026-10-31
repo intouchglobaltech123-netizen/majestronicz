@@ -170,6 +170,10 @@ export interface InvoiceCalculatedTotals {
   totalSgst: number;
   overallDiscountAmount: number;
   shippingCharges: number;
+  // F4: GST charged on the delivery/packing (shipping) charges, and the rate it
+  // was charged at. Included inside totalTax/totalCgst/totalSgst and grandTotal.
+  shippingChargesTax: number;
+  shippingChargesTaxPercent: number;
   roundOff: number;
   grandTotal: number;
   amountInWords: string;
@@ -190,7 +194,10 @@ export function calculateInvoiceTotals(
   overallDiscountType: DiscountType = '%',
   overallDiscountValue: number = 0,
   shippingCharges: number = 0,
-  roundOffEnabled: boolean = true
+  roundOffEnabled: boolean = true,
+  // F4: GST rate applied to the delivery/packing charges (0 = charge not taxed,
+  // which preserves older bills that carried no rate).
+  shippingTaxPercent: number = 0
 ): InvoiceCalculatedTotals {
   let subtotal = 0;
   let totalTax = 0;
@@ -236,6 +243,16 @@ export function calculateInvoiceTotals(
   }
   // SAL9-13 (mirrors the server): the bill's tax is split once — SGST half of
   // it rounded, CGST the rest, so they differ by at most ₹0.01.
+  // F4 (client 2026-10-31): GST on the delivery/packing (shipping) charges, taxed
+  // INDEPENDENTLY of the product base prices. Only on a GST bill and only when a
+  // rate is supplied. Folded into the bill's total tax BEFORE the CGST/SGST split
+  // (so the halves, the GST breakdown and the GST reports all include it) and
+  // added on top of the shipping base in the grand total.
+  const shipRate = withGst ? Math.max(0, Number(shippingTaxPercent) || 0) : 0;
+  const shippingChargesTax = shipRate > 0 ? Math.round(shipping * shipRate) / 100 : 0;
+  if (withGst && shippingChargesTax > 0) {
+    totalTax = Math.round((totalTax + shippingChargesTax) * 100) / 100;
+  }
   if (withGst) {
     totalSgst = Math.round((totalTax / 2) * 100) / 100;
     totalCgst = Math.round((totalTax - totalSgst) * 100) / 100;
@@ -262,6 +279,8 @@ export function calculateInvoiceTotals(
     totalSgst,
     overallDiscountAmount,
     shippingCharges: shipping,
+    shippingChargesTax,
+    shippingChargesTaxPercent: shipRate,
     roundOff,
     grandTotal,
     amountInWords,

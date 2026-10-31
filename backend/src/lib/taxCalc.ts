@@ -49,7 +49,9 @@ export function calculateInvoiceTotals(
   overallDiscountType: '%' | 'amount' = '%',
   overallDiscountValue = 0,
   shippingCharges = 0,
-  roundOffEnabled = true
+  roundOffEnabled = true,
+  // F4: GST rate on delivery/packing charges (0 = not taxed; preserves old bills).
+  shippingTaxPercent = 0
 ) {
   let subtotal = 0, totalTax = 0, totalCgst = 0, totalSgst = 0;
   for (const item of items) {
@@ -79,6 +81,14 @@ export function calculateInvoiceTotals(
   // SAL9-13: the bill's tax is split ONCE: SGST is half of it rounded to the
   // paisa and CGST the rest, so the two differ by at most ₹0.01 (summing each
   // line's own split let CGST run several paisa ahead on long bills).
+  // F4 (client 2026-10-31): GST on delivery/packing (shipping) charges, taxed
+  // INDEPENDENTLY of product base prices. Folded into total tax before the split
+  // so CGST/SGST + GST reports include it; added on top of the shipping base.
+  const shipRate = withGst ? Math.max(0, Number(shippingTaxPercent) || 0) : 0;
+  const shippingChargesTax = shipRate > 0 ? Math.round(shipping * shipRate) / 100 : 0;
+  if (withGst && shippingChargesTax > 0) {
+    totalTax = r2(totalTax + shippingChargesTax);
+  }
   if (withGst) {
     totalSgst = r2(totalTax / 2);
     totalCgst = r2(totalTax - totalSgst);
@@ -96,7 +106,8 @@ export function calculateInvoiceTotals(
 
   return {
     subtotal, totalTax, totalCgst, totalSgst, overallDiscountAmount,
-    shippingCharges: shipping, roundOff, grandTotal, amountInWords: numberToWordsIndian(grandTotal),
+    shippingCharges: shipping, shippingChargesTax, shippingChargesTaxPercent: shipRate,
+    roundOff, grandTotal, amountInWords: numberToWordsIndian(grandTotal),
   };
 }
 

@@ -519,6 +519,10 @@ export const InvoiceForm: React.FC<Props> = ({
   const [overallDiscountType, setOverallDiscountType] = useState<DiscountType>('%');
   const [overallDiscountValue, setOverallDiscountValue] = useState<number>(0);
   const [shippingCharges, setShippingCharges] = useState<number>(0);
+  // F4: GST rate on delivery/packing charges. New bills default to 18%; taxed only
+  // when there's a charge on a GST bill. Existing bills reopen with their stored
+  // rate (0 for pre-F4 bills, so their totals never change retroactively).
+  const [shippingChargesTaxPercent, setShippingChargesTaxPercent] = useState<number>(18);
   const [roundOffEnabled, setRoundOffEnabled] = useState(true);
   // Cash tendered by a walk-in customer — a counter helper only, to work out the
   // change to hand back (bill ₹550, customer gives ₹600 → return ₹50). It is NOT
@@ -620,6 +624,9 @@ export const InvoiceForm: React.FC<Props> = ({
       setOverallDiscountType(initialInvoice.overallDiscountType || '%');
       setOverallDiscountValue(initialInvoice.overallDiscountValue || 0);
       setShippingCharges(initialInvoice.shippingCharges || 0);
+      // Editing an existing bill keeps its stored rate (0 for pre-F4 bills) so its
+      // total never changes retroactively.
+      setShippingChargesTaxPercent(initialInvoice.shippingChargesTaxPercent ?? 0);
       setRoundOffEnabled(initialInvoice.roundOffEnabled ?? true);
       setTerms(initialInvoice.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
       setDescription(initialInvoice.description || '');
@@ -646,6 +653,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setOverallDiscountType(convertedFromEstimate.overallDiscountType || '%');
       setOverallDiscountValue(convertedFromEstimate.overallDiscountValue || 0);
       setShippingCharges(convertedFromEstimate.shippingCharges || 0);
+      setShippingChargesTaxPercent(convertedFromEstimate.shippingChargesTaxPercent ?? 18);
       setRoundOffEnabled(convertedFromEstimate.roundOffEnabled ?? true);
 
       // Map Estimate line items to Invoice line items (preserve per-line discounts)
@@ -721,6 +729,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setOverallDiscountType(initialEstimate.overallDiscountType || '%');
       setOverallDiscountValue(initialEstimate.overallDiscountValue || 0);
       setShippingCharges(initialEstimate.shippingCharges || 0);
+      setShippingChargesTaxPercent(initialEstimate.shippingChargesTaxPercent ?? 0);
       setRoundOffEnabled(initialEstimate.roundOffEnabled ?? true);
 
       const quoteItems: InvoiceLineItem[] = initialEstimate.items.map((estItem) => {
@@ -779,6 +788,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setOverallDiscountType(duplicateSourceEstimate.overallDiscountType || '%');
       setOverallDiscountValue(duplicateSourceEstimate.overallDiscountValue || 0);
       setShippingCharges(duplicateSourceEstimate.shippingCharges || 0);
+      setShippingChargesTaxPercent(duplicateSourceEstimate.shippingChargesTaxPercent ?? 18);
       setRoundOffEnabled(duplicateSourceEstimate.roundOffEnabled ?? true);
 
       const dupQuoteItems: InvoiceLineItem[] = duplicateSourceEstimate.items.map((estItem) => {
@@ -848,6 +858,7 @@ export const InvoiceForm: React.FC<Props> = ({
       setOverallDiscountType(duplicateSourceInvoice.overallDiscountType || '%');
       setOverallDiscountValue(duplicateSourceInvoice.overallDiscountValue || 0);
       setShippingCharges(duplicateSourceInvoice.shippingCharges || 0);
+      setShippingChargesTaxPercent(duplicateSourceInvoice.shippingChargesTaxPercent ?? 18);
       setRoundOffEnabled(duplicateSourceInvoice.roundOffEnabled ?? true);
       setTerms(duplicateSourceInvoice.termsAndConditions || INVOICE_TERMS_PRESETS[0].terms);
       setDescription(duplicateSourceInvoice.description || '');
@@ -922,6 +933,7 @@ export const InvoiceForm: React.FC<Props> = ({
     if (seed.overallDiscountType) setOverallDiscountType(seed.overallDiscountType);
     if (seed.overallDiscountValue != null) setOverallDiscountValue(seed.overallDiscountValue);
     if (seed.shippingCharges != null) setShippingCharges(seed.shippingCharges);
+    if (seed.shippingChargesTaxPercent != null) setShippingChargesTaxPercent(seed.shippingChargesTaxPercent);
     if (seed.invoiceNumber) setInvoiceNumber(seed.invoiceNumber);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1685,7 +1697,8 @@ export const InvoiceForm: React.FC<Props> = ({
       overallDiscountType,
       overallDiscountValue,
       shippingCharges,
-      roundOffEnabled
+      roundOffEnabled,
+      shippingChargesTaxPercent
     );
   }, [
     lineItems,
@@ -1693,6 +1706,7 @@ export const InvoiceForm: React.FC<Props> = ({
     overallDiscountType,
     overallDiscountValue,
     shippingCharges,
+    shippingChargesTaxPercent,
     roundOffEnabled,
   ]);
 
@@ -2062,6 +2076,8 @@ export const InvoiceForm: React.FC<Props> = ({
       isLoyaltyRewardApplied,
       loyaltyRewardDiscountAmount: isLoyaltyRewardApplied ? totals.overallDiscountAmount : undefined,
       shippingCharges,
+      shippingChargesTaxPercent,
+      shippingChargesTax: totals.shippingChargesTax,
       roundOff: totals.roundOff,
       roundOffEnabled,
       grandTotal: totals.grandTotal,
@@ -2188,6 +2204,8 @@ export const InvoiceForm: React.FC<Props> = ({
       overallDiscountValue,
       overallDiscountAmount: totals.overallDiscountAmount,
       shippingCharges,
+      shippingChargesTaxPercent,
+      shippingChargesTax: totals.shippingChargesTax,
       roundOff: totals.roundOff,
       roundOffEnabled,
       grandTotal: totals.grandTotal,
@@ -2422,7 +2440,7 @@ export const InvoiceForm: React.FC<Props> = ({
     }, 700);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineItems, customerName, customerPhone, customerAddress, customerId, date, paymentSplits, overallDiscountType, overallDiscountValue, shippingCharges, roundOffEnabled, withGst, documentType, salespersonId, terms]);
+  }, [lineItems, customerName, customerPhone, customerAddress, customerId, date, paymentSplits, overallDiscountType, overallDiscountValue, shippingCharges, shippingChargesTaxPercent, roundOffEnabled, withGst, documentType, salespersonId, terms]);
 
   // AUTOSAVE SAFETY NET: the 700ms autosave above can miss the last changes when
   // the page suddenly reloads (a deploy, a session timeout that bounces to the
@@ -4066,6 +4084,29 @@ export const InvoiceForm: React.FC<Props> = ({
               className="w-36 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-right focus:outline-none focus:border-blue-600"
             />
           </div>
+
+          {/* F4: GST on the delivery / packing charge — taxed on its own, not
+              rolled into product prices. Rate is editable; default 18%. */}
+          {withGst && shippingCharges > 0 && (
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>GST on delivery / packing:</span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={shippingChargesTaxPercent}
+                  onChange={(e) => setShippingChargesTaxPercent(Number(e.target.value))}
+                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
+                  title="GST rate applied to the delivery / packing charge"
+                >
+                  {[0, 5, 12, 18, 28].map((r) => (
+                    <option key={r} value={r}>{r}%</option>
+                  ))}
+                </select>
+                <span className="font-mono font-semibold text-slate-800 w-20 text-right">
+                  {formatCurrency(totals.shippingChargesTax)}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* GST Taxes (If With GST) */}
           {withGst && (

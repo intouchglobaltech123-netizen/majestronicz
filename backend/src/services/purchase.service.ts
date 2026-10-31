@@ -609,7 +609,25 @@ export function receivePurchaseOrderStock(
       if (goodQty <= 0) continue;
       const item = await tx.item.findUnique({ where: { id: rec.itemId } });
       if (!item) continue;
-      const data: any = { purchasePrice: rec.purchasePrice, updatedAt: ts };
+
+      // PUR-HIGHEST-PP (client 2026-10-31): the reference purchase price that
+      // drives the sale price must track the HIGHEST cost among stock still on
+      // hand — NEVER an average, and it must NOT drop when a later batch is bought
+      // cheaper while dearer stock is still unsold (that would erode margin on the
+      // dearer units). Only when the item is OUT of stock does a fresh batch
+      // (even a cheaper one) reset the price. On-hand is read BEFORE this receipt's
+      // increment (the stock upsert below runs later). Without per-batch lots we
+      // can't know the exact cost of the units left, so we hold the high mark
+      // while any stock remains — deliberately never under-pricing.
+      const onHandAgg = await tx.branchStock.aggregate({
+        _sum: { quantity: true }, where: { itemId: rec.itemId },
+      });
+      const onHand = Number(onHandAgg._sum.quantity) || 0;
+      const curPP = Number(item.purchasePrice) || 0;
+      const newPP = Number(rec.purchasePrice);
+      const effectivePP = onHand > 0 ? Math.max(curPP, newPP) : newPP;
+
+      const data: any = { purchasePrice: effectivePP, updatedAt: ts };
       const mult = item.marginCategory === 'D'
         ? (item.customMarginPercent != null && item.customMarginPercent >= 0 ? 1 + item.customMarginPercent / 100 : undefined)
         : (item.marginCategory ? marginMult[item.marginCategory] : undefined);
@@ -620,9 +638,10 @@ export function receivePurchaseOrderStock(
         // revenue (salePrice ÷ (1+gst)) falls BELOW cost whenever margin% < GST%
         // and the item would be repriced below cost on restock (H5).
         const gst = Number(item.gstTaxSlab) || 0;
-        const net = rec.purchasePrice * mult;
+        const net = effectivePP * mult;
         const priced = item.salePriceTaxMode === 'with' ? net * (1 + gst / 100) : net;
-        data.salePrice = Math.round(priced * 100) / 100;
+        // Whole-rupee sale price (matches computeMarginSalePrice on the client).
+        data.salePrice = Math.round(priced);
       }
       await tx.item.update({ where: { id: rec.itemId }, data });
     }

@@ -53,12 +53,15 @@ function recomputeEstimateMoney(est: any) {
   });
   const totals = calculateInvoiceTotals(
     est.items, withGst, est.overallDiscountType || '%', est.overallDiscountValue || 0,
-    est.shippingCharges || 0, est.roundOffEnabled !== false
+    est.shippingCharges || 0, est.roundOffEnabled !== false,
+    Number(est.shippingChargesTaxPercent) || 0 // F4: GST on delivery/packing
   );
   est.subtotal = totals.subtotal;
   est.totalTax = totals.totalTax;
   est.totalCgst = totals.totalCgst;
   est.totalSgst = totals.totalSgst;
+  est.shippingChargesTax = totals.shippingChargesTax;
+  est.shippingChargesTaxPercent = totals.shippingChargesTaxPercent;
   applySupplySplit(est); // inter-state quote → IGST (SAL8-5)
   est.overallDiscountAmount = totals.overallDiscountAmount;
   est.shippingCharges = totals.shippingCharges;
