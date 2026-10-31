@@ -560,6 +560,34 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
             {activeTab === 'pricing' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* F2 (client 2026-10-31): Purchase Price moved to the TOP of the
+                      pricing grid — it's the cost the sale price is derived from, so
+                      it reads first/most intuitively. */}
+                  {currentUser.role !== 'Sales' && hasFlag('view.purchaseCost') && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <span>Purchase Price (₹)</span>
+                        <span className="text-[11px] text-slate-400">Default purchase cost</span>
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="any"
+                        value={purchasePrice}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          setPurchasePrice(val);
+                          applyMarginPrice(Number(val) || 0, marginCategory);
+                        }}
+                        className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Default cost — used as starting point for Purchase Orders, editable per order
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                       <span>Sale Price (₹)</span>
@@ -635,31 +663,6 @@ export const EditItemModal: React.FC<Props> = ({ item, isOpen, onClose, initialT
                           className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
                         />
                       </div>
-
-                      {hasFlag('view.purchaseCost') && (
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                          <span>Purchase Price (₹)</span>
-                          <span className="text-[11px] text-slate-400">Default purchase cost</span>
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="0.00"
-                          min="0"
-                          step="any"
-                          value={purchasePrice}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            setPurchasePrice(val);
-                            applyMarginPrice(Number(val) || 0, marginCategory);
-                          }}
-                          className="w-full px-3.5 py-2 rounded-none bg-white border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-red-600"
-                        />
-                        <p className="text-[11px] text-slate-500">
-                          Default cost — used as starting point for Purchase Orders, editable per order
-                        </p>
-                      </div>
-                      )}
 
                       {/* Vendors / Suppliers — one or more, each with its own code */}
                       <ItemVendorsEditor
